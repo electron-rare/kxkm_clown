@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="hat" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#ff4d6d"/>
+      <stop offset="1" stop-color="#ffbe0b"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="34" r="19" fill="#fff4d6" stroke="#161625" stroke-width="3"/>
+  <circle cx="17" cy="29" r="9" fill="#00d9ff" stroke="#161625" stroke-width="3"/>
+  <circle cx="47" cy="29" r="9" fill="#ffd23f" stroke="#161625" stroke-width="3"/>
+  <path d="M25 14h14l-3-7h-8z" fill="url(#hat)" stroke="#161625" stroke-linejoin="round" stroke-width="3"/>
+  <circle cx="32" cy="5.5" r="4" fill="#39d98a" stroke="#161625" stroke-width="3"/>
+  <circle cx="25.5" cy="30" r="2.6" fill="#161625"/>
+  <circle cx="38.5" cy="30" r="2.6" fill="#161625"/>
+  <circle cx="32" cy="37" r="5.5" fill="#ff3b30" stroke="#161625" stroke-width="3"/>
+  <circle cx="22" cy="38.5" r="3.2" fill="#ff8fab"/>
+  <circle cx="42" cy="38.5" r="3.2" fill="#ff8fab"/>
+  <path d="M23 46c2.7 4 6 6 9 6s6.3-2 9-6" fill="none" stroke="#d90429" stroke-linecap="round" stroke-width="3.5"/>
+</svg>

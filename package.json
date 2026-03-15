@@ -1,0 +1,18 @@
+{
+  "name": "kxkm-clown",
+  "version": "0.1.0",
+  "description": "KXKM_Clown — mIRC-style local LLM chat",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "node scripts/build.js",
+    "check": "node scripts/check.js",
+    "smoke": "node scripts/smoke.js",
+    "verify": "npm run check && npm run smoke"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  }
+}

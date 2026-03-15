@@ -1,0 +1,10 @@
+node_modules/
+dist/
+
+.DS_Store
+*.log
+
+data/*
+!data/.gitkeep
+!data/manifeste.md
+!data/manifeste_references_nouvelles.md

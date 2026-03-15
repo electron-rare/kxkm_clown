@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · KXKM_Clown</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <div class="admin-shell">
+    <header class="admin-header">
+      <div>
+        <p class="eyebrow">KXKM_Clown</p>
+        <h1>Admin global</h1>
+        <p class="lead">Pilotage unifié des personas, du runtime, des canaux et des données locales.</p>
+      </div>
+      <div class="header-actions">
+        <label class="token-field">
+          <span>Token admin</span>
+          <input id="admin-token" type="password" placeholder="bootstrap token">
+        </label>
+        <button id="save-token-button" type="button">Charger le token</button>
+        <button id="refresh-button" class="secondary" type="button">Rafraîchir</button>
+        <a class="secondary-link" href="/admin/personas.html" target="_blank" rel="noopener">Ouvrir la page personas</a>
+      </div>
+    </header>
+
+    <section class="status-strip">
+      <div class="status-box">
+        <span class="status-label">Connexion</span>
+        <strong id="status-connection">—</strong>
+      </div>
+      <div class="status-box">
+        <span class="status-label">Clients</span>
+        <strong id="status-clients">—</strong>
+      </div>
+      <div class="status-box">
+        <span class="status-label">Sessions</span>
+        <strong id="status-sessions">—</strong>
+      </div>
+      <div class="status-box">
+        <span class="status-label">Personas actives</span>
+        <strong id="status-personas">—</strong>
+      </div>
+      <div class="status-box">
+        <span class="status-label">Modèles</span>
+        <strong id="status-models">—</strong>
+      </div>
+    </section>
+
+    <div id="status-banner" class="status-banner info">Prêt.</div>
+
+    <div class="admin-layout">
+      <nav class="admin-nav">
+        <button type="button" class="nav-item" data-module="dashboard">Dashboard</button>
+        <button type="button" class="nav-item" data-module="personas">Personas</button>
+        <button type="button" class="nav-item" data-module="runtime">Runtime</button>
+        <button type="button" class="nav-item" data-module="channels">Canaux</button>
+        <button type="button" class="nav-item" data-module="data">Données</button>
+        <button type="button" class="nav-item" data-module="node-engine">Node Engine</button>
+      </nav>
+
+      <main class="admin-main">
+        <section class="module-card">
+          <div class="module-head">
+            <div>
+              <p class="eyebrow" id="module-eyebrow">Module</p>
+              <h2 id="module-title">Chargement</h2>
+            </div>
+            <p id="module-summary" class="module-summary">Préparation de l’admin global.</p>
+          </div>
+          <div id="module-root"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="/admin/admin.js"></script>
+</body>
+</html>

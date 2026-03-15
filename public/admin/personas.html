@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestion Personas · KXKM_Clown</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/vendor/drawflow/drawflow.min.css">
+<style>
+  :root {
+    --bg: #090913;
+    --bg2: #121226;
+    --panel: rgba(20, 20, 40, 0.9);
+    --panel-alt: rgba(12, 12, 26, 0.9);
+    --fg: #d5d5e6;
+    --fg-dim: #7f80a2;
+    --cyan: #00e5ff;
+    --yellow: #ffe066;
+    --green: #39ff7f;
+    --red: #ff5c7c;
+    --border: #2d2d49;
+    --input: #0f1020;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, rgba(0, 229, 255, 0.08), transparent 30%),
+      radial-gradient(circle at top right, rgba(255, 224, 102, 0.1), transparent 32%),
+      linear-gradient(180deg, #06060d 0%, #0c0c18 40%, #090913 100%);
+    color: var(--fg);
+    font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+  }
+
+  main {
+    width: min(1400px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 24px 0 48px;
+  }
+
+  .hero {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 24px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    background: linear-gradient(135deg, rgba(0, 229, 255, 0.08), rgba(255, 224, 102, 0.04));
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  }
+
+  h1, h2, h3 {
+    margin: 0;
+  }
+
+  h1 {
+    color: var(--cyan);
+    font-size: clamp(28px, 4vw, 44px);
+    line-height: 1.1;
+  }
+
+  .lead {
+    margin: 0;
+    color: var(--fg-dim);
+    line-height: 1.6;
+    max-width: 90ch;
+  }
+
+  .toolbar {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(240px, 320px) auto auto 1fr;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  input,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  .toolbar input,
+  .persona-card input,
+  .persona-card textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: var(--input);
+    color: var(--fg);
+    padding: 10px 12px;
+    border-radius: 4px;
+  }
+
+  textarea {
+    min-height: 110px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  button {
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(0, 229, 255, 0.16), rgba(0, 229, 255, 0.06));
+    color: var(--fg);
+    padding: 10px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  button.secondary {
+    background: linear-gradient(180deg, rgba(255, 224, 102, 0.16), rgba(255, 224, 102, 0.06));
+  }
+
+  button.danger {
+    background: linear-gradient(180deg, rgba(255, 92, 124, 0.18), rgba(255, 92, 124, 0.08));
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .status {
+    min-height: 42px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--fg-dim);
+    line-height: 1.5;
+  }
+
+  .status.ok { color: var(--green); }
+  .status.error { color: var(--red); }
+  .status.info { color: var(--yellow); }
+
+  .grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .persona-card {
+    display: grid;
+    gap: 16px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  }
+
+  .persona-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .persona-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--fg-dim);
+    font-size: 14px;
+  }
+
+  .pill {
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .fields {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .field {
+    display: grid;
+    gap: 6px;
+  }
+
+  .field.full {
+    grid-column: 1 / -1;
+  }
+
+  label {
+    color: var(--cyan);
+    font-size: 13px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .section-box {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--panel-alt);
+  }
+
+  .section-box.is-focused {
+    border-color: rgba(0, 229, 255, 0.46);
+    box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.16), 0 0 40px rgba(0, 229, 255, 0.08);
+  }
+
+  .section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hint {
+    color: var(--fg-dim);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .small {
+    font-size: 13px;
+    color: var(--fg-dim);
+  }
+
+  .log-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .log-entry {
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+    line-height: 1.5;
+  }
+
+  .log-entry code {
+    color: var(--yellow);
+  }
+
+  .empty {
+    color: var(--fg-dim);
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    padding: 12px;
+  }
+
+  .graph-shell {
+    gap: 18px;
+  }
+
+  .graph-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .graph-toolbar select {
+    min-width: 220px;
+    border: 1px solid var(--border);
+    background: var(--input);
+    color: var(--fg);
+    padding: 10px 12px;
+    border-radius: 4px;
+  }
+
+  .graph-layout {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.9fr);
+    align-items: start;
+  }
+
+  .graph-canvas-wrap {
+    position: relative;
+    min-height: 680px;
+    border: 1px solid var(--border);
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      radial-gradient(circle at top left, rgba(0, 229, 255, 0.1), transparent 28%),
+      linear-gradient(180deg, rgba(10, 10, 24, 0.96), rgba(7, 7, 18, 0.96));
+    background-size: 24px 24px, 24px 24px, auto, auto;
+    overflow: auto;
+  }
+
+  .graph-canvas {
+    position: relative;
+    width: 100%;
+    min-width: 1080px;
+    min-height: 680px;
+  }
+
+  #graph-canvas.parent-drawflow {
+    width: 100%;
+    min-height: 680px;
+    outline: none;
+  }
+
+  #graph-canvas .drawflow {
+    width: 1080px;
+    min-height: 680px;
+    background: transparent;
+  }
+
+  #graph-canvas .drawflow-node {
+    width: auto;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  #graph-canvas .drawflow-node .drawflow_content_node {
+    background: transparent;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  #graph-canvas .drawflow-node .input,
+  #graph-canvas .drawflow-node .output,
+  #graph-canvas .drawflow-delete {
+    width: 0;
+    height: 0;
+    margin: 0;
+    border: none;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #graph-canvas .drawflow-node.graph-active .graph-node,
+  #graph-canvas .drawflow-node.selected .graph-node {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.35), 0 24px 45px rgba(0, 0, 0, 0.32);
+  }
+
+  #graph-canvas .connection .main-path {
+    stroke: rgba(0, 229, 255, 0.34);
+    stroke-width: 3px;
+  }
+
+  #graph-canvas .connection.selected .main-path {
+    stroke: rgba(255, 224, 102, 0.86);
+  }
+
+  .graph-wires {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .graph-wire {
+    fill: none;
+    stroke: rgba(0, 229, 255, 0.34);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+  }
+
+  .graph-wire.glow {
+    stroke: rgba(255, 224, 102, 0.12);
+    stroke-width: 8;
+  }
+
+  .graph-node {
+    position: absolute;
+    width: 220px;
+    padding: 14px 14px 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(18, 18, 38, 0.96), rgba(10, 10, 24, 0.96));
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.26);
+    cursor: grab;
+    user-select: none;
+    transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  }
+
+  .graph-node:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-2px);
+  }
+
+  .graph-node.selected {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.35), 0 24px 45px rgba(0, 0, 0, 0.32);
+  }
+
+  .graph-node.dragging {
+    cursor: grabbing;
+    transform: scale(1.01);
+  }
+
+  .graph-node.kind-persona { border-left: 4px solid var(--cyan); }
+  .graph-node.kind-source { border-left: 4px solid var(--yellow); }
+  .graph-node.kind-corpus { border-left: 4px solid #7ae582; }
+  .graph-node.kind-style { border-left: 4px solid #ff8fab; }
+  .graph-node.kind-model { border-left: 4px solid #72ddf7; }
+  .graph-node.kind-feedback { border-left: 4px solid #f7b267; }
+  .graph-node.kind-pharmacius { border-left: 4px solid #c77dff; }
+  .graph-node.kind-runtime { border-left: 4px solid #39ff7f; }
+  .graph-node.kind-proposals { border-left: 4px solid #ff5c7c; }
+
+  .graph-node-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+
+  .graph-node-title {
+    font-size: 15px;
+    color: var(--white);
+    line-height: 1.3;
+  }
+
+  .graph-node-kind {
+    font-size: 11px;
+    color: var(--fg-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .graph-node-badge {
+    flex-shrink: 0;
+    padding: 3px 7px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--yellow);
+    font-size: 11px;
+  }
+
+  .graph-node-body {
+    display: grid;
+    gap: 8px;
+  }
+
+  .graph-node-text {
+    color: var(--fg);
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+  }
+
+  .graph-node-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .graph-mini {
+    padding: 3px 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--fg-dim);
+    font-size: 11px;
+  }
+
+  .graph-inspector {
+    display: grid;
+    gap: 14px;
+    position: sticky;
+    top: 20px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(17, 17, 34, 0.96), rgba(10, 10, 24, 0.96));
+  }
+
+  .graph-inspector h3 {
+    color: var(--cyan);
+    font-size: 18px;
+  }
+
+  .graph-inspector p,
+  .graph-inspector ul {
+    margin: 0;
+    line-height: 1.6;
+    color: var(--fg);
+  }
+
+  .graph-inspector ul {
+    padding-left: 18px;
+  }
+
+  .graph-inspector code {
+    color: var(--yellow);
+  }
+
+  .graph-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 1100px) {
+    .toolbar {
+      grid-template-columns: 1fr;
+    }
+
+    .fields {
+      grid-template-columns: 1fr;
+    }
+
+    .persona-head {
+      flex-direction: column;
+    }
+
+    .persona-actions {
+      justify-content: flex-start;
+    }
+
+    .graph-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .graph-inspector {
+      position: static;
+    }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <h1>Gestion locale des personas</h1>
+    <p class="lead">
+      Cette page pilote les overrides locaux, le dossier source, le feedback chat et l’historique des propositions
+      pour chaque persona. Les changements actifs restent dans <code>data/</code> et ne modifient pas le catalogue source.
+    </p>
+    <p class="lead">
+      `Pharmacius` peut proposer et appliquer automatiquement des révisions sur le nom, le modèle et la personnalité.
+      Chaque changement reste journalisé et réversible depuis cette interface.
+    </p>
+  </section>
+
+  <section class="toolbar">
+    <input id="token-input" type="password" placeholder="Token bootstrap admin local">
+    <button id="load-button">Charger</button>
+    <button id="refresh-button" class="secondary">Recharger</button>
+    <div id="status" class="status info">Saisis le token admin puis charge l’état complet des personas.</div>
+  </section>
+
+  <section class="persona-card">
+    <div class="section-title">
+      <h3>Créer une persona sourcée</h3>
+      <div class="persona-actions">
+        <button id="create-button" type="button">Créer depuis source</button>
+      </div>
+    </div>
+    <div class="fields">
+      <div class="field">
+        <label for="create-id">ID</label>
+        <input id="create-id" maxlength="32" placeholder="ex: deleuze">
+      </div>
+      <div class="field">
+        <label for="create-name">Nom affiché</label>
+        <input id="create-name" maxlength="20" placeholder="ex: Deleuze">
+      </div>
+      <div class="field">
+        <label for="create-model">Modèle</label>
+        <input id="create-model" placeholder="ex: qwen2.5:14b">
+      </div>
+      <div class="field">
+        <label for="create-query">Requête</label>
+        <input id="create-query" placeholder="ex: Gilles Deleuze interviews bibliographie">
+      </div>
+      <div class="field full">
+        <label for="create-tone">Ton / posture</label>
+        <textarea id="create-tone" placeholder="précis, conceptuel, critique, toujours en français"></textarea>
+      </div>
+      <div class="field">
+        <label for="create-themes">Thèmes</label>
+        <textarea id="create-themes" placeholder="1 thème par ligne"></textarea>
+      </div>
+      <div class="field">
+        <label for="create-lexicon">Lexique</label>
+        <textarea id="create-lexicon" placeholder="1 terme par ligne"></textarea>
+      </div>
+      <div class="field">
+        <label for="create-facts">Faits stables</label>
+        <textarea id="create-facts" placeholder="1 fait par ligne"></textarea>
+      </div>
+      <div class="field">
+        <label for="create-quotes">Citations</label>
+        <textarea id="create-quotes" placeholder="1 citation par ligne"></textarea>
+      </div>
+      <div class="field full">
+        <label for="create-notes">Notes éditoriales</label>
+        <textarea id="create-notes" placeholder="résumé du dossier source, angles à garder, lignes rouges"></textarea>
+      </div>
+      <div class="field full">
+        <label for="create-sources">Sources (titre | url | notes)</label>
+        <textarea id="create-sources" placeholder="Titre | https://source | note"></textarea>
+      </div>
+    </div>
+    <div class="hint">La persona créée est locale, persistée dans <code>data/</code>, et reste modifiable ensuite via le même écran.</div>
+  </section>
+
+  <section class="persona-card graph-shell">
+    <div class="section-title">
+      <div>
+        <h3>Carte nodale éditoriale</h3>
+        <div class="hint">Vue graphe d’une persona: source, corpus, feedback, Pharmacius et runtime actif.</div>
+      </div>
+      <div class="graph-toolbar">
+        <select id="graph-persona-select" aria-label="Persona du graphe">
+          <option value="">— choisir une persona —</option>
+        </select>
+        <button id="graph-center-button" class="secondary" type="button">Recentrer le graphe</button>
+      </div>
+    </div>
+    <div class="graph-legend">
+      <span class="graph-mini">Source</span>
+      <span class="graph-mini">Corpus</span>
+      <span class="graph-mini">Style</span>
+      <span class="graph-mini">Feedback</span>
+      <span class="graph-mini">Pharmacius</span>
+      <span class="graph-mini">Runtime</span>
+    </div>
+    <div class="graph-layout">
+      <div class="graph-canvas-wrap">
+        <div id="graph-canvas" class="graph-canvas"></div>
+      </div>
+      <aside id="graph-inspector" class="graph-inspector">
+        <h3>Inspecteur nodal</h3>
+        <p class="hint">Charge les personas puis sélectionne un nœud pour voir sa provenance et ouvrir la section d’édition liée.</p>
+      </aside>
+    </div>
+  </section>
+
+  <section id="persona-grid" class="grid"></section>
+</main>
+
+<script type="text/plain" data-disabled="migrated-to-admin-js">
+const tokenInput = document.getElementById("token-input");
+const loadButton = document.getElementById("load-button");
+const refreshButton = document.getElementById("refresh-button");
+const createButton = document.getElementById("create-button");
+const statusEl = document.getElementById("status");
+const personaGrid = document.getElementById("persona-grid");
+const createIdInput = document.getElementById("create-id");
+const createNameInput = document.getElementById("create-name");
+const createModelInput = document.getElementById("create-model");
+const createQueryInput = document.getElementById("create-query");
+const createToneInput = document.getElementById("create-tone");
+const createThemesInput = document.getElementById("create-themes");
+const createLexiconInput = document.getElementById("create-lexicon");
+const createFactsInput = document.getElementById("create-facts");
+const createQuotesInput = document.getElementById("create-quotes");
+const createNotesInput = document.getElementById("create-notes");
+const createSourcesInput = document.getElementById("create-sources");
+const graphPersonaSelect = document.getElementById("graph-persona-select");
+const graphCenterButton = document.getElementById("graph-center-button");
+const graphCanvas = document.getElementById("graph-canvas");
+const graphWires = document.getElementById("graph-wires");
+const graphInspector = document.getElementById("graph-inspector");
+
+let adminToken = "";
+let personas = [];
+let selectedGraphPersonaId = "";
+let selectedGraphNodeId = "";
+let dragState = null;
+
+function setStatus(text, tone = "info") {
+  statusEl.textContent = text;
+  statusEl.className = `status ${tone}`;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text == null ? "" : String(text);
+  return div.innerHTML;
+}
+
+function toMultiline(value) {
+  return Array.isArray(value) ? value.join("\n") : "";
+}
+
+function parseLines(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseSourceRefs(value) {
+  return parseLines(value).map((line) => {
+    const parts = line.split("|").map((item) => item.trim());
+    return {
+      title: parts[0] || "",
+      url: parts[1] || "",
+      notes: parts[2] || "",
+    };
+  }).filter((entry) => entry.title || entry.url || entry.notes);
+}
+
+async function apiFetch(path, options = {}) {
+  if (!adminToken) {
+    throw new Error("Token admin requis");
+  }
+
+  const headers = new Headers(options.headers || {});
+  headers.set("x-admin-bootstrap-token", adminToken);
+  if (options.body && !headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
+  const response = await fetch(path, {
+    ...options,
+    headers,
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || `Erreur HTTP ${response.status}`);
+  }
+  return payload;
+}
+
+function renderFeedback(items) {
+  if (!items.length) {
+    return '<div class="empty">Aucun signal de feedback enregistré pour cette persona.</div>';
+  }
+
+  return items.map((entry) => `
+    <div class="log-entry">
+      <div><strong>${escapeHtml(entry.kind)}</strong> · ${escapeHtml(entry.actor || "runtime")} · ${escapeHtml(entry.channel || "—")}</div>
+      <div class="small">${escapeHtml(entry.ts || "")}</div>
+      <div>${escapeHtml(entry.reason || entry.payload?.note || "")}</div>
+      <div class="small">${escapeHtml(JSON.stringify(entry.payload || {}))}</div>
+    </div>
+  `).join("");
+}
+
+function renderProposals(items) {
+  if (!items.length) {
+    return '<div class="empty">Aucune proposition journalisée pour cette persona.</div>';
+  }
+
+  return items.map((entry) => {
+    const before = entry.before || {};
+    const after = entry.after || {};
+    const flags = [];
+    if (entry.applied) flags.push("appliquée");
+    if (entry.revertedAt) flags.push(`revert ${entry.revertedAt}`);
+    return `
+      <div class="log-entry">
+        <div><strong>${escapeHtml(entry.mode || "proposal")}</strong> · ${escapeHtml(entry.proposer || "runtime")} · ${escapeHtml(entry.id || "")}</div>
+        <div class="small">${escapeHtml(entry.ts || "")}${flags.length ? ` · ${escapeHtml(flags.join(" · "))}` : ""}</div>
+        <div>${escapeHtml(entry.reason || "")}</div>
+        <div class="small">
+          avant: <code>${escapeHtml(`${before.name || "?"} | ${before.model || "?"}`)}</code><br>
+          après: <code>${escapeHtml(`${after.name || "?"} | ${after.model || "?"}`)}</code>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderPersonas(items) {
+  personaGrid.innerHTML = "";
+
+  if (!items.length) {
+    personaGrid.innerHTML = '<div class="status info">Aucune persona reçue.</div>';
+    return;
+  }
+
+  for (const persona of items) {
+    const article = document.createElement("article");
+    article.className = "persona-card";
+    article.dataset.personaId = persona.id;
+    article.innerHTML = `
+      <div class="persona-head">
+        <div>
+          <h2>${escapeHtml(persona.name)}</h2>
+          <div class="meta">
+            <span class="pill">id: ${escapeHtml(persona.id)}</span>
+            <span class="pill">base: ${escapeHtml(persona.baseName)}</span>
+            <span class="pill">couleur: ${escapeHtml(persona.color)}</span>
+            <span class="pill">priorité: ${escapeHtml(String(persona.priority))}</span>
+            <span class="pill">${persona.defaultForModel ? "défaut modèle" : "fallback libre"}</span>
+            <span class="pill">${persona.generalEnabled ? "#general OK" : "#general OFF"}</span>
+            <span class="pill">${escapeHtml(String(persona.feedback.length))} feedback</span>
+            <span class="pill">${escapeHtml(String(persona.proposals.length))} proposals</span>
+          </div>
+        </div>
+        <div class="persona-actions">
+          <button type="button" data-action="save-persona">Sauvegarder persona</button>
+          <button type="button" class="secondary" data-action="save-source">Sauvegarder source</button>
+          <button type="button" class="secondary" data-action="reinforce">Renforcer via Pharmacius</button>
+          <button type="button" class="danger" data-action="revert">Revenir au dernier changement</button>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <h3>Runtime actif</h3>
+          <div class="hint">${escapeHtml(persona.desc)}</div>
+        </div>
+        <div class="fields">
+          <div class="field">
+            <label for="name-${escapeHtml(persona.id)}">Nom affiché</label>
+            <input id="name-${escapeHtml(persona.id)}" data-field="name" value="${escapeHtml(persona.name)}" maxlength="20">
+          </div>
+          <div class="field">
+            <label for="model-${escapeHtml(persona.id)}">Modèle utilisé</label>
+            <input id="model-${escapeHtml(persona.id)}" data-field="model" value="${escapeHtml(persona.model)}">
+          </div>
+          <div class="field full">
+            <label for="style-${escapeHtml(persona.id)}">Personnalité active</label>
+            <textarea id="style-${escapeHtml(persona.id)}" data-field="style">${escapeHtml(persona.style)}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <h3>Dossier source</h3>
+          <div class="hint">Sujet: ${escapeHtml(persona.source.subjectName || "—")} · mis à jour ${escapeHtml(persona.source.updatedAt || "—")}</div>
+        </div>
+        <div class="fields">
+          <div class="field">
+            <label for="source-subject-${escapeHtml(persona.id)}">Personne / sujet</label>
+            <input id="source-subject-${escapeHtml(persona.id)}" data-source-field="subjectName" value="${escapeHtml(persona.source.subjectName || "")}">
+          </div>
+          <div class="field">
+            <label for="source-query-${escapeHtml(persona.id)}">Requête / cadrage</label>
+            <input id="source-query-${escapeHtml(persona.id)}" data-source-field="query" value="${escapeHtml(persona.source.query || "")}">
+          </div>
+          <div class="field">
+            <label for="source-name-${escapeHtml(persona.id)}">Nom préféré</label>
+            <input id="source-name-${escapeHtml(persona.id)}" data-source-field="preferredName" value="${escapeHtml(persona.source.preferredName || "")}" maxlength="20">
+          </div>
+          <div class="field">
+            <label for="source-model-${escapeHtml(persona.id)}">Modèle préféré</label>
+            <input id="source-model-${escapeHtml(persona.id)}" data-source-field="preferredModel" value="${escapeHtml(persona.source.preferredModel || "")}">
+          </div>
+          <div class="field full">
+            <label for="source-tone-${escapeHtml(persona.id)}">Ton / posture</label>
+            <textarea id="source-tone-${escapeHtml(persona.id)}" data-source-field="tone">${escapeHtml(persona.source.tone || "")}</textarea>
+          </div>
+          <div class="field">
+            <label for="source-themes-${escapeHtml(persona.id)}">Thèmes</label>
+            <textarea id="source-themes-${escapeHtml(persona.id)}" data-source-field="themes">${escapeHtml(toMultiline(persona.source.themes))}</textarea>
+          </div>
+          <div class="field">
+            <label for="source-lexicon-${escapeHtml(persona.id)}">Lexique</label>
+            <textarea id="source-lexicon-${escapeHtml(persona.id)}" data-source-field="lexicon">${escapeHtml(toMultiline(persona.source.lexicon))}</textarea>
+          </div>
+          <div class="field">
+            <label for="source-facts-${escapeHtml(persona.id)}">Faits stables</label>
+            <textarea id="source-facts-${escapeHtml(persona.id)}" data-source-field="facts">${escapeHtml(toMultiline(persona.source.facts))}</textarea>
+          </div>
+          <div class="field">
+            <label for="source-quotes-${escapeHtml(persona.id)}">Citations / formulations</label>
+            <textarea id="source-quotes-${escapeHtml(persona.id)}" data-source-field="quotes">${escapeHtml(toMultiline(persona.source.quotes))}</textarea>
+          </div>
+          <div class="field full">
+            <label for="source-notes-${escapeHtml(persona.id)}">Notes éditoriales</label>
+            <textarea id="source-notes-${escapeHtml(persona.id)}" data-source-field="notes">${escapeHtml(persona.source.notes || "")}</textarea>
+          </div>
+          <div class="field full">
+            <label for="source-refs-${escapeHtml(persona.id)}">Sources (titre | url | notes)</label>
+            <textarea id="source-refs-${escapeHtml(persona.id)}" data-source-field="sources">${escapeHtml((persona.source.sources || []).map((entry) => [entry.title, entry.url, entry.notes].filter(Boolean).join(" | ")).join("\n"))}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <h3>Feedback récent</h3>
+          <div class="small">votes, corrections, signaux de chat et auto-apply</div>
+        </div>
+        <div class="fields">
+          <div class="field full">
+            <label for="feedback-note-${escapeHtml(persona.id)}">Ajouter un feedback / drift report</label>
+            <textarea id="feedback-note-${escapeHtml(persona.id)}" data-feedback-field="note" placeholder="note locale, correction de ton, dérive observée, signal éditorial..."></textarea>
+          </div>
+        </div>
+        <div class="persona-actions">
+          <button type="button" class="secondary" data-action="add-feedback">Ajouter feedback</button>
+        </div>
+        <div class="log-list">${renderFeedback(persona.feedback)}</div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <h3>Propositions et historique</h3>
+          <div class="small">toutes les révisions restent journalisées et réversibles</div>
+        </div>
+        <div class="log-list">${renderProposals(persona.proposals)}</div>
+      </div>
+    `;
+    personaGrid.appendChild(article);
+  }
+}
+
+async function hydratePersona(persona) {
+  const [source, feedback, proposals] = await Promise.all([
+    apiFetch(`/api/admin/personas/${persona.id}/source`),
+    apiFetch(`/api/admin/personas/${persona.id}/feedback`),
+    apiFetch(`/api/admin/personas/${persona.id}/proposals`),
+  ]);
+
+  return {
+    ...persona,
+    source,
+    feedback,
+    proposals,
+  };
+}
+
+async function loadPersonas() {
+  try {
+    setStatus("Chargement des personas, sources et historiques...", "info");
+    const base = await apiFetch("/api/admin/personas");
+    const items = await Promise.all(base.map((persona) => hydratePersona(persona)));
+    personas = items;
+    renderPersonas(items);
+    setStatus(`${items.length} personas chargées.`, "ok");
+  } catch (error) {
+    personas = [];
+    personaGrid.innerHTML = "";
+    setStatus(error.message, "error");
+  }
+}
+
+function getCard(id) {
+  return personaGrid.querySelector(`[data-persona-id="${id}"]`);
+}
+
+function setCardBusy(card, busy) {
+  if (!card) return;
+  card.querySelectorAll("button").forEach((button) => {
+    button.disabled = busy;
+  });
+}
+
+function getPersonaPayload(card) {
+  return {
+    name: card.querySelector('[data-field="name"]').value,
+    model: card.querySelector('[data-field="model"]').value,
+    style: card.querySelector('[data-field="style"]').value,
+  };
+}
+
+function getSourcePayload(card) {
+  return {
+    subjectName: card.querySelector('[data-source-field="subjectName"]').value,
+    query: card.querySelector('[data-source-field="query"]').value,
+    preferredName: card.querySelector('[data-source-field="preferredName"]').value,
+    preferredModel: card.querySelector('[data-source-field="preferredModel"]').value,
+    tone: card.querySelector('[data-source-field="tone"]').value,
+    themes: parseLines(card.querySelector('[data-source-field="themes"]').value),
+    lexicon: parseLines(card.querySelector('[data-source-field="lexicon"]').value),
+    facts: parseLines(card.querySelector('[data-source-field="facts"]').value),
+    quotes: parseLines(card.querySelector('[data-source-field="quotes"]').value),
+    notes: card.querySelector('[data-source-field="notes"]').value,
+    sources: parseSourceRefs(card.querySelector('[data-source-field="sources"]').value),
+  };
+}
+
+async function withCardAction(id, label, action) {
+  const card = getCard(id);
+  if (!card) return;
+
+  setCardBusy(card, true);
+  try {
+    setStatus(label, "info");
+    await action(card);
+    await loadPersonas();
+  } catch (error) {
+    setStatus(error.message, "error");
+  } finally {
+    setCardBusy(card, false);
+  }
+}
+
+async function savePersona(id) {
+  await withCardAction(id, `Sauvegarde persona ${id}...`, async (card) => {
+    await apiFetch(`/api/admin/personas/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(getPersonaPayload(card)),
+    });
+    setStatus(`Persona ${id} mise à jour.`, "ok");
+  });
+}
+
+async function saveSource(id) {
+  await withCardAction(id, `Sauvegarde du dossier source ${id}...`, async (card) => {
+    await apiFetch(`/api/admin/personas/${id}/source`, {
+      method: "PUT",
+      body: JSON.stringify(getSourcePayload(card)),
+    });
+    setStatus(`Dossier source ${id} mis à jour.`, "ok");
+  });
+}
+
+async function reinforcePersona(id) {
+  await withCardAction(id, `Renforcement Pharmacius de ${id}...`, async () => {
+    const result = await apiFetch(`/api/admin/personas/${id}/reinforce`, {
+      method: "POST",
+      body: JSON.stringify({ autoApply: true }),
+    });
+    const mode = result.changed ? "appliquée" : "sans changement";
+    setStatus(`Révision Pharmacius ${mode} pour ${id}.`, result.changed ? "ok" : "info");
+  });
+}
+
+async function revertPersona(id) {
+  await withCardAction(id, `Revert de ${id}...`, async () => {
+    await apiFetch(`/api/admin/personas/${id}/revert`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    setStatus(`Dernier changement appliqué annulé pour ${id}.`, "ok");
+  });
+}
+
+async function addFeedback(id) {
+  await withCardAction(id, `Ajout de feedback sur ${id}...`, async (card) => {
+    const note = card.querySelector('[data-feedback-field="note"]').value.trim();
+    if (!note) throw new Error("Le feedback manuel ne peut pas être vide");
+    await apiFetch(`/api/admin/personas/${id}/feedback`, {
+      method: "POST",
+      body: JSON.stringify({
+        kind: "drift_report",
+        actor: "admin",
+        channel: "#admin",
+        note,
+      }),
+    });
+    setStatus(`Feedback enregistré pour ${id}.`, "ok");
+  });
+}
+
+async function createPersonaFromSource() {
+  createButton.disabled = true;
+  try {
+    setStatus("Création de la persona sourcée...", "info");
+    const payload = {
+      id: createIdInput.value,
+      name: createNameInput.value,
+      model: createModelInput.value,
+      targetModel: createModelInput.value,
+      query: createQueryInput.value,
+      tone: createToneInput.value,
+      themes: parseLines(createThemesInput.value),
+      lexicon: parseLines(createLexiconInput.value),
+      facts: parseLines(createFactsInput.value),
+      quotes: parseLines(createQuotesInput.value),
+      notes: createNotesInput.value,
+      summary: createNotesInput.value,
+      sources: parseSourceRefs(createSourcesInput.value),
+    };
+    await apiFetch("/api/admin/personas/from-source", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    createIdInput.value = "";
+    createNameInput.value = "";
+    createModelInput.value = "";
+    createQueryInput.value = "";
+    createToneInput.value = "";
+    createThemesInput.value = "";
+    createLexiconInput.value = "";
+    createFactsInput.value = "";
+    createQuotesInput.value = "";
+    createNotesInput.value = "";
+    createSourcesInput.value = "";
+
+    await loadPersonas();
+    setStatus("Persona sourcée créée.", "ok");
+  } catch (error) {
+    setStatus(error.message, "error");
+  } finally {
+    createButton.disabled = false;
+  }
+}
+
+loadButton.addEventListener("click", () => {
+  adminToken = tokenInput.value.trim();
+  loadPersonas();
+});
+
+refreshButton.addEventListener("click", () => {
+  adminToken = tokenInput.value.trim();
+  loadPersonas();
+});
+
+createButton.addEventListener("click", () => {
+  adminToken = tokenInput.value.trim();
+  createPersonaFromSource();
+});
+
+personaGrid.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-action]");
+  if (!button) return;
+  const card = button.closest("[data-persona-id]");
+  if (!card) return;
+
+  const id = card.dataset.personaId;
+  switch (button.dataset.action) {
+    case "save-persona":
+      savePersona(id);
+      break;
+    case "save-source":
+      saveSource(id);
+      break;
+    case "reinforce":
+      reinforcePersona(id);
+      break;
+    case "revert":
+      revertPersona(id);
+      break;
+    case "add-feedback":
+      addFeedback(id);
+      break;
+  }
+});
+
+tokenInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    adminToken = tokenInput.value.trim();
+    loadPersonas();
+  }
+});
+</script>
+<script src="/vendor/drawflow/drawflow.min.js" defer></script>
+<script src="/admin/personas.js" defer></script>
+</body>
+</html>

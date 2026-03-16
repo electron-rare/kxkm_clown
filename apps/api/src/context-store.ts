@@ -33,20 +33,24 @@ interface ContextSummary {
 
 interface ContextStoreOptions {
   dataDir: string;
-  maxEntriesBeforeCompact: number;   // compact after N raw entries (default 200)
-  maxFileSizeMB: number;             // max size per channel file (default 50 MB)
+  maxEntriesBeforeCompact: number;   // compact after N raw entries (default 500)
+  maxFileSizeMB: number;             // max size per channel file (default 100 MB)
   maxTotalSizeMB: number;            // max total across all channels (default 750 MB)
+  maxContextChars: number;           // max chars injected in prompt (default 16000)
+  maxSummaryChars: number;           // max chars in compacted summary (default 20000)
   ollamaUrl: string;
-  compactionModel: string;           // model for summarization (default: qwen3:8b)
+  compactionModel: string;           // model for summarization (default: qwen3.5:9b)
 }
 
 const DEFAULT_OPTIONS: ContextStoreOptions = {
   dataDir: path.join(process.cwd(), "data", "context"),
-  maxEntriesBeforeCompact: 200,
-  maxFileSizeMB: 50,
+  maxEntriesBeforeCompact: 500,
+  maxFileSizeMB: 100,
   maxTotalSizeMB: 750,
+  maxContextChars: 16000,
+  maxSummaryChars: 20000,
   ollamaUrl: "http://localhost:11434",
-  compactionModel: "qwen3:8b",
+  compactionModel: "qwen3.5:9b",
 };
 
 // ---------------------------------------------------------------------------
@@ -99,7 +103,8 @@ export class ContextStore {
 
   // --- Read ---
 
-  async getContext(channel: string, maxChars: number = 8000): Promise<string> {
+  async getContext(channel: string, maxChars?: number): Promise<string> {
+    const limit = maxChars ?? this.options.maxContextChars;
     await this.init();
 
     // 1. Load compacted summary
@@ -127,7 +132,7 @@ export class ContextStore {
         try {
           const entry: ContextEntry = JSON.parse(lines[i]);
           const entryText = `${entry.nick}: ${entry.text}`;
-          if (charCount + entryText.length > maxChars - summary.length) break;
+          if (charCount + entryText.length > limit - summary.length) break;
           recentEntries.unshift(entry);
           charCount += entryText.length;
         } catch { continue; }
@@ -230,7 +235,7 @@ export class ContextStore {
     // Save summary
     const summaryData: ContextSummary = {
       channel,
-      summaryText: summaryText.slice(0, 10000),
+      summaryText: summaryText.slice(0, this.options.maxSummaryChars),
       entriesCompacted: entries.length + (existingSummary ? 1 : 0),
       lastCompactedAt: new Date().toISOString(),
       totalCompactions: 1, // increment from existing

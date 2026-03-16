@@ -264,9 +264,16 @@ async function executeNodeStub(
       log(`    [deploy] importing to Ollama: ${deployName} from ${baseOllamaModel} + ${adapterPath}`);
 
       try {
-        const { stdout, stderr } = await execFileAsync("/bin/bash", args, { timeout: 300000 });
+        const { stdout, stderr } = await execFileAsync("/bin/bash", args, { timeout: 120_000 });
         if (stderr) log(`    [deploy] stderr: ${stderr.slice(-500)}`);
-        const result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
+        const jsonLine = stdout.trim().split("\n").pop() || "{}";
+        let result;
+        try {
+          result = JSON.parse(jsonLine);
+        } catch {
+          logError(`    [deploy] invalid JSON: ${jsonLine.slice(0, 100)}`);
+          return { deployment: { kind: "error", id: deployName, error: "invalid_json_output" } };
+        }
         log(`    [deploy] result: ${JSON.stringify(result)}`);
         return { deployment: { kind: "ollama", id: deployName, ...result } };
       } catch (err) {

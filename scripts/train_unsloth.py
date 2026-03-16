@@ -42,11 +42,12 @@ def parse_args():
     return p.parse_args()
 
 
-def load_dataset_from_jsonl(path):
+def load_dataset_from_jsonl(path, min_items=2):
     """Load a JSONL file into a list of dicts."""
     from datasets import Dataset
 
     items = []
+    skipped = 0
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -55,10 +56,17 @@ def load_dataset_from_jsonl(path):
             try:
                 items.append(json.loads(line))
             except json.JSONDecodeError:
+                skipped += 1
                 continue
+
+    if skipped > 0:
+        print(f"[dataset] WARNING: Skipped {skipped}/{skipped + len(items)} malformed lines", file=sys.stderr)
 
     if not items:
         raise ValueError(f"No valid items in {path}")
+
+    if len(items) < min_items:
+        raise ValueError(f"Dataset too small: {len(items)} items (minimum {min_items} required)")
 
     return Dataset.from_list(items)
 

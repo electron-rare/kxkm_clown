@@ -191,7 +191,7 @@ async function ensureGraphExists(pool, graphId) {
 }
 
 async function createQueuedRun(pool, graphId, params) {
-  const runId = "run_" + Math.random().toString(36).slice(2, 10);
+  const runId = "run_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
   const createdAt = nowIso();
   await pool.query(
     `INSERT INTO node_runs (id, graph_id, status, params, created_at, updated_at)

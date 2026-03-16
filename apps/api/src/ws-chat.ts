@@ -8,6 +8,27 @@ import type { LocalRAG } from "./rag.js";
 
 const execFileAsync = promisify(execFile);
 
+// Simple semaphore for Ollama concurrency
+const MAX_OLLAMA_CONCURRENT = Number(process.env.MAX_OLLAMA_CONCURRENT) || 3;
+let ollamaActive = 0;
+const ollamaQueue: Array<() => void> = [];
+
+async function acquireOllama(): Promise<void> {
+  if (ollamaActive < MAX_OLLAMA_CONCURRENT) {
+    ollamaActive++;
+    return;
+  }
+  return new Promise<void>(resolve => {
+    ollamaQueue.push(() => { ollamaActive++; resolve(); });
+  });
+}
+
+function releaseOllama(): void {
+  ollamaActive--;
+  const next = ollamaQueue.shift();
+  if (next) next();
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -25,6 +46,8 @@ interface ClientInfo {
   channel: string;
   connectedAt: number;
   messageTimestamps: number[];
+  uploadBytesWindow: number;
+  lastUploadReset: number;
 }
 
 interface PersonaLoaderResult {
@@ -296,6 +319,11 @@ async function searchWeb(query: string): Promise<string> {
     if (title && link) links.push({ title, link });
   }
 
+  if (links.length === 0) {
+    console.warn(`[web-search] No results extracted for "${query}" — DuckDuckGo format may have changed`);
+    return "(Recherche échouée — aucun résultat extrait)";
+  }
+
   const snippets: string[] = [];
   let snippetMatch: RegExpExecArray | null;
   while ((snippetMatch = snippetRegex.exec(html)) !== null) {
@@ -352,6 +380,7 @@ async function streamOllamaChat(
   onDone: (fullText: string) => void,
   onError: (err: Error) => void,
 ): Promise<void> {
+  await acquireOllama();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
 
@@ -408,6 +437,7 @@ async function streamOllamaChat(
     onError(err instanceof Error ? err : new Error(String(err)));
   } finally {
     clearTimeout(timeout);
+    releaseOllama();
   }
 }
 
@@ -522,9 +552,12 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
   // Mutable personas list — refreshed from DB periodically
   let personas: ChatPersona[] = [...DEFAULT_PERSONAS];
+  let refreshInProgress = false;
 
   async function refreshPersonas(): Promise<void> {
     if (!loadPersonas) return;
+    if (refreshInProgress) return;
+    refreshInProgress = true;
 
     try {
       const loaded = await loadPersonas();
@@ -542,9 +575,20 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         color: p.color || personaColor(p.id, i),
       }));
 
+      // Clean up maps for removed personas (P0-02)
+      const currentNicks = new Set(personas.map(p => p.nick));
+      for (const [nick] of personaMessageCounts) {
+        if (!currentNicks.has(nick)) {
+          personaMessageCounts.delete(nick);
+          personaRecentMessages.delete(nick);
+        }
+      }
+
       console.log(`[ws-chat] Refreshed personas: ${personas.map((p) => p.nick).join(", ")}`);
     } catch (err) {
       console.error("[ws-chat] Failed to refresh personas, keeping current list:", err instanceof Error ? err.message : String(err));
+    } finally {
+      refreshInProgress = false;
     }
   }
 
@@ -558,6 +602,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   // Persona memory: message counters and recent message buffers
   const personaMessageCounts = new Map<string, number>();
   const personaRecentMessages = new Map<string, string[]>();
+  const personaMemoryLocks = new Map<string, Promise<void>>();
 
   function trackPersonaMessage(nick: string, text: string): void {
     const count = (personaMessageCounts.get(nick) || 0) + 1;
@@ -791,13 +836,16 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
           // Track message for memory updates
           trackPersonaMessage(persona.nick, `User: ${text}\n${persona.nick}: ${fullText}`);
 
-          // Update memory every 5 messages (async, non-blocking)
+          // Update memory every 5 messages (async, non-blocking, serialized per persona)
           const count = personaMessageCounts.get(persona.nick) || 0;
           if (count > 0 && count % 5 === 0) {
-            const recent = personaRecentMessages.get(persona.nick) || [];
-            updatePersonaMemory(persona, recent, ollamaUrl).catch((err) => {
-              console.error(`[ws-chat] Memory update error for ${persona.nick}: ${err}`);
+            const recentMessages = personaRecentMessages.get(persona.nick) || [];
+            const lockKey = persona.nick;
+            const prev = personaMemoryLocks.get(lockKey) || Promise.resolve();
+            const next = prev.then(() => updatePersonaMemory(persona, recentMessages, ollamaUrl)).catch(err => {
+              console.error(`[ws-chat] Memory update failed for ${persona.nick}:`, err);
             });
+            personaMemoryLocks.set(lockKey, next);
           }
 
           // TTS synthesis (async, non-blocking)
@@ -848,6 +896,18 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     const mimeType = typeof parsed.mimeType === "string" ? parsed.mimeType : "";
     const dataB64 = typeof parsed.data === "string" ? parsed.data : "";
     const size = typeof parsed.size === "number" ? parsed.size : 0;
+
+    // Per-client upload rate limiting (50 MB/min)
+    const now = Date.now();
+    if (now - info.lastUploadReset > 60_000) {
+      info.uploadBytesWindow = 0;
+      info.lastUploadReset = now;
+    }
+    if (info.uploadBytesWindow + size > 50 * 1024 * 1024) {
+      send(ws, { type: "system", text: "Upload rejeté — limite de débit dépassée (50 MB/min)" });
+      return;
+    }
+    info.uploadBytesWindow += size;
 
     if (!dataB64 || size > 12 * 1024 * 1024) {
       send(ws, { type: "system", text: "Upload rejeté (vide ou > 12 MB)." });
@@ -948,6 +1008,8 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       channel: "#general",
       connectedAt: Date.now(),
       messageTimestamps: [],
+      uploadBytesWindow: 0,
+      lastUploadReset: Date.now(),
     };
 
     clients.set(ws, info);

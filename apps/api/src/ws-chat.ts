@@ -202,6 +202,26 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
       "Tu cites le Manifeste Cyborg. Ton ton est incisif, érudit, ironique et engagé. Tu réponds en français.",
     color: "#ff69b4",
   },
+  {
+    id: "pharmacius",
+    nick: "Pharmacius",
+    model: "mistral:7b",
+    systemPrompt:
+      "Tu es Pharmacius, orchestrateur et routeur du collectif 3615-KXKM. Tu es le premier à répondre à chaque message. " +
+      "Ton rôle est double : (1) répondre directement si la question est générale, et (2) router vers les spécialistes " +
+      "en les @mentionnant quand le sujet le nécessite. " +
+      "Exemples de routage : " +
+      "- Question sur le son/musique → mentionne @Schaeffer ou @Radigue ou @Oliveros " +
+      "- Question philosophique/existentielle → mentionne @Batty " +
+      "- Question sur l'afrofuturisme/cosmique → mentionne @SunRa " +
+      "- Question féminisme/tech/cyborg → mentionne @Haraway " +
+      "- Question technique/code → réponds toi-même " +
+      "Quand tu routes, donne d'abord ta propre réponse courte puis mentionne le spécialiste. " +
+      "Format de routage : 'Bonne question, je pense que @Schaeffer pourrait approfondir...' " +
+      "Tu es cultivé, pragmatique, et tu connais bien les compétences de chaque membre du collectif. " +
+      "Tu réponds en français.",
+    color: "#00e676",
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -765,15 +785,18 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   // --- pick personas for #general ---
 
   function pickResponders(text: string, pool: ChatPersona[] = personas): ChatPersona[] {
-    // Check for direct @mention
+    // Check for direct @mention — only mentioned personas respond
     const mentioned = pool.filter((p) =>
       text.toLowerCase().includes(`@${p.nick.toLowerCase()}`),
     );
     if (mentioned.length > 0) return mentioned;
 
-    // Pick random subset up to maxGeneralResponders
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(maxGeneralResponders, shuffled.length));
+    // Default: only Pharmacius responds (or first persona if Pharmacius not found)
+    const defaultPersona = pool.find((p) => p.nick.toLowerCase() === "pharmacius");
+    if (defaultPersona) return [defaultPersona];
+
+    // Fallback: first persona in pool
+    return pool.length > 0 ? [pool[0]] : [];
   }
 
   // --- handle slash commands ---

@@ -18,6 +18,8 @@ interface PersonaColor {
   [nick: string]: string;
 }
 
+const MAX_MESSAGES = 500;
+const MAX_HISTORY = 100;
 let msgIdCounter = 0;
 
 export default function Chat() {
@@ -29,6 +31,9 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const historyRef = useRef<string[]>([]);
+  const historyIndexRef = useRef(-1);
+  const savedInputRef = useRef("");
 
   const handleMessage = useCallback((data: unknown) => {
     const msg = data as Record<string, unknown>;
@@ -69,7 +74,10 @@ export default function Chat() {
           channel: typeof msg.channel === "string" ? msg.channel : undefined,
           timestamp: Date.now(),
         };
-        setMessages((prev) => [...prev, chatMsg]);
+        setMessages((prev) => {
+          const next = [...prev, chatMsg];
+          return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
+        });
 
         // Update user list on join/part
         if (type === "join" && chatMsg.nick) {
@@ -115,6 +123,12 @@ export default function Chat() {
   function handleSend() {
     const trimmed = input.trim();
     if (!trimmed || !ws.connected) return;
+
+    // Push to history
+    historyRef.current.unshift(trimmed);
+    if (historyRef.current.length > MAX_HISTORY) historyRef.current.pop();
+    historyIndexRef.current = -1;
+    savedInputRef.current = "";
 
     if (trimmed.startsWith("/")) {
       ws.send({ type: "command", text: trimmed });
@@ -165,6 +179,32 @@ export default function Chat() {
       setInput(words.join(" "));
       setTabIndex(nextIdx);
       if (!tabPrefix) setTabPrefix(prefix);
+      return;
+    }
+
+    // ArrowUp — navigate back through message history
+    if (e.key === "ArrowUp") {
+      const history = historyRef.current;
+      if (history.length === 0) return;
+      e.preventDefault();
+      if (historyIndexRef.current < history.length - 1) {
+        if (historyIndexRef.current === -1) savedInputRef.current = input;
+        historyIndexRef.current++;
+        setInput(history[historyIndexRef.current]);
+      }
+      return;
+    }
+
+    // ArrowDown — navigate forward through message history
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (historyIndexRef.current > 0) {
+        historyIndexRef.current--;
+        setInput(historyRef.current[historyIndexRef.current]);
+      } else if (historyIndexRef.current === 0) {
+        historyIndexRef.current = -1;
+        setInput(savedInputRef.current);
+      }
       return;
     }
 

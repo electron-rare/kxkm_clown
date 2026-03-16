@@ -5,28 +5,31 @@
  *
  * Orchestrates the full DPO (Direct Preference Optimisation) training flow:
  *   1. Fetch DPO pairs from the V2 API → save as JSONL file
- *   2. Create a Node Engine graph with training stages
- *   3. Queue the run
- *   4. Wait for completion
- *   5. Log results
+ *   2. Run train_unsloth.py directly via child_process
+ *   3. Run eval_model.py if prompts file exists
+ *   4. Run ollama-import-adapter.sh if training succeeded
  *
  * Usage:
  *   node scripts/v2-dpo-pipeline.js [options]
  *
  * Options:
- *   --persona-id <id>    Filter DPO pairs for a specific persona
- *   --model <name>       Base model name (default: unsloth/Llama-3.2-1B-Instruct)
- *   --output-dir <dir>   Training output directory (default: data/training)
- *   --api-url <url>      V2 API base URL (default: http://localhost:4180)
- *   --dry-run            Print plan without executing
- *   --token <token>      Admin token for API auth
+ *   --persona-id <id>      Filter DPO pairs for a specific persona
+ *   --model <name>         Base model name (default: unsloth/Llama-3.2-1B-Instruct)
+ *   --output-dir <dir>     Training output directory (default: data/training)
+ *   --api-url <url>        V2 API base URL (default: http://localhost:4180)
+ *   --dry-run              Print plan without executing
+ *   --token <token>        Admin token for API auth
+ *   --python-bin <path>    Python binary (default: PYTHON_BIN env or "python3")
+ *   --scripts-dir <dir>    Scripts directory (default: SCRIPTS_DIR env or "scripts")
  */
 
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const https = require("https");
-const { Pool } = require("pg");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
+const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
 // CLI helpers
@@ -144,93 +147,91 @@ function saveDPODataset(outputDir, rawBody) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 2-3: Create Node Engine graph and queue a run via DB
+// Step 2: Run training directly via child_process
 // ---------------------------------------------------------------------------
 
-async function ensureTrainingGraph(pool, baseModel, datasetFile) {
-  const graphId = "dpo_training_" + timestamp().replace(/-/g, "_");
-  const description = [
-    "DPO training pipeline",
-    "model: " + baseModel,
-    "dataset: " + path.basename(datasetFile),
-  ].join(" | ");
+async function runTrainingDirect(config) {
+  const { datasetPath, model, outputDir, pythonBin, scriptsDir } = config;
 
-  // Check if a recent DPO graph already exists
-  const existing = await pool.query(
-    `SELECT id, name FROM node_graphs
-     WHERE name LIKE 'dpo_training_%'
-     ORDER BY name DESC LIMIT 1`
-  );
+  console.log("[dpo-pipeline] Starting training: " + model);
 
-  if (existing.rows.length > 0) {
-    console.log(
-      "[dpo-pipeline] found existing graph: " + existing.rows[0].id
-    );
-  }
+  const trainArgs = [
+    path.join(scriptsDir, "train_unsloth.py"),
+    "--model", model,
+    "--data", datasetPath,
+    "--output", outputDir,
+    "--method", "dpo",
+    "--quantize", "4bit",
+    "--epochs", "3",
+  ];
 
-  // Create a new graph for this pipeline run
-  await pool.query(
-    `INSERT INTO node_graphs (id, name, description)
-     VALUES ($1, $2, $3)`,
-    [graphId, graphId, description]
-  );
+  const { stdout, stderr } = await execFileAsync(pythonBin, trainArgs, {
+    timeout: 3600000, // 1h
+    maxBuffer: 50 * 1024 * 1024,
+  });
 
-  console.log("[dpo-pipeline] created graph " + graphId);
-  return graphId;
-}
+  if (stderr) console.log("[dpo-pipeline] " + stderr.slice(-500));
 
-async function createQueuedRun(pool, graphId, params) {
-  const runId = "run_dpo_" + Math.random().toString(36).slice(2, 10);
-  const createdAt = nowIso();
-  await pool.query(
-    `INSERT INTO node_runs (id, graph_id, status, params, created_at, updated_at)
-     VALUES ($1, $2, 'queued', $3::jsonb, $4, NOW())`,
-    [runId, graphId, JSON.stringify(params), createdAt]
-  );
-  console.log("[dpo-pipeline] queued run " + runId);
-  return runId;
+  const jsonLine = stdout.trim().split("\n").pop() || "{}";
+  return JSON.parse(jsonLine);
 }
 
 // ---------------------------------------------------------------------------
-// Step 4: Wait for completion
+// Step 3: Run eval if prompts file exists
 // ---------------------------------------------------------------------------
 
-async function waitForTerminalStatus(pool, runId, timeoutMs, pollIntervalMs) {
-  const terminal = new Set([
-    "completed",
-    "failed",
-    "cancelled",
-    "blocked",
-    "not_configured",
-  ]);
-  const started = Date.now();
+async function runEvalDirect(config) {
+  const { outputDir, pythonBin, scriptsDir } = config;
+  const promptsFile = path.join(outputDir, "eval_prompts.jsonl");
 
-  while (true) {
-    const result = await pool.query(
-      "SELECT id, status FROM node_runs WHERE id = $1 LIMIT 1",
-      [runId]
-    );
-    if (result.rows.length === 0) {
-      throw new Error("Run not found: " + runId);
-    }
-
-    const status = String(result.rows[0].status);
-    if (terminal.has(status)) {
-      return { status, elapsedMs: Date.now() - started };
-    }
-
-    const elapsed = Date.now() - started;
-    if (elapsed >= timeoutMs) {
-      await pool.query(
-        `UPDATE node_runs SET status = 'cancelled', updated_at = NOW()
-         WHERE id = $1 AND status IN ('queued', 'running')`,
-        [runId]
-      );
-      return { status: "cancelled", elapsedMs: elapsed, timedOut: true };
-    }
-
-    await sleep(pollIntervalMs);
+  if (!fs.existsSync(promptsFile)) {
+    console.log("[dpo-pipeline] No eval prompts file found, skipping eval");
+    return null;
   }
+
+  console.log("[dpo-pipeline] Running eval_model.py");
+
+  const evalArgs = [
+    path.join(scriptsDir, "eval_model.py"),
+    "--model-dir", outputDir,
+    "--prompts", promptsFile,
+  ];
+
+  const { stdout, stderr } = await execFileAsync(pythonBin, evalArgs, {
+    timeout: 1800000, // 30 min
+    maxBuffer: 50 * 1024 * 1024,
+  });
+
+  if (stderr) console.log("[dpo-pipeline] eval stderr: " + stderr.slice(-500));
+
+  const jsonLine = stdout.trim().split("\n").pop() || "{}";
+  return JSON.parse(jsonLine);
+}
+
+// ---------------------------------------------------------------------------
+// Step 4: Import adapter into Ollama
+// ---------------------------------------------------------------------------
+
+async function runOllamaImport(config) {
+  const { outputDir, scriptsDir } = config;
+  const importScript = path.join(scriptsDir, "ollama-import-adapter.sh");
+
+  if (!fs.existsSync(importScript)) {
+    console.log("[dpo-pipeline] ollama-import-adapter.sh not found, skipping");
+    return null;
+  }
+
+  console.log("[dpo-pipeline] Running ollama-import-adapter.sh");
+
+  const { stdout, stderr } = await execFileAsync("bash", [importScript, outputDir], {
+    timeout: 600000, // 10 min
+    maxBuffer: 10 * 1024 * 1024,
+  });
+
+  if (stderr) console.log("[dpo-pipeline] ollama stderr: " + stderr.slice(-500));
+  if (stdout) console.log("[dpo-pipeline] ollama: " + stdout.trim().split("\n").pop());
+
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -245,24 +246,25 @@ async function main() {
   const outputDir = readArg("--output-dir") || "data/training";
   const dryRun = hasFlag("--dry-run");
   const token = readArg("--token") || process.env.ADMIN_TOKEN || "";
-
-  const runTimeoutMs = 30 * 60 * 1000; // 30 minutes
-  const pollIntervalMs = 3000;
+  const pythonBin = readArg("--python-bin") || process.env.PYTHON_BIN || "python3";
+  const scriptsDir = readArg("--scripts-dir") || process.env.SCRIPTS_DIR || "scripts";
 
   console.log("[dpo-pipeline] === DPO Training Pipeline ===");
-  console.log("[dpo-pipeline] api:       " + apiUrl);
-  console.log("[dpo-pipeline] model:     " + baseModel);
-  console.log("[dpo-pipeline] output:    " + outputDir);
+  console.log("[dpo-pipeline] api:         " + apiUrl);
+  console.log("[dpo-pipeline] model:       " + baseModel);
+  console.log("[dpo-pipeline] output:      " + outputDir);
+  console.log("[dpo-pipeline] python:      " + pythonBin);
+  console.log("[dpo-pipeline] scripts-dir: " + scriptsDir);
   if (personaId) {
-    console.log("[dpo-pipeline] persona:   " + personaId);
+    console.log("[dpo-pipeline] persona:     " + personaId);
   }
   if (dryRun) {
-    console.log("[dpo-pipeline] mode:      DRY RUN");
+    console.log("[dpo-pipeline] mode:        DRY RUN");
   }
   console.log("");
 
   // ---- Step 1: Fetch and save DPO dataset ----
-  console.log("[dpo-pipeline] Step 1/5: Fetch DPO pairs from API");
+  console.log("[dpo-pipeline] Step 1/4: Fetch DPO pairs from API");
   const { pairs, rawBody } = await fetchDPOPairs(apiUrl, personaId, token);
 
   if (pairs.length === 0) {
@@ -271,91 +273,57 @@ async function main() {
   }
 
   const datasetFile = saveDPODataset(outputDir, rawBody);
+  const resolvedOutputDir = path.resolve(process.cwd(), outputDir);
 
   if (dryRun) {
     console.log("");
     console.log("[dpo-pipeline] DRY RUN — planned steps:");
-    console.log("  Step 2: Create Node Engine graph (stages: dataset_file -> format_instruction_dataset -> lora_training -> benchmark -> register_model)");
-    console.log("  Step 3: Queue run with params:");
-    console.log("    base_model:   " + baseModel);
-    console.log("    dataset_file: " + datasetFile);
-    console.log("    output_dir:   " + path.resolve(process.cwd(), outputDir));
+    console.log("  Step 2: Run train_unsloth.py --model " + baseModel + " --data " + datasetFile);
+    console.log("  Step 3: Run eval_model.py (if eval_prompts.jsonl exists)");
+    console.log("  Step 4: Run ollama-import-adapter.sh");
+    console.log("    output_dir:   " + resolvedOutputDir);
     console.log("    pair_count:   " + pairs.length);
-    console.log("  Step 4: Wait for terminal status (timeout: " + (runTimeoutMs / 1000) + "s)");
-    console.log("  Step 5: Log results");
     console.log("");
     console.log("[dpo-pipeline] dry run complete");
     return;
   }
 
-  // ---- Steps 2-5: DB-driven orchestration ----
-  const connectionString =
-    process.env.DATABASE_URL || "postgres://localhost:5432/kxkm_clown_v2";
-  const pool = new Pool({ connectionString });
+  // ---- Step 2: Run training directly ----
+  const started = Date.now();
+  console.log("");
+  console.log("[dpo-pipeline] Step 2/4: Run training");
+  const trainConfig = {
+    datasetPath: datasetFile,
+    model: baseModel,
+    outputDir: resolvedOutputDir,
+    pythonBin,
+    scriptsDir,
+  };
+  const trainResult = await runTrainingDirect(trainConfig);
+  console.log("[dpo-pipeline] Training result: " + JSON.stringify(trainResult));
 
-  try {
-    // Step 2: Create graph
-    console.log("");
-    console.log("[dpo-pipeline] Step 2/5: Create Node Engine graph");
-    const graphId = await ensureTrainingGraph(pool, baseModel, datasetFile);
-
-    // Step 3: Queue the run
-    console.log("[dpo-pipeline] Step 3/5: Queue training run");
-    const runParams = {
-      pipeline: "dpo_training",
-      stages: [
-        "dataset_file",
-        "format_instruction_dataset",
-        "lora_training",
-        "benchmark",
-        "register_model",
-      ],
-      config: {
-        base_model: baseModel,
-        dataset_file: datasetFile,
-        output_dir: path.resolve(process.cwd(), outputDir),
-        pair_count: pairs.length,
-        persona_id: personaId || "all",
-        created_by: "scripts/v2-dpo-pipeline.js",
-        created_at: nowIso(),
-      },
-    };
-    const runId = await createQueuedRun(pool, graphId, runParams);
-
-    // Step 4: Wait
-    console.log("[dpo-pipeline] Step 4/5: Waiting for run completion...");
-    const outcome = await waitForTerminalStatus(
-      pool,
-      runId,
-      runTimeoutMs,
-      pollIntervalMs
-    );
-
-    // Step 5: Log results
-    console.log("");
-    console.log("[dpo-pipeline] Step 5/5: Results");
-    console.log("  run_id:     " + runId);
-    console.log("  graph_id:   " + graphId);
-    console.log("  status:     " + outcome.status);
-    console.log("  elapsed:    " + (outcome.elapsedMs / 1000).toFixed(1) + "s");
-    console.log("  dataset:    " + datasetFile);
-    console.log("  pairs:      " + pairs.length);
-    if (outcome.timedOut) {
-      console.log("  warning:    run timed out after " + (runTimeoutMs / 1000) + "s");
-    }
-    console.log("");
-
-    if (outcome.status === "completed") {
-      console.log("[dpo-pipeline] Pipeline completed successfully.");
-    } else {
-      console.log(
-        "[dpo-pipeline] Pipeline ended with status: " + outcome.status
-      );
-      process.exitCode = 1;
-    }
-  } finally {
-    await pool.end();
+  // ---- Step 3: Run eval ----
+  console.log("");
+  console.log("[dpo-pipeline] Step 3/4: Eval");
+  const evalResult = await runEvalDirect(trainConfig);
+  if (evalResult) {
+    console.log("[dpo-pipeline] Eval result: " + JSON.stringify(evalResult));
   }
+
+  // ---- Step 4: Import adapter into Ollama ----
+  console.log("");
+  console.log("[dpo-pipeline] Step 4/4: Ollama import");
+  await runOllamaImport(trainConfig);
+
+  const elapsedMs = Date.now() - started;
+  console.log("");
+  console.log("[dpo-pipeline] === Results ===");
+  console.log("  status:     completed");
+  console.log("  elapsed:    " + (elapsedMs / 1000).toFixed(1) + "s");
+  console.log("  dataset:    " + datasetFile);
+  console.log("  pairs:      " + pairs.length);
+  console.log("");
+  console.log("[dpo-pipeline] Pipeline completed successfully.");
 }
 
 main().catch((err) => {

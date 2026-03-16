@@ -266,6 +266,14 @@ Objectif : faire du frontend React V2 l'interface chat principale.
 - [ ] Port principal 3333 → V2
 - [ ] Test end-to-end sur kxkm-ai
 
+### Phase 2 — Consolidation chat V2 `[en cours]`
+- [ ] Personas chargées depuis la DB (pas hardcodé)
+- [ ] Persistance conversations JSONL (chat-logs)
+- [ ] Extraction PDF réelle (pdf-parse)
+- [ ] Deep analyse sécurité/perf ws-chat.ts
+- [ ] Upload fichiers + analyse vision (images via qwen2.5:14b)
+
 Reste à faire (futur) :
-- [ ] Historique persistant des conversations V2
 - [ ] Migration sessions V1 → V2
+- [ ] Recherche historique conversations
+- [ ] Audio transcription (Whisper via Ollama ou API)

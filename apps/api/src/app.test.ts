@@ -16,7 +16,7 @@ describe("V2 API", () => {
 
   before(async () => {
     await rm(TEST_LOCAL_DIR, { recursive: true, force: true });
-    const app = await createApp();
+    const { app } = await createApp();
     request = supertest(app);
   });
 
@@ -231,7 +231,7 @@ describe("V2 API", () => {
     });
 
     it("persists local persona updates across app recreation", async () => {
-      const app2 = await createApp();
+      const { app: app2 } = await createApp();
       const request2 = supertest(app2);
       const login2 = await request2
         .post("/api/session/login")

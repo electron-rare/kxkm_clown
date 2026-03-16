@@ -1,4 +1,6 @@
 import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
 
 // ---------------------------------------------------------------------------
@@ -17,11 +19,21 @@ interface ClientInfo {
   nick: string;
   channel: string;
   connectedAt: number;
+  messageTimestamps: number[];
+}
+
+interface PersonaLoaderResult {
+  id: string;
+  nick: string;
+  model: string;
+  systemPrompt: string;
+  color: string;
+  enabled: boolean;
 }
 
 interface ChatOptions {
   ollamaUrl: string;
-  personas?: ChatPersona[];
+  loadPersonas?: () => Promise<PersonaLoaderResult[]>;
   maxGeneralResponders?: number;
 }
 
@@ -54,6 +66,15 @@ type OutboundMessage =
   | { type: "part"; nick: string; channel: string; text: string }
   | { type: "userlist"; users: string[] }
   | { type: "persona"; nick: string; color: string };
+
+// Chat log entry
+interface ChatLogEntry {
+  ts: string;
+  channel: string;
+  nick: string;
+  type: "message" | "system";
+  text: string;
+}
 
 // ---------------------------------------------------------------------------
 // Default personas (used when none are passed via options)
@@ -93,11 +114,58 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Deterministic color palette for personas loaded from DB
+// ---------------------------------------------------------------------------
+
+const PERSONA_COLORS = [
+  "#4fc3f7", "#ef5350", "#ab47bc", "#66bb6a", "#ffa726",
+  "#26c6da", "#ec407a", "#7e57c2", "#9ccc65", "#ffca28",
+  "#42a5f5", "#ff7043", "#5c6bc0", "#8d6e63", "#78909c",
+];
+
+function personaColor(id: string, index: number): string {
+  // Simple hash-based color assignment
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  return PERSONA_COLORS[Math.abs(hash) % PERSONA_COLORS.length] || PERSONA_COLORS[index % PERSONA_COLORS.length];
+}
+
+// ---------------------------------------------------------------------------
+// Chat logging (JSONL)
+// ---------------------------------------------------------------------------
+
+const CHAT_LOG_DIR = path.resolve(process.cwd(), "data/chat-logs");
+
+function ensureLogDir(): void {
+  fs.mkdirSync(CHAT_LOG_DIR, { recursive: true });
+}
+
+function logFilePath(): string {
+  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return path.join(CHAT_LOG_DIR, `v2-${date}.jsonl`);
+}
+
+function logChatMessage(entry: ChatLogEntry): void {
+  try {
+    ensureLogDir();
+    const line = JSON.stringify(entry) + "\n";
+    fs.appendFileSync(logFilePath(), line, "utf8");
+  } catch (err) {
+    console.error("[ws-chat] Failed to log chat message:", err instanceof Error ? err.message : String(err));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const MAX_WS_MESSAGE_BYTES = 16 * 1024 * 1024; // 16 MB to support file uploads
 const MAX_TEXT_LENGTH = 8192;
+const RATE_LIMIT_WINDOW_MS = 10_000; // 10 seconds
+const RATE_LIMIT_MAX_MESSAGES = 15; // max messages per window
+const PERSONA_REFRESH_INTERVAL_MS = 60_000; // 60 seconds
 
 let clientIdCounter = 0;
 
@@ -194,6 +262,9 @@ async function analyzeImage(
 ): Promise<string> {
   const base64 = buffer.toString("base64");
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
+
   try {
     const visionModel = "qwen2.5:14b";
     const response = await fetch(`${ollamaUrl}/api/chat`, {
@@ -212,6 +283,7 @@ async function analyzeImage(
         ],
         stream: false,
       }),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -225,6 +297,8 @@ async function analyzeImage(
     return `[Image: ${filename}]\n${caption}`;
   } catch (err) {
     return `[Image: ${filename} — erreur d'analyse: ${err instanceof Error ? err.message : String(err)}]`;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -235,12 +309,49 @@ async function analyzeImage(
 export function attachWebSocketChat(server: http.Server, options: ChatOptions): WebSocketServer {
   const {
     ollamaUrl,
-    personas = DEFAULT_PERSONAS,
+    loadPersonas,
     maxGeneralResponders = 2,
   } = options;
 
+  // Mutable personas list — refreshed from DB periodically
+  let personas: ChatPersona[] = [...DEFAULT_PERSONAS];
+
+  async function refreshPersonas(): Promise<void> {
+    if (!loadPersonas) return;
+
+    try {
+      const loaded = await loadPersonas();
+      const enabled = loaded.filter((p) => p.enabled);
+      if (enabled.length === 0) {
+        console.warn("[ws-chat] Persona loader returned no enabled personas — keeping current list");
+        return;
+      }
+
+      personas = enabled.map((p, i) => ({
+        id: p.id,
+        nick: p.nick,
+        model: p.model,
+        systemPrompt: p.systemPrompt,
+        color: p.color || personaColor(p.id, i),
+      }));
+
+      console.log(`[ws-chat] Refreshed personas: ${personas.map((p) => p.nick).join(", ")}`);
+    } catch (err) {
+      console.error("[ws-chat] Failed to refresh personas, keeping current list:", err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // Initial load + periodic refresh
+  refreshPersonas();
+  const refreshTimer = setInterval(refreshPersonas, PERSONA_REFRESH_INTERVAL_MS);
+
   const wss = new WebSocketServer({ server, path: "/ws" });
   const clients = new Map<WebSocket, ClientInfo>();
+
+  // Clean up refresh timer when server closes
+  wss.on("close", () => {
+    clearInterval(refreshTimer);
+  });
 
   // --- broadcast helpers ---
 
@@ -386,6 +497,15 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
             text: fullText,
             color: persona.color,
           });
+
+          // Log persona response
+          logChatMessage({
+            ts: new Date().toISOString(),
+            channel,
+            nick: persona.nick,
+            type: "message",
+            text: fullText,
+          });
         },
         (err) => {
           console.error(`[ws-chat] Ollama error for ${persona.nick}:`, err.message);
@@ -407,6 +527,15 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       nick: info.nick,
       text,
       color: "#e0e0e0",
+    });
+
+    // Log user message
+    logChatMessage({
+      ts: new Date().toISOString(),
+      channel: info.channel,
+      nick: info.nick,
+      type: "message",
+      text,
     });
 
     await routeToPersonas(info.channel, text);
@@ -433,6 +562,15 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       text: `${info.nick} a envoyé: ${filename} (${(size / 1024).toFixed(1)} KB)`,
     });
 
+    // Log upload event
+    logChatMessage({
+      ts: new Date().toISOString(),
+      channel: info.channel,
+      nick: info.nick,
+      type: "message",
+      text: `[upload: ${filename}, ${(size / 1024).toFixed(1)} KB]`,
+    });
+
     // Analyze file based on MIME type
     let analysis = "";
 
@@ -447,7 +585,15 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     } else if (mimeType.startsWith("image/")) {
       analysis = await analyzeImage(buffer, mimeType, filename, ollamaUrl);
     } else if (mimeType === "application/pdf") {
-      analysis = `[Fichier PDF: ${filename}, ${(size / 1024).toFixed(0)} KB — extraction non disponible]`;
+      try {
+        const pdfParse = (await import("pdf-parse")).default;
+        const pdfData = await pdfParse(buffer);
+        const text = pdfData.text.slice(0, 12000);
+        const pages = pdfData.numpages;
+        analysis = `[PDF: ${filename}, ${pages} page(s)]\n${text}`;
+      } catch (err) {
+        analysis = `[PDF: ${filename} — extraction échouée: ${err instanceof Error ? err.message : String(err)}]`;
+      }
     } else {
       analysis = `[Fichier: ${filename}, type: ${mimeType}, ${(size / 1024).toFixed(0)} KB]`;
     }
@@ -468,6 +614,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       nick,
       channel: "#general",
       connectedAt: Date.now(),
+      messageTimestamps: [],
     };
 
     clients.set(ws, info);
@@ -507,6 +654,17 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     ws.on("message", async (raw: Buffer) => {
       if (raw.length > MAX_WS_MESSAGE_BYTES) return;
 
+      // Rate limiting
+      const now = Date.now();
+      info.messageTimestamps = info.messageTimestamps.filter(
+        (t) => now - t < RATE_LIMIT_WINDOW_MS,
+      );
+      if (info.messageTimestamps.length >= RATE_LIMIT_MAX_MESSAGES) {
+        send(ws, { type: "system", text: "Trop de messages — ralentis un peu." });
+        return;
+      }
+      info.messageTimestamps.push(now);
+
       let message: InboundMessage;
       try {
         message = JSON.parse(raw.toString()) as InboundMessage;
@@ -535,6 +693,12 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       } else if (message.type === "message") {
         await handleChatMessage(ws, info, text);
       }
+    });
+
+    // --- error handler (prevent unhandled error crash) ---
+
+    ws.on("error", (err) => {
+      console.error(`[ws-chat] WebSocket error for ${info.nick}:`, err.message);
     });
 
     // --- close handler ---

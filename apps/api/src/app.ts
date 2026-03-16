@@ -492,7 +492,7 @@ function isIpInSubnet(ip: string, subnet: ParsedSubnet): boolean {
 // App factory
 // ---------------------------------------------------------------------------
 
-export async function createApp(): Promise<express.Express> {
+export async function createApp(): Promise<{ app: express.Express; personaRepo: PersonaRepo }> {
   let sessionRepo: SessionRepo;
   let personaRepo: PersonaRepo;
   let graphRepo: GraphRepo;
@@ -990,5 +990,5 @@ export async function createApp(): Promise<express.Express> {
     }
   });
 
-  return app;
+  return { app, personaRepo };
 }

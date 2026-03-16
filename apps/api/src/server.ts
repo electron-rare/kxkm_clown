@@ -7,7 +7,7 @@ import { attachWebSocketChat } from "./ws-chat.js";
 const port = Number(process.env.V2_API_PORT || 4180);
 
 async function main() {
-  const app = await createApp();
+  const { app, personaRepo } = await createApp();
 
   // -----------------------------------------------------------------------
   // Serve V2 web build (Vite output) as static files
@@ -30,7 +30,20 @@ async function main() {
   const server = http.createServer(app);
 
   const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-  attachWebSocketChat(server, { ollamaUrl });
+  attachWebSocketChat(server, {
+    ollamaUrl,
+    loadPersonas: async () => {
+      const list = await personaRepo.list();
+      return list.map((p) => ({
+        id: p.id,
+        nick: p.name,
+        model: p.model,
+        systemPrompt: p.summary,
+        color: "",
+        enabled: !(p as unknown as { disabled?: boolean }).disabled,
+      }));
+    },
+  });
 
   server.listen(port, () => {
     console.log(JSON.stringify({

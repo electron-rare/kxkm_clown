@@ -317,7 +317,25 @@ blocs VIDEOTEX, bandes de service, mosaïques, clavier AZERTY virtuel.
 - [x] Page Collectif (#/collectif)
 - [x] Seed personas en DB
 
+### Phase 5 — Personas spéciales + génération `[complété]`
+- [x] ComfyUI intégré (/imagine, workflow SDXL, images inline)
+- [x] Sherlock (mistral:7b) — recherche web, analyse de sources
+- [x] Picasso (qwen3.5:9b) — direction artistique, prompts /imagine
+- [x] Diversification modèles (mistral, gemma3, qwen3.5)
+- [x] Contexte permanent 750 MB (16K chars prompt, 20K summary)
+- [x] 26 personas total (10 domaines)
+- [x] Veille HF modèles (30+ analysés) + Document AI state of art
+
+### Phase 6 — Améliorations planifiées
+- [ ] Installer Docling (remplacer pdf-parse pour tables/layout)
+- [ ] SearXNG self-hosted (remplacer DuckDuckGo API)
+- [ ] Flux 2 dans ComfyUI (meilleur que SDXL pour texte/photo)
+- [ ] Voice cloning Coqui XTTS-v2 (voix unique par persona)
+- [ ] ACE-Step 1.5 (génération musicale dans le Node Engine)
+- [ ] GLM-OCR (0.9B) pour OCR documents scannés
+- [ ] Pipeline RAG documentaire (indexer les fichiers uploadés)
+
 Reste à faire (futur) :
-- [ ] Migration sessions V1 → V2
 - [ ] MCP (Model Context Protocol) pour intégration outils
 - [ ] WebRTC voice (streaming temps réel au lieu d'upload)
+- [ ] Fine-tune personas dédié (OpenCharacter/Ditto methodology)

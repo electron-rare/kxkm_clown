@@ -12,7 +12,7 @@ const WS_URL = import.meta.env.VITE_WS_URL || (() => {
 
 interface ChatMsg {
   id: number;
-  type: "system" | "message" | "join" | "part" | "persona" | "channelInfo" | "userlist" | "command" | "uploadCapability" | "audio";
+  type: "system" | "message" | "join" | "part" | "persona" | "channelInfo" | "userlist" | "command" | "uploadCapability" | "audio" | "image";
   nick?: string;
   text?: string;
   color?: string;
@@ -20,6 +20,8 @@ interface ChatMsg {
   users?: string[];
   audioData?: string;
   audioMime?: string;
+  imageData?: string;
+  imageMime?: string;
   timestamp: number;
 }
 
@@ -77,6 +79,26 @@ const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, channel
               a.play().catch(() => {});
             }
           }}>&#9654;</button>
+        </div>
+      );
+    }
+
+    case "image": {
+      const color = msg.nick ? getNickColor(msg.nick) : undefined;
+      return (
+        <div className="chat-msg chat-msg-image" style={color ? { color } : undefined}>
+          <span className="chat-nick" style={color ? { color } : undefined}>
+            {"<"}{msg.nick || "???"}{">"}{" "}
+          </span>
+          <span className="chat-text">{msg.text}</span>
+          {msg.imageData && msg.imageMime && (
+            <img
+              src={`data:${msg.imageMime};base64,${msg.imageData}`}
+              alt={msg.text || "Image generee"}
+              className="chat-generated-image"
+              style={{ maxWidth: "512px", maxHeight: "512px", display: "block", marginTop: "4px", borderRadius: "4px" }}
+            />
+          )}
         </div>
       );
     }
@@ -148,6 +170,23 @@ export default function Chat() {
       case "uploadCapability":
         // Silently ignore
         return;
+
+      case "image": {
+        const chatMsg: ChatMsg = {
+          id: ++msgIdCounter,
+          type: "image",
+          nick: typeof msg.nick === "string" ? msg.nick : undefined,
+          text: typeof msg.text === "string" ? msg.text : undefined,
+          imageData: typeof msg.imageData === "string" ? msg.imageData : undefined,
+          imageMime: typeof msg.imageMime === "string" ? msg.imageMime : undefined,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => {
+          const next = [...prev, chatMsg];
+          return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
+        });
+        return;
+      }
 
       case "audio": {
         if (typeof msg.data === "string" && typeof msg.mimeType === "string") {
@@ -341,7 +380,7 @@ export default function Chat() {
 
       // Slash command completion
       if (text.startsWith("/") && !text.includes(" ")) {
-        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/status", "/model", "/persona", "/reload", "/export"];
+        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/status", "/model", "/persona", "/reload", "/export"];
         const prefix = tabPrefix || text;
         const matches = slashCommands.filter((c) => c.startsWith(prefix.toLowerCase()));
         if (matches.length === 0) return;

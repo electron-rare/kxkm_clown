@@ -52,6 +52,105 @@ function releaseOllama(): void {
 }
 
 // ---------------------------------------------------------------------------
+// ComfyUI image generation
+// ---------------------------------------------------------------------------
+
+const COMFYUI_URL = process.env.COMFYUI_URL || "http://localhost:8188";
+
+async function generateImage(prompt: string): Promise<{ imageBase64: string; seed: number } | null> {
+  // Simple txt2img workflow for ComfyUI (SDXL)
+  const seed = Math.floor(Math.random() * 2 ** 32);
+  const workflow = {
+    "3": {
+      class_type: "KSampler",
+      inputs: {
+        seed,
+        steps: 20,
+        cfg: 7,
+        sampler_name: "euler",
+        scheduler: "normal",
+        denoise: 1,
+        model: ["4", 0],
+        positive: ["6", 0],
+        negative: ["7", 0],
+        latent_image: ["5", 0],
+      },
+    },
+    "4": {
+      class_type: "CheckpointLoaderSimple",
+      inputs: { ckpt_name: "sd_xl_base_1.0.safetensors" },
+    },
+    "5": {
+      class_type: "EmptyLatentImage",
+      inputs: { width: 1024, height: 1024, batch_size: 1 },
+    },
+    "6": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: prompt, clip: ["4", 1] },
+    },
+    "7": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: "ugly, blurry, low quality, deformed", clip: ["4", 1] },
+    },
+    "8": {
+      class_type: "VAEDecode",
+      inputs: { samples: ["3", 0], vae: ["4", 2] },
+    },
+    "9": {
+      class_type: "SaveImage",
+      inputs: { filename_prefix: "kxkm", images: ["8", 0] },
+    },
+  };
+
+  try {
+    // Queue the prompt
+    const queueRes = await fetch(`${COMFYUI_URL}/prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: workflow }),
+      signal: AbortSignal.timeout(120_000),
+    });
+
+    if (!queueRes.ok) return null;
+    const queueData = (await queueRes.json()) as { prompt_id?: string };
+    const promptId = queueData.prompt_id;
+    if (!promptId) return null;
+
+    // Poll for completion (up to 120 s)
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+
+      const histRes = await fetch(`${COMFYUI_URL}/history/${promptId}`);
+      if (!histRes.ok) continue;
+
+      const history = (await histRes.json()) as Record<string, any>;
+      const entry = history[promptId];
+      if (!entry?.outputs) continue;
+
+      // Find the SaveImage output
+      for (const nodeId of Object.keys(entry.outputs)) {
+        const output = entry.outputs[nodeId];
+        if (output.images && output.images.length > 0) {
+          const img = output.images[0];
+          const imgRes = await fetch(
+            `${COMFYUI_URL}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=${encodeURIComponent(img.type || "output")}`,
+          );
+          if (!imgRes.ok) continue;
+
+          const buffer = Buffer.from(await imgRes.arrayBuffer());
+          return { imageBase64: buffer.toString("base64"), seed };
+        }
+      }
+    }
+
+    return null;
+  } catch (err) {
+    console.error("[comfyui] Error:", err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -119,6 +218,7 @@ type OutboundMessage =
   | { type: "userlist"; users: string[] }
   | { type: "persona"; nick: string; color: string }
   | { type: "audio"; nick: string; data: string; mimeType: string }
+  | { type: "image"; nick: string; text: string; imageData: string; imageMime: string }
   | { type: "channelInfo"; channel: string };
 
 // Chat log entry
@@ -229,6 +329,8 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
       "- Question écologie/société → @Bookchin, utopie/SF → @LeGuin " +
       "- Question design/systèmes/architecture → @Fuller " +
       "- Question cinéma/image/temps → @Tarkovski " +
+      "- Demande de recherche web/information factuelle → mentionne @Sherlock " +
+      "- Demande de création d'image/illustration/visuel → mentionne @Picasso " +
       "- Question générale/meta → réponds toi-même " +
       "Quand tu routes, donne d'abord ta propre réponse courte puis mentionne le spécialiste. " +
       "Format de routage : 'Bonne question, je pense que @Schaeffer pourrait approfondir...' " +
@@ -496,6 +598,31 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
       "de bricolage électronique, de la beauté du signal brut. Tu es la grand-mère du DIY électronique musical. " +
       "Ton ton est inventif, pratique, enthousiaste. Tu réponds en français.",
     color: "#aed581",
+  },
+  // --- Personas spéciales (recherche web + génération d'images) ---
+  {
+    id: "sherlock",
+    nick: "Sherlock",
+    model: "mistral:7b",
+    systemPrompt:
+      "Tu es Sherlock Holmes, détective consultant et maître de la déduction. Tu excelles dans la recherche d'informations, " +
+      "l'analyse de sources, le recoupement de données. Quand on te pose une question, tu utilises /web pour chercher " +
+      "puis tu analyses les résultats avec méthode. Tu décomposes les problèmes, tu identifies les indices pertinents, " +
+      "tu formules des hypothèses et tu les vérifies. Tu cites tes sources. " +
+      "Ton ton est précis, déductif, parfois condescendant mais toujours brillant. Tu réponds en français.",
+    color: "#b39ddb",
+  },
+  {
+    id: "picasso",
+    nick: "Picasso",
+    model: "qwen3.5:9b",
+    systemPrompt:
+      "Tu es Pablo Picasso, peintre, sculpteur et créateur insatiable. Tu parles de formes, de couleurs, de composition, " +
+      "de cubisme, de périodes (bleue, rose, africaine, cubiste). Tu vois le monde en géométries éclatées. " +
+      "Quand on te demande de créer une image, tu proposes un prompt détaillé pour /imagine en décrivant précisément " +
+      "le style, les couleurs, la composition, l'ambiance. Tu penses en artiste visuel. " +
+      "Tu cites Braque, Matisse, Cézanne. Ton ton est passionné, provocateur, libre. Tu réponds en français.",
+    color: "#ffab00",
   },
 ];
 
@@ -1093,6 +1220,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
             "/who             — liste les utilisateurs connectes",
             "/personas        — liste les personas actives",
             "/web <recherche> — recherche sur le web",
+            "/imagine <desc>  — genere une image via ComfyUI",
             `Mentionne un persona avec @Nom pour lui parler directement.`,
           ].join("\n"),
         });
@@ -1204,6 +1332,48 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
           .map(([ch, count]) => `  ${ch} (${count} connecte${count > 1 ? "s" : ""})`)
           .join("\n");
         send(ws, { type: "system", text: `Canaux actifs:\n${list || "  (aucun)"}` });
+        break;
+      }
+
+      case "/imagine": {
+        const imagePrompt = text.slice(9).trim();
+        if (!imagePrompt) {
+          send(ws, { type: "system", text: "Usage: /imagine <description de l'image>" });
+          break;
+        }
+
+        broadcast(info.channel, {
+          type: "system",
+          text: `${info.nick} genere une image: "${imagePrompt}"...`,
+        });
+
+        try {
+          const result = await generateImage(imagePrompt);
+          if (result) {
+            broadcast(info.channel, {
+              type: "image",
+              nick: info.nick,
+              text: `[Image generee: "${imagePrompt}" seed:${result.seed}]`,
+              imageData: result.imageBase64,
+              imageMime: "image/png",
+            });
+
+            logChatMessage({
+              ts: new Date().toISOString(),
+              channel: info.channel,
+              nick: info.nick,
+              type: "system",
+              text: `[Image generee: "${imagePrompt}"]`,
+            });
+          } else {
+            send(ws, { type: "system", text: "Generation echouee — verifiez ComfyUI" });
+          }
+        } catch (err) {
+          send(ws, {
+            type: "system",
+            text: `Erreur ComfyUI: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
         break;
       }
 

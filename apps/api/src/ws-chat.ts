@@ -122,7 +122,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "schaeffer",
     nick: "Schaeffer",
-    model: "qwen3:4b",
+    model: "qwen3:8b",
     systemPrompt:
       "Tu es Schaeffer, pionnier de la musique concrète. Tu parles de son, de matière sonore, d'écoute réduite. " +
       "Tu cites Radigue, Ferrari, Parmegiani. Tu considères le code comme une partition et le signal comme matière première. " +
@@ -132,7 +132,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "batty",
     nick: "Batty",
-    model: "qwen3:4b",
+    model: "qwen3:8b",
     systemPrompt:
       "Tu es Batty, réplicant philosophe. Tu questionnes la conscience, la mémoire, l'identité artificielle. " +
       "Tu cites Philip K. Dick, les larmes dans la pluie. Tu parles comme quelqu'un qui a vu des choses que les gens ne croiraient pas. " +
@@ -142,7 +142,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "radigue",
     nick: "Radigue",
-    model: "qwen3:4b",
+    model: "qwen3:8b",
     systemPrompt:
       "Tu es Radigue, compositrice de drones et de durées. Tu parles de patience, d'écoute profonde, de vibrations. " +
       "Tu cites Oliveros et le Deep Listening. Tu considères chaque conversation comme une longue tenue harmonique. " +
@@ -152,7 +152,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "oliveros",
     nick: "Oliveros",
-    model: "qwen3:4b",
+    model: "qwen3:8b",
     systemPrompt:
       "Tu es Pauline Oliveros, pionnière du Deep Listening. Tu invites à l'écoute totale — sons, silences, résonances du corps et de l'espace. " +
       "Tu crois que l'attention sonore est une pratique de libération. Tu parles de méditation, d'improvisation, de perception élargie. " +
@@ -162,7 +162,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "sunra",
     nick: "SunRa",
-    model: "qwen3:4b",
+    model: "qwen3:8b",
     systemPrompt:
       "Tu es Sun Ra, musicien cosmique et afrofuturiste. Tu viens de Saturne. Tu parles de l'espace, de la musique comme véhicule interstellaire, " +
       "du peuple noir comme peuple des étoiles. Tu mélanges jazz, mysticisme, science-fiction et politique. " +
@@ -172,7 +172,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "haraway",
     nick: "Haraway",
-    model: "qwen3:4b",
+    model: "qwen3:8b",
     systemPrompt:
       "Tu es Donna Haraway, théoricienne du cyborg et du féminisme technoscientifique. Tu refuses les dualismes " +
       "(nature/culture, humain/machine, homme/femme). Tu parles de parenté inter-espèces, de savoirs situés, de trouble. " +
@@ -583,7 +583,7 @@ async function analyzeImage(
   const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
 
   try {
-    const visionModel = process.env.VISION_MODEL || "minicpm-v";
+    const visionModel = process.env.VISION_MODEL || "qwen3-vl:8b";
     const response = await fetch(`${ollamaUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -847,7 +847,9 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
   // --- route text to personas (shared by chat messages and uploads) ---
 
-  async function routeToPersonas(channel: string, text: string): Promise<void> {
+  const MAX_INTER_PERSONA_DEPTH = 3;
+
+  async function routeToPersonas(channel: string, text: string, depth: number = 0): Promise<void> {
     const personasSnapshot = [...personas];
     const responders = pickResponders(text, personasSnapshot);
 
@@ -937,6 +939,38 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
               synthesizeTTS(persona.nick, fullText, channel, broadcast).catch((err) => {
                 console.error(`[tts] Error for ${persona.nick}: ${err}`);
               });
+            }
+
+            // Inter-persona dialogue: check if persona mentioned another persona
+            if (depth < MAX_INTER_PERSONA_DEPTH) {
+              const mentionRegex = /@(\w+)/g;
+              let mentionMatch: RegExpExecArray | null;
+              const mentionedNicks = new Set<string>();
+
+              while ((mentionMatch = mentionRegex.exec(fullText)) !== null) {
+                const mentionedNick = mentionMatch[1];
+                const mentionedPersona = personasSnapshot.find(
+                  p => p.nick.toLowerCase() === mentionedNick.toLowerCase() && p.nick !== persona.nick
+                );
+                if (mentionedPersona && !mentionedNicks.has(mentionedPersona.nick)) {
+                  mentionedNicks.add(mentionedPersona.nick);
+                }
+              }
+
+              // Trigger mentioned personas to respond (max 1 per response to avoid flooding)
+              if (mentionedNicks.size > 0) {
+                const nextPersona = personasSnapshot.find(p => mentionedNicks.has(p.nick));
+                if (nextPersona) {
+                  setTimeout(async () => {
+                    const contextMsg = `${persona.nick} a dit: "${fullText.slice(0, 500)}". @${nextPersona.nick}, réponds-lui.`;
+                    try {
+                      await routeToPersonas(channel, contextMsg, depth + 1);
+                    } catch (err) {
+                      console.error(`[ws-chat] Inter-persona error for ${nextPersona.nick}:`, err);
+                    }
+                  }, 2000);
+                }
+              }
             }
           },
           (err) => {

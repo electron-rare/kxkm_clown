@@ -707,11 +707,33 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
     persona.name = String(req.body?.name || persona.name);
     persona.model = String(req.body?.model || persona.model);
     persona.summary = String(req.body?.summary || persona.summary);
+    if (req.body?.enabled !== undefined) {
+      (persona as unknown as Record<string, unknown>).enabled = Boolean(req.body.enabled);
+    }
 
     await personaRepo.upsert(persona);
 
     await feedbackRepo.create(
       createFeedback(persona.id, "admin_edit", `Persona editee par ${req.session?.username || "unknown"}`),
+    );
+
+    res.json(asApiData(persona));
+  });
+
+  app.post("/api/admin/personas/:id/toggle", requirePermission("persona:write"), async (req: SessionRequest, res) => {
+    const personaId = readRouteParam(req.params.id);
+    const persona = await personaRepo.findById(personaId);
+    if (!persona) {
+      res.status(404).json({ ok: false, error: "persona_not_found" });
+      return;
+    }
+
+    const enabled = req.body?.enabled !== undefined ? Boolean(req.body.enabled) : !(persona as unknown as { enabled?: boolean }).enabled;
+    (persona as unknown as Record<string, unknown>).enabled = enabled;
+    await personaRepo.upsert(persona);
+
+    await feedbackRepo.create(
+      createFeedback(persona.id, "admin_edit", `Persona ${enabled ? "activee" : "desactivee"} par ${req.session?.username || "unknown"}`),
     );
 
     res.json(asApiData(persona));

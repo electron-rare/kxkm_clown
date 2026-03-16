@@ -6,6 +6,12 @@ interface PersonaDetailProps {
   onBack: () => void;
 }
 
+const AVAILABLE_MODELS = [
+  "qwen2.5:14b",
+  "mistral:7b",
+  "mythalion:latest",
+];
+
 export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps) {
   const [persona, setPersona] = useState<PersonaData | null>(null);
   const [feedback, setFeedback] = useState<PersonaFeedbackRecord[]>([]);
@@ -16,6 +22,7 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
   const [editModel, setEditModel] = useState("");
   const [editSummary, setEditSummary] = useState("");
   const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     loadPersona();
@@ -59,15 +66,42 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
     }
   }
 
+  async function handleToggle() {
+    if (!persona) return;
+    setToggling(true);
+    try {
+      const updated = await api.togglePersona(personaId, persona.enabled === false);
+      setPersona(updated);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "toggle_failed");
+    } finally {
+      setToggling(false);
+    }
+  }
+
   if (loading) return <div className="muted">Chargement...</div>;
   if (error && !persona) return <div className="banner">{error}</div>;
   if (!persona) return <div className="banner">Persona introuvable.</div>;
+
+  const isEnabled = persona.enabled !== false;
 
   return (
     <div>
       <div className="page-header">
         <button className="btn btn-secondary" onClick={onBack}>Retour</button>
         <h2>{persona.name}</h2>
+        <span
+          className={`status-dot ${isEnabled ? "status-dot-on" : "status-dot-off"}`}
+          title={isEnabled ? "Active" : "Desactivee"}
+        />
+        <button
+          className={`btn ${isEnabled ? "btn-secondary" : "btn-danger"}`}
+          onClick={handleToggle}
+          disabled={toggling}
+        >
+          {toggling ? "..." : isEnabled ? "Desactiver" : "Activer"}
+        </button>
       </div>
 
       {error && <div className="banner">{error}</div>}
@@ -83,14 +117,22 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
               </label>
               <label>
                 <span>Modele</span>
-                <input value={editModel} onChange={(e) => setEditModel(e.target.value)} />
+                <select value={editModel} onChange={(e) => setEditModel(e.target.value)}>
+                  {AVAILABLE_MODELS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                  {!AVAILABLE_MODELS.includes(editModel) && (
+                    <option value={editModel}>{editModel} (custom)</option>
+                  )}
+                </select>
               </label>
               <label>
-                <span>Description</span>
+                <span>System Prompt / Description</span>
                 <textarea
                   value={editSummary}
                   onChange={(e) => setEditSummary(e.target.value)}
-                  rows={4}
+                  rows={8}
+                  placeholder="System prompt ou description de la persona..."
                 />
               </label>
               <div className="form-actions">
@@ -113,8 +155,14 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
                 <span className="model-tag">{persona.model}</span>
               </div>
               <div className="detail-row">
+                <span className="detail-label">Statut</span>
+                <span className={isEnabled ? "persona-status-on" : "persona-status-off"}>
+                  {isEnabled ? "Active" : "Desactivee"}
+                </span>
+              </div>
+              <div className="detail-row">
                 <span className="detail-label">Description</span>
-                <p>{persona.summary}</p>
+                <pre className="persona-summary-pre">{persona.summary}</pre>
               </div>
               <button className="btn btn-primary" onClick={() => setEditing(true)}>
                 Editer
@@ -131,6 +179,7 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
                 <li key={fb.id} className="feedback-item">
                   <span className="feedback-kind">{fb.kind}</span>
                   <span>{fb.message}</span>
+                  <span className="feedback-date">{new Date(fb.createdAt).toLocaleDateString("fr-FR")}</span>
                 </li>
               ))}
             </ul>

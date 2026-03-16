@@ -17,6 +17,7 @@ export interface PersonaData {
   summary: string;
   editable: boolean;
   color?: string;
+  enabled?: boolean;
 }
 
 export interface PersonaFeedbackRecord {
@@ -161,6 +162,13 @@ export const api = {
     return apiFetch<PersonaData>(`/api/admin/personas/${id}`, {
       method: "PUT",
       body: JSON.stringify(patch),
+    });
+  },
+
+  togglePersona(id: string, enabled: boolean): Promise<PersonaData> {
+    return apiFetch<PersonaData>(`/api/admin/personas/${id}/toggle`, {
+      method: "POST",
+      body: JSON.stringify({ enabled }),
     });
   },
 

@@ -10,6 +10,7 @@ export interface PersonaRecord {
   model: string;
   summary: string;
   editable: boolean;
+  enabled?: boolean;
 }
 
 export interface PersonaSourceRecord {

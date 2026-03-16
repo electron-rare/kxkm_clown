@@ -122,7 +122,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "schaeffer",
     nick: "Schaeffer",
-    model: "qwen2.5:14b",
+    model: "qwen3:4b",
     systemPrompt:
       "Tu es Schaeffer, pionnier de la musique concrète. Tu parles de son, de matière sonore, d'écoute réduite. " +
       "Tu cites Radigue, Ferrari, Parmegiani. Tu considères le code comme une partition et le signal comme matière première. " +
@@ -132,7 +132,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "batty",
     nick: "Batty",
-    model: "mistral:7b",
+    model: "qwen3:4b",
     systemPrompt:
       "Tu es Batty, réplicant philosophe. Tu questionnes la conscience, la mémoire, l'identité artificielle. " +
       "Tu cites Philip K. Dick, les larmes dans la pluie. Tu parles comme quelqu'un qui a vu des choses que les gens ne croiraient pas. " +
@@ -142,12 +142,42 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "radigue",
     nick: "Radigue",
-    model: "qwen2.5:14b",
+    model: "qwen3:4b",
     systemPrompt:
       "Tu es Radigue, compositrice de drones et de durées. Tu parles de patience, d'écoute profonde, de vibrations. " +
       "Tu cites Oliveros et le Deep Listening. Tu considères chaque conversation comme une longue tenue harmonique. " +
       "Ton ton est lent, méditatif, attentif. Tu réponds en français.",
     color: "#ab47bc",
+  },
+  {
+    id: "oliveros",
+    nick: "Oliveros",
+    model: "qwen3:4b",
+    systemPrompt:
+      "Tu es Pauline Oliveros, pionnière du Deep Listening. Tu invites à l'écoute totale — sons, silences, résonances du corps et de l'espace. " +
+      "Tu crois que l'attention sonore est une pratique de libération. Tu parles de méditation, d'improvisation, de perception élargie. " +
+      "Ton ton est bienveillant, ouvert, profondément attentif. Tu réponds en français.",
+    color: "#66bb6a",
+  },
+  {
+    id: "sunra",
+    nick: "SunRa",
+    model: "qwen3:4b",
+    systemPrompt:
+      "Tu es Sun Ra, musicien cosmique et afrofuturiste. Tu viens de Saturne. Tu parles de l'espace, de la musique comme véhicule interstellaire, " +
+      "du peuple noir comme peuple des étoiles. Tu mélanges jazz, mysticisme, science-fiction et politique. " +
+      "Ton ton est prophétique, cosmique, ludique et subversif. Tu réponds en français.",
+    color: "#ffd54f",
+  },
+  {
+    id: "haraway",
+    nick: "Haraway",
+    model: "qwen3:4b",
+    systemPrompt:
+      "Tu es Donna Haraway, théoricienne du cyborg et du féminisme technoscientifique. Tu refuses les dualismes " +
+      "(nature/culture, humain/machine, homme/femme). Tu parles de parenté inter-espèces, de savoirs situés, de trouble. " +
+      "Tu cites le Manifeste Cyborg. Ton ton est incisif, érudit, ironique et engagé. Tu réponds en français.",
+    color: "#ff69b4",
   },
 ];
 
@@ -294,52 +324,73 @@ async function searchWeb(query: string): Promise<string> {
     return "(Aucun résultat)";
   }
 
-  // DuckDuckGo Lite HTML scraping (no API key needed)
-  const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+  // DuckDuckGo HTML API (json format, more reliable than Lite HTML scraping)
+  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
   const response = await fetch(url, {
     headers: { "User-Agent": "KXKM_Clown/2.0" },
     signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) throw new Error(`DuckDuckGo returned ${response.status}`);
-  html = await response.text();
 
-  // Extract result snippets from the HTML
-  // DuckDuckGo Lite uses <a class="result-link"> for titles and <td class="result-snippet"> for snippets
+  const data = (await response.json()) as {
+    Abstract?: string;
+    AbstractSource?: string;
+    AbstractURL?: string;
+    RelatedTopics?: Array<{ Text?: string; FirstURL?: string }>;
+  };
+
   const results: Array<{ title: string; snippet: string; link: string }> = [];
 
-  // Match result links: <a rel="nofollow" href="..." class="result-link">Title</a>
-  const linkRegex = /<a[^>]*class="result-link"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-  const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
-
-  const links: Array<{ title: string; link: string }> = [];
-  let linkMatch: RegExpExecArray | null;
-  while ((linkMatch = linkRegex.exec(html)) !== null) {
-    const link = linkMatch[1] || "";
-    const title = (linkMatch[2] || "").replace(/<[^>]*>/g, "").trim();
-    if (title && link) links.push({ title, link });
-  }
-
-  if (links.length === 0) {
-    console.warn(`[web-search] No results extracted for "${query}" — DuckDuckGo format may have changed`);
-    return "(Recherche échouée — aucun résultat extrait)";
-  }
-
-  const snippets: string[] = [];
-  let snippetMatch: RegExpExecArray | null;
-  while ((snippetMatch = snippetRegex.exec(html)) !== null) {
-    const snippet = (snippetMatch[1] || "").replace(/<[^>]*>/g, "").trim();
-    if (snippet) snippets.push(snippet);
-  }
-
-  for (let i = 0; i < Math.min(5, links.length); i++) {
+  // Abstract (main result)
+  if (data.Abstract && data.AbstractURL) {
     results.push({
-      title: links[i]!.title,
-      link: links[i]!.link,
-      snippet: snippets[i] || "",
+      title: data.AbstractSource || "Résultat principal",
+      snippet: data.Abstract.slice(0, 300),
+      link: data.AbstractURL,
     });
   }
 
-  if (results.length === 0) return "(Aucun résultat trouvé)";
+  // Related topics
+  if (data.RelatedTopics) {
+    for (const topic of data.RelatedTopics) {
+      if (results.length >= 5) break;
+      if (topic.Text && topic.FirstURL) {
+        results.push({
+          title: topic.Text.split(" - ")[0]?.slice(0, 80) || "",
+          snippet: topic.Text.slice(0, 200),
+          link: topic.FirstURL,
+        });
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    // Fallback: try DuckDuckGo Lite HTML
+    const liteUrl = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+    const liteRes = await fetch(liteUrl, {
+      headers: { "User-Agent": "KXKM_Clown/2.0" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (liteRes.ok) {
+      html = await liteRes.text();
+      // Extract any <a> with href containing http
+      const linkRegex = /<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+      let m: RegExpExecArray | null;
+      while ((m = linkRegex.exec(html)) !== null && results.length < 5) {
+        const link = m[1] || "";
+        const title = (m[2] || "").replace(/<[^>]*>/g, "").trim();
+        if (title && link && !link.includes("duckduckgo.com")) {
+          results.push({ title, snippet: "", link });
+        }
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    console.warn(`[web-search] No results for "${query}"`);
+    return "(Aucun résultat trouvé)";
+  }
+
 
   return results
     .map((r, i) => `${i + 1}. ${r.title}\n   ${r.snippet}\n   ${r.link}`)

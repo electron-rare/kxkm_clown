@@ -150,6 +150,13 @@ export const api = {
   },
 
   // Personas
+  createPersona(data: { name: string; nick?: string; model?: string; summary?: string; enabled?: boolean }): Promise<PersonaData> {
+    return apiFetch<PersonaData>("/api/admin/personas", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
   listPersonas(): Promise<PersonaData[]> {
     return apiFetch<PersonaData[]>("/api/personas");
   },

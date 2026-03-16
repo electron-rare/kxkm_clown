@@ -230,6 +230,39 @@ export default function Chat() {
     }
   }, [messages]);
 
+  // Ref to always have current handleSend in the global keydown handler
+  const handleSendRef = useRef<() => void>(() => {});
+
+  // Global F-key handler (Minitel bar: F1=Sommaire F2=Suite F3=Retour F4=Annul F5=Envoi)
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      switch (e.key) {
+        case "F1":
+          e.preventDefault();
+          window.location.hash = "#/";
+          break;
+        case "F2":
+          e.preventDefault();
+          messagesContainerRef.current?.scrollBy({ top: 300, behavior: "smooth" });
+          break;
+        case "F3":
+          e.preventDefault();
+          history.back();
+          break;
+        case "F4":
+          e.preventDefault();
+          setInput("");
+          break;
+        case "F5":
+          e.preventDefault();
+          handleSendRef.current();
+          break;
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
   function handleSend() {
     const trimmed = input.trim();
     if (!trimmed || !ws.connected) return;
@@ -279,6 +312,9 @@ export default function Chat() {
     }
     setInput("");
   }
+
+  // Keep handleSendRef in sync
+  useEffect(() => { handleSendRef.current = handleSend; });
 
   const [tabIndex, setTabIndex] = useState(-1);
   const [tabPrefix, setTabPrefix] = useState("");

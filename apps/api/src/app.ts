@@ -696,6 +696,29 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
     res.json(asApiData(persona));
   });
 
+  app.post("/api/admin/personas", requirePermission("persona:write"), async (req: SessionRequest, res) => {
+    const name = String(req.body?.name || "").trim();
+    if (!name) {
+      res.status(400).json({ ok: false, error: "name_required" });
+      return;
+    }
+    const persona: PersonaRecord = {
+      id: createId("persona"),
+      name,
+      model: String(req.body?.model || "qwen3:8b"),
+      summary: String(req.body?.summary || ""),
+      editable: true,
+      enabled: req.body?.enabled !== undefined ? Boolean(req.body.enabled) : true,
+    };
+    await personaRepo.upsert(persona);
+
+    await feedbackRepo.create(
+      createFeedback(persona.id, "admin_edit", `Persona creee par ${req.session?.username || "unknown"}`),
+    );
+
+    res.status(201).json(asApiData(persona));
+  });
+
   app.put("/api/admin/personas/:id", requirePermission("persona:write"), async (req: SessionRequest, res) => {
     const personaId = readRouteParam(req.params.id);
     const persona = await personaRepo.findById(personaId);

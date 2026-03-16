@@ -202,6 +202,31 @@ export default function VoiceChat() {
     enabled: true,
   });
 
+  // Ref to always have current toggleRecording in the global keydown handler
+  const toggleRecordingRef = useRef<() => void>(() => {});
+
+  // Global F-key handler (Minitel bar: F1=Sommaire F3=Retour F5=Envoi/toggle recording)
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      switch (e.key) {
+        case "F1":
+          e.preventDefault();
+          window.location.hash = "#/";
+          break;
+        case "F3":
+          e.preventDefault();
+          history.back();
+          break;
+        case "F5":
+          e.preventDefault();
+          toggleRecordingRef.current();
+          break;
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
+
   // Recording controls
   function toggleRecording() {
     if (isRecording) {
@@ -269,6 +294,9 @@ export default function VoiceChat() {
       });
     }
   }
+
+  // Keep toggleRecordingRef in sync
+  useEffect(() => { toggleRecordingRef.current = toggleRecording; });
 
   // Cleanup on unmount
   useEffect(() => {

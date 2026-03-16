@@ -167,6 +167,7 @@ async function executeNodeStub(
     }
 
     // Training — execute via train_unsloth.py
+    case "sft_training":
     case "lora_training":
     case "qlora_training": {
       const baseModel = typeof params.baseModel === "string" && params.baseModel
@@ -201,7 +202,7 @@ async function executeNodeStub(
         "--model", baseModel,
         "--data", datasetPath,
         "--output", outputDir,
-        "--method", nodeType === "qlora_training" ? "qlora" : "lora",
+        "--method", params.dpo === true ? "dpo" : nodeType === "qlora_training" ? "qlora" : nodeType === "sft_training" ? "sft" : "lora",
         "--lr", String(hp.learningRate),
         "--epochs", String(hp.epochs),
         "--batch-size", String(hp.batchSize),

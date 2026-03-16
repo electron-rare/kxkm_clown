@@ -11,5 +11,10 @@
     "not_configured": -1
   },
   "outputFile": "data/node-engine/autoresearch/results.tsv",
-  "tag": "persona-baseline"
+  "tag": "persona-baseline",
+  "mutations": {
+    "learningRate": {"min": 1e-5, "max": 5e-4, "strategy": "random"},
+    "epochs": {"values": [1, 2, 3, 5]},
+    "loraRank": {"values": [8, 16, 32, 64]}
+  }
 }

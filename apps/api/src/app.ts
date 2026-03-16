@@ -17,6 +17,7 @@ import {
   clonePersona,
   createFeedback,
   createProposal,
+  extractDPOPairs,
   type PersonaFeedbackRecord,
   type PersonaProposalRecord,
   type PersonaRecord,
@@ -945,6 +946,47 @@ export async function createApp(): Promise<express.Express> {
       res.send(html);
     } catch {
       res.status(500).json({ ok: false, error: "export_error" });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // Export DPO training pairs as JSONL
+  // -----------------------------------------------------------------------
+
+  app.get("/api/v2/export/dpo", requirePermission("persona:read"), async (req: SessionRequest, res) => {
+    try {
+      const filterPersonaId = req.query?.persona_id ? readRouteParam(req.query.persona_id as string) : null;
+
+      let personas = await personaRepo.list();
+      if (filterPersonaId) {
+        personas = personas.filter((p) => p.id === filterPersonaId);
+        if (personas.length === 0) {
+          res.status(404).json({ ok: false, error: "persona_not_found" });
+          return;
+        }
+      }
+
+      const allPairs: Array<{ prompt: string; chosen: string; rejected: string; persona_id: string }> = [];
+
+      for (const persona of personas) {
+        const feedback = await feedbackRepo.listByPersonaId(persona.id);
+        const pairs = extractDPOPairs(feedback, persona);
+        for (const pair of pairs) {
+          allPairs.push({
+            prompt: pair.prompt,
+            chosen: pair.chosen,
+            rejected: pair.rejected,
+            persona_id: pair.personaId,
+          });
+        }
+      }
+
+      res.setHeader("Content-Type", "application/x-ndjson");
+      res.setHeader("Content-Disposition", `attachment; filename="dpo-pairs-${new Date().toISOString().slice(0, 10)}.jsonl"`);
+      const lines = allPairs.map((pair) => JSON.stringify(pair));
+      res.send(lines.join("\n") + (lines.length ? "\n" : ""));
+    } catch {
+      res.status(500).json({ ok: false, error: "dpo_export_error" });
     }
   });
 

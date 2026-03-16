@@ -30,7 +30,7 @@ def parse_args():
     p.add_argument("--model", required=True, help="Base model name or path")
     p.add_argument("--data", required=True, help="Path to dataset (JSONL/JSON)")
     p.add_argument("--output", required=True, help="Output directory for adapter")
-    p.add_argument("--method", choices=["lora", "qlora", "sft"], default="lora")
+    p.add_argument("--method", choices=["lora", "qlora", "sft", "dpo"], default="lora")
     p.add_argument("--lr", type=float, default=2e-4)
     p.add_argument("--epochs", type=int, default=3)
     p.add_argument("--batch-size", type=int, default=4)
@@ -91,6 +91,74 @@ def format_for_sft(example):
     return {"text": str(example)}
 
 
+def run_dpo_training(args, model, tokenizer, dataset, start_time, result):
+    """Run DPO training with chosen/rejected pairs."""
+    from trl import DPOTrainer, DPOConfig
+
+    # DPO dataset requires: prompt, chosen, rejected
+    required_cols = {"prompt", "chosen", "rejected"}
+    actual_cols = set(dataset.column_names)
+    if not required_cols.issubset(actual_cols):
+        missing = required_cols - actual_cols
+        raise ValueError(f"DPO dataset missing columns: {missing}. Required: {required_cols}")
+
+    print(f"[train] DPO dataset loaded: {len(dataset)} pairs", file=sys.stderr)
+
+    os.makedirs(args.output, exist_ok=True)
+
+    training_args = DPOConfig(
+        output_dir=args.output,
+        per_device_train_batch_size=args.batch_size,
+        num_train_epochs=args.epochs,
+        learning_rate=args.lr,
+        warmup_steps=args.warmup_steps,
+        max_length=args.max_seq_length,
+        max_prompt_length=args.max_seq_length // 2,
+        logging_steps=1,
+        save_strategy="epoch",
+        fp16=False,
+        bf16=True,
+        optim="adamw_8bit",
+        beta=0.1,
+        seed=42,
+    )
+
+    trainer = DPOTrainer(
+        model=model,
+        tokenizer=tokenizer,
+        train_dataset=dataset,
+        args=training_args,
+    )
+
+    print(f"[train] Starting DPO training: {args.epochs} epochs, lr={args.lr}, beta=0.1", file=sys.stderr)
+
+    train_result = trainer.train()
+
+    model.save_pretrained(args.output)
+    tokenizer.save_pretrained(args.output)
+
+    duration = time.time() - start_time
+    train_loss = train_result.training_loss if hasattr(train_result, "training_loss") else None
+
+    result = {
+        "status": "completed",
+        "model": args.model,
+        "method": "dpo",
+        "adapterPath": args.output,
+        "metrics": {
+            "trainLoss": train_loss,
+            "duration": round(duration, 2),
+            "examples": len(dataset),
+            "epochs": args.epochs,
+        },
+        "error": None,
+    }
+
+    print(f"[train] DPO complete in {duration:.1f}s, loss={train_loss}", file=sys.stderr)
+    print(json.dumps(result))
+    return result
+
+
 def main():
     args = parse_args()
     start_time = time.time()
@@ -110,7 +178,7 @@ def main():
         print(f"[train] Loading model: {args.model}", file=sys.stderr)
 
         # Determine quantization
-        load_in_4bit = args.quantize == "4bit" or args.method == "qlora"
+        load_in_4bit = args.quantize == "4bit" or args.method in ("qlora", "dpo")
 
         # Load model with Unsloth
         model, tokenizer = FastLanguageModel.from_pretrained(
@@ -120,7 +188,7 @@ def main():
         )
 
         # Apply LoRA
-        if args.method in ("lora", "qlora"):
+        if args.method in ("lora", "qlora", "dpo"):
             model = FastLanguageModel.get_peft_model(
                 model,
                 r=args.lora_rank,
@@ -138,6 +206,11 @@ def main():
 
         # Load dataset
         dataset = load_dataset_from_jsonl(args.data)
+
+        # DPO branch — use DPOTrainer with chosen/rejected pairs
+        if args.method == "dpo":
+            return run_dpo_training(args, model, tokenizer, dataset, start_time, result)
+
         dataset = dataset.map(format_for_sft)
 
         print(f"[train] Dataset loaded: {len(dataset)} examples", file=sys.stderr)

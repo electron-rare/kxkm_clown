@@ -64,6 +64,7 @@ function loadConfig(configPath) {
       ? cfg.outputFile
       : "data/node-engine/autoresearch/results.tsv",
     tag: typeof cfg.tag === "string" ? cfg.tag : "default",
+    mutations: cfg.mutations && typeof cfg.mutations === "object" ? cfg.mutations : null,
   };
 }
 
@@ -80,6 +81,20 @@ function scoreRun(status, elapsedMs, statusScores, artifactScore) {
   return safeBase + speedBonus;
 }
 
+function mutateParams(mutations, experimentIndex) {
+  if (!mutations || typeof mutations !== "object") return {};
+  const params = {};
+  for (const [key, spec] of Object.entries(mutations)) {
+    if (!spec || typeof spec !== "object") continue;
+    if (spec.strategy === "random" && Number.isFinite(spec.min) && Number.isFinite(spec.max)) {
+      params[key] = spec.min + Math.random() * (spec.max - spec.min);
+    } else if (Array.isArray(spec.values) && spec.values.length > 0) {
+      params[key] = spec.values[experimentIndex % spec.values.length];
+    }
+  }
+  return params;
+}
+
 function ensureTsvHeader(filePath) {
   const dir = path.dirname(filePath);
   fs.mkdirSync(dir, { recursive: true });
@@ -87,7 +102,7 @@ function ensureTsvHeader(filePath) {
     fs.writeFileSync(
       filePath,
       [
-        "timestamp\texperiment\trun_id\tgraph_id\tstatus\telapsed_ms\tartifact_score\tscore\tdecision\ttag",
+        "timestamp\texperiment\trun_id\tgraph_id\tstatus\telapsed_ms\tartifact_score\tscore\tdecision\ttag\tmutated_params",
       ].join("\n") + "\n",
       "utf8",
     );
@@ -121,6 +136,46 @@ async function extractArtifactScore(pool, runId) {
     return NaN;
   } catch {
     return NaN;
+  }
+}
+
+async function registerBestModel(pool, bestRunId, bestScore, tag) {
+  try {
+    const result = await pool.query(
+      `SELECT id, type, data FROM node_run_artifacts
+       WHERE run_id = $1 AND type = 'model'
+       ORDER BY created_at DESC LIMIT 1`,
+      [bestRunId],
+    );
+    if (result.rows.length === 0) {
+      console.log("[autoresearch] no model artifact found for run " + bestRunId + ", skipping registration");
+      return null;
+    }
+    const artifact = result.rows[0];
+    const data = artifact.data || {};
+    const adapterPath = data.adapterPath || data.adapter_path || data.path || null;
+
+    const registryEntry = {
+      runId: bestRunId,
+      artifactId: artifact.id,
+      score: bestScore,
+      tag,
+      adapterPath,
+      registeredAt: nowIso(),
+      data,
+    };
+
+    const registryDir = path.resolve(process.cwd(), "data/node-engine/registry");
+    fs.mkdirSync(registryDir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const registryFile = path.join(registryDir, tag + "-" + timestamp + ".json");
+    fs.writeFileSync(registryFile, JSON.stringify(registryEntry, null, 2), "utf8");
+
+    console.log("[autoresearch] model registered: " + registryFile);
+    return registryFile;
+  } catch (err) {
+    console.error("[autoresearch] registry error:", err instanceof Error ? err.message : String(err));
+    return null;
   }
 }
 
@@ -216,6 +271,7 @@ async function main() {
     const total = once ? 1 : config.maxExperiments;
     for (let i = 1; i <= total; i += 1) {
       const experimentTag = "exp_" + String(i).padStart(3, "0");
+      const mutated = mutateParams(config.mutations, i - 1);
 
       const run = await createQueuedRun(pool, config.graphId, {
         autoresearch: {
@@ -223,6 +279,7 @@ async function main() {
           experiment: experimentTag,
           createdBy: "scripts/v2-autoresearch-loop.js",
         },
+        ...mutated,
       });
 
       console.log("[autoresearch] queued " + run.id + " (" + experimentTag + ")");
@@ -244,6 +301,7 @@ async function main() {
         bestRunId = run.id;
       }
 
+      const mutatedJson = Object.keys(mutated).length > 0 ? JSON.stringify(mutated) : "";
       appendTsv(outputPath, [
         nowIso(),
         experimentTag,
@@ -255,6 +313,7 @@ async function main() {
         score.toFixed(6),
         decision,
         config.tag,
+        mutatedJson,
       ]);
 
       const suffix = outcome.timedOut ? " timeout" : "";
@@ -270,6 +329,10 @@ async function main() {
       " best_score=" + (Number.isFinite(bestScore) ? bestScore.toFixed(4) : "n/a"),
     );
     console.log("[autoresearch] results=" + outputPath);
+
+    if (bestRunId && Number.isFinite(bestScore) && bestScore > 0) {
+      await registerBestModel(pool, bestRunId, bestScore, config.tag);
+    }
   } finally {
     await pool.end();
   }

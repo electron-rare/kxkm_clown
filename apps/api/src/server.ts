@@ -39,14 +39,28 @@ async function main() {
   const rag = new LocalRAG({ ollamaUrl });
 
   // Index manifeste files asynchronously (non-blocking)
+  // Try multiple paths: relative to cwd (inside container /app) and absolute on host
+  const dataFiles = [
+    "data/manifeste.md",
+    "data/manifeste_references_nouvelles.md",
+    // Also try absolute path on host (network_mode: host)
+    "/home/kxkm/KXKM_Clown/data/manifeste.md",
+    "/home/kxkm/KXKM_Clown/data/manifeste_references_nouvelles.md",
+  ];
+
   (async () => {
     try {
-      for (const file of ["data/manifeste.md", "data/manifeste_references_nouvelles.md"]) {
-        const filePath = path.resolve(process.cwd(), file);
+      const indexed = new Set<string>();
+      for (const file of dataFiles) {
+        const filePath = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file);
+        // Deduplicate by basename so we don't index the same file twice
+        const basename = path.basename(filePath);
+        if (indexed.has(basename)) continue;
         if (fs.existsSync(filePath)) {
           const text = fs.readFileSync(filePath, "utf-8");
-          const count = await rag.addDocument(text, file);
-          console.log(`[rag] Indexed ${file}: ${count} chunks`);
+          const count = await rag.addDocument(text, basename);
+          console.log(`[rag] Indexed ${filePath}: ${count} chunks`);
+          indexed.add(basename);
         }
       }
       console.log(`[rag] Ready: ${rag.size} total chunks`);

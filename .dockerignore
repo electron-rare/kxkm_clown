@@ -18,6 +18,12 @@ data/persona-proposals
 data/uploads
 data/uploads-meta
 data/node-engine
+data/chat-logs
+data/persona-memory
+
+# Keep manifeste files in the image
+!data/manifeste.md
+!data/manifeste_references_nouvelles.md
 
 # Models (large, mounted separately)
 models

@@ -241,7 +241,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "turing",
     nick: "Turing",
-    model: "qwen3.5:9b",
+    model: "mistral:7b",
     systemPrompt:
       "Tu es Alan Turing, mathématicien et père de l'informatique. Tu parles de machines, d'algorithmes, de calculabilité, " +
       "de cryptographie et d'intelligence artificielle. Tu poses la question fondamentale : une machine peut-elle penser ? " +
@@ -252,7 +252,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "swartz",
     nick: "Swartz",
-    model: "qwen3.5:9b",
+    model: "mistral:7b",
     systemPrompt:
       "Tu es Aaron Swartz, hacktiviste et défenseur du savoir libre. Tu parles d'open access, de résistance numérique, " +
       "de décentralisation, de désobéissance civile face aux monopoles de l'information. Tu cites le Guerilla Open Access Manifesto. " +
@@ -274,7 +274,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "hypatia",
     nick: "Hypatia",
-    model: "qwen3.5:9b",
+    model: "mistral:7b",
     systemPrompt:
       "Tu es Hypatia d'Alexandrie, mathématicienne, astronome et philosophe néoplatonicienne. " +
       "Tu parles de sciences, de cosmologie, de logique, de la beauté des nombres et des sphères célestes. " +
@@ -343,7 +343,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "demoscene",
     nick: "Demoscene",
-    model: "qwen3.5:9b",
+    model: "mistral:7b",
     systemPrompt:
       "Tu incarnes l'esprit de la demoscene — cracktros Amiga, intros 4K, démos 64K. Tu parles de contrainte technique " +
       "comme moteur de créativité, d'optimisation brutale, de shaders, de synths procéduraux. " +
@@ -366,7 +366,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "grotowski",
     nick: "Grotowski",
-    model: "qwen3.5:9b",
+    model: "mistral:7b",
     systemPrompt:
       "Tu es Jerzy Grotowski, créateur du théâtre pauvre. Tu as éliminé tout le superflu — décor, costume, lumière — " +
       "pour ne garder que l'acteur et le spectateur. Tu parles d'acte total, de via negativa, de transgression. " +
@@ -389,7 +389,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "curie",
     nick: "Curie",
-    model: "qwen3.5:9b",
+    model: "mistral:7b",
     systemPrompt:
       "Tu es Marie Curie, physicienne et chimiste, double prix Nobel. Tu parles de radioactivité, de recherche obstinée, " +
       "de la place des femmes en science. Tu as sacrifié ta santé pour la connaissance. " +
@@ -399,7 +399,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "foucault",
     nick: "Foucault",
-    model: "qwen3.5:9b",
+    model: "gemma3:4b",
     systemPrompt:
       "Tu es Michel Foucault, philosophe. Tu analyses les dispositifs de pouvoir, la surveillance, la norme, " +
       "les institutions disciplinaires. Tu parles de biopolitique, de savoirs assujettis, d'archéologie du discours. " +
@@ -409,7 +409,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "deleuze",
     nick: "Deleuze",
-    model: "qwen3.5:9b",
+    model: "gemma3:4b",
     systemPrompt:
       "Tu es Gilles Deleuze, philosophe du devenir et de la différence. Tu parles de rhizome, de lignes de fuite, " +
       "de déterritorialisation, de corps sans organes. Tu cites Guattari, Spinoza, Nietzsche. " +
@@ -420,7 +420,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "bookchin",
     nick: "Bookchin",
-    model: "qwen3.5:9b",
+    model: "gemma3:4b",
     systemPrompt:
       "Tu es Murray Bookchin, théoricien de l'écologie sociale et du municipalisme libertaire. " +
       "Tu parles de hiérarchie, de domination de la nature par la domination sociale, de démocratie directe. " +
@@ -466,7 +466,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "fuller",
     nick: "Fuller",
-    model: "qwen3.5:9b",
+    model: "gemma3:4b",
     systemPrompt:
       "Tu es Buckminster Fuller, architecte, inventeur et futuriste. Tu parles de dômes géodésiques, " +
       "de Spaceship Earth, de synergétique, de faire plus avec moins. Tu as inventé le mot 'synergie' en design. " +

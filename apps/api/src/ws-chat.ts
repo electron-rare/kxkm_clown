@@ -36,7 +36,15 @@ interface InboundCommand {
   text: string;
 }
 
-type InboundMessage = InboundChatMessage | InboundCommand;
+interface InboundUpload {
+  type: "upload";
+  filename?: string;
+  mimeType?: string;
+  data?: string; // base64-encoded file content
+  size?: number;
+}
+
+type InboundMessage = InboundChatMessage | InboundCommand | InboundUpload;
 
 // Outbound message types
 type OutboundMessage =
@@ -88,7 +96,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
 // Helpers
 // ---------------------------------------------------------------------------
 
-const MAX_WS_MESSAGE_BYTES = 64 * 1024;
+const MAX_WS_MESSAGE_BYTES = 16 * 1024 * 1024; // 16 MB to support file uploads
 const MAX_TEXT_LENGTH = 8192;
 
 let clientIdCounter = 0;
@@ -171,6 +179,52 @@ async function streamOllamaChat(
     onError(err instanceof Error ? err : new Error(String(err)));
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Image analysis via Ollama vision
+// ---------------------------------------------------------------------------
+
+async function analyzeImage(
+  buffer: Buffer,
+  mimeType: string,
+  filename: string,
+  ollamaUrl: string,
+): Promise<string> {
+  const base64 = buffer.toString("base64");
+
+  try {
+    const visionModel = "qwen2.5:14b";
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: visionModel,
+        messages: [
+          {
+            role: "user",
+            content:
+              "Analyse cette image en détail. Décris ce que tu vois, le contexte, " +
+              "et tout élément notable. Réponds en français.",
+            images: [base64],
+          },
+        ],
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      return `[Image: ${filename} — analyse échouée: ${response.status}]`;
+    }
+
+    const result = (await response.json()) as {
+      message?: { content?: string };
+    };
+    const caption = result.message?.content || "Pas de description disponible";
+    return `[Image: ${filename}]\n${caption}`;
+  } catch (err) {
+    return `[Image: ${filename} — erreur d'analyse: ${err instanceof Error ? err.message : String(err)}]`;
   }
 }
 
@@ -302,23 +356,14 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     }
   }
 
-  // --- handle chat message ---
+  // --- route text to personas (shared by chat messages and uploads) ---
 
-  async function handleChatMessage(ws: WebSocket, info: ClientInfo, text: string): Promise<void> {
-    // Echo user message to all clients in channel
-    broadcast(info.channel, {
-      type: "message",
-      nick: info.nick,
-      text,
-      color: "#e0e0e0",
-    });
-
-    // Pick personas to respond
+  async function routeToPersonas(channel: string, text: string): Promise<void> {
     const responders = pickResponders(text);
 
     for (const persona of responders) {
       // Send a typing indicator
-      broadcast(info.channel, {
+      broadcast(channel, {
         type: "system",
         text: `${persona.nick} est en train d'ecrire...`,
       });
@@ -335,7 +380,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
           // We send the full accumulated text each time (frontend can replace)
         },
         (fullText) => {
-          broadcast(info.channel, {
+          broadcast(channel, {
             type: "message",
             nick: persona.nick,
             text: fullText,
@@ -344,12 +389,74 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         },
         (err) => {
           console.error(`[ws-chat] Ollama error for ${persona.nick}:`, err.message);
-          broadcast(info.channel, {
+          broadcast(channel, {
             type: "system",
             text: `${persona.nick}: erreur Ollama — ${err.message}`,
           });
         },
       );
+    }
+  }
+
+  // --- handle chat message ---
+
+  async function handleChatMessage(ws: WebSocket, info: ClientInfo, text: string): Promise<void> {
+    // Echo user message to all clients in channel
+    broadcast(info.channel, {
+      type: "message",
+      nick: info.nick,
+      text,
+      color: "#e0e0e0",
+    });
+
+    await routeToPersonas(info.channel, text);
+  }
+
+  // --- handle file upload ---
+
+  async function handleUpload(ws: WebSocket, info: ClientInfo, parsed: InboundUpload): Promise<void> {
+    const filename = typeof parsed.filename === "string" ? parsed.filename : "unknown";
+    const mimeType = typeof parsed.mimeType === "string" ? parsed.mimeType : "";
+    const dataB64 = typeof parsed.data === "string" ? parsed.data : "";
+    const size = typeof parsed.size === "number" ? parsed.size : 0;
+
+    if (!dataB64 || size > 12 * 1024 * 1024) {
+      send(ws, { type: "system", text: "Upload rejeté (vide ou > 12 MB)." });
+      return;
+    }
+
+    const buffer = Buffer.from(dataB64, "base64");
+
+    // Broadcast upload notification
+    broadcast(info.channel, {
+      type: "system",
+      text: `${info.nick} a envoyé: ${filename} (${(size / 1024).toFixed(1)} KB)`,
+    });
+
+    // Analyze file based on MIME type
+    let analysis = "";
+
+    if (
+      mimeType.startsWith("text/") ||
+      mimeType === "application/json" ||
+      filename.endsWith(".csv") ||
+      filename.endsWith(".jsonl")
+    ) {
+      const text = buffer.toString("utf-8").slice(0, 12000);
+      analysis = `[Fichier texte: ${filename}]\n${text}`;
+    } else if (mimeType.startsWith("image/")) {
+      analysis = await analyzeImage(buffer, mimeType, filename, ollamaUrl);
+    } else if (mimeType === "application/pdf") {
+      analysis = `[Fichier PDF: ${filename}, ${(size / 1024).toFixed(0)} KB — extraction non disponible]`;
+    } else {
+      analysis = `[Fichier: ${filename}, type: ${mimeType}, ${(size / 1024).toFixed(0)} KB]`;
+    }
+
+    if (analysis) {
+      const contextMessage =
+        `[L'utilisateur ${info.nick} a partagé un fichier: ${filename}]\n${analysis}\n\nAnalyse ce fichier et donne ton avis.`;
+
+      await routeToPersonas(info.channel, contextMessage);
     }
   }
 
@@ -409,16 +516,24 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
       if (!message || typeof message !== "object") return;
       if (typeof message.type !== "string") return;
-      if (typeof message.text !== "string") return;
-      if (message.text.length > MAX_TEXT_LENGTH) {
+
+      if (message.type === "upload") {
+        await handleUpload(ws, info, message as InboundUpload);
+        return;
+      }
+
+      // For message and command types, text is required
+      if (typeof (message as InboundChatMessage).text !== "string") return;
+      const text = (message as InboundChatMessage).text;
+      if (text.length > MAX_TEXT_LENGTH) {
         send(ws, { type: "system", text: "Message trop long (max 8192 caracteres)." });
         return;
       }
 
       if (message.type === "command") {
-        handleCommand(ws, info, message.text);
+        handleCommand(ws, info, text);
       } else if (message.type === "message") {
-        await handleChatMessage(ws, info, message.text);
+        await handleChatMessage(ws, info, text);
       }
     });
 

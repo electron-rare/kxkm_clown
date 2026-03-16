@@ -8,11 +8,7 @@ import type { LocalRAG } from "./rag.js";
 
 const execFileAsync = promisify(execFile);
 
-// Lazy-load pdf-parse at module startup (P1-02: avoid dynamic import in hot path)
-let pdfParse: ((buffer: Buffer) => Promise<{ text: string; numpages: number }>) | null = null;
-import("pdf-parse").then(m => { pdfParse = m.default; }).catch(() => {
-  console.warn("[ws-chat] pdf-parse not available — PDF uploads will be text-only");
-});
+// PDF extraction now handled by scripts/extract_pdf_docling.py (Docling / PyMuPDF fallback)
 
 // TTS concurrency semaphore (P2-02)
 let ttsActive = 0;
@@ -65,10 +61,10 @@ async function generateImage(prompt: string): Promise<{ imageBase64: string; see
       class_type: "KSampler",
       inputs: {
         seed,
-        steps: 20,
-        cfg: 7,
-        sampler_name: "euler",
-        scheduler: "normal",
+        steps: 4,
+        cfg: 1.5,
+        sampler_name: "dpmpp_sde",
+        scheduler: "karras",
         denoise: 1,
         model: ["4", 0],
         positive: ["6", 0],
@@ -78,7 +74,7 @@ async function generateImage(prompt: string): Promise<{ imageBase64: string; see
     },
     "4": {
       class_type: "CheckpointLoaderSimple",
-      inputs: { ckpt_name: "sd_xl_base_1.0.safetensors" },
+      inputs: { ckpt_name: process.env.COMFYUI_CHECKPOINT || "sdxl_lightning_4step.safetensors" },
     },
     "5": {
       class_type: "EmptyLatentImage",
@@ -754,6 +750,26 @@ async function updatePersonaMemory(
 // ---------------------------------------------------------------------------
 
 async function searchWeb(query: string): Promise<string> {
+  // Try SearXNG first (self-hosted, no API key)
+  const searxngUrl = process.env.SEARXNG_URL || "http://localhost:8889";
+  try {
+    const response = await fetch(`${searxngUrl}/search?q=${encodeURIComponent(query)}&format=json&engines=google,bing,duckduckgo`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.ok) {
+      const data = await response.json() as { results?: Array<{ title?: string; content?: string; url?: string }> };
+      if (data.results && data.results.length > 0) {
+        return data.results
+          .slice(0, 5)
+          .map((r, i) => `${i + 1}. ${r.title || "Sans titre"}\n   ${r.content || ""}\n   ${r.url || ""}`)
+          .join("\n\n");
+      }
+    }
+  } catch {
+    // SearXNG unavailable, fallback to DuckDuckGo
+  }
+
+  // Existing DuckDuckGo/custom API code continues below...
   const apiBase = process.env.WEB_SEARCH_API_BASE;
 
   if (apiBase) {
@@ -1670,17 +1686,26 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         try { fs.unlinkSync(tmpFile); } catch { /* ignore cleanup errors */ }
       }
     } else if (mimeType === "application/pdf") {
-      if (pdfParse) {
-        try {
-          const pdfData = await pdfParse(buffer);
-          const text = pdfData.text.slice(0, 12000);
-          const pages = pdfData.numpages;
-          analysis = `[PDF: ${filename}, ${pages} page(s)]\n${text}`;
-        } catch (err) {
-          analysis = `[PDF: ${filename} — extraction échouée: ${err instanceof Error ? err.message : String(err)}]`;
+      const tmpFile = path.join("/tmp", `kxkm-pdf-${Date.now()}.pdf`);
+      try {
+        fs.writeFileSync(tmpFile, buffer);
+        await acquireFileProcessor();
+        const pythonBin = process.env.PYTHON_BIN || "python3";
+        const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_pdf_docling.py");
+        const { stdout, stderr } = await execFileAsync(pythonBin, [scriptPath, "--input", tmpFile], { timeout: 60_000 });
+        releaseFileProcessor();
+        if (stderr) console.log(`[upload] pdf: ${stderr.slice(-200)}`);
+        const result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
+        if (result.text) {
+          analysis = `[PDF: ${filename}, ${result.pages || "?"} page(s)]\n${result.text}`;
+        } else {
+          analysis = `[PDF: ${filename} — extraction échouée: ${result.error || "unknown"}]`;
         }
-      } else {
-        analysis = `[PDF: ${filename} — pdf-parse non disponible]`;
+      } catch (err) {
+        releaseFileProcessor();
+        analysis = `[PDF: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
+      } finally {
+        try { fs.unlinkSync(tmpFile); } catch {}
       }
     } else if (isOfficeDocument(filename, mimeType)) {
       // Word, Excel, PowerPoint, LibreOffice, RTF, EPUB

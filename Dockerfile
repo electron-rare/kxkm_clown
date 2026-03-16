@@ -58,6 +58,7 @@ RUN npm ci --omit=dev --ignore-scripts 2>/dev/null || npm install --omit=dev --i
 COPY --from=build /app/scripts/train_unsloth.py ./scripts/
 COPY --from=build /app/scripts/eval_model.py ./scripts/
 COPY --from=build /app/scripts/ollama-import-adapter.sh ./scripts/
+COPY --from=build /app/scripts/extract_pdf_docling.py ./scripts/
 
 # Ensure data directories exist (they will be mounted as volumes in prod)
 RUN mkdir -p data/logs data/sessions data/training data/memory data/dpo \

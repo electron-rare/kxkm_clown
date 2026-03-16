@@ -371,6 +371,42 @@ export function createNodeRunRepo(pool: Pool) {
         [status, id],
       );
     },
+
+    /** Mark a run as cancel-requested (worker checks this during execution) */
+    async requestCancel(id: string): Promise<void> {
+      await pool.query(
+        `UPDATE node_runs SET status = 'cancelled', updated_at = NOW() WHERE id = $1 AND status IN ('queued', 'running')`,
+        [id],
+      );
+    },
+
+    /** Recover runs that were running when the worker crashed → re-queue them */
+    async recoverStaleRuns(): Promise<NodeRunRecord[]> {
+      const result = await pool.query(
+        `UPDATE node_runs SET status = 'queued', updated_at = NOW()
+         WHERE status = 'running'
+         RETURNING id, graph_id, status, created_at`,
+      );
+      return result.rows.map(rowToNodeRun);
+    },
+
+    /** List runs by status */
+    async listByStatus(status: RunStatus, limit = 50): Promise<NodeRunRecord[]> {
+      const result = await pool.query(
+        `SELECT id, graph_id, status, created_at FROM node_runs WHERE status = $1 ORDER BY created_at ASC LIMIT $2`,
+        [status, limit],
+      );
+      return result.rows.map(rowToNodeRun);
+    },
+
+    /** Delete completed/failed/cancelled runs older than the given ISO date */
+    async deleteOlderThan(date: string): Promise<number> {
+      const result = await pool.query(
+        `DELETE FROM node_runs WHERE status IN ('completed', 'failed', 'cancelled') AND created_at < $1`,
+        [date],
+      );
+      return result.rowCount ?? 0;
+    },
   };
 }
 

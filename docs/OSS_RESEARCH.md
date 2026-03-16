@@ -1292,6 +1292,424 @@ Pas de SDK Node.js dédié identifié pour orchestrer des jobs de fine-tuning. O
 
 ---
 
+## Veille 2026-03-16 — Lot 11
+
+Veille élargie couvrant 6 axes : frameworks multi-persona/multi-agent chat, orchestration LLM (DAG/workflow), écosystème Ollama, pipeline de fine-tuning LoRA/QLoRA, outils DPO/RLHF, et composants React chat UI. Focus sur les évolutions 2025-2026 et les projets non encore couverts.
+
+### Vue d'ensemble
+
+| Projet | Stars | License | Catégorie | Statut |
+|--------|-------|---------|-----------|--------|
+| **AutoGen** (Microsoft) | 55.7k | MIT | Multi-agent chat/orchestration | Très actif, v0.4+, Magentic-One |
+| **LangGraph** | 26.5k | MIT | DAG orchestration, stateful agents | Très actif, CLI v0.4.18 |
+| **Flowise** | 50.8k | Apache 2.0 | Visual DAG workflow builder | Très actif, v3.0.13 |
+| **n8n** | 179k | Sustainable Use License | Workflow automation, AI-native | Très actif, TypeScript |
+| **Haystack** (deepset) | 24.5k | Apache 2.0 | Pipeline AI composable | Très actif, enterprise tier |
+| **AutoGPT** | 182k | Polyform Shield (new) / MIT (legacy) | Agent platform, workflow builder | Très actif, plateforme |
+| **AG-UI** | 12.5k | MIT | Protocole agent-UI | Nouveau, prometteur |
+| **Ollama** | 165k | MIT | LLM local serving | Très actif, nouveaux modèles |
+| **llamafile** | 23.8k | Apache 2.0 | LLM single-file executable | Actif, niche |
+| **Open WebUI** | 127k | Open WebUI License | Ollama frontend avancé | Très actif, pipelines, enterprise |
+| **vLLM** | 73.2k | Apache 2.0 | LLM inference haute perf | Très actif, v0.17.1 |
+| **Letta** (ex-MemGPT) | 21.6k | Apache 2.0 | Agent memory management | Actif, v0.16.6 |
+| **ComfyUI** | 106k | GPL-3.0 | Node graph visual workflows | Très actif, référence UX |
+| **TRL** (HuggingFace) | 17.7k | Apache 2.0 | DPO/SFT/GRPO fine-tuning | Très actif, v0.29.0 |
+| **Unsloth** | 54k | Apache 2.0 | Fast LoRA fine-tuning | Très actif, GRPO vision |
+| **LLaMA-Factory** | 68.5k | Apache 2.0 | Fine-tuning platform + GUI | Très actif, multimodal |
+| **NeMo RL** (NVIDIA) | 1.4k | OSS | RLHF/DPO/GRPO à grande échelle | Actif, v0.5.0, successeur NeMo-Aligner |
+| **dstack** | 2.1k | MPL-2.0 | GPU orchestration / infra training | Actif, v0.20.13 |
+| **Prefect** | 21.9k | Apache 2.0 | Workflow orchestration DAG | Très actif, ML-friendly |
+| **Vercel AI SDK** | 22.7k | OSS | React AI chat hooks + multi-provider | Très actif |
+| **chatscope/chat-ui-kit-react** | 1.7k | MIT | React chat UI components | Actif, v2.1.1 |
+| **Chatbot UI** | 33.1k | MIT | Next.js chat app reference | Actif, TypeScript |
+
+---
+
+### 1. Multi-Persona / Multi-Agent Chat — Nouveautés
+
+#### AutoGen — v0.4+, Magentic-One, AutoGen Studio
+
+- **URL :** https://github.com/microsoft/autogen
+- **Stars :** 55.7k (hausse depuis 40k+ en mars 2026)
+- **License :** MIT
+- **Nouveautés 2025-2026 :**
+  - **Architecture 3 couches** : Core API (message passing), AgentChat API (patterns haut niveau), Extensions API (intégrations)
+  - **Magentic-One** : équipe multi-agent SOTA pour web browsing, exécution de code, opérations fichiers
+  - **AutoGen Studio** : GUI no-code pour construire des workflows multi-agent
+  - **AgentTool** : composition d'agents spécialisés (math, chimie, etc.) qui collaborent
+  - **Support MCP** (Model Context Protocol) pour capacités étendues
+  - Office hours hebdomadaires, communauté très active (454 issues ouvertes, 222 PRs)
+- **Pertinence KXKM_Clown :** L'architecture 3 couches est un bon modèle pour structurer notre propre système multi-agent. AutoGen Studio pourrait inspirer l'UX de notre admin panel pour configurer les interactions entre personas. Magentic-One montre comment orchestrer des agents spécialisés — pattern applicable à nos "clowns" avec rôles distincts.
+- **Recommandation :** **Étudier l'architecture** — le pattern AgentChat (two-agent chat, group chat) est directement applicable. MIT, librement réutilisable.
+
+#### AG-UI — Protocole Agent-to-UI
+
+- **URL :** https://github.com/ag-ui-protocol/ag-ui
+- **Stars :** 12.5k
+- **License :** MIT
+- **Ce que c'est :** Protocole ouvert, léger et event-based qui standardise comment les agents AI se connectent aux applications utilisateur. Complète MCP (tools pour agents) et A2A (agent-to-agent) en couvrant la couche agent-vers-UI.
+- **Fonctionnalités clés :**
+  - ~16 types d'événements standard
+  - Chat agentic temps réel avec streaming
+  - Synchronisation d'état bidirectionnelle agent-UI
+  - Generative UI et messages structurés
+  - Human-in-the-loop
+  - Support SSE, WebSockets, webhooks
+- **Pertinence KXKM_Clown :** Très pertinent pour standardiser la communication entre nos personas (agents) et le frontend chat. Le protocole event-based est compatible avec notre architecture WebSocket. Pourrait remplacer notre format de messages custom par un standard émergent.
+- **Recommandation :** **Évaluer pour adoption** — si AG-UI devient un standard, l'adopter tôt nous donne de l'interopérabilité avec d'autres outils. MIT, aucun risque licence.
+
+---
+
+### 2. LLM Orchestration / DAG Workflow — Nouveautés
+
+#### LangGraph — Orchestration stateful à base de graphes
+
+- **URL :** https://github.com/langchain-ai/langgraph
+- **Stars :** 26.5k
+- **License :** MIT
+- **Version :** CLI v0.4.18 (mars 2026)
+- **Fonctionnalités clés :**
+  - **Durable Execution** — les agents persistent à travers les échecs, reprennent exactement où ils se sont arrêtés
+  - **Human-in-the-loop** — inspection et modification de l'état de l'agent à tout moment
+  - **Mémoire complète** — mémoire de travail court terme + mémoire persistante long terme
+  - Inspiré par Pregel et Apache Beam, interface publique dérivée de NetworkX
+  - Intégration LangSmith pour visualisation, debugging, infra scalable
+  - Utilisé par 36.7k projets
+- **Pertinence KXKM_Clown :** Le modèle de durable execution est pertinent pour notre Node Engine — les pipelines de training longs doivent pouvoir reprendre après échec. La mémoire dual (court/long terme) est applicable aux personas qui doivent se souvenir des conversations.
+- **Recommandation :** **S'inspirer des patterns** — durable execution et resumability pour le node engine. Pas de remplacement complet (trop couplé à LangChain), mais les concepts sont transférables.
+
+#### n8n — Workflow Automation AI-Native
+
+- **URL :** https://github.com/n8n-io/n8n
+- **Stars :** 179k
+- **License :** Sustainable Use License (fair-code, source visible, self-hosted OK)
+- **Fonctionnalités clés :**
+  - 400+ connecteurs pré-construits
+  - JavaScript/Python custom avec packages npm
+  - Workflows agents LangChain intégrés
+  - Self-hosted ou cloud, support entreprise (SSO, air-gapped)
+  - 900+ templates prêts à l'emploi
+  - TypeScript (91.4%), Vue frontend
+- **Pertinence KXKM_Clown :** Référence pour l'UX opérateur — queue, retry, logs, monitoring de workflows. Les patterns de n8n (visual flow + custom code) valident notre approche node engine. L'intégration LangChain-native montre que les workflows AI sont mainstream.
+- **Recommandation :** **Étudier l'UX opérateur** — s'inspirer des patterns de monitoring, retry et logging. Licence fair-code acceptable pour étude.
+
+#### Haystack — Pipelines AI composables
+
+- **URL :** https://github.com/deepset-ai/haystack
+- **Stars :** 24.5k
+- **License :** Apache 2.0
+- **Fonctionnalités clés :**
+  - Architecture composant-based avec contrôle explicite sur retrieval, ranking, filtering, routing
+  - Model-agnostic (OpenAI, Anthropic, Ollama, HuggingFace, etc.)
+  - Pipelines customisables avec boucles, branches et logique conditionnelle
+  - Utilisé par Apple, Meta, NVIDIA, Airbus, Netflix
+- **Pertinence KXKM_Clown :** L'architecture composant-based avec routing explicite est un bon modèle pour notre node engine. Le pattern "context engineering" (contrôle explicite de ce qui arrive au LLM) est pertinent pour les personas.
+- **Recommandation :** **Référence architecturale** — étudier le modèle de composants et pipelines. Apache 2.0, librement réutilisable.
+
+#### AutoGPT — Évolution vers plateforme
+
+- **URL :** https://github.com/Significant-Gravitas/AutoGPT
+- **Stars :** 182k
+- **License :** Polyform Shield (nouveau) / MIT (legacy)
+- **Évolution :** AutoGPT s'est transformé d'agent autonome en plateforme complète avec :
+  - **Agent Builder** : construction low-code via blocs connectés (chaque bloc = une action)
+  - Workflow management, optimisation, monitoring
+  - Bibliothèque d'agents pré-configurés
+  - Self-hosted gratuit ou cloud beta
+- **Pertinence KXKM_Clown :** Le pivot d'AutoGPT vers une plateforme workflow confirme la direction de notre node engine. Le pattern "blocs connectés" est exactement notre approche DAG. Attention : la nouvelle licence Polyform Shield est restrictive.
+- **Recommandation :** **Surveiller** — valide notre direction mais licence problématique pour réutilisation de code.
+
+#### Prefect — Orchestration de workflows ML
+
+- **URL :** https://github.com/PrefectHQ/prefect
+- **Stars :** 21.9k
+- **License :** Apache 2.0
+- **Fonctionnalités clés :**
+  - Flows et tasks via décorateurs Python
+  - Gestion automatique des dépendances et exécution DAG
+  - Retry intégré, scheduling cron, déclenchement événementiel
+  - Dashboard monitoring (self-hosted ou cloud)
+  - Caching, event-based automations
+  - 200M+ tâches mensuelles en production (Progressive, Cash App)
+- **Pertinence KXKM_Clown :** Pertinent pour orchestrer les pipelines de training (DPO/SFT). Un pipeline Prefect pourrait enchaîner : export données -> fine-tune -> merge -> convert GGUF -> import Ollama. Plus robuste que notre child_process.spawn pour la production.
+- **Recommandation :** **Évaluer pour pipeline de training** — Prefect comme orchestrateur Python des jobs de fine-tuning, déclenché depuis Node.js via BullMQ. Apache 2.0.
+
+---
+
+### 3. Écosystème Ollama — Nouveautés
+
+#### Ollama — 165k stars, écosystème élargi
+
+- **URL :** https://github.com/ollama/ollama
+- **Stars :** 165k (hausse massive depuis ~100k)
+- **Nouveautés 2025-2026 :**
+  - Support de nouveaux modèles : Kimi-K2.5, GLM-5, MiniMax, DeepSeek, gpt-oss, Qwen, Gemma
+  - Intégrations officielles : Claude Code, Codex, OpenCode
+  - SDK multi-langages (Python, JavaScript officiels)
+  - API REST enrichie avec chat et streaming
+- **Pertinence KXKM_Clown :** Ollama reste notre backend d'inférence principal. L'écosystème s'élargit rapidement, confirmant notre choix. Les nouveaux modèles (gpt-oss, Kimi-K2.5) élargissent les options pour nos personas.
+
+#### Open WebUI — 127k stars, Pipelines, Enterprise
+
+- **URL :** https://github.com/open-webui/open-webui
+- **Stars :** 127k (hausse depuis ~18k, croissance explosive)
+- **License :** Open WebUI License (BSD-3 base, restrictions branding)
+- **Nouveautés 2025-2026 :**
+  - **Pipelines Plugin Framework** : logique Python custom intégrée (function calling, rate limiting, monitoring)
+  - **9 vector DBs** supportées : ChromaDB, PGVector, Qdrant, Milvus...
+  - **Enterprise auth** : LDAP, SCIM 2.0, SSO via trusted headers
+  - **OpenTelemetry** intégré pour observabilité production
+  - **Scalabilité horizontale** : sessions Redis, WebSocket multi-worker/multi-node
+- **Pertinence KXKM_Clown :** Le Pipelines Plugin Framework est intéressant — pattern pour étendre notre système avec de la logique custom. L'architecture Redis + WebSocket multi-worker est un bon modèle pour la scalabilité future.
+- **Recommandation :** **Étudier les Pipelines** — s'inspirer du pattern d'extension. Licence restrictive, ne pas copier le code.
+
+#### llamafile — LLM en fichier unique
+
+- **URL :** https://github.com/Mozilla-Ocho/llamafile
+- **Stars :** 23.8k
+- **License :** Apache 2.0
+- **Ce que c'est :** Distribue et exécute des LLMs via un seul fichier exécutable. Combine llama.cpp + Cosmopolitan Libc pour créer un binaire cross-platform sans installation.
+- **Pertinence KXKM_Clown :** Alternative à Ollama pour la distribution de modèles fine-tunés. Un modèle custom pourrait être packagé comme un llamafile autonome pour déploiement ultra-simple. Complémentaire à Ollama, pas un remplacement.
+- **Recommandation :** **Garder en option** — intéressant pour distribuer des modèles fine-tunés à des utilisateurs non-techniques.
+
+#### vLLM — Inférence haute performance
+
+- **URL :** https://github.com/vllm-project/vllm
+- **Stars :** 73.2k
+- **License :** Apache 2.0
+- **Version :** v0.17.1 (mars 2026)
+- **Fonctionnalités clés :**
+  - PagedAttention pour gestion mémoire efficace
+  - Batching continu, kernels CUDA optimisés, FlashAttention
+  - Quantization : GPTQ, AWQ, INT4/INT8, FP8
+  - Inférence distribuée : tensor, pipeline, data, expert parallelism
+  - API compatible OpenAI, streaming, **multi-LoRA**
+  - Speculative decoding, prefix caching, chunked prefill
+- **Pertinence KXKM_Clown :** Le support **multi-LoRA** est très pertinent — permet de servir plusieurs adaptateurs LoRA (un par persona) sur un seul modèle de base, sans multiplier la VRAM. Alternative à Ollama quand on a besoin de servir 10+ personas avec des adaptateurs différents.
+- **Recommandation :** **Évaluer pour production multi-persona** — vLLM multi-LoRA pourrait remplacer N instances Ollama par un seul serveur vLLM avec N adaptateurs. Gain VRAM significatif.
+
+#### Letta — Mémoire persistante pour agents
+
+- **URL :** https://github.com/letta-ai/letta
+- **Stars :** 21.6k
+- **License :** Apache 2.0
+- **Version :** v0.16.6 (mars 2026)
+- **Fonctionnalités clés :**
+  - Agents stateful avec mémoire persistante qui apprennent et s'améliorent
+  - Blocs de mémoire customisables (attributs "human" et "persona")
+  - Skills intégrées et sub-agents pour apprentissage continu
+  - SDKs Python et TypeScript
+- **Pertinence KXKM_Clown :** Le pattern de blocs de mémoire (séparation human/persona) est directement applicable à notre système de personas. Chaque clown pourrait avoir ses propres blocs de mémoire persistante, créant une vraie continuité de personnalité.
+- **Recommandation :** **S'inspirer du modèle mémoire** — pattern de memory blocks pour nos personas. Apache 2.0, librement réutilisable.
+
+---
+
+### 4. Training Pipeline / Fine-Tuning — Nouveautés
+
+#### TRL v0.29.0 — OpenEnv, GRPO, CLI
+
+- **URL :** https://github.com/huggingface/trl
+- **Stars :** 17.7k
+- **Version :** v0.29.0 (fév. 2026)
+- **Nouveautés :**
+  - **OpenEnv** : intégration du framework Meta pour RL environments dans workflows agentiques
+  - **GRPO** (Group Relative Policy Optimization) : alternative à PPO, utilisé pour Llama 3
+  - **CLI intégré** : `trl sft`, `trl dpo` — entraînement sans code Python
+  - **GRPOTrainer** : nouveau trainer dédié
+  - Scaling via Accelerate (single GPU -> multi-node)
+  - Support multimodal et multi-architectures
+- **Pertinence KXKM_Clown :** Le CLI intégré (`trl dpo --model ... --dataset ...`) simplifie énormément l'intégration avec Node.js via child_process. Plus besoin de scripts Python custom pour lancer un entraînement DPO.
+- **Recommandation :** **Utiliser le CLI TRL** pour simplifier le pipeline Node.js -> Python. Un simple `spawn('trl', ['dpo', ...])` suffit.
+
+#### Unsloth — GRPO, Vision RL, contexte 500K
+
+- **URL :** https://github.com/unslothai/unsloth
+- **Stars :** 54k
+- **Nouveautés 2025-2026 :**
+  - **Vision RL (VLM GRPO)** : RL sur modèles vision sur GPU consumer
+  - **FP8 quantization + RL** combinés
+  - **Contexte 500K tokens** sur GPU 80GB
+  - **3x plus rapide** via nouveaux Triton kernels et padding-free packing
+  - **MoE** : 12x plus rapide, 35% moins de VRAM pour les modèles MoE
+  - **RL 50% moins de VRAM** via batching algorithmique
+  - Support : Qwen3.5, GPT-oss, Gemma 3, TTS, embeddings
+  - Docker officiel, support AMD, Intel, multi-GPU
+- **Pertinence KXKM_Clown :** Le support GRPO + Vision ouvre la possibilité de fine-tuner des modèles multimodaux pour des personas qui comprennent les images. Les kernels Triton améliorent encore les temps d'entraînement sur GPU consumer.
+- **Recommandation :** **Continuer à utiliser** — Unsloth reste le meilleur accélérateur pour fine-tuning sur hardware limité.
+
+#### LLaMA-Factory — 68.5k stars, multimodal, optimiseurs avancés
+
+- **URL :** https://github.com/hiyouga/LLaMA-Factory
+- **Stars :** 68.5k (hausse depuis 30k+)
+- **Nouveautés 2025-2026 :**
+  - **Optimiseurs avancés** : Muon (avril 2025), OFT/OFTv2 (août 2025), APOLLO (jan 2025)
+  - **Support "Day-N"** pour les nouveaux modèles : Qwen3, DeepSeek-R1, Gemma 3, GLM-4.5, InternLM 3
+  - **Backend Megatron-core** via mcore_adapter (oct 2025) pour training distribué
+  - **Backend SGLang** pour inférence (mars 2025)
+  - **Training multimodal** : audio, vidéo, vision
+  - **Quantization étendue** : 2/3/4/5/6/8-bit QLoRA
+  - LlamaBoard GUI maintenu (Gradio, zero-code)
+- **Pertinence KXKM_Clown :** LlamaBoard reste la meilleure option GUI pour lancer des entraînements sans code. Le support multimodal ouvre la voie à des personas qui traitent images/audio. La croissance explosive (30k -> 68.5k) confirme sa position de référence.
+- **Recommandation :** **LlamaBoard comme dashboard de training** intégrable via iframe ou API Gradio dans l'admin panel.
+
+#### NeMo RL — Successeur de NeMo-Aligner
+
+- **URL :** https://github.com/NVIDIA/NeMo-RL
+- **Stars :** 1.4k
+- **License :** OSS
+- **Version :** v0.5.0 (jan 2026)
+- **Fonctionnalités clés :**
+  - GRPO, GSPO, DAPO, DPO, SFT avec LoRA
+  - Distillation on-policy
+  - Backends : DTensor (PyTorch-native) et Megatron Core pour training, vLLM et Megatron pour génération
+  - Conçu pour scale multi-GPU / multi-node
+- **Pertinence KXKM_Clown :** Overkill pour GPU consumer, mais pertinent si on scale. NeMo-Aligner est désormais déprécié (mai 2025), NeMo RL est le successeur officiel.
+- **Recommandation :** **Surveiller** — référence NVIDIA pour RLHF à grande échelle.
+
+#### dstack — Orchestration GPU pour training
+
+- **URL :** https://github.com/dstackai/dstack
+- **Stars :** 2.1k
+- **License :** MPL-2.0
+- **Version :** v0.20.13 (mars 2026)
+- **Fonctionnalités clés :**
+  - Control plane pour provisioning GPU (cloud, Kubernetes, on-prem)
+  - Support NVIDIA, AMD, TPU, Intel Gaudi, Tenstorrent
+  - Config YAML : fleets, dev environments, tasks, services, volumes
+  - Auto-scaling, job queuing, gestion des échecs, port-forwarding
+- **Pertinence KXKM_Clown :** Intéressant si on veut lancer des jobs de training sur des GPU cloud à la demande plutôt que sur du hardware local. L'approche YAML est compatible avec notre pattern de config.
+- **Recommandation :** **Garder en réserve** — pertinent quand on voudra scaler le training au-delà du GPU local.
+
+---
+
+### 5. DPO/RLHF — Synthèse état de l'art 2026
+
+L'écosystème DPO/RLHF a mûri significativement :
+
+| Outil | Méthodes | GPU consumer | Production | CLI |
+|-------|----------|--------------|------------|-----|
+| **TRL** v0.29.0 | SFT, DPO, GRPO, PPO | Oui (via PEFT) | Oui (Accelerate) | `trl dpo` |
+| **Unsloth** | SFT, DPO, GRPO | Optimisé (2x faster) | Multi-GPU | Via TRL |
+| **LLaMA-Factory** | SFT, DPO, PPO, ORPO, KTO | Oui (QLoRA 2-8bit) | Megatron-core | GUI LlamaBoard |
+| **Axolotl** | SFT, DPO | Oui | Config YAML | CLI |
+| **NeMo RL** | GRPO, DPO, SFT, DAPO | Non (multi-GPU) | Oui | Non |
+| **OpenRLHF** | PPO, DPO, DAPO, REINFORCE++ | Non (multi-GPU) | Ray + vLLM | Non |
+
+**Tendances 2025-2026 :**
+- **GRPO remplace PPO** — plus stable, moins coûteux, utilisé pour Llama 3 et DeepSeek-R1
+- **Vision RL** émerge — Unsloth supporte GRPO sur modèles multimodaux
+- **CLI-first** — TRL et Axolotl permettent le fine-tuning sans code Python
+- **NeMo-Aligner est mort** — remplacé par NeMo RL (mai 2025)
+
+**Recommandation pipeline KXKM_Clown :** TRL CLI + Unsloth reste la combinaison optimale. Le CLI TRL (`trl dpo`) simplifie l'intégration Node.js. GRPO à explorer comme alternative à DPO pour les cas où on veut du RL reward-based.
+
+---
+
+### 6. React Chat UI — Composants et Références
+
+#### Vercel AI SDK — Hooks React pour chat AI
+
+- **URL :** https://github.com/vercel/ai
+- **Stars :** 22.7k
+- **License :** OSS
+- **Fonctionnalités clés :**
+  - Package `@ai-sdk/react` avec hooks pour chatbots et interfaces génératives
+  - Provider-agnostic (OpenAI, Anthropic, Google, etc.)
+  - Streaming natif, structured data avec validation schema
+  - Support agents autonomes avec tools
+  - Multi-framework : Next.js, React, Svelte, Vue, Angular
+  - Vision capabilities, task management
+- **Pertinence KXKM_Clown :** Le hook `useChat()` fournit une base solide pour le frontend React V2. L'approche provider-agnostic est compatible avec notre backend multi-persona. Le streaming natif est essentiel pour l'UX chat.
+- **Recommandation :** **Évaluer @ai-sdk/react** pour le frontend V2 — les hooks useChat/useCompletion accélèreraient le développement. Attention : conçu pour un seul agent à la fois, adaptation nécessaire pour multi-persona.
+
+#### chatscope/chat-ui-kit-react — Composants chat React
+
+- **URL :** https://github.com/chatscope/chat-ui-kit-react
+- **Stars :** 1.7k
+- **License :** MIT
+- **Version :** v2.1.1 (mai 2025)
+- **Composants :**
+  - MainContainer, ChatContainer, MessageList, Message, MessageInput
+  - Sticky scrollbars, contentEditable, responsiveness gérés nativement
+  - ESM + UMD, TypeScript typings
+  - Storybook complet sur chatscope.io
+- **Pertinence KXKM_Clown :** Composants de base réutilisables pour le chat. Résout les problèmes classiques (sticky scroll, input contentEditable) sans réinventer la roue. Le MessageList avec auto-scroll est directement utilisable pour l'IRC-style.
+- **Recommandation :** **Adopter pour le frontend V2** — gain de temps significatif sur les composants chat de base. MIT, librement intégrable. Customiser le style avec notre CSS retro/IRC.
+
+#### Chatbot UI — Référence Next.js
+
+- **URL :** https://github.com/mckaywrigley/chatbot-ui
+- **Stars :** 33.1k
+- **License :** MIT
+- **Ce que c'est :** App chat Next.js complète avec support multi-modèle (OpenAI, Azure, Ollama), Supabase backend, attachments.
+- **Pertinence KXKM_Clown :** Bon modèle architectural pour un frontend React/Next.js. TypeScript (95.7%), structure propre (components, contexts, types). Pas des composants réutilisables, mais une référence d'architecture.
+- **Recommandation :** **Étudier l'architecture** — s'inspirer de la structure du code pour notre frontend V2.
+
+---
+
+### Matrice de décision — Lot 11
+
+| Besoin KXKM_Clown | Déjà couvert | Nouveau projet identifié | Action | Priorité |
+|--------------------|--------------|--------------------------|--------|----------|
+| Multi-agent orchestration | AutoGen (patterns) | **AG-UI** protocole | Évaluer AG-UI pour standardisation messages | Moyenne |
+| Stateful agent memory | Letta (concepts) | **Letta** v0.16.6 SDK TypeScript | Intégrer memory blocks pour personas | Moyenne |
+| DAG durable execution | Node engine custom | **LangGraph** patterns | S'inspirer de durable execution / resumability | Haute |
+| Workflow monitoring UX | Admin panel | **n8n** patterns UX | S'inspirer des patterns opérateur | Basse |
+| Multi-LoRA serving | Ollama (1 modèle = 1 instance) | **vLLM** multi-LoRA | Évaluer pour production multi-persona | Haute |
+| Training pipeline orchestration | child_process.spawn | **Prefect** + **TRL CLI** | Prefect orchestre, TRL CLI exécute | Moyenne |
+| GPU infra scaling | Local only | **dstack** | Garder en réserve pour scale cloud | Basse |
+| React chat hooks | — | **Vercel AI SDK** @ai-sdk/react | Évaluer useChat() pour V2 | Haute (V2) |
+| React chat components | — | **chatscope/chat-ui-kit-react** | Adopter pour V2 | Haute (V2) |
+| DPO method | TRL DPOTrainer | **TRL CLI** `trl dpo` | Simplifier intégration via CLI | Haute |
+| GRPO alternative | — | **TRL** GRPOTrainer + **Unsloth** | Explorer comme alternative DPO | Basse |
+
+### Points saillants — Lot 11
+
+1. **vLLM multi-LoRA est un game-changer** — servir N adaptateurs LoRA (un par persona) sur un seul modèle de base, au lieu de N instances Ollama. Gain VRAM majeur pour production multi-persona. A évaluer en priorité.
+
+2. **AG-UI émerge comme standard** (12.5k stars en peu de temps) — protocole event-based agent-to-UI qui pourrait devenir le standard pour les interfaces chat avec agents. Compatible avec notre WebSocket. A surveiller.
+
+3. **TRL CLI simplifie le pipeline** — `trl dpo --model X --dataset Y` élimine le besoin de scripts Python custom. Intégration Node.js via child_process beaucoup plus simple.
+
+4. **LangGraph durable execution** — pattern de resumability après échec pertinent pour les pipelines de training longs. A intégrer dans notre node engine.
+
+5. **chatscope/chat-ui-kit-react** — composants chat React MIT prêts à l'emploi. Sticky scroll, message list, input gérés. Base solide pour le frontend V2, customisable avec CSS retro.
+
+6. **Unsloth + GRPO + Vision** — le fine-tuning multimodal sur GPU consumer est maintenant possible. Ouvre la voie à des personas qui comprennent les images.
+
+7. **Prefect pour orchestration training** — plus robuste que child_process pour les pipelines de production. DAG natif, retry, monitoring, scheduling.
+
+8. **NeMo-Aligner est mort, NeMo RL est le successeur** — à noter pour la veille NVIDIA.
+
+9. **Open WebUI à 127k stars** — l'écosystème Ollama explose. Le Pipelines Plugin Framework est un pattern d'extension intéressant.
+
+10. **Ollama à 165k stars** — confirme massivement notre choix de backend d'inférence.
+
+### Licence — Nouveaux projets
+
+| Projet | License | Réutilisation libre ? |
+|--------|---------|----------------------|
+| AG-UI | MIT | Oui |
+| LangGraph | MIT | Oui |
+| Haystack | Apache 2.0 | Oui |
+| Prefect | Apache 2.0 | Oui |
+| vLLM | Apache 2.0 | Oui |
+| Letta | Apache 2.0 | Oui |
+| chatscope | MIT | Oui |
+| Chatbot UI | MIT | Oui |
+| Vercel AI SDK | OSS | Oui |
+| llamafile | Apache 2.0 | Oui |
+| dstack | MPL-2.0 | Oui (copyleft faible) |
+| NeMo RL | OSS | Oui |
+| n8n | Sustainable Use | Étude OK, restrictions commerciales |
+| AutoGPT (new) | Polyform Shield | Non (étude seulement) |
+| ComfyUI | GPL-3.0 | Copyleft (étude seulement) |
+| Open WebUI | Open WebUI License | Non (branding restrictions) |
+
+*Veille Lot 11 effectuée le 2026-03-16.*
+
+---
+
 ## 2026-03-16 — Veille testing, CI/CD, monorepo tooling
 
 ### 1. Testing frameworks pour APIs Node.js

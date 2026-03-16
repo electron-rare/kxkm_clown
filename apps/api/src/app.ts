@@ -1,3 +1,4 @@
+import net from "node:net";
 import express, { type Request, type Response, type NextFunction } from "express";
 import {
   asApiData,
@@ -150,6 +151,24 @@ function createInMemoryNodeRunRepo() {
       const run = runs.get(id);
       if (run) run.status = status;
     },
+    async requestCancel(id: string): Promise<void> {
+      const run = runs.get(id);
+      if (run) run.status = "cancelled";
+    },
+    async deleteOlderThan(date: string): Promise<number> {
+      const threshold = new Date(date).getTime();
+      let count = 0;
+      for (const [id, run] of runs) {
+        if (
+          ["completed", "failed", "cancelled"].includes(run.status) &&
+          new Date(run.createdAt).getTime() < threshold
+        ) {
+          runs.delete(id);
+          count++;
+        }
+      }
+      return count;
+    },
   };
 }
 
@@ -231,6 +250,10 @@ function readRouteParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] || "" : value || "";
 }
 
+function escapeForHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function setSessionCookie(res: Response, sessionId: string): void {
   res.setHeader("Set-Cookie", `${COOKIE_NAME}=${sessionId}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600`);
 }
@@ -271,6 +294,68 @@ function enqueueRunTransition(runId: string, runRepo: RunRepo): void {
     if (!run || run.status !== "running") return;
     await runRepo.updateStatus(runId, "completed");
   }, 150);
+}
+
+// ---------------------------------------------------------------------------
+// Subnet helpers (mirrors V1 network-policy.js, simplified for single subnet)
+// ---------------------------------------------------------------------------
+
+interface ParsedSubnet {
+  version: number;
+  mask: bigint;
+  network: bigint;
+}
+
+function normalizeIp(value: string): string {
+  let ip = value.trim();
+  const zoneIndex = ip.indexOf("%");
+  if (zoneIndex >= 0) ip = ip.slice(0, zoneIndex);
+  if (ip.startsWith("::ffff:") && net.isIP(ip.slice(7)) === 4) {
+    return ip.slice(7);
+  }
+  return ip;
+}
+
+function ipv4ToBigInt(ip: string): bigint {
+  return ip.split(".").reduce((r, o) => (r << 8n) + BigInt(Number.parseInt(o, 10)), 0n);
+}
+
+function ipv6ToBigInt(ip: string): bigint {
+  const parts = ip.split("::");
+  const head = parts[0] ? parts[0].split(":").filter(Boolean) : [];
+  const tail = parts[1] ? parts[1].split(":").filter(Boolean) : [];
+  const missing = 8 - (head.length + tail.length);
+  const groups = [...head, ...Array.from({ length: missing }, () => "0"), ...tail];
+  return groups.reduce((r, g) => (r << 16n) + BigInt(Number.parseInt(g || "0", 16)), 0n);
+}
+
+function parseSubnet(entry: string): ParsedSubnet | null {
+  const raw = entry.trim();
+  if (!raw) return null;
+  const [addressPart, prefixPart] = raw.split("/");
+  const address = normalizeIp(addressPart);
+  const version = net.isIP(address);
+  if (!version) return null;
+
+  const totalBits = version === 4 ? 32 : 128;
+  const prefix = prefixPart === undefined ? totalBits : Number.parseInt(prefixPart, 10);
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > totalBits) return null;
+
+  const bits = BigInt(totalBits);
+  const hostBits = BigInt(totalBits - prefix);
+  const allOnes = (1n << bits) - 1n;
+  const mask = prefix === 0 ? 0n : (allOnes << hostBits) & allOnes;
+  const value = version === 4 ? ipv4ToBigInt(address) : ipv6ToBigInt(address);
+
+  return { version, mask, network: value & mask };
+}
+
+function isIpInSubnet(ip: string, subnet: ParsedSubnet): boolean {
+  const normalized = normalizeIp(ip);
+  const version = net.isIP(normalized);
+  if (!version || version !== subnet.version) return false;
+  const value = version === 4 ? ipv4ToBigInt(normalized) : ipv6ToBigInt(normalized);
+  return (value & subnet.mask) === subnet.network;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,24 +442,79 @@ export async function createApp(): Promise<express.Express> {
   }
 
   // -----------------------------------------------------------------------
+  // Subnet gate — restrict /api/v2/admin/* when ADMIN_SUBNET is set
+  // -----------------------------------------------------------------------
+
+  if (process.env.ADMIN_SUBNET) {
+    const subnet = parseSubnet(process.env.ADMIN_SUBNET);
+    if (subnet) {
+      app.use("/api/v2/admin", (req: Request, res: Response, next: NextFunction) => {
+        const ip = normalizeIp(req.ip || req.socket?.remoteAddress || "");
+        if (!isIpInSubnet(ip, subnet)) {
+          res.status(403).json({ ok: false, error: "subnet_denied" });
+          return;
+        }
+        next();
+      });
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Routes
   // -----------------------------------------------------------------------
 
   app.get("/api/v2/health", (_req, res) => {
     res.json(asApiData({
       app: "@kxkm/api",
-      storage: loadDatabaseConfig(),
+      storage: storageMode, // BUG-06 fix: don't leak DATABASE_URL
       roles: ["admin", "editor", "operator", "viewer"] satisfies UserRole[],
     }));
+  });
+
+  // Public status strip — no auth required
+  app.get("/api/v2/status", async (_req, res) => {
+    try {
+      const [personas, graphs, runs] = await Promise.all([
+        personaRepo.list(),
+        graphRepo.list(),
+        runRepo.list(),
+      ]);
+      const activePersonas = personas.filter((p) => (p as unknown as { enabled?: boolean }).enabled !== false);
+      const runningRuns = runs.filter((r) => r.status === "running");
+      const queuedRuns = runs.filter((r) => r.status === "queued");
+
+      res.json(asApiData({
+        name: "KXKM_Clown",
+        version: "2.0.0",
+        storage: storageMode,
+        personas: { total: personas.length, active: activePersonas.length },
+        nodeEngine: {
+          graphs: graphs.length,
+          runs: runs.length,
+          running: runningRuns.length,
+          queued: queuedRuns.length,
+        },
+      }));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "status_error" });
+    }
   });
 
   app.post("/api/session/login", async (req, res) => {
     try {
       const input = validateLoginInput(req.body);
-      const role = input.role;
-      if (!role || !isUserRole(role)) {
-        res.status(400).json({ ok: false, error: "invalid_login_payload" });
-        return;
+
+      // SEC-04 fix: Never trust client-supplied role — assign viewer by default.
+      // Admin role requires ADMIN_TOKEN env var match.
+      let role: UserRole = "viewer";
+      const adminToken = process.env.ADMIN_TOKEN;
+      if (adminToken && req.body?.token === adminToken) {
+        role = "admin";
+      } else if (input.role === "operator" || input.role === "editor") {
+        // Allow non-admin elevated roles only if admin token is provided
+        if (adminToken && req.body?.token === adminToken) {
+          role = input.role as UserRole;
+        }
       }
 
       const session = await sessionRepo.create({ username: input.username, role });
@@ -597,6 +737,17 @@ export async function createApp(): Promise<express.Express> {
     res.json(asApiData({ ...run, status: "cancelled" }));
   });
 
+  app.post("/api/v2/node-engine/runs/:id/cancel", requirePermission("node_engine:operate"), async (req, res) => {
+    const runId = readRouteParam(req.params.id);
+    const run = await runRepo.findById(runId);
+    if (!run) {
+      res.status(404).json({ ok: false, error: "run_not_found" });
+      return;
+    }
+    await runRepo.requestCancel(runId);
+    res.json({ ok: true });
+  });
+
   app.get("/api/admin/node-engine/artifacts/:runId", requirePermission("node_engine:read"), (req, res) => {
     const runId = readRouteParam(req.params.runId);
     res.json(asApiData({
@@ -609,6 +760,57 @@ export async function createApp(): Promise<express.Express> {
 
   app.get("/api/admin/node-engine/models", requirePermission("node_engine:read"), (_req, res) => {
     res.json(asApiData(modelRegistry));
+  });
+
+  // -----------------------------------------------------------------------
+  // Retention sweep — delete old completed/failed/cancelled runs
+  // -----------------------------------------------------------------------
+
+  app.post("/api/v2/admin/retention-sweep", requirePermission("node_engine:operate"), async (req, res) => {
+    const maxAgeDays = Number(req.body?.maxAgeDays) || 30;
+    const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000).toISOString();
+    const deleted = await runRepo.deleteOlderThan(cutoff);
+    res.json({ ok: true, deleted });
+  });
+
+  // -----------------------------------------------------------------------
+  // Export conversation as HTML
+  // -----------------------------------------------------------------------
+
+  app.get("/api/v2/export/html", requireSession, async (req: SessionRequest, res) => {
+    try {
+      const channel = readRouteParam(req.query?.channel as string || "general");
+      const personas = await personaRepo.list();
+      const personaMap = new Map(personas.map((p) => {
+        const rec = p as unknown as { id: string; nick?: string; name?: string };
+        return [rec.id, rec.nick || rec.name || rec.id] as const;
+      }));
+
+      // Build simple HTML export (session data placeholder — real impl would read from storage)
+      const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>KXKM_Clown — Export #${escapeForHtml(channel)}</title>
+  <style>
+    body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+    .msg { margin: 4px 0; } .nick { font-weight: bold; } .ts { color: #666; font-size: 0.85em; }
+    h1 { color: #16213e; background: #0f3460; padding: 8px 16px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>#${escapeForHtml(channel)} — exported ${new Date().toISOString()}</h1>
+  <p>Channel: <strong>#${escapeForHtml(channel)}</strong> | Personas: ${personas.length} | Storage: ${storageMode}</p>
+  <p><em>Full message history requires session storage integration.</em></p>
+</body>
+</html>`;
+
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="kxkm-export-${channel}.html"`);
+      res.send(html);
+    } catch {
+      res.status(500).json({ ok: false, error: "export_error" });
+    }
   });
 
   return app;

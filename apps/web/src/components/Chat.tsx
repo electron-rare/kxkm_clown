@@ -124,10 +124,54 @@ export default function Chat() {
     setInput("");
   }
 
+  const [tabIndex, setTabIndex] = useState(-1);
+  const [tabPrefix, setTabPrefix] = useState("");
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+      return;
+    }
+
+    // Tab completion for nicks and slash commands
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const text = input;
+
+      // Slash command completion
+      if (text.startsWith("/") && !text.includes(" ")) {
+        const slashCommands = ["/help", "/clear", "/nick", "/join", "/msg", "/web", "/status", "/model", "/persona", "/reload", "/export"];
+        const prefix = tabPrefix || text;
+        const matches = slashCommands.filter((c) => c.startsWith(prefix.toLowerCase()));
+        if (matches.length === 0) return;
+        const nextIdx = (tabIndex + 1) % matches.length;
+        setInput(matches[nextIdx] + " ");
+        setTabIndex(nextIdx);
+        if (!tabPrefix) setTabPrefix(prefix);
+        return;
+      }
+
+      // Nick completion
+      const words = text.split(" ");
+      const lastWord = words[words.length - 1];
+      const prefix = tabPrefix || lastWord;
+      const matches = users.filter((u) =>
+        u.toLowerCase().startsWith(prefix.toLowerCase()),
+      );
+      if (matches.length === 0) return;
+      const nextIdx = (tabIndex + 1) % matches.length;
+      words[words.length - 1] = matches[nextIdx] + (words.length === 1 ? ": " : " ");
+      setInput(words.join(" "));
+      setTabIndex(nextIdx);
+      if (!tabPrefix) setTabPrefix(prefix);
+      return;
+    }
+
+    // Reset tab state on any other key
+    if (tabIndex >= 0) {
+      setTabIndex(-1);
+      setTabPrefix("");
     }
   }
 
@@ -215,10 +259,36 @@ export default function Chat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={ws.connected ? "Message ou /commande..." : "Connexion en cours..."}
+          placeholder={ws.connected ? "Message ou /commande... (Tab pour compléter)" : "Connexion en cours..."}
           disabled={!ws.connected}
           autoFocus
         />
+        <label className="btn btn-secondary chat-upload-btn" title="Joindre un fichier">
+          +
+          <input
+            type="file"
+            style={{ display: "none" }}
+            accept="image/*,audio/*,text/*,.pdf,.json,.jsonl,.csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file || !ws.connected) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                const base64 = (reader.result as string).split(",")[1];
+                ws.send({
+                  type: "upload",
+                  filename: file.name,
+                  mimeType: file.type,
+                  size: file.size,
+                  data: base64,
+                });
+              };
+              reader.readAsDataURL(file);
+              e.target.value = "";
+            }}
+            disabled={!ws.connected}
+          />
+        </label>
         <button
           className="btn btn-primary"
           onClick={handleSend}

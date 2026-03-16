@@ -56,9 +56,14 @@ function summarizeDatasetPayload(dataset, source = {}) {
 }
 
 function readFileDataset(rootDir, inputPath) {
-  const absolute = path.isAbsolute(inputPath)
-    ? inputPath
-    : path.resolve(rootDir, inputPath);
+  // SEC-01 fix: Reject absolute paths and ensure resolved path stays within rootDir
+  if (path.isAbsolute(inputPath)) {
+    throw new Error(`Chemin absolu interdit pour dataset: ${inputPath}`);
+  }
+  const absolute = path.resolve(rootDir, inputPath);
+  if (!absolute.startsWith(path.resolve(rootDir) + path.sep) && absolute !== path.resolve(rootDir)) {
+    throw new Error(`Traversée de chemin détectée: ${inputPath}`);
+  }
   if (!fs.existsSync(absolute)) {
     throw new Error(`Dataset introuvable: ${inputPath}`);
   }
@@ -230,9 +235,14 @@ function createNodeEngineRunner({
   }
 
   async function executeDatasetFolder(node) {
-    const folderPath = path.isAbsolute(node.params.path)
-      ? node.params.path
-      : path.resolve(rootDir, node.params.path || "");
+    // SEC-01 fix: Reject absolute paths and enforce rootDir boundary
+    if (path.isAbsolute(node.params.path || "")) {
+      throw new Error(`Chemin absolu interdit pour dataset folder: ${node.params.path}`);
+    }
+    const folderPath = path.resolve(rootDir, node.params.path || "");
+    if (!folderPath.startsWith(path.resolve(rootDir) + path.sep) && folderPath !== path.resolve(rootDir)) {
+      throw new Error(`Traversée de chemin détectée: ${node.params.path}`);
+    }
     if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
       throw new Error(`Répertoire dataset introuvable: ${node.params.path || "(vide)"}`);
     }
@@ -622,12 +632,14 @@ function createNodeEngineRunner({
         }
 
       try {
+        // BUG-02 fix: Use AbortSignal to cancel timeout when executor completes
+        const ac = new AbortController();
         const result = await Promise.race([
           executors[node.type](node, inputs, {
             graph,
             run: store.getRun(runId),
-          }),
-          delay(NODE_ENGINE_STEP_TIMEOUT_MS).then(() => {
+          }).finally(() => ac.abort()),
+          delay(NODE_ENGINE_STEP_TIMEOUT_MS, null, { signal: ac.signal }).then(() => {
             throw new Error(`Timeout: node ${node.id} (${node.type}) exceeded ${NODE_ENGINE_STEP_TIMEOUT_MS / 1000}s`);
           }),
         ]);

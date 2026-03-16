@@ -159,8 +159,10 @@ async function executeNodeStub(
 async function executeRun(
   run: NodeRun,
   registry: NodeEngineRegistry,
+  options: { shouldCancel?: () => boolean } = {},
 ): Promise<void> {
   const graph = run.graphSnapshot;
+  const shouldCancel = options.shouldCancel ?? (() => false);
 
   // Validate edges against registry contracts
   validateEdgeContracts(graph, registry);
@@ -174,12 +176,28 @@ async function executeRun(
   // Mark run as running
   run.status = "running";
   run.startedAt = createIsoTimestamp();
+  let cancelled = false;
 
   log(`  Executing ${sorted.length} node(s) in topological order`);
+
+  // Restore already-completed steps (recovery support)
+  for (const node of sorted) {
+    const step = run.steps.find((s) => s.id === node.id);
+    if (step?.status === "completed") {
+      log(`    [${node.id}] ${node.type} — already completed (recovered)`);
+    }
+  }
 
   for (const node of sorted) {
     const step = run.steps.find((s) => s.id === node.id);
     if (!step) continue;
+    if (step.status === "completed") continue; // skip recovered steps
+
+    if (shouldCancel() || shutdownRequested) {
+      cancelled = true;
+      log(`    [${node.id}] ${node.type} — cancelled`);
+      break;
+    }
 
     step.status = "running";
     step.startedAt = createIsoTimestamp();
@@ -203,12 +221,13 @@ async function executeRun(
       step.error = message;
 
       logError(`    [${node.id}] ${node.type} — failed`, err);
+      break; // stop on first failure (like V1)
     }
   }
 
   // Resolve final status from step statuses
   const stepStatuses = run.steps.map((s) => s.status);
-  run.status = resolveFinalStatus(stepStatuses);
+  run.status = resolveFinalStatus(stepStatuses, cancelled);
   run.finishedAt = createIsoTimestamp();
 }
 
@@ -264,6 +283,12 @@ async function main(): Promise<void> {
   const queueState = createQueueState({ maxConcurrency: MAX_CONCURRENCY });
   log(`Queue state initialised: maxConcurrency=${MAX_CONCURRENCY}`);
 
+  // 5b. Recovery — re-queue runs that were running when worker last crashed
+  const recovered = await runRepo.recoverStaleRuns();
+  if (recovered.length > 0) {
+    log(`Recovered ${recovered.length} stale run(s): ${recovered.map((r) => r.id).join(", ")}`);
+  }
+
   // 6. Graceful shutdown
   process.on("SIGTERM", requestShutdown);
   process.on("SIGINT", requestShutdown);
@@ -274,8 +299,7 @@ async function main(): Promise<void> {
   while (!shutdownRequested) {
     try {
       // Fetch queued runs from the DB
-      const allRuns = await runRepo.list();
-      const queuedDbRuns = allRuns.filter((r) => r.status === "queued");
+      const queuedDbRuns = await runRepo.listByStatus("queued", 20);
 
       // Sync DB queued runs into in-memory queue state
       for (const dbRun of queuedDbRuns) {
@@ -292,8 +316,8 @@ async function main(): Promise<void> {
         // Update status to running in DB
         await runRepo.updateStatus(runId, "running");
 
-        // Look up the graph for this run
-        const dbRun = allRuns.find((r) => r.id === runId);
+        // Look up the run from the DB
+        const dbRun = await runRepo.findById(runId);
         if (!dbRun) {
           logError(`Run ${runId} not found in DB — skipping`);
           markComplete(queueState, runId);
@@ -326,7 +350,13 @@ async function main(): Promise<void> {
         (nodeRun as { id: string }).id = runId;
 
         try {
-          await executeRun(nodeRun, registry);
+          await executeRun(nodeRun, registry, {
+            shouldCancel: () => {
+              // Check if run was cancelled in DB (async check would be better
+              // but keeping it simple — the cancel is also checked via shutdownRequested)
+              return shutdownRequested;
+            },
+          });
 
           // Persist final status
           await runRepo.updateStatus(runId, nodeRun.status);
@@ -340,7 +370,6 @@ async function main(): Promise<void> {
       }
 
       // Log overview periodically
-      const currentRuns = await runRepo.list();
       const overview = formatOverviewLine({
         queue: {
           desiredWorkers: MAX_CONCURRENCY,

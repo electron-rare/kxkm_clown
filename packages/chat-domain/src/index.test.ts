@@ -7,6 +7,14 @@ import {
   isValidChannelName,
   normalizeChannelName,
   buildChatChannels,
+  createConversationMemory,
+  addToMemory,
+  buildLlmContext,
+  clearMemory,
+  parseSlashCommand,
+  resolveCommand,
+  generateHelpText,
+  SLASH_COMMANDS,
 } from "./index.js";
 import type { ChatMessage } from "./index.js";
 
@@ -117,5 +125,154 @@ describe("buildChatChannels", () => {
   it("returns only defaults when no models provided", () => {
     const channels = buildChatChannels([]);
     assert.equal(channels.length, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Conversational memory
+// ---------------------------------------------------------------------------
+
+describe("createConversationMemory", () => {
+  it("creates empty memory with default max size", () => {
+    const mem = createConversationMemory("sess_1");
+    assert.equal(mem.sessionId, "sess_1");
+    assert.equal(mem.messages.length, 0);
+    assert.equal(mem.maxSize, 100);
+  });
+
+  it("respects custom max size", () => {
+    const mem = createConversationMemory("sess_2", 50);
+    assert.equal(mem.maxSize, 50);
+  });
+});
+
+describe("addToMemory", () => {
+  it("adds messages to memory", () => {
+    const mem = createConversationMemory("sess_1");
+    const msg = createChatMessage("general", "alice", "hello");
+    addToMemory(mem, msg);
+    assert.equal(mem.messages.length, 1);
+    assert.equal(mem.messages[0].content, "hello");
+  });
+
+  it("evicts oldest when over capacity", () => {
+    const mem = createConversationMemory("sess_1", 3);
+    for (let i = 0; i < 5; i++) {
+      addToMemory(mem, createChatMessage("general", "user", `msg ${i}`));
+    }
+    assert.equal(mem.messages.length, 3);
+    assert.equal(mem.messages[0].content, "msg 2");
+    assert.equal(mem.messages[2].content, "msg 4");
+  });
+});
+
+describe("buildLlmContext", () => {
+  it("maps persona messages as assistant, others as user", () => {
+    const mem = createConversationMemory("sess_1");
+    addToMemory(mem, createChatMessage("general", "alice", "hello"));
+    addToMemory(mem, createChatMessage("general", "bot", "hi there", "schaeffer"));
+    const ctx = buildLlmContext(mem);
+    assert.equal(ctx.length, 2);
+    assert.equal(ctx[0].role, "user");
+    assert.equal(ctx[1].role, "assistant");
+  });
+
+  it("respects limit parameter", () => {
+    const mem = createConversationMemory("sess_1");
+    for (let i = 0; i < 10; i++) {
+      addToMemory(mem, createChatMessage("general", "user", `msg ${i}`));
+    }
+    const ctx = buildLlmContext(mem, 3);
+    assert.equal(ctx.length, 3);
+    assert.equal(ctx[0].content, "msg 7");
+  });
+});
+
+describe("clearMemory", () => {
+  it("empties all messages", () => {
+    const mem = createConversationMemory("sess_1");
+    addToMemory(mem, createChatMessage("general", "user", "hello"));
+    clearMemory(mem);
+    assert.equal(mem.messages.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Slash commands
+// ---------------------------------------------------------------------------
+
+describe("parseSlashCommand", () => {
+  it("parses a simple command", () => {
+    const cmd = parseSlashCommand("/help");
+    assert.ok(cmd);
+    assert.equal(cmd.name, "help");
+    assert.equal(cmd.args, "");
+  });
+
+  it("parses a command with arguments", () => {
+    const cmd = parseSlashCommand("/nick Alice");
+    assert.ok(cmd);
+    assert.equal(cmd.name, "nick");
+    assert.equal(cmd.args, "Alice");
+  });
+
+  it("parses multi-word arguments", () => {
+    const cmd = parseSlashCommand("/msg schaeffer hello how are you");
+    assert.ok(cmd);
+    assert.equal(cmd.name, "msg");
+    assert.equal(cmd.args, "schaeffer hello how are you");
+  });
+
+  it("returns null for non-command input", () => {
+    assert.equal(parseSlashCommand("hello"), null);
+    assert.equal(parseSlashCommand(""), null);
+    assert.equal(parseSlashCommand("/ invalid"), null);
+  });
+});
+
+describe("resolveCommand", () => {
+  it("finds existing commands", () => {
+    const parsed = parseSlashCommand("/help")!;
+    const result = resolveCommand(parsed, false);
+    assert.ok(result.command);
+    assert.equal(result.command.name, "help");
+    assert.equal(result.denied, false);
+  });
+
+  it("denies admin-only commands for non-admin", () => {
+    const parsed = parseSlashCommand("/model gpt-4")!;
+    const result = resolveCommand(parsed, false);
+    assert.ok(result.command);
+    assert.equal(result.denied, true);
+  });
+
+  it("allows admin-only commands for admin", () => {
+    const parsed = parseSlashCommand("/model gpt-4")!;
+    const result = resolveCommand(parsed, true);
+    assert.ok(result.command);
+    assert.equal(result.denied, false);
+  });
+
+  it("returns null command for unknown commands", () => {
+    const parsed = parseSlashCommand("/unknown")!;
+    const result = resolveCommand(parsed, true);
+    assert.equal(result.command, null);
+  });
+});
+
+describe("generateHelpText", () => {
+  it("includes all commands for admin", () => {
+    const text = generateHelpText(true);
+    for (const cmd of SLASH_COMMANDS) {
+      assert.ok(text.includes(cmd.name), `should include ${cmd.name}`);
+    }
+  });
+
+  it("excludes admin-only commands for non-admin", () => {
+    const text = generateHelpText(false);
+    const adminCmds = SLASH_COMMANDS.filter((c) => c.adminOnly);
+    for (const cmd of adminCmds) {
+      assert.ok(!text.includes(`/${cmd.name} `), `should exclude /${cmd.name}`);
+    }
   });
 });

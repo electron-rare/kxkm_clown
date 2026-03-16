@@ -149,45 +149,53 @@ flowchart TD
 | Fonctionnalite | V1 | V2 | Priorite |
 |---|---|---|---|
 | **Chat** | | | |
-| WebSocket temps reel | OK | prevu | haute |
-| Multi-canaux | OK | prevu | haute |
-| Streaming LLM | OK | prevu | haute |
-| Tab completion | OK | prevu | moyenne |
+| WebSocket temps reel | OK | OK | haute |
+| Multi-canaux | OK | OK | haute |
+| Streaming LLM | OK | OK | haute |
+| Tab completion | OK | OK | moyenne |
 | Historique messages | OK | prevu | basse |
 | DOM pruning | OK | prevu | basse |
-| Upload fichiers | OK | prevu | moyenne |
-| Commandes slash | OK | prevu | moyenne |
+| Upload fichiers | OK | OK | moyenne |
+| Commandes slash | OK | OK | moyenne |
 | **Admin** | | | |
 | Auth session cookie | OK | OK | haute |
-| Module switcher | OK | prevu | haute |
-| Status strip | OK | prevu | moyenne |
-| Status public | OK | prevu | basse |
+| Module switcher | OK | OK | haute |
+| Status strip | OK | OK | moyenne |
+| Status public | OK | OK | basse |
 | **Personas** | | | |
-| Personas seed | OK | prevu | haute |
-| Creation custom | OK | prevu | haute |
-| Overrides runtime | OK | prevu | haute |
-| Pipeline feedback | OK | prevu | haute |
-| Pharmacius | OK | prevu | haute |
-| Proposals apply/revert | OK | prevu | haute |
-| Drawflow nodal | OK | prevu | moyenne |
+| Personas seed | OK | OK | haute |
+| Creation custom | OK | OK | haute |
+| Overrides runtime | OK | OK | haute |
+| Pipeline feedback | OK | OK | haute |
+| Pharmacius | OK | OK | haute |
+| Proposals apply/revert | OK | OK | haute |
+| Drawflow nodal | OK | OK (React Flow) | moyenne |
 | **Node Engine** | | | |
-| Graphes DAG | OK | prevu | critique |
-| Run lifecycle | OK | prevu | critique |
-| Queue async | OK | prevu | critique |
-| Artifacts | OK | prevu | critique |
-| Registry modeles | OK | prevu | critique |
-| Recovery on crash | OK | prevu | haute |
-| Cancel support | OK | prevu | haute |
+| Graphes DAG | OK | OK | critique |
+| Run lifecycle | OK | OK | critique |
+| Queue async | OK | OK | critique |
+| Artifacts | OK | OK | critique |
+| Registry modeles | OK | OK | critique |
+| Recovery on crash | OK | OK | haute |
+| Cancel support | OK | OK | haute |
 | **Stockage** | | | |
-| Flat-file JSON/JSONL | OK | prevu | haute |
-| Memoire conversation | OK | prevu | haute |
-| DPO logging | OK | prevu | moyenne |
-| Export HTML | OK | prevu | basse |
-| Retention sweep | OK | prevu | moyenne |
+| Flat-file JSON/JSONL | OK | OK (Postgres) | haute |
+| Memoire conversation | OK | OK | haute |
+| DPO logging | OK | OK | moyenne |
+| Export HTML | OK | OK | basse |
+| Retention sweep | OK | OK | moyenne |
 | **Securite** | | | |
-| Subnet gate | OK | prevu | haute |
+| Subnet gate | OK | OK | haute |
 | Cookies HttpOnly | OK | OK | haute |
-| RBAC roles | -- | prevu | haute |
+| RBAC roles | -- | OK | haute |
+| **Tests** | | | |
+| Backend unit tests | -- | OK (102) | haute |
+| React component tests | -- | OK (33) | haute |
+| Smoke tests | OK | OK (22) | haute |
+| CI/CD GitHub Actions | -- | OK | haute |
+| **Training** | | | |
+| Training adapters (TRL/Unsloth) | -- | OK | haute |
+| Sandboxing runtimes | -- | OK | haute |
 
 ---
 

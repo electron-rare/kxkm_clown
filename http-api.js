@@ -330,7 +330,8 @@ function registerApiRoutes(app, {
     });
   });
 
-  app.post("/api/chat/attachments", async (req, res) => {
+  // SEC-03 fix: Attachment endpoints require network auth
+  app.post("/api/chat/attachments", requireAdminNetwork, async (req, res) => {
     try {
       if (!attachmentService) {
         return res.status(503).json({ error: "attachments not configured" });
@@ -360,7 +361,7 @@ function registerApiRoutes(app, {
     }
   });
 
-  app.get("/api/chat/attachments/:id", (req, res) => {
+  app.get("/api/chat/attachments/:id", requireAdminNetwork, (req, res) => {
     if (!attachmentService) {
       return res.status(503).json({ error: "attachments not configured" });
     }
@@ -373,7 +374,7 @@ function registerApiRoutes(app, {
     res.json(attachment);
   });
 
-  app.get("/api/chat/attachments/:id/blob", (req, res) => {
+  app.get("/api/chat/attachments/:id/blob", requireAdminNetwork, (req, res) => {
     if (!attachmentService) {
       return res.status(503).json({ error: "attachments not configured" });
     }

@@ -14,11 +14,11 @@
 
 ## P1 V1 Quality
 
-- [ ] Migrer vers le SDK officiel `ollama-js` (remplacer le custom `ollama.js`)
+- [x] Migrer vers le SDK officiel `ollama-js` — fait en P7 (`ollama.js` réécrit)
 - [x] Ajouter un audit logging pour les actions admin — `audit-log.js` + intégré dans `http-api.js` et `server.js`
 - [x] Implémenter l'analyse image/audio dans `attachment-pipeline.js` — stubs factory avec adapter slot
 - [x] Corriger la validation d'origine `postMessage` — déjà en place (personas.js:1476)
-- [ ] Ajouter la déduplication de requêtes dans `admin-api.js`
+- [x] Ajouter la déduplication de requêtes dans `admin-api.js` — fait en P7 (`deduplicatedFetch`)
 - [x] Node Engine : validation de tri topologique — déjà en place (cycle detection dans runner)
 - [x] Node Engine : timeout d'exécution par nœud — 10min default via `NODE_ENGINE_STEP_TIMEOUT_MS`
 
@@ -37,8 +37,8 @@
 - [x] Porter run state machine (createRun, RunStep, resolveFinalStatus)
 - [x] Porter queue logic (createQueueState, enqueue, dequeue, canDequeue)
 - [x] Runtime definitions (5 runtimes)
-- [ ] Isoler les runtimes avec sandboxing approprié
-- [ ] Adaptateurs d'entraînement réels (LoRA, QLoRA, SFT)
+- [x] Isoler les runtimes avec sandboxing approprié — fait en P8 (`sandbox.ts`)
+- [x] Adaptateurs d'entraînement réels (LoRA, QLoRA, SFT) — fait en P8 (`training.ts`)
 - [x] Brancher le runner V2 dans `apps/worker` — poll loop, stub executors, graceful shutdown
 
 ## P4 Frontend V2
@@ -46,8 +46,8 @@
 - [x] API client centralisé (`api.ts`)
 - [x] 9 composants React (Header, Login, Nav, PersonaList, PersonaDetail, NodeEngineOverview, GraphDetail, RunStatus, ChannelList)
 - [x] Routing hash-based + responsive CSS
-- [ ] Interface chat React (WebSocket live)
-- [ ] Éditeur visuel Node Engine (intégration Drawflow)
+- [x] Interface chat React (WebSocket live) — fait en P7 (`Chat.tsx` + `useWebSocket.ts`)
+- [x] Éditeur visuel Node Engine (React Flow) — fait en P7 (`NodeEditor.tsx` + `EngineNode.tsx`)
 
 ## P5 TUI & Ops
 
@@ -95,10 +95,43 @@
 - [x] Turborepo pour build orchestration monorepo — `turbo.json` + scripts alignés + CI mis à jour
 - [x] Tests unitaires V2 avec node:test + supertest — 102 tests, 46 suites, 6 packages + API integration
 - [x] Tests React avec Vitest + RTL — 33 tests, 6 composants (Header, Login, Nav, PersonaList, RunStatus, ChannelList)
-- [ ] Créer le repo GitHub privé (token avec scope admin nécessaire)
+- [x] Créer le repo GitHub privé — https://github.com/electron-rare/kxkm_clown
 
 ## P9 Code Quality (simplify review)
 
 - [x] Triple filter → single-pass loop dans `node-engine.js:deriveAsyncMeta`
 - [x] Duplicate sanitization extraite dans `attachment-store.js:sanitizeId`
 - [x] Double `loadModelIndex()` éliminé dans `node-engine-store.js:registerDeployment`
+
+## P10 Lot 11 — Consolidation & Feature Parity
+
+### Phase A — Analyse & Recherche
+- [x] Deep analyse code V1+V2 (agent en cours)
+- [x] Veille OSS mise à jour (agent en cours)
+- [x] Recherche HuggingFace (agent en cours)
+
+### Phase B — Correctifs sécurité (deep analyse)
+- [x] **P0 SEC-01** Path traversal `node-engine-runner.js` — reject absolute paths + rootDir boundary check
+- [x] **P0 SEC-04** V2 login role self-assignment — viewer par défaut, admin via ADMIN_TOKEN
+- [x] **P1 BUG-06** Health endpoint leaking DATABASE_URL — remplacé par storageMode string
+- [x] **P1 BUG-02** Timeout promise leak `node-engine-runner.js` — AbortSignal cancel
+- [x] **P1 SEC-03** Attachments sans auth — ajout requireAdminNetwork middleware
+- [x] Compilation + 119 tests OK après correctifs
+
+### Phase C — Feature Parity V2
+- [x] Recovery on crash worker — `recoverStaleRuns()` + worker startup recovery
+- [x] Cancel support — `requestCancel()` repo + `shouldCancel` callback worker + API endpoint
+- [ ] Tab completion chat V2
+- [x] Commandes slash V2 — `parseSlashCommand`, `resolveCommand`, `generateHelpText` + 11 commandes + 17 tests
+- [x] Mémoire conversationnelle V2 — `ConversationMemory`, `addToMemory`, `buildLlmContext`, `clearMemory`
+- [x] Status strip admin V2 — GET `/api/v2/status` (personas, graphs, runs, queue)
+- [x] Subnet gate V2 — CIDR middleware `/api/v2/admin/*` avec ADMIN_SUBNET env
+- [x] Retention sweep V2 — `deleteOlderThan()` repo + POST `/api/v2/admin/retention-sweep`
+- [x] Export HTML V2 — GET `/api/v2/export/html` avec download attachment
+- [x] Upload fichiers V2 — bouton upload base64 dans Chat.tsx, accept image/audio/text/pdf/json/csv
+- [x] Tab completion chat V2 — nicks + commandes slash, cycling Tab, reset auto
+
+### Phase D — Déploiement & Docs
+- [x] Docker — `Dockerfile` (multi-stage Node 22 alpine) + `docker-compose.yml` (5 services) + `.dockerignore`
+- [ ] Documentation utilisateur
+- [ ] Performance profiling

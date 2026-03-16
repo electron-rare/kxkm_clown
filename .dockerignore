@@ -1,0 +1,32 @@
+node_modules
+dist
+.turbo
+.git
+.github
+.DS_Store
+*.log
+
+# Runtime data (mounted as volumes)
+data/logs
+data/sessions
+data/training
+data/memory
+data/dpo
+data/persona-sources
+data/persona-feedback
+data/persona-proposals
+data/uploads
+data/uploads-meta
+data/node-engine
+
+# Models (large, mounted separately)
+models
+
+# Dev / CI artifacts
+coverage
+.env
+.env.*
+!.env.example
+docs/*.md
+TODO.md
+PLAN.md

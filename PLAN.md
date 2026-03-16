@@ -139,16 +139,53 @@ Livré:
 - CI/CD GitHub Actions (`.github/workflows/ci.yml`)
 - Deep analyse finale V1+V2 (14 modules vérifiés, intégrité confirmée)
 
-## Lot 10 — Production readiness `[en cours]`
+## Lot 10 — Production readiness `[complété]`
 
 Livré:
 - Adaptateurs training réels (TRL + Unsloth) — `packages/node-engine/src/training.ts`, worker intégré
 - Sandboxing runtimes (none/subprocess/container) — `packages/node-engine/src/sandbox.ts`
 - Tests unitaires V2 (node:test + supertest) — 102 tests, 46 suites, 0 failures
+- Tests React (Vitest + RTL) — 33 tests, 6 composants
 - Turborepo build orchestration — `turbo.json`, scripts alignés, CI mis à jour
 - Code quality review (simplify) — 3 fixes efficacité/duplication
+- Repo GitHub privé créé et pushé — https://github.com/electron-rare/kxkm_clown
 
-- Tests React (Vitest + RTL) — 33 tests, 6 composants, jsdom
+## Lot 11 — Consolidation & feature parity `[en cours]`
 
-Reste:
-- Repo GitHub privé (token avec scope admin nécessaire)
+Objectifs:
+- Deep analyse code (bugs, perf, sécurité, dead code) → correctifs chirurgicaux
+- Veille OSS mise à jour (LLM orchestration, training, chat UI)
+- Recherche HuggingFace (modèles persona-ready, datasets DPO, outils LoRA)
+- Feature parity V2 : combler les "prevu" restants dans la matrice
+
+### Phase A — Analyse & recherche `[en cours]`
+- [x] Deep analyse code V1+V2 (agent background)
+- [x] Veille OSS web (agent background)
+- [x] Recherche HuggingFace (agent background)
+
+### Phase B — Correctifs sécurité `[complété]`
+Corrigé:
+- P0 SEC-01: Path traversal node-engine-runner.js (reject absolute + boundary check)
+- P0 SEC-04: Login role self-assignment (viewer default, ADMIN_TOKEN for admin)
+- P1 BUG-06: Health endpoint DATABASE_URL leak (redacted)
+- P1 BUG-02: Timeout promise leak (AbortSignal cancel)
+- P1 SEC-03: Attachment endpoints unauthenticated (requireAdminNetwork)
+
+### Phase C — Feature parity V2 `[en cours — 8/10 fait]`
+Livré:
+- Recovery on crash (worker recoverStaleRuns + shouldCancel)
+- Cancel support (requestCancel repo + API endpoint + worker callback)
+- Commandes slash V2 (11 commandes + parseSlashCommand + resolveCommand + 17 tests)
+- Mémoire conversationnelle V2 (ConversationMemory + buildLlmContext)
+- Status strip admin V2 (GET /api/v2/status)
+- Subnet gate V2 (CIDR middleware ADMIN_SUBNET)
+- Retention sweep V2 (deleteOlderThan + POST /api/v2/admin/retention-sweep)
+- Export HTML V2 (GET /api/v2/export/html)
+
+- Upload fichiers V2 (bouton upload base64 Chat.tsx)
+- Tab completion chat V2 (nicks + slash commands, Tab cycling)
+
+### Phase D — Optimisation & polish
+- [ ] Docker / docker-compose pour déploiement
+- [ ] Documentation utilisateur
+- [ ] Performance profiling hot paths

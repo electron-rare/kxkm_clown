@@ -1,0 +1,129 @@
+# ---------------------------------------------------------------------------
+# KXKM_Clown — Docker Compose
+# ---------------------------------------------------------------------------
+# Usage:
+#   docker compose up -d              # V1 only (app + postgres + ollama)
+#   docker compose --profile v2 up -d # V1 + V2 (api + worker)
+# ---------------------------------------------------------------------------
+
+x-common-env: &common-env
+  OLLAMA_URL: http://ollama:11434
+  DATABASE_URL: postgres://kxkm:kxkm@postgres:5432/kxkm_clown
+  NODE_ENV: production
+
+services:
+  # -------------------------------------------------------------------------
+  # V1 — main Express + WebSocket server
+  # -------------------------------------------------------------------------
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3333}:3333"
+    environment:
+      <<: *common-env
+      PORT: "3333"
+      ADMIN_BOOTSTRAP_TOKEN: "${ADMIN_BOOTSTRAP_TOKEN:-}"
+      ADMIN_ALLOWED_SUBNETS: "${ADMIN_ALLOWED_SUBNETS:-}"
+      WEB_SEARCH_API_BASE: "${WEB_SEARCH_API_BASE:-}"
+      OWNER_NICK: "${OWNER_NICK:-}"
+      MAX_GENERAL_RESPONDERS: "${MAX_GENERAL_RESPONDERS:-4}"
+    volumes:
+      - app-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3333/api/ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # -------------------------------------------------------------------------
+  # V2 — API server (Express, TypeScript)
+  # -------------------------------------------------------------------------
+  api:
+    build: .
+    restart: unless-stopped
+    profiles: [v2]
+    command: ["node", "apps/api/dist/server.js"]
+    ports:
+      - "${API_PORT:-3334}:3334"
+    environment:
+      <<: *common-env
+      PORT: "3334"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3334/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # -------------------------------------------------------------------------
+  # V2 — Worker (poll loop)
+  # -------------------------------------------------------------------------
+  worker:
+    build: .
+    restart: unless-stopped
+    profiles: [v2]
+    command: ["node", "apps/worker/dist/index.js"]
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+  # -------------------------------------------------------------------------
+  # PostgreSQL 16
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kxkm
+      POSTGRES_PASSWORD: kxkm
+      POSTGRES_DB: kxkm_clown
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kxkm -d kxkm_clown"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # -------------------------------------------------------------------------
+  # Ollama — LLM inference server
+  # -------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    # GPU passthrough — uncomment if NVIDIA GPU available:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  app-data:
+  pg-data:
+  ollama-data:

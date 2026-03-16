@@ -301,7 +301,15 @@ blocs VIDEOTEX, bandes de service, mosaïques, clavier AZERTY virtuel.
 - [ ] Mode dégradé : scanlines CRT + flicker
 - [ ] Responsive : mode portrait = écran Minitel vertical
 
+### Phase 4 — Chat avancé `[en cours]`
+- [x] Chat Vocal dédié (#/voice) — STT/TTS séparé
+- [x] Inter-persona dialogue (@mention, depth 3)
+- [x] Upgrade qwen3:8b (personas) + qwen3-vl:8b (vision)
+- [ ] Multi-channel /join /channels
+- [ ] Analytics dashboard (stats, top personas, messages/jour)
+- [ ] P1 fixes restants (TTS queue, file semaphore, PDF startup)
+
 Reste à faire (futur) :
 - [ ] Migration sessions V1 → V2
-- [ ] Recherche historique conversations
 - [ ] MCP (Model Context Protocol) pour intégration outils
+- [ ] WebRTC voice (streaming temps réel au lieu d'upload)

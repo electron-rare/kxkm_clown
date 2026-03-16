@@ -14,6 +14,7 @@ import VoiceChat from "./components/VoiceChat";
 import ChatHistory from "./components/ChatHistory";
 import NodeEditor from "./components/NodeEditor";
 import TrainingDashboard from "./components/TrainingDashboard";
+import Analytics from "./components/Analytics";
 
 function parseHash(): { page: string; id: string } {
   const hash = window.location.hash.replace(/^#\/?/, "");
@@ -166,6 +167,9 @@ export default function App() {
 
       case "history":
         return <ChatHistory />;
+
+      case "analytics":
+        return <Analytics />;
 
       case "dashboard":
       default:

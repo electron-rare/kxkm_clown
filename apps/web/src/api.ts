@@ -278,4 +278,20 @@ export const api = {
       `/api/v2/chat/search?q=${encodeURIComponent(query)}&limit=${limit}`
     );
   },
+
+  // Analytics
+  getAnalytics(): Promise<AnalyticsData> {
+    return apiFetch<AnalyticsData>("/api/v2/analytics");
+  },
 };
+
+export interface AnalyticsData {
+  totalMessages: number;
+  totalDays: number;
+  personaMessages: Record<string, number>;
+  userMessages: number;
+  systemMessages: number;
+  uploadsCount: number;
+  messagesPerDay: Array<{ date: string; count: number }>;
+  topPersonas: Array<{ nick: string; count: number }>;
+}

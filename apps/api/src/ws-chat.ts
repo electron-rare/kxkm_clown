@@ -8,6 +8,28 @@ import type { LocalRAG } from "./rag.js";
 
 const execFileAsync = promisify(execFile);
 
+// Lazy-load pdf-parse at module startup (P1-02: avoid dynamic import in hot path)
+let pdfParse: ((buffer: Buffer) => Promise<{ text: string; numpages: number }>) | null = null;
+import("pdf-parse").then(m => { pdfParse = m.default; }).catch(() => {
+  console.warn("[ws-chat] pdf-parse not available — PDF uploads will be text-only");
+});
+
+// TTS concurrency semaphore (P2-02)
+let ttsActive = 0;
+const MAX_TTS_CONCURRENT = 2;
+
+// File processing concurrency semaphore (P2-10)
+let fileProcessActive = 0;
+const MAX_FILE_PROCESSORS = 2;
+
+async function acquireFileProcessor(): Promise<void> {
+  while (fileProcessActive >= MAX_FILE_PROCESSORS) {
+    await new Promise(r => setTimeout(r, 100));
+  }
+  fileProcessActive++;
+}
+function releaseFileProcessor(): void { fileProcessActive--; }
+
 // Simple semaphore for Ollama concurrency
 const MAX_OLLAMA_CONCURRENT = Number(process.env.MAX_OLLAMA_CONCURRENT) || 3;
 let ollamaActive = 0;
@@ -95,7 +117,8 @@ type OutboundMessage =
   | { type: "part"; nick: string; channel: string; text: string }
   | { type: "userlist"; users: string[] }
   | { type: "persona"; nick: string; color: string }
-  | { type: "audio"; nick: string; data: string; mimeType: string };
+  | { type: "audio"; nick: string; data: string; mimeType: string }
+  | { type: "channelInfo"; channel: string };
 
 // Chat log entry
 interface ChatLogEntry {
@@ -419,7 +442,9 @@ function generateNick(): string {
 
 function send(ws: WebSocket, msg: OutboundMessage): void {
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(msg));
+    try {
+      ws.send(JSON.stringify(msg));
+    } catch { /* connection closed between check and send */ }
   }
 }
 
@@ -765,6 +790,8 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
             "=== Commandes disponibles ===",
             "/help            — affiche cette aide",
             "/nick <nom>      — change ton pseudo",
+            "/join #canal     — rejoindre un canal",
+            "/channels        — liste les canaux actifs",
             "/who             — liste les utilisateurs connectes",
             "/personas        — liste les personas actives",
             "/web <recherche> — recherche sur le web",
@@ -837,6 +864,48 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
             text: `Recherche échouée: ${err instanceof Error ? err.message : String(err)}`,
           });
         }
+        break;
+      }
+
+      case "/join": {
+        const newChannel = parts[1] || "";
+        if (!newChannel.startsWith("#") || newChannel.length < 2 || newChannel.length > 30) {
+          send(ws, { type: "system", text: "Usage: /join #nom-du-canal (2-30 chars, commence par #)" });
+          break;
+        }
+        // Sanitize: only alphanumeric, hyphens, underscores
+        if (!/^#[a-zA-Z0-9_-]+$/.test(newChannel)) {
+          send(ws, { type: "system", text: "Nom de canal invalide (lettres, chiffres, - et _ uniquement)" });
+          break;
+        }
+        const oldChannel = info.channel;
+        info.channel = newChannel;
+
+        // Notify old channel
+        broadcast(oldChannel, { type: "part", nick: info.nick, channel: oldChannel, text: `${info.nick} a quitte ${oldChannel}` });
+        broadcastUserlist(oldChannel);
+
+        // Notify new channel
+        broadcast(newChannel, { type: "join", nick: info.nick, channel: newChannel, text: `${info.nick} a rejoint ${newChannel}` });
+        broadcastUserlist(newChannel);
+
+        // Send channel info to user
+        send(ws, { type: "channelInfo", channel: newChannel });
+        send(ws, { type: "system", text: `Canal change: ${newChannel}` });
+        break;
+      }
+
+      case "/channels": {
+        const channelCounts = new Map<string, number>();
+        for (const [, client] of clients) {
+          const count = channelCounts.get(client.channel) || 0;
+          channelCounts.set(client.channel, count + 1);
+        }
+        const list = [...channelCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([ch, count]) => `  ${ch} (${count} connecte${count > 1 ? "s" : ""})`)
+          .join("\n");
+        send(ws, { type: "system", text: `Canaux actifs:\n${list || "  (aucun)"}` });
         break;
       }
 
@@ -934,11 +1003,14 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
               personaMemoryLocks.set(lockKey, next);
             }
 
-            // TTS synthesis (async, non-blocking)
-            if (process.env.TTS_ENABLED === "1") {
-              synthesizeTTS(persona.nick, fullText, channel, broadcast).catch((err) => {
-                console.error(`[tts] Error for ${persona.nick}: ${err}`);
-              });
+            // TTS synthesis (async, non-blocking, with concurrency limit)
+            if (process.env.TTS_ENABLED === "1" && ttsActive < MAX_TTS_CONCURRENT) {
+              ttsActive++;
+              synthesizeTTS(persona.nick, fullText, channel, broadcast)
+                .catch((err) => {
+                  console.error(`[tts] Error for ${persona.nick}: ${err}`);
+                })
+                .finally(() => { ttsActive--; });
             }
 
             // Inter-persona dialogue: check if persona mentioned another persona
@@ -1080,20 +1152,25 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         );
         const pythonBin = process.env.PYTHON_BIN || "python3";
 
-        const { stdout, stderr } = await execFileAsync(pythonBin, [
-          scriptPath, "--input", tmpFile, "--language", "fr",
-        ], { timeout: 120_000 });
+        await acquireFileProcessor();
+        try {
+          const { stdout, stderr } = await execFileAsync(pythonBin, [
+            scriptPath, "--input", tmpFile, "--language", "fr",
+          ], { timeout: 120_000 });
 
-        if (stderr) console.log(`[ws-chat][audio] ${stderr.trim().slice(-200)}`);
+          if (stderr) console.log(`[ws-chat][audio] ${stderr.trim().slice(-200)}`);
 
-        // stdout may contain multiple lines; the JSON result is on the last line
-        const lastLine = stdout.trim().split("\n").pop() || "{}";
-        const result = JSON.parse(lastLine) as { status?: string; transcript?: string; error?: string };
+          // stdout may contain multiple lines; the JSON result is on the last line
+          const lastLine = stdout.trim().split("\n").pop() || "{}";
+          const result = JSON.parse(lastLine) as { status?: string; transcript?: string; error?: string };
 
-        if (result.transcript) {
-          analysis = `[Audio: ${filename}]\nTranscription: ${result.transcript}`;
-        } else {
-          analysis = `[Audio: ${filename} — transcription échouée: ${result.error || "unknown"}]`;
+          if (result.transcript) {
+            analysis = `[Audio: ${filename}]\nTranscription: ${result.transcript}`;
+          } else {
+            analysis = `[Audio: ${filename} — transcription échouée: ${result.error || "unknown"}]`;
+          }
+        } finally {
+          releaseFileProcessor();
         }
       } catch (err) {
         analysis = `[Audio: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
@@ -1101,14 +1178,17 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         try { fs.unlinkSync(tmpFile); } catch { /* ignore cleanup errors */ }
       }
     } else if (mimeType === "application/pdf") {
-      try {
-        const pdfParse = (await import("pdf-parse")).default;
-        const pdfData = await pdfParse(buffer);
-        const text = pdfData.text.slice(0, 12000);
-        const pages = pdfData.numpages;
-        analysis = `[PDF: ${filename}, ${pages} page(s)]\n${text}`;
-      } catch (err) {
-        analysis = `[PDF: ${filename} — extraction échouée: ${err instanceof Error ? err.message : String(err)}]`;
+      if (pdfParse) {
+        try {
+          const pdfData = await pdfParse(buffer);
+          const text = pdfData.text.slice(0, 12000);
+          const pages = pdfData.numpages;
+          analysis = `[PDF: ${filename}, ${pages} page(s)]\n${text}`;
+        } catch (err) {
+          analysis = `[PDF: ${filename} — extraction échouée: ${err instanceof Error ? err.message : String(err)}]`;
+        }
+      } else {
+        analysis = `[PDF: ${filename} — pdf-parse non disponible]`;
       }
     } else if (isOfficeDocument(filename, mimeType)) {
       // Word, Excel, PowerPoint, LibreOffice, RTF, EPUB
@@ -1118,16 +1198,21 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         fs.writeFileSync(tmpFile, buffer);
         const pythonBin = process.env.PYTHON_BIN || "python3";
         const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_document.py");
-        const { stdout, stderr } = await execFileAsync(pythonBin, [
-          scriptPath, "--input", tmpFile,
-        ], { timeout: 60_000 });
-        if (stderr) console.log(`[upload] doc extract: ${stderr.slice(-200)}`);
-        const jsonLine = stdout.trim().split("\n").pop() || "{}";
-        const result = JSON.parse(jsonLine);
-        if (result.text) {
-          analysis = `[Document ${ext.toUpperCase()}: ${filename}]\n${result.text}`;
-        } else {
-          analysis = `[Document: ${filename} — extraction échouée: ${result.error || "unknown"}]`;
+        await acquireFileProcessor();
+        try {
+          const { stdout, stderr } = await execFileAsync(pythonBin, [
+            scriptPath, "--input", tmpFile,
+          ], { timeout: 60_000 });
+          if (stderr) console.log(`[upload] doc extract: ${stderr.slice(-200)}`);
+          const jsonLine = stdout.trim().split("\n").pop() || "{}";
+          const result = JSON.parse(jsonLine);
+          if (result.text) {
+            analysis = `[Document ${ext.toUpperCase()}: ${filename}]\n${result.text}`;
+          } else {
+            analysis = `[Document: ${filename} — extraction échouée: ${result.error || "unknown"}]`;
+          }
+        } finally {
+          releaseFileProcessor();
         }
       } catch (err) {
         analysis = `[Document: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;

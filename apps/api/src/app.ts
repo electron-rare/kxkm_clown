@@ -921,6 +921,62 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
   });
 
   // -----------------------------------------------------------------------
+  // Analytics — aggregate chat log stats
+  // -----------------------------------------------------------------------
+
+  app.get("/api/v2/analytics", async (_req, res) => {
+    const logDir = path.join(process.cwd(), process.env.KXKM_LOCAL_DATA_DIR || "data", "chat-logs");
+    const stats = {
+      totalMessages: 0,
+      totalDays: 0,
+      personaMessages: {} as Record<string, number>,
+      userMessages: 0,
+      systemMessages: 0,
+      uploadsCount: 0,
+      messagesPerDay: [] as Array<{ date: string; count: number }>,
+      topPersonas: [] as Array<{ nick: string; count: number }>,
+    };
+
+    try {
+      await mkdir(logDir, { recursive: true });
+      const files = await readdir(logDir);
+      stats.totalDays = files.filter((f) => f.endsWith(".jsonl")).length;
+
+      for (const file of files.sort().reverse().slice(0, 30)) {
+        if (!file.endsWith(".jsonl")) continue;
+        const date = file.replace("v2-", "").replace(".jsonl", "");
+        const content = await readFile(path.join(logDir, file), "utf-8");
+        let dayCount = 0;
+
+        for (const line of content.split("\n")) {
+          if (!line.trim()) continue;
+          try {
+            const entry = JSON.parse(line);
+            stats.totalMessages++;
+            dayCount++;
+
+            if (entry.type === "message" && entry.nick) {
+              if (entry.nick.startsWith("user_")) {
+                stats.userMessages++;
+              } else {
+                stats.personaMessages[entry.nick] = (stats.personaMessages[entry.nick] || 0) + 1;
+              }
+            }
+            if (entry.type === "upload") stats.uploadsCount++;
+          } catch {}
+        }
+        stats.messagesPerDay.push({ date, count: dayCount });
+      }
+
+      stats.topPersonas = Object.entries(stats.personaMessages)
+        .map(([nick, count]) => ({ nick, count }))
+        .sort((a, b) => b.count - a.count);
+    } catch {}
+
+    res.json({ ok: true, data: stats });
+  });
+
+  // -----------------------------------------------------------------------
   // Retention sweep — delete old completed/failed/cancelled runs
   // -----------------------------------------------------------------------
 

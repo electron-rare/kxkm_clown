@@ -305,7 +305,7 @@ export default function Chat() {
 
       // Slash command completion
       if (text.startsWith("/") && !text.includes(" ")) {
-        const slashCommands = ["/help", "/clear", "/nick", "/join", "/msg", "/web", "/status", "/model", "/persona", "/reload", "/export"];
+        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/status", "/model", "/persona", "/reload", "/export"];
         const prefix = tabPrefix || text;
         const matches = slashCommands.filter((c) => c.startsWith(prefix.toLowerCase()));
         if (matches.length === 0) return;

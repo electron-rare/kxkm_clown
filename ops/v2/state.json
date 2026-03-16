@@ -1,0 +1,134 @@
+{
+  "project": "kxkm-clown-v2",
+  "updated_at": "2026-03-15T21:01:42Z",
+  "batches": {
+    "lot-0-cadrage": {
+      "status": "done",
+      "depends_on": [],
+      "tasks": {
+        "architecture": {
+          "status": "done",
+          "attempts": 3,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-0-cadrage/architecture.csv",
+          "last_error": ""
+        },
+        "docs": {
+          "status": "done",
+          "attempts": 3,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-0-cadrage/docs.csv",
+          "last_error": ""
+        },
+        "agents": {
+          "status": "done",
+          "attempts": 3,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-0-cadrage/agents.csv",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-1-socle": {
+      "status": "done",
+      "depends_on": [
+        "lot-0-cadrage"
+      ],
+      "tasks": {
+        "workspace": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-1-socle/workspace.csv",
+          "last_error": ""
+        },
+        "verification": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-1-socle/verification.csv",
+          "last_error": ""
+        },
+        "ops-tui": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-1-socle/ops-tui.csv",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-2-domaines": {
+      "status": "pending",
+      "depends_on": [
+        "lot-1-socle"
+      ],
+      "tasks": {
+        "auth-chat": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "personas": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "node-engine": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-3-surfaces": {
+      "status": "pending",
+      "depends_on": [
+        "lot-2-domaines"
+      ],
+      "tasks": {
+        "web-shell": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "persona-ui": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "engine-ui": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-4-bascule": {
+      "status": "pending",
+      "depends_on": [
+        "lot-3-surfaces"
+      ],
+      "tasks": {
+        "migration": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "parity": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "cutover": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    }
+  }
+}

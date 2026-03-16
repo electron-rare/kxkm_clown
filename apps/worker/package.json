@@ -1,0 +1,21 @@
+{
+  "name": "@kxkm/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "V2 worker scaffold",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@kxkm/core": "*",
+    "@kxkm/node-engine": "*",
+    "@kxkm/storage": "*",
+    "@kxkm/tui": "*"
+  },
+  "scripts": {
+    "status": "node ../../scripts/workspace-package.js worker status",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json --pretty false",
+    "check": "tsc -p tsconfig.json --noEmit --pretty false"
+  }
+}

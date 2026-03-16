@@ -6,6 +6,7 @@ function registerApiRoutes(app, {
   host,
   dataDir,
   networkPolicy,
+  adminSessions,
   runtime,
   sessions,
   clients,
@@ -39,10 +40,31 @@ function registerApiRoutes(app, {
   attachmentService,
   nodeEngineStore,
   nodeEngineRegistry,
+  nodeEngineRunner,
+  nodeEngineQueue,
+  auditLog,
 }) {
   const accessMode = host === "127.0.0.1" || host === "::1" ? "loopback" : "lan_controlled";
+
+  function auditReq(req, action, target, detail) {
+    if (!auditLog) return;
+    const ip = typeof networkPolicy?.getRequestIp === "function"
+      ? networkPolicy.getRequestIp(req)
+      : req.socket?.remoteAddress || "";
+    auditLog.log({
+      actor: req.adminSession?.actor || req.body?.actor || "unknown",
+      action,
+      target: target || null,
+      detail: detail || null,
+      ip,
+    });
+  }
   const requireAdminNetwork = createAdminNetworkGate(networkPolicy);
-  const requireAdmin = requireLocalAdmin(adminBootstrapToken, requireAdminNetwork);
+  const requireAdmin = requireLocalAdmin({
+    adminBootstrapToken,
+    requireAdminNetwork,
+    adminSessions,
+  });
 
   function normalizeChannel(value) {
     const text = String(value || "").trim();
@@ -62,6 +84,23 @@ function registerApiRoutes(app, {
     } catch {
       return raw;
     }
+  }
+
+  function isSecureRequest(req) {
+    return Boolean(
+      req.secure
+      || String(req.get("x-forwarded-proto") || "").toLowerCase() === "https"
+    );
+  }
+
+  function formatAdminSession(session) {
+    if (!session) return null;
+    return {
+      id: session.id,
+      actor: session.actor,
+      createdAt: session.createdAt,
+      lastSeenAt: session.lastSeenAt,
+    };
   }
 
   function readRequestBuffer(req, maxBytes = MAX_UPLOAD_BYTES) {
@@ -228,6 +267,69 @@ function registerApiRoutes(app, {
     );
   });
 
+  app.post("/api/admin/session", (req, res) => {
+    requireAdminNetwork(req, res, () => {
+      if (!adminBootstrapToken) {
+        return res.status(503).json({ error: "admin bootstrap token not configured" });
+      }
+
+      const token = String(req.body?.token || "").trim();
+      if (token !== adminBootstrapToken) {
+        return res.status(403).json({ error: "invalid admin bootstrap token" });
+      }
+
+      const session = adminSessions.createSession({
+        ip: typeof networkPolicy?.getRequestIp === "function"
+          ? networkPolicy.getRequestIp(req)
+          : req.socket?.remoteAddress || "",
+        userAgent: req.get("user-agent"),
+        actor: req.body?.actor || "admin_ui",
+      });
+
+      res.setHeader("set-cookie", adminSessions.buildSetCookie(session.id, {
+        secure: isSecureRequest(req),
+      }));
+      auditReq(req, "admin.session.login", session.id, { actor: session.actor });
+      res.json({
+        ok: true,
+        authenticated: true,
+        session: formatAdminSession(session),
+      });
+    });
+  });
+
+  app.get("/api/admin/session", (req, res) => {
+    requireAdminNetwork(req, res, () => {
+      if (!adminBootstrapToken) {
+        return res.status(503).json({ error: "admin bootstrap token not configured" });
+      }
+
+      const session = adminSessions.getRequestSession(req);
+      if (!session) {
+        return res.status(401).json({ authenticated: false });
+      }
+
+      res.json({
+        authenticated: true,
+        session: formatAdminSession(session),
+      });
+    });
+  });
+
+  app.delete("/api/admin/session", (req, res) => {
+    requireAdminNetwork(req, res, () => {
+      auditReq(req, "admin.session.logout", null, null);
+      adminSessions.destroyRequestSession(req);
+      res.setHeader("set-cookie", adminSessions.buildClearCookie({
+        secure: isSecureRequest(req),
+      }));
+      res.json({
+        ok: true,
+        authenticated: false,
+      });
+    });
+  });
+
   app.post("/api/chat/attachments", async (req, res) => {
     try {
       if (!attachmentService) {
@@ -325,6 +427,7 @@ function registerApiRoutes(app, {
         reason: req.body?.reason || "admin_update",
       });
       await runtime.refreshChannelMap();
+      auditReq(req, "persona.update", req.params.id, { name: persona.name, model: persona.model });
       res.json({
         ok: true,
         persona: {
@@ -388,6 +491,7 @@ function registerApiRoutes(app, {
   app.put("/api/admin/personas/:id/source", requireAdmin, (req, res) => {
     try {
       const source = updatePersonaSource(req.params.id, req.body || {});
+      auditReq(req, "persona.source.update", req.params.id, null);
       res.json({ ok: true, source });
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
@@ -559,7 +663,7 @@ function registerApiRoutes(app, {
           host,
           accessMode,
           adminPagesPublic: true,
-          adminApiProtection: "token + allowlist réseau",
+          adminApiProtection: "session cookie + allowlist réseau",
           adminAllowedSubnets: typeof networkPolicy?.getAdminAllowedSubnets === "function"
             ? networkPolicy.getAdminAllowedSubnets()
             : [],
@@ -596,7 +700,7 @@ function registerApiRoutes(app, {
           host,
           accessMode,
           adminPagesPublic: true,
-          adminApiProtection: "token + allowlist réseau",
+          adminApiProtection: "session cookie + allowlist réseau",
           adminAllowedSubnets: typeof networkPolicy?.getAdminAllowedSubnets === "function"
             ? networkPolicy.getAdminAllowedSubnets()
             : [],
@@ -771,7 +875,14 @@ function registerApiRoutes(app, {
     }
 
     try {
-      res.json(nodeEngineStore.getOverview());
+      const overview = nodeEngineStore.getOverview();
+      overview.runtimes = typeof nodeEngineRunner?.listRuntimes === "function"
+        ? nodeEngineRunner.listRuntimes()
+        : [];
+      overview.queue = typeof nodeEngineQueue?.getState === "function"
+        ? nodeEngineQueue.getState()
+        : null;
+      res.json(overview);
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
     }
@@ -811,6 +922,7 @@ function registerApiRoutes(app, {
 
     try {
       const graph = nodeEngineStore.createGraph(req.body || {});
+      auditReq(req, "node_engine.graph.create", graph.id, { name: graph.name || null });
       res.status(201).json({ ok: true, graph });
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
@@ -836,6 +948,7 @@ function registerApiRoutes(app, {
 
     try {
       const graph = nodeEngineStore.saveGraph(req.params.id, req.body || {});
+      auditReq(req, "node_engine.graph.update", req.params.id, { name: graph.name || null });
       res.json({ ok: true, graph });
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
@@ -868,15 +981,85 @@ function registerApiRoutes(app, {
   });
 
   app.post("/api/admin/node-engine/graphs/:id/run", requireAdmin, (req, res) => {
+    if (!nodeEngineStore || !nodeEngineQueue) {
+      return res.status(503).json({ error: "node engine not configured" });
+    }
+
+    try {
+      const runActor = req.body?.actor || req.adminSession?.actor || "admin";
+      const run = nodeEngineQueue.enqueueGraph(req.params.id, {
+        actor: runActor,
+      });
+      auditReq(req, "node_engine.run.start", run.id, { graphId: req.params.id });
+      res.status(202).json({ ok: true, run });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/node-engine/runs/:id/cancel", requireAdmin, (req, res) => {
+    if (!nodeEngineStore || !nodeEngineQueue) {
+      return res.status(503).json({ error: "node engine not configured" });
+    }
+
+    try {
+      const run = nodeEngineQueue.cancelRun(req.params.id);
+      auditReq(req, "node_engine.run.cancel", req.params.id, null);
+      res.json({ ok: true, run });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/node-engine/artifacts/:runId", requireAdmin, (req, res) => {
     if (!nodeEngineStore) {
       return res.status(503).json({ error: "node engine not configured" });
     }
 
     try {
-      const run = nodeEngineStore.runGraph(req.params.id, {
-        actor: req.body?.actor || "admin",
-      });
-      res.status(201).json({ ok: true, run });
+      res.json(nodeEngineStore.getArtifacts(req.params.runId));
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/node-engine/nodes/preview", requireAdmin, (req, res) => {
+    if (!nodeEngineRegistry || !nodeEngineRunner) {
+      return res.status(503).json({ error: "node engine not configured" });
+    }
+
+    try {
+      const preview = nodeEngineRunner.previewNode(
+        req.body?.type,
+        req.body?.runtime || "local_cpu",
+        req.body?.params || {}
+      );
+      res.json(preview);
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/node-engine/models", requireAdmin, (req, res) => {
+    if (!nodeEngineStore) {
+      return res.status(503).json({ error: "node engine not configured" });
+    }
+
+    try {
+      const limit = Math.max(1, Math.min(Number.parseInt(req.query.limit || "20", 10) || 20, 100));
+      res.json(nodeEngineStore.listModels(limit));
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/node-engine/models/:id", requireAdmin, (req, res) => {
+    if (!nodeEngineStore) {
+      return res.status(503).json({ error: "node engine not configured" });
+    }
+
+    try {
+      res.json(nodeEngineStore.getModel(req.params.id));
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
     }
@@ -903,18 +1086,45 @@ function createAdminNetworkGate(networkPolicy) {
   };
 }
 
-function requireLocalAdmin(adminBootstrapToken, requireAdminNetwork) {
+function buildExpectedOrigin(req) {
+  const proto = String(req.get("x-forwarded-proto") || req.protocol || "http").split(",")[0].trim() || "http";
+  const host = String(req.get("host") || "").trim();
+  return host ? `${proto}://${host}` : "";
+}
+
+function isSameOriginMutation(req) {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return true;
+
+  const expectedOrigin = buildExpectedOrigin(req);
+  const origin = String(req.get("origin") || "").trim();
+  const referer = String(req.get("referer") || "").trim();
+
+  if (origin) return origin === expectedOrigin;
+  if (referer) return referer === expectedOrigin || referer.startsWith(`${expectedOrigin}/`);
+  return false;
+}
+
+function requireLocalAdmin({
+  adminBootstrapToken,
+  requireAdminNetwork,
+  adminSessions,
+}) {
   return (req, res, next) => {
     requireAdminNetwork(req, res, () => {
       if (!adminBootstrapToken) {
         return res.status(503).json({ error: "admin bootstrap token not configured" });
       }
 
-      const token = req.get("x-admin-bootstrap-token");
-      if (token !== adminBootstrapToken) {
-        return res.status(403).json({ error: "invalid admin bootstrap token" });
+      const session = adminSessions?.getRequestSession(req);
+      if (!session) {
+        return res.status(401).json({ error: "admin session required" });
       }
 
+      if (!isSameOriginMutation(req)) {
+        return res.status(403).json({ error: "admin same-origin required" });
+      }
+
+      req.adminSession = session;
       next();
     });
   };

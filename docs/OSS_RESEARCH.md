@@ -666,6 +666,29 @@ Recommended combination:
 
 ## 15. Key Takeaways for KXKM_Clown
 
+## 16. V2 References retained
+
+These are the references retained for the V2 refactor direction:
+
+- **ComfyUI**: reference for node graph ergonomics, typed nodes, workflow docs, artifacts.
+- **Letta**: reference for layered memory and agent/persona memory separation.
+- **LibreChat**: reference for private multi-user chat shell, agents and MCP integration patterns.
+- **Flowise**: reference for graph-first LLM workflow UX and low-code orchestration.
+- **n8n**: reference for operator-facing queue/retry/log ergonomics.
+- **LangGraph**: reference for stateful orchestration around long-running agent workflows.
+
+What we keep for KXKM_Clown:
+- node graph and artifact literacy from ComfyUI
+- memory layering from Letta
+- private chat/admin shell patterns from LibreChat
+- operator workflow visibility from Flowise / n8n
+- explicit state transitions and resumability from LangGraph
+
+What we do not copy:
+- generic SaaS UI language
+- public-cloud-first assumptions
+- opaque black-box agent orchestration
+
 ### Recommended Architecture Stack
 
 | Layer | Recommendation | Why |
@@ -848,3 +871,711 @@ This is genuinely novel. The closest existing pattern is oobabooga's character v
 ---
 
 *Research compiled and expanded for the KXKM_Clown project, 2026-03-11*
+
+---
+
+## Addendum 2026-03-16 — Pipeline, Node Editors, Ollama SDK
+
+### Pipeline / DAG Orchestration
+
+| Projet | Stars | License | Notes |
+|--------|-------|---------|-------|
+| **Node-RED** | 22.9k | Apache 2.0 | Flow-based, visual editor, embeddable Node.js, v4.1.7 mars 2026 |
+| **Agenda** | 9.6k | MIT | Job scheduling Node.js, persistence Mongo/PG/Redis, retry, distribué |
+| **HyperFlow** | 68 | — | Workflow scientifique DAG, actif mars 2026 |
+
+### Visual Node/Graph Editors
+
+| Projet | Stars | License | Notes |
+|--------|-------|---------|-------|
+| **Rete.js v2** | 11.9k | MIT | Framework node editor, dataflow+control flow, multi-framework |
+| **Drawflow** | 6k+ | Permissive | Vanilla JS, léger, drag-drop, zoom, modules — déjà dans le projet |
+| **maxGraph** | 1.1k | Apache 2.0 | Successeur mxGraph, TypeScript, layout auto, pipeline-ready |
+
+### Ollama Integration
+
+| Projet | Stars | License | Notes |
+|--------|-------|---------|-------|
+| **ollama-js** (officiel) | 4.1k | MIT | SDK officiel : streaming, tool calling, LoRA, embeddings, model mgmt |
+
+### Matrice de décision refonte
+
+| Besoin | Solution actuelle | Upgrade recommandée | Priorité |
+|--------|-------------------|---------------------|----------|
+| Client Ollama | `ollama.js` custom HTTP | `ollama-js` officiel | **Haute** |
+| Queue/scheduling | `node-engine-queue.js` custom | OK pour l'instant, Agenda en fallback | Basse |
+| Node editor visuel | JSON textarea | Drawflow (déjà dispo) puis Rete.js v2 | Moyenne |
+| Pipeline DAG | `node-engine-runner.js` custom | OK, inspiré Node-RED patterns | Basse |
+| Admin UI | Vanilla JS custom | Garder vanilla, enrichir composants | Basse |
+
+---
+
+## 2026-03-16 — Veille OSS mise à jour
+
+Mise à jour ciblée sur 6 projets directement pertinents pour KXKM_Clown : SDK Ollama, éditeurs de noeuds visuels, queues de jobs, orchestration LLM, flow builders, et alternatives d'inférence locale.
+
+### Vue d'ensemble
+
+| Projet | Version | Stars | License | Langage principal |
+|--------|---------|-------|---------|-------------------|
+| **ollama-js** | v0.6.3 (nov 2025) | 4.1k | MIT | TypeScript |
+| **Rete.js v2** | v2.0.6 (juin 2025) | 11.9k | MIT | TypeScript (97%) |
+| **BullMQ** | v5.71.0 (mars 2026) | 8.6k | MIT | TypeScript |
+| **LangChain.js** | v1.2.32 (mars 2026) | 17.2k | MIT | TypeScript (96%) |
+| **Flowise** | v3.0.13 (fév 2026) | 50.8k | Apache 2.0 | TypeScript/JS |
+| **LocalAI** | v3.10.0 (jan 2026) | 43.7k | MIT | Go |
+
+### Analyse par projet
+
+#### 1. ollama-js — SDK officiel Ollama
+
+- **URL :** https://github.com/ollama/ollama-js
+- **Version :** v0.6.3
+- **Fonctionnalités clés :**
+  - Streaming via `AsyncGenerator` (stream: true)
+  - Chat & génération de texte
+  - Gestion de modèles (pull, push, create, delete, copy, list, show)
+  - Embeddings via `embed()`
+  - Tool calling / function calling
+  - Support navigateur (import browser module)
+  - Web search & web fetch pour modèles nécessitant internet
+  - Accès modèles cloud Ollama
+  - Process management (`ps()`, abort streaming)
+- **Pertinence KXKM_Clown :** Remplacement direct de notre client HTTP custom. Apporte streaming natif, tool calling, et gestion de modèles sans code boilerplate.
+- **Recommandation :** **Migration prioritaire** — remplacer `ollama.js` custom par le SDK officiel.
+
+#### 2. Rete.js v2 — Framework éditeur de noeuds visuel
+
+- **URL :** https://github.com/retejs/rete
+- **Version :** v2.0.6
+- **Fonctionnalités clés :**
+  - Framework complet de programmation visuelle
+  - Support React, Vue, Angular, Svelte (via Rete Kit)
+  - Processing de graphes : dataflow ET control flow
+  - Visualisation intégrée multi-framework
+  - 84 releases, 1000+ dependants, écosystème mature
+- **Pertinence KXKM_Clown :** Alternative plus puissante à Drawflow pour l'éditeur de noeuds du node engine. Supporte nativement dataflow + control flow, ce qui correspond exactement à notre DAG pipeline.
+- **Recommandation :** **Évaluer pour v2 du node editor** — Drawflow suffit pour le MVP, mais Rete.js offre plus de flexibilité pour les pipelines complexes.
+
+#### 3. BullMQ — Queue de jobs Redis
+
+- **URL :** https://github.com/taskforcesh/bullmq
+- **Version :** v5.71.0 (très actif, dernière release 11 mars 2026)
+- **Fonctionnalités clés :**
+  - Queue distribuée Redis, atomicité garantie
+  - Dépendances parent-enfant, job flows
+  - Jobs différés, jobs répétables
+  - Rate limiting et contrôle de concurrence
+  - Priorités de jobs, déduplication (debounce/throttle)
+  - Pause/Resume, workers sandboxés
+  - UI intégrée pour monitoring
+  - Événements globaux
+  - 24.8k dependants, utilisé par Microsoft, NestJS, Langfuse
+- **Pertinence KXKM_Clown :** Remplacement robuste de `node-engine-queue.js` si la charge augmente. Les job flows parent-enfant correspondent naturellement aux DAG pipelines.
+- **Recommandation :** **Garder en réserve** — notre queue custom suffit pour l'instant, mais BullMQ devient pertinent dès qu'on a besoin de persistance, retry distribué, ou monitoring.
+
+#### 4. LangChain.js — Framework d'orchestration LLM
+
+- **URL :** https://github.com/langchain-ai/langchainjs
+- **Version :** v1.2.32 (très actif)
+- **Fonctionnalités clés :**
+  - Orchestration agents & chains via LangGraph
+  - Interopérabilité multi-providers (swap LLM transparent)
+  - Intégration données : vector stores, retrievers, tools
+  - Streaming natif
+  - Multi-environnement : Node.js, Cloudflare Workers, Vercel, navigateur, Deno, Bun
+  - Monitoring via LangSmith
+- **Pertinence KXKM_Clown :** Pourrait remplacer/enrichir notre logique de chaînes dans le node engine. L'abstraction multi-provider faciliterait l'ajout de backends non-Ollama. LangGraph offre un modèle d'orchestration d'agents plus mature.
+- **Recommandation :** **Évaluer sélectivement** — adopter les abstractions utiles (Ollama provider, tool calling) sans embarquer tout le framework. Trop lourd pour un remplacement complet.
+
+#### 5. Flowise — LLM Flow Builder visuel
+
+- **URL :** https://github.com/FlowiseAI/Flowise
+- **Version :** v3.0.13
+- **Fonctionnalités clés :**
+  - Interface visuelle drag-and-drop pour workflows AI
+  - Intégration LangChain et multi-providers
+  - Low-code / no-code
+  - RAG (Retrieval-Augmented Generation)
+  - Support multi-agents
+  - Chatbot et workflows agentiques
+  - Architecture : backend Node.js + frontend React + composants tiers
+- **Pertinence KXKM_Clown :** Source d'inspiration directe pour l'UX de notre éditeur de noeuds. Leur architecture (backend Node.js + éditeur visuel) est similaire à la nôtre. Pas un remplacement car trop centré sur LangChain.
+- **Recommandation :** **Étudier l'UX et les patterns** — s'inspirer de leur éditeur visuel et de leur gestion de chatflows, mais garder notre architecture custom.
+
+#### 6. LocalAI — Alternative locale à OpenAI
+
+- **URL :** https://github.com/mudler/LocalAI
+- **Version :** v3.10.0
+- **Fonctionnalités clés :**
+  - API REST compatible OpenAI (drop-in replacement)
+  - Supporte GGUF, transformers, diffusers
+  - Download depuis HuggingFace, Ollama registry, galleries
+  - CPU + GPU (CUDA, ROCm, oneAPI, Metal, Vulkan)
+  - TTS/STT, génération d'images, embeddings, vision/multimodal
+  - Model Context Protocol (MCP) pour capacités agentiques
+  - Inférence distribuée P2P
+  - API temps réel, détection d'activité vocale, WebUI intégrée
+  - Support API Anthropic (nouveau v3.10)
+- **Pertinence KXKM_Clown :** Alternative ou complément à Ollama, surtout pour les fonctionnalités avancées (TTS, images, P2P distribué). L'API compatible OpenAI facilite l'intégration.
+- **Recommandation :** **Surveiller** — Ollama reste plus simple pour notre cas d'usage, mais LocalAI devient intéressant si on veut du multimodal (voix, images) ou de l'inférence distribuée.
+
+### Matrice de décision
+
+| Besoin KXKM_Clown | Module actuel | Projet OSS | Action recommandée | Priorité |
+|--------------------|---------------|------------|---------------------|----------|
+| Client Ollama | `ollama.js` HTTP custom | **ollama-js** v0.6.3 | **Migrer** vers SDK officiel | Haute |
+| Queue de jobs | `node-engine-queue.js` | **BullMQ** v5.71.0 | Garder custom, BullMQ en fallback | Basse |
+| Éditeur de noeuds | Drawflow | **Rete.js** v2.0.6 | Évaluer pour v2 du node editor | Moyenne |
+| Orchestration LLM | Node engine custom | **LangChain.js** v1.2.32 | Adopter abstractions sélectives | Moyenne |
+| Flow builder UX | Admin dashboard | **Flowise** v3.0.13 | S'inspirer de l'UX | Basse |
+| Inférence locale | Ollama | **LocalAI** v3.10.0 | Surveiller pour multimodal | Basse |
+
+### Points saillants
+
+1. **ollama-js est mature** — v0.6.3 couvre tous nos besoins (streaming, tools, embeddings, model mgmt). Migration prioritaire.
+2. **BullMQ est le standard** — 8.6k stars, 24.8k dependants, activement maintenu. Si notre queue custom montre ses limites, c'est le choix évident.
+3. **Rete.js v2 vs Drawflow** — Rete offre plus de puissance (dataflow + control flow natifs) mais Drawflow reste plus simple. Transition à envisager quand les pipelines deviennent complexes.
+4. **LangChain.js est massif** — 17.2k stars, très actif, mais risque de vendor lock-in. Préférer des imports ciblés aux dépendances complètes.
+5. **Flowise confirme le pattern** — 50.8k stars valident l'approche "visual LLM flow builder". Notre architecture est sur la bonne voie.
+6. **LocalAI progresse vite** — 43.7k stars, support MCP, API Anthropic. Option sérieuse si on dépasse le cadre texte-only.
+
+*Recherche effectuée le 2026-03-16.*
+
+---
+
+## 2026-03-16 — Veille complémentaire (WS, DAG viz, fine-tuning, persona AI)
+
+Recherche complémentaire couvrant quatre axes non traités en profondeur : bibliothèques WebSocket React pour le frontend V2, visualisation DAG pour le Node Engine, toolkits de fine-tuning LLM, et systèmes de persona/character AI.
+
+### Vue d'ensemble
+
+| Projet | Version | Stars | License | Catégorie |
+|--------|---------|-------|---------|-----------|
+| **react-use-websocket** | v4.0.0 | 1.9k | MIT | WebSocket React hooks |
+| **reconnecting-websocket** | v4.4.0 | 1.3k | MIT | WebSocket client léger |
+| **dagre** | v2.0.0 | 5.6k | MIT | DAG layout algorithm |
+| **React Flow (@xyflow/react)** | v0.0.75 (system) | 35.6k | MIT | Node-based graph editor |
+| **TRL** | v0.29.0 | 17.7k | Apache 2.0 | Fine-tuning (SFT, DPO, GRPO) |
+| **Unsloth** | latest | 54k | Multiple | Fast LoRA fine-tuning |
+| **a16z companion-app** | — | 5.9k | MIT | AI companion / persona |
+| **SillyTavern** | v1.16.0 | 24.4k | AGPL-3.0 | Multi-persona LLM frontend |
+
+---
+
+### 1. WebSocket pour React (frontend V2 chat)
+
+#### react-use-websocket
+
+- **URL :** https://github.com/robtaussig/react-use-websocket
+- **Version :** v4.0.0 (React 18+ requis ; v3.0.0 pour React < 18)
+- **Stars :** 1.9k
+- **License :** MIT
+- **Fonctionnalités clés :**
+  - Hook React `useWebSocket` avec reconnexion automatique configurable
+  - Instances partagées entre composants (ref counting + cleanup auto)
+  - Heartbeat / ping-pong intégré
+  - File d'attente de messages avant connexion (message queuing)
+  - Helpers JSON (`sendJsonMessage`, `lastJsonMessage`)
+  - Support SSE / EventSource
+  - TypeScript natif
+  - API : `sendMessage()`, `sendJsonMessage()`, `lastMessage`, `readyState`, `getWebSocket()`
+- **Pertinence KXKM_Clown :** Solution idéale pour le frontend V2 React. Le hook gère reconnexion, heartbeat et partage de socket — exactement ce qu'il faut pour un chat live multi-canal.
+- **Recommandation :** **Adopter** pour le frontend React V2. Remplace le code WebSocket boilerplate par un hook propre et testé.
+
+#### reconnecting-websocket
+
+- **URL :** https://github.com/pladaria/reconnecting-websocket
+- **Version :** v4.4.0 (stable depuis fév. 2020)
+- **Stars :** 1.3k
+- **License :** MIT
+- **Fonctionnalités clés :**
+  - API compatible WebSocket standard (Level 0 & Level 2)
+  - Reconnexion automatique avec backoff exponentiel (facteur 1.3x)
+  - Zero dépendances
+  - Multi-plateforme : browser, Worker, Node.js, React Native
+  - URL dynamique (string, function, async function)
+  - Buffer de messages pendant déconnexion
+  - Configurable : `maxReconnectionDelay` (10s), `minReconnectionDelay` (1-5s), `connectionTimeout` (4s), `maxRetries` (illimité par défaut)
+- **Pertinence KXKM_Clown :** Alternative légère si on ne veut pas de hook React. Utile aussi côté Node.js pour les connexions WS inter-services. Mature et stable malgré l'âge.
+- **Recommandation :** **Garder en option** — utile comme couche de transport si on n'utilise pas React, ou pour des connexions WS côté serveur (ex : node-engine vers service externe).
+
+#### Synthèse WebSocket
+
+| Critère | react-use-websocket | reconnecting-websocket |
+|---------|---------------------|------------------------|
+| React hooks | Oui (natif) | Non (wrapper requis) |
+| Reconnexion auto | Oui | Oui |
+| Heartbeat | Oui | Non |
+| Zero deps | Non (React peer) | Oui |
+| TypeScript | Oui | Oui |
+| Cas d'usage | Frontend React V2 | Transport bas niveau / Node.js |
+
+**Verdict :** Utiliser `react-use-websocket` côté frontend React, garder `reconnecting-websocket` en réserve pour usages non-React.
+
+---
+
+### 2. DAG Visualization (Node Engine graph editor)
+
+#### dagre — Algorithme de layout DAG
+
+- **URL :** https://github.com/dagrejs/dagre
+- **Version :** v2.0.0 (nov. 2025)
+- **Stars :** 5.6k
+- **License :** MIT
+- **Fonctionnalités clés :**
+  - Algorithme de positionnement automatique pour graphes dirigés
+  - Layout côté client en JavaScript pur
+  - 61.6k dependants npm — standard de facto pour le layout DAG
+  - Seul l'organisation DagreJs maintient la version à jour
+- **Pertinence KXKM_Clown :** Algorithme de layout pour positionner automatiquement les noeuds du pipeline dans l'éditeur visuel. Se combine avec React Flow ou Drawflow pour le rendu.
+- **Recommandation :** **Adopter comme algorithme de layout** — dagre calcule les positions, React Flow ou Drawflow gère le rendu et l'interaction.
+
+#### React Flow (@xyflow/react) — Éditeur de graphes React
+
+- **URL :** https://github.com/xyflow/xyflow
+- **Package React :** `@xyflow/react`
+- **Version :** @xyflow/system v0.0.75 (fév. 2026)
+- **Stars :** 35.6k
+- **License :** MIT
+- **Fonctionnalités clés :**
+  - Bibliothèque React pour UIs node-based (workflows, pipelines, diagrammes)
+  - Composants intégrés : MiniMap, Controls, Background
+  - Drag-and-drop de connexions entre noeuds
+  - TypeScript natif
+  - Support React et Svelte
+  - Infiniment customisable (noeuds, edges, handles personnalisés)
+  - 369+ releases, 6053 commits — très activement maintenu
+  - Écosystème mature : utilisé par Stripe, Shopify, et de nombreux outils AI (Flowise, Langflow)
+- **Pertinence KXKM_Clown :** Concurrent direct de Drawflow et Rete.js, mais avec un écosystème beaucoup plus large (35.6k stars vs 6k/12k). L'intégration native React est un atout pour le frontend V2. Dagre peut être plugué pour le layout automatique.
+- **Recommandation :** **Adopter pour le frontend V2** — React Flow est le standard pour les éditeurs de noeuds React. Supérieur à Drawflow (vanilla JS) pour un frontend React. Combiner avec dagre pour le layout automatique des pipelines.
+
+#### Comparaison éditeurs de noeuds
+
+| Critère | Drawflow | Rete.js v2 | React Flow |
+|---------|----------|------------|------------|
+| Stars | 6k | 12k | 35.6k |
+| Framework | Vanilla JS | Multi (React, Vue...) | React / Svelte |
+| TypeScript | Non | Oui | Oui |
+| Layout auto | Non | Plugin | Via dagre |
+| Complexité | Simple | Élevée | Moyenne |
+| Écosystème | Petit | Moyen | Très large |
+| Cas d'usage | MVP / vanilla | Pipelines complexes | Frontend React V2 |
+
+**Verdict :** Drawflow pour le MVP actuel (vanilla JS), React Flow + dagre pour le frontend V2 (React).
+
+---
+
+### 3. LLM Fine-Tuning Toolkits (pipeline d'entraînement)
+
+#### TRL — Transformer Reinforcement Learning (HuggingFace)
+
+- **URL :** https://github.com/huggingface/trl
+- **Version :** v0.29.0 (fév. 2026)
+- **Stars :** 17.7k
+- **License :** Apache 2.0
+- **Fonctionnalités clés :**
+  - **SFT** (Supervised Fine-Tuning) — entraînement supervisé classique
+  - **DPO** (Direct Preference Optimization) — alignement par préférences
+  - **GRPO** (Group Relative Policy Optimization) — nouveau, alternative à PPO
+  - **RewardTrainer** — entraînement de modèles de récompense
+  - CLI intégré pour entraîner sans code (`trl sft`, `trl dpo`)
+  - Support distribué via Accelerate, DeepSpeed, DDP
+  - Intégration PEFT pour LoRA/QLoRA sur gros modèles
+  - 2527 commits, 475 contributeurs, 76 releases — très activement maintenu
+- **Pertinence KXKM_Clown :** Bibliothèque de référence pour le pipeline DPO. Les données de préférence collectées via l'UI (upvote/downvote) alimentent directement le DPOTrainer. La CLI permet de lancer des entraînements sans code Python custom.
+- **Recommandation :** **Utiliser** pour le pipeline de fine-tuning. TRL + Unsloth est la combinaison standard pour DPO sur GPU consumer.
+
+#### Unsloth — Fast LoRA Fine-Tuning
+
+- **URL :** https://github.com/unslothai/unsloth
+- **Stars :** 54k
+- **License :** Multiple (COPYING + LICENSE)
+- **Fonctionnalités clés :**
+  - **2x plus rapide** et **70% moins de VRAM** que les approches standard
+  - Support full fine-tuning + modes 4-bit, 16-bit, FP8
+  - Zero perte de précision (méthodes exactes, pas d'approximation)
+  - Modèles supportés : OpenAI gpt-oss, DeepSeek, Qwen, Llama, multimodal, TTS, embeddings
+  - Export GGUF, vLLM, SgLang
+  - Multi-GPU
+  - RL avec 80% moins de VRAM
+  - Support hardware : NVIDIA (7.0+), AMD, Intel — Linux, WSL, Windows
+- **Benchmarks :**
+  - gpt-oss (20B) : 2x plus rapide, 70% moins VRAM
+  - Qwen3.5 (4B) : 1.5x plus rapide, 60% moins VRAM
+  - Llama 3.1 (8B) : 2x plus rapide, 70% moins VRAM
+- **Pertinence KXKM_Clown :** Accélérateur essentiel pour le fine-tuning sur GPU consumer. L'export GGUF direct facilite le pipeline Unsloth -> GGUF -> Ollama. Compatible TRL pour DPO accéléré.
+- **Recommandation :** **Utiliser** — combinaison Unsloth + TRL pour le pipeline : collecte préférences -> DPO/SFT accéléré -> export GGUF -> `ollama create`.
+
+#### SDK Node.js pour gestion de jobs d'entraînement
+
+Pas de SDK Node.js dédié identifié pour orchestrer des jobs de fine-tuning. Options :
+
+| Approche | Description | Recommandation |
+|----------|-------------|----------------|
+| **HuggingFace Inference API** | API REST, pas de fine-tuning custom local | Non pertinent (cloud only) |
+| **Child process** | `child_process.spawn('python', ['train.py', ...])` | Simple, suffisant pour MVP |
+| **BullMQ + spawn** | Queue Redis + lancement scripts Python | Pour production, monitoring, retry |
+| **API REST custom** | Wrapper Express/Fastify autour des scripts Python | Plus de contrôle, mais plus de code |
+
+**Verdict pipeline fine-tuning :** Node.js orchestre (BullMQ ou child_process), Python exécute (TRL + Unsloth). Pas besoin de SDK Node.js spécifique — un simple spawn suffit pour le MVP.
+
+---
+
+### 4. Persona / Character AI (systèmes multi-persona)
+
+#### a16z companion-app — AI Companion Starter
+
+- **URL :** https://github.com/a16z-infra/companion-app
+- **Stars :** 5.9k
+- **License :** MIT
+- **Tech stack :** Next.js, Clerk (auth), Pinecone/Supabase pgvector, LangChain.js, Upstash (historique), Fly.io, Twilio (SMS)
+- **Fonctionnalités clés :**
+  - Vector DB + similarity search pour conversations contextuelles
+  - Mémoire conversationnelle via message queue
+  - Personnalités customisables avec backstories
+  - Support multi-persona via répertoire `companions/` + `companions.json`
+  - Export vers Character.ai
+  - Multi-modèles : ChatGPT, Vicuna (Replicate)
+  - Canal SMS via Twilio
+- **Pertinence KXKM_Clown :** Architecture de référence pour la gestion de personas. Le pattern `companions/` (fichiers de personnalité + config JSON) est directement applicable à notre système de personas. L'intégration vector DB pour la mémoire contextuelle est pertinente pour des personas qui "se souviennent".
+- **Recommandation :** **Étudier le pattern de définition de personas** — s'inspirer de la structure companions/ pour notre propre registre de personas. L'architecture vector DB est intéressante mais secondaire pour le MVP.
+
+#### SillyTavern — LLM Frontend Multi-Persona
+
+- **URL :** https://github.com/SillyTavern/SillyTavern
+- **Version :** v1.16.0 (fév. 2026)
+- **Stars :** 24.4k
+- **License :** AGPL-3.0 (copyleft — étudier, ne pas copier le code)
+- **Tech stack :** Node.js, JavaScript (85.8%), HTML, CSS, Webpack
+- **Fonctionnalités clés :**
+  - Support massif de backends LLM (KoboldAI, OpenAI, Claude, Mistral, Ollama...)
+  - "Visual Novel Mode" pour interactions immersives
+  - WorldInfo / lorebook pour gestion de contexte
+  - Group chat multi-personnages avec algorithme de turn-taking et talkativeness
+  - Auto-traduction
+  - Extensions tierces
+  - 11 490 commits, 300+ contributeurs, 100+ releases — extrêmement actif
+- **Pertinence KXKM_Clown :** Référence absolue pour le chat multi-persona. L'algorithme de group chat (turn-taking, talkativeness variable par personnage) est directement pertinent. Le système WorldInfo/lorebook est un modèle pour la mémoire contextuelle des personas.
+- **Recommandation :** **Étudier en profondeur** (sans copier le code AGPL). Priorités :
+  1. Algorithme de group chat et turn-taking
+  2. Format de définition de personnages (character cards)
+  3. Système WorldInfo pour contexte partagé
+  4. Gestion de la talkativeness par personnage
+
+---
+
+### Matrice de décision complémentaire
+
+| Besoin KXKM_Clown | Module actuel | Projet OSS recommandé | Action | Priorité |
+|--------------------|---------------|------------------------|--------|----------|
+| WebSocket React hooks | — (pas de frontend React) | **react-use-websocket** v4.0.0 | Adopter pour frontend V2 | Haute (V2) |
+| WS reconnexion bas niveau | ws + custom | **reconnecting-websocket** v4.4.0 | Option si besoin non-React | Basse |
+| DAG layout automatique | Manuel | **dagre** v2.0.0 | Adopter pour node editor | Moyenne |
+| Node editor React | Drawflow (vanilla) | **React Flow** @xyflow/react | Adopter pour frontend V2 | Haute (V2) |
+| Fine-tuning DPO/SFT | Scripts manuels | **TRL** v0.29.0 | Utiliser | Haute |
+| Accélération fine-tuning | — | **Unsloth** (54k stars) | Utiliser avec TRL | Haute |
+| Orchestration training Node.js | — | **BullMQ** + child_process | Implémenter | Moyenne |
+| Définition de personas | JSON custom | **companion-app** patterns | S'inspirer | Moyenne |
+| Multi-persona group chat | Custom | **SillyTavern** (étude) | Étudier l'algorithme | Haute |
+
+### Points saillants
+
+1. **React Flow domine** les éditeurs de noeuds React (35.6k stars). Pour le frontend V2, c'est le choix évident combiné avec dagre pour le layout automatique.
+2. **react-use-websocket** est le hook React standard pour WebSocket — reconnexion, heartbeat, partage de socket, tout est inclus.
+3. **TRL + Unsloth** reste la combinaison de référence pour le fine-tuning DPO sur GPU consumer. TRL v0.29.0 ajoute GRPO, une alternative à PPO plus stable.
+4. **SillyTavern** (24.4k stars, AGPL) est la meilleure source d'inspiration pour le multi-persona group chat, mais le code ne peut pas être copié (licence copyleft).
+5. **companion-app** offre un bon pattern MIT pour la structure de personas (fichiers de personnalité + vector DB pour mémoire contextuelle).
+6. **Pas de SDK Node.js** pour orchestrer le fine-tuning — l'approche `child_process.spawn` + BullMQ est la plus pragmatique.
+
+*Recherche complémentaire effectuée le 2026-03-16.*
+
+---
+
+## 2026-03-16 — Veille testing, CI/CD, monorepo tooling
+
+### 1. Testing frameworks pour APIs Node.js
+
+#### node:test (built-in test runner)
+
+- **URL:** https://nodejs.org/api/test.html
+- **Intégré dans:** Node.js v18.0.0+ (stable depuis v20.0.0)
+- **Stars (Node.js):** ~116k
+- **Licence:** MIT
+- **Fonctionnalités clés:**
+  - APIs familières : `test()`, `describe()`, `it()`, `suite()`
+  - Hooks : `before()`, `after()`, `beforeEach()`, `afterEach()`
+  - Mocking complet : fonctions, méthodes, timers, dates, modules
+  - Code coverage V8 intégré (`--experimental-test-coverage`)
+  - Watch mode (`--test --watch`)
+  - Snapshot testing (stable depuis v22.3.0)
+  - Reporters multiples : TAP, Spec, Dot, jUnit, LCOV
+  - Filtrage par pattern : `--test-name-pattern`, `--test-skip-pattern`
+  - API programmatique via `run()` pour intégration custom
+  - Global setup/teardown (v24.0.0+)
+  - Exécution directe : `node --test`
+- **Verdict pour KXKM_Clown:** Choix idéal pour les smoke tests et tests d'intégration du backend. Zéro dépendance externe, supporte async/await nativement, coverage intégrée. Suffisant pour tester les routes Express + WebSocket sans ajouter Jest ou Vitest côté serveur.
+
+#### Supertest
+
+- **URL:** https://github.com/ladjs/supertest
+- **Stars:** ~14.3k
+- **Licence:** MIT
+- **Fonctionnalités clés:**
+  - Abstraction haut-niveau pour tester les APIs HTTP
+  - Accepte un `http.Server` ou une app Express directement
+  - Bind automatique sur port éphémère (pas de conflit de port)
+  - API fluide : `.get()`, `.post()`, `.expect()`, `.end()`
+  - Support HTTP/2 via `{ http2: true }`
+  - Styles multiples : callbacks, promises, async/await
+  - `request.agent()` pour maintenir les sessions/cookies entre requêtes
+  - Support multipart/upload de fichiers
+- **Patterns recommandés:**
+  - Les assertions s'exécutent dans l'ordre de définition
+  - Avec `.end()`, les erreurs passent par callback (pas de throw)
+  - Agent réutilisable pour tester les workflows d'authentification
+- **Verdict pour KXKM_Clown:** Compagnon parfait de `node:test` pour tester les routes Express de `http-api.js`. Combinaison `node:test` + `supertest` = stack de test backend complète sans framework lourd.
+
+#### Vitest
+
+- **URL:** https://github.com/vitest-dev/vitest
+- **Stars:** ~16.1k
+- **Licence:** MIT
+- **Version:** v4.1.0 (12 mars 2026)
+- **Prérequis:** Vite >= 6.0.0, Node >= 20.0.0
+- **Fonctionnalités clés:**
+  - Utilise la config, transformers, resolvers et plugins de Vite
+  - API compatible Jest (migration facile)
+  - Snapshot testing intégré
+  - Assertions Chai built-in
+  - Watch mode instantané (HMR-like)
+  - Code coverage native (v8 ou Istanbul)
+  - Browser Mode pour tests de composants React dans un vrai navigateur
+  - Support React, Vue, Svelte, Lit, Marko
+- **Verdict pour KXKM_Clown:** Réservé au frontend V2 React. Pour le backend Node.js pur, `node:test` + `supertest` est plus léger et sans dépendance Vite.
+
+#### Best practices : tester Express sans framework externe
+
+```
+// Avec node:test + supertest uniquement :
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import request from 'supertest';
+import { createApp } from '../server.js';
+
+describe('API /api/personas', () => {
+  let app;
+  before(() => { app = createApp(); });
+
+  it('GET /api/personas returns 200', async () => {
+    const res = await request(app).get('/api/personas');
+    assert.strictEqual(res.status, 200);
+    assert(Array.isArray(res.body));
+  });
+});
+```
+
+- Pas besoin de Jest, Mocha, ou Vitest côté serveur
+- `node --test --experimental-test-coverage` pour la couverture
+- `node --test --watch` pour le développement
+
+---
+
+### 2. WebSocket testing tools
+
+#### ws (WebSocket library)
+
+- **URL:** https://github.com/websockets/ws
+- **Stars:** ~22.7k
+- **Licence:** MIT
+- **Fonctionnalités clés:**
+  - Implémentation WebSocket client + serveur pour Node.js
+  - Passe la suite de tests Autobahn complète
+  - Support compression permessage-deflate
+  - Fonctionne avec serveurs HTTP/HTTPS
+  - Modules optionnels de performance (bufferutil, utf-8-validate)
+
+#### Patterns de test WebSocket avec node:test + ws
+
+```
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { WebSocket } from 'ws';
+import { createServer } from '../server.js';
+
+describe('WebSocket chat', () => {
+  let server, port;
+
+  before((_, done) => {
+    server = createServer();
+    server.listen(0, () => {
+      port = server.address().port;
+      done();
+    });
+  });
+
+  after((_, done) => { server.close(done); });
+
+  it('connects and receives welcome', async () => {
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    const msg = await new Promise((resolve) => {
+      ws.on('message', (data) => resolve(JSON.parse(data)));
+    });
+    assert.strictEqual(msg.type, 'welcome');
+    ws.close();
+  });
+});
+```
+
+- **Pas de bibliothèque de test WS spécifique nécessaire** — le client `ws` lui-même suffit pour écrire les tests
+- Créer le serveur sur port 0 (éphémère) pour éviter les conflits
+- Utiliser des Promises pour wrapper les événements WS dans des tests async
+- Tester : connexion, envoi/réception de messages, déconnexion, reconnexion, broadcast
+
+---
+
+### 3. React testing (frontend V2)
+
+#### React Testing Library
+
+- **URL:** https://github.com/testing-library/react-testing-library
+- **Stars:** ~19.6k
+- **Licence:** MIT
+- **Version:** v13+ (requiert React 18)
+- **Fonctionnalités clés:**
+  - Utilitaires légers au-dessus de `react-dom` et `react-dom/test-utils`
+  - Philosophie : "Plus vos tests ressemblent à la façon dont votre logiciel est utilisé, plus ils vous donnent confiance"
+  - Queries par rôle/label plutôt que par implémentation
+  - Simulation d'événements via `fireEvent`
+  - Détection async via `screen.findBy*`
+  - Matchers custom via `@testing-library/jest-dom`
+  - Framework-agnostic (fonctionne avec Jest, Vitest, etc.)
+- **Ordre de préférence des queries:**
+  1. `screen.getByRole()` (accessible)
+  2. `screen.getByLabelText()` (formulaires)
+  3. `screen.getByText()` (contenu visible)
+  4. `screen.getByTestId()` (dernier recours)
+
+#### Stack recommandée pour le frontend V2
+
+| Outil | Rôle |
+|-------|------|
+| **Vitest** | Test runner (intégré à Vite) |
+| **React Testing Library** | Rendu + queries de composants |
+| **@testing-library/jest-dom** | Matchers DOM étendus |
+| **@testing-library/user-event** | Simulation d'interactions utilisateur réalistes |
+| **jsdom** (via Vitest) | Environnement DOM pour tests unitaires |
+| **Vitest Browser Mode** | Tests de composants dans un vrai navigateur (Playwright/WebDriverIO) |
+
+#### Exemple Vitest + React Testing Library
+
+```
+// composant.test.tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { expect, test } from 'vitest';
+import ChatInput from './ChatInput';
+
+test('envoie un message au submit', async () => {
+  const onSend = vi.fn();
+  render(<ChatInput onSend={onSend} />);
+
+  await userEvent.type(screen.getByRole('textbox'), 'Hello');
+  await userEvent.click(screen.getByRole('button', { name: /envoyer/i }));
+
+  expect(onSend).toHaveBeenCalledWith('Hello');
+});
+```
+
+---
+
+### 4. CI/CD pour monorepo
+
+#### Changesets
+
+- **URL:** https://github.com/changesets/changesets
+- **Stars:** ~11.5k
+- **Licence:** MIT
+- **Version:** @changesets/cli@2.30.0 (3 mars 2026)
+- **Fonctionnalités clés:**
+  - Gestion de versioning et changelogs pour multi-package repos
+  - Déclaration d'intent de release avec type de bump semver
+  - Mise à jour automatique des versions, changelogs, et dépendances internes
+  - Aplatit plusieurs changesets en une seule release par package
+  - Intégration CI/CD :
+    - Validation PR : bot changeset ou `yarn changeset status`
+    - Publication automatisée : GitHub Action dédiée pour version PRs + publish
+- **Verdict pour KXKM_Clown:** Utile si le monorepo publie des packages npm séparés. Pour un projet déployé comme une unité, c'est overkill. A considérer quand `packages/` contiendra des modules réutilisables.
+
+#### Turborepo
+
+- **URL:** https://github.com/vercel/turborepo
+- **Stars:** ~30k
+- **Licence:** MIT
+- **Version:** v2.8.17 (13 mars 2026)
+- **Fonctionnalités clés:**
+  - Build system haute performance pour codebases JS/TS, écrit en Rust
+  - Cache intelligent : ne re-build que ce qui a changé
+  - Remote caching : partage du cache entre CI et développeurs
+  - Task pipelines : définition déclarative des dépendances entre tâches
+  - Exécution parallèle maximale
+  - Pruned subsets : `turbo prune` pour isoler un workspace et ses dépendances
+  - Compatible npm, yarn, pnpm workspaces
+- **Verdict pour KXKM_Clown:** Excellent choix pour orchestrer build, test, lint sur `apps/`, `packages/`, `ops/`. Le cache Rust accélère significativement les CI. Recommandé pour structurer le `turbo.json` avec les pipelines de build du monorepo V2.
+
+#### GitHub Actions — patterns monorepo
+
+| Pattern | Description |
+|---------|-------------|
+| **Path filters** | `on.push.paths: ['apps/frontend/**']` pour ne déclencher que les jobs affectés |
+| **Matrix strategy** | `matrix.package: [frontend, backend, ops-tui]` pour tester chaque package en parallèle |
+| **Turborepo cache** | `actions/cache` sur `.turbo/` + remote cache Vercel pour partager entre runs |
+| **Changesets action** | `changesets/action@v1` pour automatiser les PRs de version |
+| **Concurrency groups** | `concurrency: { group: ${{ github.ref }} }` pour annuler les runs obsolètes |
+
+#### Exemple workflow GitHub Actions
+
+```yaml
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci
+      - run: npx turbo run lint test build --cache-dir=.turbo
+```
+
+---
+
+### 5. Synthèse et recommandations pour KXKM_Clown
+
+#### Stack de test recommandée
+
+| Couche | Outil | Justification |
+|--------|-------|---------------|
+| **Backend smoke tests** | `node:test` + `supertest` | Zéro dépendance framework, intégré à Node.js |
+| **Backend WS tests** | `node:test` + `ws` client | Le client ws suffit pour tester les connexions |
+| **Frontend unit tests** | `Vitest` + `React Testing Library` | Intégration native avec Vite, API Jest-compatible |
+| **Frontend component tests** | `Vitest Browser Mode` + Playwright | Tests dans un vrai navigateur |
+| **Monorepo orchestration** | `Turborepo` | Cache Rust, pipelines déclaratives, pruning |
+| **CI/CD** | GitHub Actions + Turborepo cache | Path filters + parallélisme + cache partagé |
+| **Versioning** (optionnel) | `Changesets` | Quand les packages seront publiés séparément |
+
+#### Priorité d'implémentation
+
+1. **Immédiat :** `node:test` + `supertest` pour les smoke tests existants (`scripts/smoke.js`)
+2. **Court terme :** Tests WebSocket avec `ws` client dans `node:test`
+3. **Avec V2 frontend :** `Vitest` + `React Testing Library`
+4. **Avec monorepo mature :** `Turborepo` + GitHub Actions pipeline
+
+*Recherche effectuée le 2026-03-16.*

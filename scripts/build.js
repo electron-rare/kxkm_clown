@@ -5,34 +5,10 @@ const { execFileSync } = require("child_process");
 const ROOT_DIR = path.resolve(__dirname, "..");
 const DIST_DIR = path.join(ROOT_DIR, "dist");
 
-const ROOT_FILES = [
-  "server.js",
-  "config.js",
-  "network-policy.js",
-  "personas.js",
-  "persona-registry.js",
-  "persona-store.js",
-  "pharmacius.js",
-  "attachment-store.js",
-  "attachment-pipeline.js",
-  "attachment-service.js",
-  "node-engine-registry.js",
-  "node-engine-store.js",
-  "ollama.js",
-  "storage.js",
-  "sessions.js",
-  "runtime-state.js",
-  "client-registry.js",
-  "commands.js",
-  "chat-routing.js",
-  "http-api.js",
-  "websocket.js",
-  "web-tools.js",
-  "package.json",
-  "package-lock.json",
-];
-
 const COPY_DIRS = [
+  "apps",
+  "packages",
+  "ops",
   "public",
   "docs",
   "scripts",
@@ -62,7 +38,44 @@ const DATA_DIRS = [
   "data/node-engine/runs",
   "data/node-engine/artifacts",
   "data/node-engine/cache",
+  "models",
+  "models/base_models",
+  "models/finetuned",
+  "models/lora",
 ];
+
+function listRootFiles() {
+  return fs.readdirSync(ROOT_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => name.endsWith(".js") || name === "package.json" || name === "package-lock.json" || name === "README.md")
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function listExistingDirs(relativeDir, { recursive = false } = {}) {
+  const absoluteDir = path.join(ROOT_DIR, relativeDir);
+  if (!fs.existsSync(absoluteDir)) return [];
+
+  const found = [];
+
+  for (const entry of fs.readdirSync(absoluteDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const nestedRelative = path.join(relativeDir, entry.name);
+    found.push(nestedRelative);
+    if (recursive) {
+      found.push(...listExistingDirs(nestedRelative, { recursive: true }));
+    }
+  }
+
+  return found;
+}
+
+function listDataDirs() {
+  return [...new Set([
+    ...DATA_DIRS,
+    ...listExistingDirs("data/node-engine", { recursive: true }),
+  ])].sort((a, b) => a.localeCompare(b));
+}
 
 function copyFile(relativePath) {
   const source = path.join(ROOT_DIR, relativePath);
@@ -83,7 +96,7 @@ function copyDir(relativePath) {
 }
 
 function ensureDirs() {
-  for (const relativePath of DATA_DIRS) {
+  for (const relativePath of listDataDirs()) {
     fs.mkdirSync(path.join(DIST_DIR, relativePath), { recursive: true });
   }
 }
@@ -100,7 +113,7 @@ function main() {
   let copiedFiles = 0;
   let copiedDirs = 0;
 
-  for (const file of ROOT_FILES) {
+  for (const file of listRootFiles()) {
     if (copyFile(file)) copiedFiles++;
   }
 
@@ -121,6 +134,9 @@ function main() {
       start: "node server.js",
       check: "node scripts/check.js",
       smoke: "node scripts/smoke.js",
+      build: "node scripts/build.js",
+      "v2:init": "python3 scripts/orchestrate_batches.py init --root ops/v2",
+      "v2:status": "python3 scripts/orchestrate_batches.py status --root ops/v2",
     };
     fs.writeFileSync(packageFile, JSON.stringify(pkg, null, 2) + "\n");
   }

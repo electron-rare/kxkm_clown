@@ -15,6 +15,10 @@ function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+function sanitizeId(id, maxLength = 60) {
+  return String(id || "").replace(/[^a-z0-9_-]/gi, "_").slice(0, maxLength);
+}
+
 function createAttachmentStore({ dataDir }) {
   const uploadsDir = path.join(dataDir, "uploads");
   const uploadsMetaDir = path.join(dataDir, "uploads-meta");
@@ -23,17 +27,22 @@ function createAttachmentStore({ dataDir }) {
   ensureDir(uploadsMetaDir);
 
   function metaPath(id) {
-    return path.join(uploadsMetaDir, `${id}.json`);
+    return path.join(uploadsMetaDir, `${sanitizeId(id)}.json`);
   }
 
   function buildStoragePath(id, originalName) {
     const now = new Date();
     const year = String(now.getUTCFullYear());
     const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const safeId = sanitizeId(id);
     const ext = safeExtName(originalName);
     const dir = path.join(uploadsDir, year, month);
     ensureDir(dir);
-    return path.join(dir, `${id}${ext}`);
+    const resolved = path.join(dir, `${safeId}${ext}`);
+    if (!resolved.startsWith(uploadsDir)) {
+      throw new Error("Invalid upload path");
+    }
+    return resolved;
   }
 
   function readMeta(id) {

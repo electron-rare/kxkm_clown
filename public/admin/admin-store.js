@@ -2,7 +2,13 @@ const listeners = new Set();
 
 const state = {
   module: "dashboard",
-  token: sessionStorage.getItem("kxkmAdminToken") || "",
+  auth: {
+    authenticated: false,
+    mode: "none",
+    sessionSupported: null,
+    sessionEndpoint: null,
+    source: "bootstrap",
+  },
   status: {
     text: "Prêt.",
     tone: "info",

@@ -1,0 +1,383 @@
+/**
+ * KXKM_Clown V2 — Node Engine Worker
+ *
+ * Connects to Postgres, polls for queued runs, executes graph nodes in
+ * topological order using stub executors, and updates run status in the DB.
+ */
+
+import {
+  loadDatabaseConfig,
+  createPostgresPool,
+  createNodeGraphRepo,
+  createNodeRunRepo,
+  runMigrations,
+} from "@kxkm/storage";
+import {
+  createNodeEngineRegistry,
+  createQueueState,
+  canDequeue,
+  dequeue,
+  enqueue,
+  markComplete,
+  topologicalSort,
+  validateEdgeContracts,
+  collectNodeInputs,
+  resolveFinalStatus,
+  listDefaultRuntimes,
+  createRun,
+  validateJobSpec,
+  buildTrlCommand,
+  DEFAULT_HYPERPARAMS,
+  type TrainingJobSpec,
+  type NodeRun,
+  type RunStep,
+  type GraphNode,
+  type NodeGraph,
+  type StepStatus,
+  type RunStatus,
+  type NodeEngineRegistry,
+  type QueueState,
+} from "@kxkm/node-engine";
+import { createIsoTimestamp } from "@kxkm/core";
+import { formatOverviewLine, ansi } from "@kxkm/tui";
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+const POLL_INTERVAL_MS = 2000;
+const MAX_CONCURRENCY = Number(process.env.NODE_ENGINE_MAX_CONCURRENCY) || 1;
+const STEP_DELAY_MS = 100;
+const DRY_RUN = process.argv.includes("--dry-run") || process.env.DRY_RUN === "1";
+
+// ---------------------------------------------------------------------------
+// Logging helpers
+// ---------------------------------------------------------------------------
+
+function log(msg: string): void {
+  const ts = new Date().toISOString();
+  console.log(`[${ts}] ${msg}`);
+}
+
+function logError(msg: string, err?: unknown): void {
+  const ts = new Date().toISOString();
+  const detail = err instanceof Error ? err.message : String(err ?? "");
+  console.error(`[${ts}] ERROR: ${msg}${detail ? " — " + detail : ""}`);
+}
+
+// ---------------------------------------------------------------------------
+// Stub executors
+// ---------------------------------------------------------------------------
+
+type StubResult = Record<string, unknown>;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function executeNodeStub(
+  nodeType: string,
+  inputs: Record<string, unknown>,
+  params: Record<string, unknown>,
+): Promise<StubResult> {
+  await delay(STEP_DELAY_MS);
+
+  switch (nodeType) {
+    // Dataset sources — return a mock dataset
+    case "dataset_file":
+    case "dataset_folder":
+    case "huggingface_dataset":
+    case "web_scraper":
+      return { dataset: { items: [], format: "stub" } };
+
+    // Data processing — pass through inputs
+    case "clean_text":
+    case "remove_duplicates":
+    case "split_dataset":
+      return { dataset: inputs.dataset ?? { items: [], format: "stub" } };
+
+    // Dataset builders — pass through as dataset_ready
+    case "format_instruction_dataset":
+    case "chat_dataset":
+      return { dataset_ready: inputs.dataset ?? { items: [], format: "stub" } };
+
+    // Evaluation
+    case "prompt_test":
+    case "benchmark":
+      return { evaluation: { kind: "stub", score: 1 } };
+
+    // Training — build a real job spec, log the command, return stub result
+    case "lora_training":
+    case "qlora_training": {
+      const baseModel = typeof params.baseModel === "string" && params.baseModel
+        ? params.baseModel
+        : "unsloth/llama-3-8b";
+      const jobSpec = validateJobSpec({
+        type: nodeType as TrainingJobSpec["type"],
+        baseModel,
+        datasetPath: typeof params.datasetPath === "string" ? params.datasetPath : "/data/dataset.jsonl",
+        outputDir: typeof params.outputDir === "string" ? params.outputDir : "/tmp/kxkm-training-output",
+        hyperparams: {
+          ...DEFAULT_HYPERPARAMS,
+          ...(params.hyperparams && typeof params.hyperparams === "object" ? params.hyperparams : {}),
+        },
+      });
+      const command = buildTrlCommand(jobSpec);
+      if (DRY_RUN) {
+        log(`    [dry-run] would execute: ${command}`);
+      } else {
+        log(`    [training] command: ${command}`);
+        log(`    [training] execution skipped — stub mode (use --dry-run to preview commands)`);
+      }
+      return {
+        model: {
+          kind: DRY_RUN ? "dry-run" : "stub",
+          modelName: `${baseModel}-finetuned`,
+          command,
+          jobSpec,
+        },
+      };
+    }
+
+    // Registry
+    case "register_model":
+      return { registered_model: { id: "stub" } };
+
+    // Deployment
+    case "deploy_api":
+      return { deployment: { id: "stub" } };
+
+    default:
+      return {};
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Run executor
+// ---------------------------------------------------------------------------
+
+async function executeRun(
+  run: NodeRun,
+  registry: NodeEngineRegistry,
+): Promise<void> {
+  const graph = run.graphSnapshot;
+
+  // Validate edges against registry contracts
+  validateEdgeContracts(graph, registry);
+
+  // Get execution order
+  const sorted = topologicalSort(graph);
+
+  // Track outputs per node for input collection
+  const outputsByNode = new Map<string, Record<string, unknown>>();
+
+  // Mark run as running
+  run.status = "running";
+  run.startedAt = createIsoTimestamp();
+
+  log(`  Executing ${sorted.length} node(s) in topological order`);
+
+  for (const node of sorted) {
+    const step = run.steps.find((s) => s.id === node.id);
+    if (!step) continue;
+
+    step.status = "running";
+    step.startedAt = createIsoTimestamp();
+
+    log(`    [${node.id}] ${node.type} — running`);
+
+    try {
+      const inputs = collectNodeInputs(graph, node.id, outputsByNode);
+      const result = await executeNodeStub(node.type, inputs, node.params);
+      outputsByNode.set(node.id, result);
+
+      step.status = "completed";
+      step.finishedAt = createIsoTimestamp();
+      step.outputs = Object.keys(result);
+
+      log(`    [${node.id}] ${node.type} — completed`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      step.status = "failed";
+      step.finishedAt = createIsoTimestamp();
+      step.error = message;
+
+      logError(`    [${node.id}] ${node.type} — failed`, err);
+    }
+  }
+
+  // Resolve final status from step statuses
+  const stepStatuses = run.steps.map((s) => s.status);
+  run.status = resolveFinalStatus(stepStatuses);
+  run.finishedAt = createIsoTimestamp();
+}
+
+// ---------------------------------------------------------------------------
+// Shutdown handling
+// ---------------------------------------------------------------------------
+
+let shutdownRequested = false;
+
+function requestShutdown(): void {
+  if (shutdownRequested) return;
+  shutdownRequested = true;
+  log("Shutdown requested — finishing current work...");
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  // Check DATABASE_URL
+  if (!process.env.DATABASE_URL) {
+    console.warn(
+      "WARNING: DATABASE_URL is not set. " +
+        "The worker requires a Postgres connection. Exiting.",
+    );
+    process.exit(1);
+  }
+
+  log("Starting KXKM_Clown V2 worker");
+
+  // 1. Connect to DB
+  const dbConfig = loadDatabaseConfig();
+  const pool = createPostgresPool(dbConfig);
+  log(`Connected to database: ${dbConfig.connectionString.replace(/\/\/.*@/, "//***@")}`);
+
+  // 2. Run migrations
+  log("Running database migrations...");
+  await runMigrations(pool);
+  log("Migrations complete");
+
+  // 3. Create repos
+  const graphRepo = createNodeGraphRepo(pool);
+  const runRepo = createNodeRunRepo(pool);
+
+  // 4. Create registry with all built-in node types
+  const registry = createNodeEngineRegistry();
+  const nodeTypes = registry.listNodeTypes();
+  const runtimes = listDefaultRuntimes();
+  log(`Registry loaded: ${nodeTypes.length} node types, ${runtimes.length} runtimes`);
+
+  // 5. Create queue state
+  const queueState = createQueueState({ maxConcurrency: MAX_CONCURRENCY });
+  log(`Queue state initialised: maxConcurrency=${MAX_CONCURRENCY}`);
+
+  // 6. Graceful shutdown
+  process.on("SIGTERM", requestShutdown);
+  process.on("SIGINT", requestShutdown);
+
+  // 7. Poll loop
+  log(`Entering poll loop (interval=${POLL_INTERVAL_MS}ms)`);
+
+  while (!shutdownRequested) {
+    try {
+      // Fetch queued runs from the DB
+      const allRuns = await runRepo.list();
+      const queuedDbRuns = allRuns.filter((r) => r.status === "queued");
+
+      // Sync DB queued runs into in-memory queue state
+      for (const dbRun of queuedDbRuns) {
+        enqueue(queueState, dbRun.id);
+      }
+
+      // Process runs while we have capacity
+      while (canDequeue(queueState) && !shutdownRequested) {
+        const runId = dequeue(queueState);
+        if (!runId) break;
+
+        log(`Dequeued run: ${runId}`);
+
+        // Update status to running in DB
+        await runRepo.updateStatus(runId, "running");
+
+        // Look up the graph for this run
+        const dbRun = allRuns.find((r) => r.id === runId);
+        if (!dbRun) {
+          logError(`Run ${runId} not found in DB — skipping`);
+          markComplete(queueState, runId);
+          continue;
+        }
+
+        const graphRecord = await graphRepo.findById(dbRun.graphId);
+        if (!graphRecord) {
+          logError(`Graph ${dbRun.graphId} for run ${runId} not found — marking failed`);
+          await runRepo.updateStatus(runId, "failed");
+          markComplete(queueState, runId);
+          continue;
+        }
+
+        // Build a NodeGraph from the record (minimal — no edges/nodes stored in DB yet,
+        // so we create a stub graph from the record for now)
+        const graph: NodeGraph = {
+          id: graphRecord.id,
+          name: graphRecord.name,
+          description: graphRecord.description,
+          nodes: [],
+          edges: [],
+          createdAt: createIsoTimestamp(),
+          updatedAt: createIsoTimestamp(),
+        };
+
+        // Create an in-memory run with steps from the graph
+        const nodeRun = createRun(graph, "worker");
+        // Override the id to match the DB run
+        (nodeRun as { id: string }).id = runId;
+
+        try {
+          await executeRun(nodeRun, registry);
+
+          // Persist final status
+          await runRepo.updateStatus(runId, nodeRun.status);
+          log(`Run ${runId} finished with status: ${nodeRun.status}`);
+        } catch (err) {
+          logError(`Run ${runId} failed unexpectedly`, err);
+          await runRepo.updateStatus(runId, "failed");
+        } finally {
+          markComplete(queueState, runId);
+        }
+      }
+
+      // Log overview periodically
+      const currentRuns = await runRepo.list();
+      const overview = formatOverviewLine({
+        queue: {
+          desiredWorkers: MAX_CONCURRENCY,
+          activeWorkers: queueState.running.length,
+          queuedRuns: queueState.queued.length,
+          runningRuns: queueState.running.length,
+        },
+        registry: {
+          graphs: (await graphRepo.list()).length,
+          models: 0,
+        },
+        storage: {
+          backend: "postgres",
+          artifacts: "filesystem",
+        },
+      });
+
+      if (queuedDbRuns.length > 0) {
+        log(`Poll status: ${overview}`);
+      }
+    } catch (err) {
+      logError("Poll loop error", err);
+    }
+
+    // Wait before next poll (check shutdown frequently)
+    if (!shutdownRequested) {
+      await delay(POLL_INTERVAL_MS);
+    }
+  }
+
+  // Cleanup
+  log("Shutting down...");
+  await pool.end();
+  log("Worker stopped");
+}
+
+main().catch((err) => {
+  logError("Fatal error in worker", err);
+  process.exit(1);
+});

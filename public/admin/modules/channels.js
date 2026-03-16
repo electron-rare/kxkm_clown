@@ -1,3 +1,5 @@
+import { escapeHtml } from "../utils.js";
+
 export async function mountChannels(container, { api, setStatus }) {
   const channels = await api.getChannels();
   container.innerHTML = `
@@ -53,12 +55,4 @@ export async function mountChannels(container, { api, setStatus }) {
       }
     });
   });
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

@@ -213,16 +213,20 @@ function createPersonaRegistry({ dataDir }) {
     return overrides.customPersonas[id] || null;
   }
 
+  function safeFsId(id) {
+    return String(id || "").replace(/[^a-z0-9_-]/gi, "_").slice(0, 40);
+  }
+
   function getSourcePath(id) {
-    return path.join(sourcesDir, `${id}.json`);
+    return path.join(sourcesDir, `${safeFsId(id)}.json`);
   }
 
   function getFeedbackPath(id) {
-    return path.join(feedbackDir, `${id}.jsonl`);
+    return path.join(feedbackDir, `${safeFsId(id)}.jsonl`);
   }
 
   function getProposalPath(id) {
-    return path.join(proposalsDir, `${id}.jsonl`);
+    return path.join(proposalsDir, `${safeFsId(id)}.jsonl`);
   }
 
   function loadOverridesFromDisk() {

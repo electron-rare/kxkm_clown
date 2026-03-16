@@ -53,11 +53,15 @@ function createSessionManager({
 
   function disconnectInactiveClients() {
     const now = Date.now();
+    const toDisconnect = [];
 
     for (const [ws, info] of clients) {
       if (permanentUsers.includes(info.nick) || admins.has(info.nick)) continue;
       if (now - info.lastActivity <= inactivityTimeoutMs) continue;
+      toDisconnect.push([ws, info]);
+    }
 
+    for (const [ws, info] of toDisconnect) {
       console.log(`[timeout] Kicking ${info.nick} (inactive ${Math.round((now - info.lastActivity) / 60000)}min)`);
       send(ws, "system", "*** Tu as été déconnecté pour inactivité (1h). Reconnecte-toi!");
       broadcast(info.channel, { type: "system", text: `*** ${info.nick} a été déconnecté (inactivité)` }, ws);

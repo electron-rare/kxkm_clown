@@ -103,7 +103,7 @@ function createNodeEngineRegistry() {
       type: "benchmark",
       family: "evaluation",
       title: "Benchmark",
-      inputs: ["model"],
+      inputs: ["model", "dataset_ready"],
       outputs: ["evaluation"],
       runtimes: ["local_cpu", "local_gpu", "cluster"],
       description: "Évalue un modèle sur un jeu de prompts et de métriques.",
@@ -112,7 +112,7 @@ function createNodeEngineRegistry() {
       type: "prompt_test",
       family: "evaluation",
       title: "Prompt Test",
-      inputs: ["model"],
+      inputs: ["model", "dataset_ready"],
       outputs: ["evaluation"],
       runtimes: ["local_cpu", "local_gpu", "cloud_api"],
       description: "Teste un modèle sur un prompt fixe ou un lot de prompts.",
@@ -185,14 +185,19 @@ function createNodeEngineRegistry() {
   }
 
   function buildSeedGraphTemplate() {
-    return {
+    return listSeedGraphs()[0];
+  }
+
+  function listSeedGraphs() {
+    return [
+      {
       id: "starter_llm_training",
       name: "Starter LoRA Training",
       description: "Pipeline seed: dataset local -> nettoyage -> split -> format instruction -> LoRA -> benchmark -> registry -> deploy.",
       runtime: "local_gpu",
       tags: ["seed", "training", "lora"],
       nodes: [
-        { id: "source", type: "dataset_file", title: "Dataset File", params: { path: "data/sample-dataset.jsonl" }, runtime: "local_cpu" },
+        { id: "source", type: "dataset_file", title: "Dataset File", params: { path: "docs/examples/node_engine_dataset.jsonl" }, runtime: "local_cpu" },
         { id: "clean", type: "clean_text", title: "Clean Text", params: { trim: true }, runtime: "local_cpu" },
         { id: "split", type: "split_dataset", title: "Split Dataset", params: { train: 0.9, test: 0.1 }, runtime: "local_cpu" },
         { id: "format", type: "format_instruction_dataset", title: "Instruction Dataset", params: { mode: "chat" }, runtime: "local_cpu" },
@@ -211,7 +216,34 @@ function createNodeEngineRegistry() {
         { from: { node: "benchmark", output: "evaluation" }, to: { node: "register", input: "evaluation" } },
         { from: { node: "register", output: "registered_model" }, to: { node: "deploy", input: "registered_model" } },
       ],
-    };
+      },
+      {
+        id: "starter_local_eval",
+        name: "Starter Local Eval",
+        description: "Pipeline local réel: dataset -> préparation -> prompt test -> benchmark -> registry -> deploy.",
+        runtime: "local_cpu",
+        tags: ["seed", "local", "evaluation"],
+        nodes: [
+          { id: "source", type: "dataset_file", title: "Dataset File", params: { path: "docs/examples/node_engine_dataset.jsonl" }, runtime: "local_cpu" },
+          { id: "clean", type: "clean_text", title: "Clean Text", params: { trim: true }, runtime: "local_cpu" },
+          { id: "split", type: "split_dataset", title: "Split Dataset", params: { train: 0.8, test: 0.2 }, runtime: "local_cpu" },
+          { id: "format", type: "format_instruction_dataset", title: "Instruction Dataset", params: { mode: "chat" }, runtime: "local_cpu" },
+          { id: "prompt", type: "prompt_test", title: "Prompt Test", params: { model: "mistral:7b", prompt: "Resume le ton du dataset." }, runtime: "local_cpu" },
+          { id: "benchmark", type: "benchmark", title: "Benchmark", params: { model: "mistral:7b" }, runtime: "local_cpu" },
+          { id: "register", type: "register_model", title: "Register Model", params: { alias: "starter_local_eval", model: "mistral:7b" }, runtime: "local_cpu" },
+          { id: "deploy", type: "deploy_api", title: "Deploy API", params: { target: "local" }, runtime: "local_cpu" },
+        ],
+        edges: [
+          { from: { node: "source", output: "dataset" }, to: { node: "clean", input: "dataset" } },
+          { from: { node: "clean", output: "dataset" }, to: { node: "split", input: "dataset" } },
+          { from: { node: "split", output: "dataset" }, to: { node: "format", input: "dataset" } },
+          { from: { node: "format", output: "dataset_ready" }, to: { node: "prompt", input: "dataset_ready" } },
+          { from: { node: "format", output: "dataset_ready" }, to: { node: "benchmark", input: "dataset_ready" } },
+          { from: { node: "benchmark", output: "evaluation" }, to: { node: "register", input: "evaluation" } },
+          { from: { node: "register", output: "registered_model" }, to: { node: "deploy", input: "registered_model" } },
+        ],
+      },
+    ];
   }
 
   return {
@@ -219,6 +251,7 @@ function createNodeEngineRegistry() {
     getNodeType,
     listFamilies,
     buildSeedGraphTemplate,
+    listSeedGraphs,
   };
 }
 

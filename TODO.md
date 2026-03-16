@@ -1,83 +1,104 @@
 # TODO
 
-## Fait dans ce tour
+## P0 Critical (sécurité & stabilité)
 
-- [x] passer le runtime en mode `LAN contrôlé`
-- [x] rendre le chat et les pages `/admin/*` accessibles sur le LAN
-- [x] protéger le bootstrap admin et `/api/admin/*` par token + allowlist réseau
-- [x] remplacer le garde-fou `localhost only` par une politique réseau explicite
-- [x] protéger aussi les exports `training` et `dpo` derrière l'accès admin
-- [x] exposer l'état réseau côté runtime admin
-- [x] réaligner `docs/PROJECT_MEMORY.md`, `PLAN.md`, `TODO.md` et `docs/SPEC.md` sur l'état réel
-- [x] ajouter une V1 multimodale: upload texte/image/son, analyse locale et brief Pharmacius
-- [x] intégrer les pièces jointes au flux de conversation côté routing et frontend chat
-- [x] couvrir le flux multimodal dans `npm run smoke`
-- [x] verrouiller la règle: snapshots de session = restauration manuelle uniquement, sans auto-restore au boot
-- [x] verrouiller le rôle de `training/conversations.jsonl` et `dpo/pairs.jsonl` comme exports append-only
-- [x] réserver l'alimentation de `Pharmacius` depuis `training/` et `dpo/` au reinforce explicite
-- [x] verrouiller la politique de rétention par défaut: sessions `7 jours`, logs `30 jours`, mémoire `100 interactions`
-- [x] exclure `uploads/`, `uploads-meta/` et les données personas de la rétention dans le périmètre Lot A
-- [x] ajouter `/sessions restore <id>` pour restaurer explicitement un snapshot local
-- [x] brancher la purge effective des sessions et logs selon la policy Lot A (`7 jours` / `30 jours`)
-- [x] relire `training/` et `dpo/` comme signaux bornés lors d'un reinforce explicite
-- [x] couvrir le lot cohérence des données dans `npm run smoke`
-- [x] cadrer le Node Engine comme extension du moteur nodal existant
-- [x] ajouter une note de veille sourcée pour le Node Engine
-- [x] créer le module admin global `#/node-engine`
-- [x] définir un schéma minimal de graphe pour nodes, edges, artefacts et runs
-- [x] créer un registry de nodes côté backend
-- [x] séparer le stockage `data/node-engine/{graphs,runs,artifacts,cache}`
-- [x] exposer des endpoints admin `overview / graphs / runs` pour le Node Engine
-- [x] livrer un graphe seed `starter_llm_training`
-- [x] couvrir le Node Engine V1 dans `npm run smoke`
+- [x] Fix bash injection dans `node-engine-runtimes.js` — validation runtimeId/nodeType + timeout 30min
+- [x] Ajouter timeout sur les appels Ollama — 15s metadata, 5min chat streaming
+- [x] Validation des entrées sur les messages WebSocket — 64KB max frame, 8192 chars text, type checks
+- [x] Rate limiting par user/IP sur chat — `rate-limit.js` + 30 msg/min par IP dans WebSocket
+- [x] `escapeHtml` dédupliqué → `utils.js`
+- [x] `normalizeAuth` consolidé dans `admin-api.js`
+- [x] `ensureSeedGraphs` guard flag ajouté
+- [x] `finishRun` comptage d'artifacts sans JSON parse
+- [x] `recoverRunnableRuns` double-read corrigé
 
-## P1 — Cohérence fonctionnelle
+## P1 V1 Quality
 
-- [x] décider que les snapshots de session restent des archives manuelles, sans restauration automatique au démarrage
-- [x] clarifier que `training/conversations.jsonl` et `dpo/pairs.jsonl` sont des exports append-only
-- [x] décider que `training/` et `dpo/` ne nourrissent `Pharmacius` que lors d'un reinforce explicite
-- [x] restaurer explicitement un snapshot via `/sessions restore <id>`
+- [ ] Migrer vers le SDK officiel `ollama-js` (remplacer le custom `ollama.js`)
+- [x] Ajouter un audit logging pour les actions admin — `audit-log.js` + intégré dans `http-api.js` et `server.js`
+- [x] Implémenter l'analyse image/audio dans `attachment-pipeline.js` — stubs factory avec adapter slot
+- [x] Corriger la validation d'origine `postMessage` — déjà en place (personas.js:1476)
+- [ ] Ajouter la déduplication de requêtes dans `admin-api.js`
+- [x] Node Engine : validation de tri topologique — déjà en place (cycle detection dans runner)
+- [x] Node Engine : timeout d'exécution par nœud — 10min default via `NODE_ENGINE_STEP_TIMEOUT_MS`
 
-## P2 — Fiabilité
+## P2 V2 Domaines
 
-- [ ] ajouter des tests unitaires pour pseudos, sanitation et canaux
-- [ ] ajouter des tests sur le routing `@mention` et `#general`
-- [ ] ajouter des tests sur la logique DPO
-- [ ] ajouter des tests sur le fallback `session.persona` / modèle par défaut
-- [ ] ajouter des tests sur l'API admin des personas et les overrides
+- [x] Schéma Postgres + migrations + repos typés (`packages/storage`) — session, persona, graph, run repos
+- [x] Module auth réel (`packages/auth`) — crypto.scrypt, token gen, extractSessionId, validateLoginInput
+- [x] Logique domaine chat (`packages/chat-domain`) — ChatMessage, ChatSession, compactHistory, channel validation
+- [x] Logique domaine persona (`packages/persona-domain`) — validatePersonaUpdate, aggregateFeedback, computePersonaDiff
+- [x] Brancher les repos Postgres dans `apps/api` — async `createApp()`, fallback in-memory si pas de DATABASE_URL
 
-## P2 — Performance et I/O
+## P3 Node Engine V2
 
-- [ ] sortir progressivement des `fs.*Sync` sur les hot paths
-- [ ] décharger la RAM GPU au bout de 10 minutes sans interaction sur le chat
-- [ ] ajouter un test dédié pour la borne mémoire conversationnelle à `100 interactions`
-- [ ] prévoir pagination ou bornes sur les exports REST
+- [x] Porter registry → `packages/node-engine` (15 node types, 7 familles)
+- [x] Porter graph ops (topologicalSort, validateEdgeContracts, collectNodeInputs)
+- [x] Porter run state machine (createRun, RunStep, resolveFinalStatus)
+- [x] Porter queue logic (createQueueState, enqueue, dequeue, canDequeue)
+- [x] Runtime definitions (5 runtimes)
+- [ ] Isoler les runtimes avec sandboxing approprié
+- [ ] Adaptateurs d'entraînement réels (LoRA, QLoRA, SFT)
+- [x] Brancher le runner V2 dans `apps/worker` — poll loop, stub executors, graceful shutdown
 
-## P3 — Produit
+## P4 Frontend V2
 
-- [ ] brancher de vrais adaptateurs vision / transcription sur la pipeline de fichiers
-- [ ] définir une politique de rétention dédiée pour `data/uploads` et `data/uploads-meta`
-- [ ] stocker le token bootstrap admin dans un cookie de session côté frontend admin
-- [ ] ajouter un favicon clown cohérent avec l'identité du projet
-- [ ] travail mobile responsive si ce support devient un vrai besoin
+- [x] API client centralisé (`api.ts`)
+- [x] 9 composants React (Header, Login, Nav, PersonaList, PersonaDetail, NodeEngineOverview, GraphDetail, RunStatus, ChannelList)
+- [x] Routing hash-based + responsive CSS
+- [ ] Interface chat React (WebSocket live)
+- [ ] Éditeur visuel Node Engine (intégration Drawflow)
 
-## P4 — Node Engine
+## P5 TUI & Ops
 
-- [x] créer le module admin global `#/node-engine`
-- [x] définir un schéma minimal de graphe pour nodes, edges, artefacts et runs
-- [x] créer un registry de nodes côté backend
-- [ ] extraire un vrai runner de graphes côté backend
-- [x] séparer stockage `data/node-engine/{graphs,runs,artifacts,cache}`
-- [x] livrer une première palette déclarative `dataset_file`, `dataset_folder`, `clean_text`, `split_dataset`, `format_instruction_dataset`
-- [x] préparer déclarativement les nodes de training `lora_training`, `qlora_training`
-- [x] préparer déclarativement les nodes d'évaluation `benchmark`, `prompt_test`
-- [ ] créer un model registry local (`models/base_models`, `models/finetuned`, `models/lora`)
-- [ ] définir le contrat de déploiement nodal `deploy_api`, `deploy_local`, `deploy_gpu_cluster`, `deploy_edge`
-- [ ] séparer proprement `chat runtime` et `training runtime`
-- [ ] définir les runtimes `local_cpu`, `local_gpu`, `remote_gpu`, `cluster`, `cloud_api`
+- [x] TUI health-check (V1+V2+Ollama+disk+memory)
+- [x] TUI queue-viewer (runs, statuses)
+- [x] TUI persona-manager (overview)
+- [x] Log rotation (--dry-run, --max-age-days)
+- [x] Packages/tui: ansi, statusDot, formatTable, drawBox
 
-## Questions encore ouvertes
+## P6 Migration
 
-- [ ] les personas doivent-elles être toutes résidentes ou sélectionnées dynamiquement selon la charge ?
-- [ ] quel niveau d'automatisation est acceptable pour créer une persona depuis le web sur une personne réelle ?
-- [ ] quels signaux du chat sont suffisamment fiables pour modifier une persona sans dérive ?
+- [x] Matrice de parité V1 → V2 — `scripts/parity-check.js` (persona, graph, channel, API shape checks)
+- [x] Scripts de migration de données — `scripts/migrate-v1-to-v2.js` (personas, graphs, runs → Postgres, --dry-run support)
+- [x] Smoke tests pour V2 — `scripts/smoke-v2.js` (22 tests, 5 catégories, `npm run smoke:v2`)
+- [x] Procédure de rollback — `scripts/rollback-v2.js` (drop/truncate tables with confirmation, --yes, --tables filter)
+
+## P0+ Sécurité V1 (deep analyse 2026-03-16)
+
+- [x] Path traversal dans `storage.js` — sanitisation session IDs + boundary check memory paths
+- [x] Path traversal dans `persona-registry.js` / `persona-store.js` — `safeFsId()` helper
+- [x] Path traversal dans `attachment-store.js` — sanitisation IDs + boundary check
+- [x] SSRF dans `web-tools.js` — blocage localhost, IPs privées, .local/.internal
+- [x] Response body limit dans `web-tools.js` — truncation 2 MB
+- [x] Log injection dans `storage.js` — sanitisation paramètre `role`
+- [x] Crash JSONL corrompu dans `storage.js` — try/catch par ligne
+- [x] Map mutation during iteration dans `sessions.js` — collect then process
+- [x] Session leak `/msg` dans `commands.js` — clé stable au lieu de Date.now()
+- [x] Unbounded userRateLimits dans `chat-routing.js` — pruning > 200 entries
+- [x] Session pruning O(n) dans `admin-session.js` — throttle 60s
+
+## P7 Intégration avancée
+
+- [x] Migrer vers ollama-js SDK officiel — `ollama.js` réécrit avec `Ollama` class, même interface
+- [x] Chat WebSocket React live — hook `useWebSocket` + composant Chat IRC, auto-reconnect
+- [x] Éditeur visuel Node Engine avec React Flow — `NodeEditor.tsx` + `EngineNode.tsx`, 7 familles colorées
+- [x] Déduplication requêtes GET dans `admin-api.js` — `deduplicatedFetch` transparent
+- [x] Repos Postgres pour persona sources/feedback/proposals — 3 tables + repos + fallback in-memory
+- [x] CI/CD GitHub Actions — `.github/workflows/ci.yml` (check V1+V2)
+- [x] Deep analyse finale V1+V2 — 14 modules V1 vérifiés, 3 fixes TS V2, intégrité confirmée
+
+## P8 Production Readiness
+
+- [x] Adaptateurs training réels (TRL + Unsloth pour LoRA/DPO) — `packages/node-engine/src/training.ts` + worker intégré
+- [x] Sandboxing runtimes Node Engine (containers/VM) — `packages/node-engine/src/sandbox.ts` (none/subprocess/container)
+- [x] Turborepo pour build orchestration monorepo — `turbo.json` + scripts alignés + CI mis à jour
+- [x] Tests unitaires V2 avec node:test + supertest — 102 tests, 46 suites, 6 packages + API integration
+- [x] Tests React avec Vitest + RTL — 33 tests, 6 composants (Header, Login, Nav, PersonaList, RunStatus, ChannelList)
+- [ ] Créer le repo GitHub privé (token avec scope admin nécessaire)
+
+## P9 Code Quality (simplify review)
+
+- [x] Triple filter → single-pass loop dans `node-engine.js:deriveAsyncMeta`
+- [x] Duplicate sanitization extraite dans `attachment-store.js:sanitizeId`
+- [x] Double `loadModelIndex()` éliminé dans `node-engine-store.js:registerDeployment`

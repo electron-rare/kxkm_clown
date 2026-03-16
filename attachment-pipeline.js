@@ -78,6 +78,55 @@ function summarizeText(text) {
   return cleanText(lines.join(" ").replace(/\s+/g, " "), 260) || "Fichier texte joint.";
 }
 
+function createImageAnalyzer({ adapter } = {}) {
+  return async function analyzeImage(record, buffer) {
+    if (adapter) {
+      return adapter(record, buffer);
+    }
+    console.warn("[attachment-pipeline] analyzeImage called but no vision adapter configured — returning stub result");
+    return {
+      type: "image",
+      analyzed: false,
+      reason: "not_implemented",
+      kind: "image",
+      title: record.originalName || "image",
+      sourceSummary: `Image jointe (${record.mime}, ${Math.round((record.sizeBytes || buffer.length) / 1024)} Ko).`,
+      extractedText: "",
+      transcript: "",
+      caption: "Analyse vision indisponible: stub en attente d'intégration.",
+      tags: ["image", "metadata_only", "stub"],
+      warnings: ["Aucun adaptateur vision configuré — résultat stub."],
+      adapter: "stub",
+    };
+  };
+}
+
+function createAudioAnalyzer({ adapter } = {}) {
+  return async function analyzeAudio(record, buffer) {
+    if (adapter) {
+      return adapter(record, buffer);
+    }
+    console.warn("[attachment-pipeline] analyzeAudio called but no transcription adapter configured — returning stub result");
+    return {
+      type: "audio",
+      analyzed: false,
+      reason: "not_implemented",
+      kind: "audio",
+      title: record.originalName || "audio",
+      sourceSummary: `Audio joint (${record.mime}, ${Math.round((record.sizeBytes || buffer.length) / 1024)} Ko).`,
+      extractedText: "",
+      transcript: "",
+      caption: "",
+      tags: ["audio", "metadata_only", "stub"],
+      warnings: ["Aucun adaptateur de transcription configuré — résultat stub."],
+      adapter: "stub",
+    };
+  };
+}
+
+const analyzeImageStub = createImageAnalyzer();
+const analyzeAudioStub = createAudioAnalyzer();
+
 async function analyzeAttachment(record, buffer) {
   const kind = record.kind || pickAttachmentKind(record.mime, record.originalName);
 
@@ -97,31 +146,11 @@ async function analyzeAttachment(record, buffer) {
   }
 
   if (kind === "image") {
-    return {
-      kind,
-      title: record.originalName,
-      sourceSummary: `Image jointe (${record.mime}, ${Math.round(record.sizeBytes / 1024)} Ko).`,
-      extractedText: "",
-      transcript: "",
-      caption: "Analyse vision indisponible: Pharmacius reçoit les métadonnées et le contexte utilisateur.",
-      tags: ["image", "metadata_only"],
-      warnings: ["Aucun adaptateur vision configuré."],
-      adapter: "none",
-    };
+    return analyzeImageStub(record, buffer);
   }
 
   if (kind === "audio") {
-    return {
-      kind,
-      title: record.originalName,
-      sourceSummary: `Audio joint (${record.mime}, ${Math.round(record.sizeBytes / 1024)} Ko).`,
-      extractedText: "",
-      transcript: "",
-      caption: "",
-      tags: ["audio", "metadata_only"],
-      warnings: ["Aucun adaptateur de transcription configuré."],
-      adapter: "none",
-    };
+    return analyzeAudioStub(record, buffer);
   }
 
   const error = new Error("Type de fichier non supporté");
@@ -135,4 +164,6 @@ module.exports = {
   pickAttachmentKind,
   assertSupportedUpload,
   analyzeAttachment,
+  createImageAnalyzer,
+  createAudioAnalyzer,
 };

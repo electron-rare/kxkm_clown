@@ -1,0 +1,2 @@
+batch,task,status,next_step,query
+"lot-0-cadrage","architecture","planned","manual_implementation","Verrouiller architecture V2 et monorepo apps/packages"

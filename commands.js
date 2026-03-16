@@ -692,7 +692,8 @@ function createCommandHandler({
           send(ws, "pm_sent", `-> ${targetNick}: ${pmText}`, info.nick);
           const model = botPersona.model;
           if (model) {
-            const pmSession = getSession(`pm_${info.nick}_${targetNick}_${Date.now()}`);
+            const pmSessionId = `pm_${info.nick}_${targetNick}`;
+            const pmSession = getSession(pmSessionId);
             pmSession.model = model;
             pmSession.messages = [
               { role: "system", content: `Tu es ${targetNick} (${botPersona.desc}). ${botPersona.style}\nConversation privee avec ${info.nick}. Concis (2-3 phrases, ~500 chars max). TOUJOURS en francais.` },

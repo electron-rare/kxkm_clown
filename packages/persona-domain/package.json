@@ -1,0 +1,20 @@
+{
+  "name": "@kxkm/persona-domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Persona domain scaffold for V2",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "dependencies": {
+    "@kxkm/core": "*"
+  },
+  "scripts": {
+    "status": "node ../../scripts/workspace-package.js persona-domain status",
+    "build": "tsc -p tsconfig.json --pretty false",
+    "check": "tsc -p tsconfig.json --noEmit --pretty false"
+  }
+}

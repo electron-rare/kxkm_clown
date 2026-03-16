@@ -1,0 +1,2 @@
+batch,task,status,next_step,query
+"lot-0-cadrage","docs","planned","manual_implementation","Maintenir spec, memory, README, feature map et mermaid"

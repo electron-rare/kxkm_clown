@@ -1,7 +1,11 @@
 "use strict";
 
-const TOKEN_STORAGE_KEY = "kxkmAdminToken";
 const NEW_PERSONA_GRAPH_ID = "__new__";
+const SESSION_ENDPOINTS = [
+  "/api/admin/session",
+  "/api/admin/auth/session",
+];
+const ADMIN_AUTH_MESSAGE = "kxkm-admin-auth";
 
 const tokenInput = document.getElementById("token-input");
 const loadButton = document.getElementById("load-button");
@@ -26,7 +30,11 @@ const graphCanvas = document.getElementById("graph-canvas");
 const graphCanvasWrap = document.querySelector(".graph-canvas-wrap");
 const graphInspector = document.getElementById("graph-inspector");
 
-let adminToken = "";
+let sessionActive = false;
+let sessionSupported = null;
+let sessionEndpointCache;
+let sessionEndpointProbe = null;
+let legacyAdminToken = "";
 let personas = [];
 let selectedGraphPersonaId = "";
 let selectedGraphNodeKey = "";
@@ -49,11 +57,6 @@ function createEventBus() {
       }
     },
   };
-}
-
-function persistAdminToken(token) {
-  if (token) sessionStorage.setItem(TOKEN_STORAGE_KEY, token);
-  else sessionStorage.removeItem(TOKEN_STORAGE_KEY);
 }
 
 function setStatus(text, tone = "info") {
@@ -115,13 +118,79 @@ function getPersonaById(id) {
   return personas.find((persona) => persona.id === id) || null;
 }
 
-async function apiFetch(path, options = {}) {
-  if (!adminToken) {
-    throw new Error("Token admin requis");
+function syncAuthChrome() {
+  tokenInput.disabled = Boolean(sessionActive && sessionSupported);
+  if (sessionActive && sessionSupported) {
+    tokenInput.placeholder = "Session admin active";
+    loadButton.textContent = "Rouvrir la session";
+    return;
   }
+  if (sessionActive && sessionSupported === false) {
+    tokenInput.placeholder = "Token bootstrap local actif en memoire";
+    loadButton.textContent = "Recharger l'acces";
+    return;
+  }
+  tokenInput.placeholder = sessionSupported === false
+    ? "Token bootstrap local (memoire seulement)"
+    : "Token bootstrap admin local";
+  loadButton.textContent = "Ouvrir la session";
+}
+
+function updateAuthState({ authenticated = sessionActive, cookieSession = sessionSupported, legacyToken = legacyAdminToken } = {}) {
+  sessionActive = Boolean(authenticated);
+  sessionSupported = cookieSession;
+  legacyAdminToken = String(legacyToken || "").trim();
+  syncAuthChrome();
+  return {
+    authenticated: sessionActive,
+    sessionSupported,
+    mode: sessionSupported ? "cookie" : legacyAdminToken ? "legacy-header" : "none",
+  };
+}
+
+async function readJson(response) {
+  return response.json().catch(() => ({}));
+}
+
+async function resolveSessionEndpoint(force = false) {
+  if (!force && sessionEndpointCache !== undefined) return sessionEndpointCache;
+  if (sessionEndpointProbe) return sessionEndpointProbe;
+
+  sessionEndpointProbe = (async () => {
+    for (const endpoint of SESSION_ENDPOINTS) {
+      try {
+        const response = await fetch(endpoint, {
+          method: "GET",
+          credentials: "same-origin",
+          headers: {
+            accept: "application/json",
+          },
+        });
+        if (response.status === 404 || response.status === 405) continue;
+        sessionEndpointCache = endpoint;
+        return endpoint;
+      } catch {
+        continue;
+      }
+    }
+    sessionEndpointCache = null;
+    return null;
+  })();
+
+  try {
+    return await sessionEndpointProbe;
+  } finally {
+    sessionEndpointProbe = null;
+  }
+}
+
+async function apiFetch(path, options = {}) {
+  if (!sessionActive && !legacyAdminToken) throw new Error("Session admin requise");
 
   const headers = new Headers(options.headers || {});
-  headers.set("x-admin-bootstrap-token", adminToken);
+  if (legacyAdminToken) {
+    headers.set("x-admin-bootstrap-token", legacyAdminToken);
+  }
   if (options.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
@@ -129,13 +198,141 @@ async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers,
+    credentials: "same-origin",
   });
 
-  const payload = await response.json().catch(() => ({}));
+  const payload = await readJson(response);
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      updateAuthState({
+        authenticated: false,
+        cookieSession: sessionSupported,
+      });
+    }
     throw new Error(payload.error || `Erreur HTTP ${response.status}`);
   }
   return payload;
+}
+
+async function getAdminSession() {
+  const endpoint = await resolveSessionEndpoint();
+  if (!endpoint) {
+    return updateAuthState({
+      authenticated: Boolean(legacyAdminToken),
+      cookieSession: false,
+      legacyToken: legacyAdminToken,
+    });
+  }
+
+  const response = await fetch(endpoint, {
+    credentials: "same-origin",
+    headers: {
+      accept: "application/json",
+    },
+  });
+  const payload = await readJson(response);
+
+  if (response.ok) {
+    tokenInput.value = "";
+    return updateAuthState({
+      authenticated: payload.authenticated !== false,
+      cookieSession: true,
+      legacyToken: "",
+    });
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    return updateAuthState({
+      authenticated: false,
+      cookieSession: true,
+      legacyToken: "",
+    });
+  }
+
+  if (response.status === 404 || response.status === 405) {
+    sessionEndpointCache = null;
+    return getAdminSession();
+  }
+
+  throw new Error(payload.error || `Erreur HTTP ${response.status}`);
+}
+
+async function openAdminSession(token) {
+  const cleanToken = String(token || "").trim();
+  const endpoint = await resolveSessionEndpoint();
+
+  if (endpoint) {
+    if (!cleanToken) {
+      const session = await getAdminSession();
+      if (session.authenticated) return session;
+      throw new Error("Bootstrap token requis.");
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ token: cleanToken }),
+    });
+    const payload = await readJson(response);
+    if (response.ok) {
+      tokenInput.value = "";
+      return updateAuthState({
+        authenticated: true,
+        cookieSession: true,
+        legacyToken: "",
+      });
+    }
+    if (response.status !== 404 && response.status !== 405) {
+      throw new Error(payload.error || `Erreur HTTP ${response.status}`);
+    }
+    sessionEndpointCache = null;
+  }
+
+  if (!cleanToken && !legacyAdminToken) {
+    throw new Error("Bootstrap token requis.");
+  }
+
+  legacyAdminToken = cleanToken || legacyAdminToken;
+  const response = await fetch("/api/admin/runtime/status", {
+    credentials: "same-origin",
+    headers: {
+      "x-admin-bootstrap-token": legacyAdminToken,
+      accept: "application/json",
+    },
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(payload.error || `Erreur HTTP ${response.status}`);
+  }
+
+  tokenInput.value = "";
+  return updateAuthState({
+    authenticated: true,
+    cookieSession: false,
+    legacyToken: legacyAdminToken,
+  });
+}
+
+async function ensureAdminAccess() {
+  const token = tokenInput.value.trim();
+  if (token) return openAdminSession(token);
+
+  const session = await getAdminSession();
+  if (session.authenticated) return session;
+
+  if (legacyAdminToken) {
+    return updateAuthState({
+      authenticated: true,
+      cookieSession: false,
+      legacyToken: legacyAdminToken,
+    });
+  }
+
+  throw new Error("Session admin requise.");
 }
 
 function currentCreatePayload(root = document) {
@@ -1120,22 +1317,36 @@ graphBus.on("graph:node-selected", ({ nodeData }) => {
   renderGraphInspectorForNode(nodeData);
 });
 
-loadButton.addEventListener("click", () => {
-  adminToken = tokenInput.value.trim();
-  persistAdminToken(adminToken);
-  loadPersonas();
+loadButton.addEventListener("click", async () => {
+  try {
+    setStatus("Ouverture de la session admin…", "info");
+    await ensureAdminAccess();
+    await loadPersonas();
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
 });
 
-refreshButton.addEventListener("click", () => {
-  adminToken = tokenInput.value.trim();
-  persistAdminToken(adminToken);
-  loadPersonas(selectedGraphPersonaId);
+refreshButton.addEventListener("click", async () => {
+  try {
+    const session = await ensureAdminAccess();
+    if (session.authenticated) {
+      await loadPersonas(selectedGraphPersonaId);
+      return;
+    }
+    setStatus("Session admin requise.", "info");
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
 });
 
-createButton.addEventListener("click", () => {
-  adminToken = tokenInput.value.trim();
-  persistAdminToken(adminToken);
-  createPersonaFromSource();
+createButton.addEventListener("click", async () => {
+  try {
+    await ensureAdminAccess();
+    createPersonaFromSource();
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
 });
 
 graphPersonaSelect.addEventListener("change", () => {
@@ -1257,19 +1468,74 @@ graphInspector.addEventListener("click", (event) => {
 
 tokenInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
-    adminToken = tokenInput.value.trim();
-    persistAdminToken(adminToken);
-    loadPersonas();
+    loadButton.click();
   }
 });
 
+window.addEventListener("message", (event) => {
+  if (event.origin !== window.location.origin) return;
+  const payload = event.data || {};
+  if (payload.type !== ADMIN_AUTH_MESSAGE) return;
+
+  if (payload.auth?.mode === "legacy-header" && payload.legacyToken) {
+    updateAuthState({
+      authenticated: true,
+      cookieSession: false,
+      legacyToken: payload.legacyToken,
+    });
+    if (!personas.length) {
+      loadPersonas(selectedGraphPersonaId || NEW_PERSONA_GRAPH_ID).catch((error) => {
+        setStatus(error.message, "error");
+      });
+    }
+    return;
+  }
+
+  if (payload.auth?.mode === "cookie") {
+    getAdminSession()
+      .then((session) => {
+        if (session.authenticated && !personas.length) {
+          loadPersonas(selectedGraphPersonaId || NEW_PERSONA_GRAPH_ID).catch((error) => {
+            setStatus(error.message, "error");
+          });
+        }
+      })
+      .catch((error) => setStatus(error.message, "error"));
+    return;
+  }
+
+  if (payload.auth && !payload.auth.authenticated) {
+    updateAuthState({
+      authenticated: false,
+      cookieSession: Boolean(payload.auth.sessionSupported),
+      legacyToken: "",
+    });
+    personas = [];
+    personaGrid.innerHTML = "";
+    selectedGraphPersonaId = NEW_PERSONA_GRAPH_ID;
+    renderCreateGraph();
+  }
+});
+
+syncAuthChrome();
 ensureGraphEditor();
-const storedToken = sessionStorage.getItem(TOKEN_STORAGE_KEY) || "";
-if (storedToken) {
-  tokenInput.value = storedToken;
-  adminToken = storedToken;
-  loadPersonas(NEW_PERSONA_GRAPH_ID);
-} else {
-  selectedGraphPersonaId = NEW_PERSONA_GRAPH_ID;
-  renderCreateGraph();
-}
+getAdminSession()
+  .then((session) => {
+    if (sessionActive) {
+      loadPersonas(NEW_PERSONA_GRAPH_ID);
+      return;
+    }
+    selectedGraphPersonaId = NEW_PERSONA_GRAPH_ID;
+    renderCreateGraph();
+    setStatus(window.parent !== window ? "Attente de la session admin du shell…" : "Session admin requise.", "info");
+  })
+  .catch(() => {
+    updateAuthState({
+      authenticated: false,
+      cookieSession: sessionSupported,
+      legacyToken: "",
+    });
+    selectedGraphPersonaId = NEW_PERSONA_GRAPH_ID;
+    renderCreateGraph();
+    setStatus(window.parent !== window ? "Attente de la session admin du shell…" : "Session admin requise.", "info");
+  });

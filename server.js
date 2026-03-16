@@ -25,16 +25,21 @@ const {
   PERSISTED_SESSION_RETENTION_MS,
   LOG_RETENTION_MS,
   RETENTION_SWEEP_MS,
+  NODE_ENGINE_MAX_CONCURRENCY,
   OWNER_NICK,
   HIDDEN_MODEL_PREFIX,
   ADMINS,
   OPS,
 } = require("./config");
 const { createNetworkPolicy } = require("./network-policy");
+const { createAdminSessionManager } = require("./admin-session");
 const { createPersonaRegistry } = require("./persona-registry");
 const { createPersonaStore } = require("./persona-store");
 const { createNodeEngineRegistry } = require("./node-engine-registry");
 const { createNodeEngineStore } = require("./node-engine-store");
+const { createNodeEngineRunner } = require("./node-engine-runner");
+const { createNodeEngineRuntimes } = require("./node-engine-runtimes");
+const { createNodeEngineQueue } = require("./node-engine-queue");
 const {
   createPharmaciusGenerator,
   createPharmaciusAttachmentOrchestrator,
@@ -51,6 +56,7 @@ const { createSessionManager } = require("./sessions");
 const { createChatRouter } = require("./chat-routing");
 const { registerApiRoutes } = require("./http-api");
 const { attachWebSocketHandlers } = require("./websocket");
+const { createAuditLogger } = require("./audit-log");
 
 ensureDataDirs(DATA_DIR);
 
@@ -63,6 +69,8 @@ const wss = new WebSocketServer({ server });
 const networkPolicy = createNetworkPolicy({
   adminAllowedSubnets: ADMIN_ALLOWED_SUBNETS,
 });
+const adminSessions = createAdminSessionManager();
+const auditLog = createAuditLogger({ dataDir: DATA_DIR });
 
 const { ollamaModels, ollamaAllModels, ollamaLoadedModels, ollamaChat } = createOllamaClient({
   ollamaUrl: OLLAMA_URL,
@@ -172,6 +180,27 @@ const attachmentService = createAttachmentService({
   rememberAttachmentFailure: chatRouter.rememberAttachmentFailure,
 });
 
+const nodeEngineRuntimes = createNodeEngineRuntimes({
+  rootDir: __dirname,
+  ollamaChat,
+});
+
+const nodeEngineRunner = createNodeEngineRunner({
+  rootDir: __dirname,
+  registry: nodeEngineRegistry,
+  store: nodeEngineStore,
+  runtimes: nodeEngineRuntimes,
+});
+
+const nodeEngineQueue = createNodeEngineQueue({
+  store: nodeEngineStore,
+  runner: nodeEngineRunner,
+  maxConcurrency: NODE_ENGINE_MAX_CONCURRENCY,
+  onError(error) {
+    console.error("[node-engine-queue]", error?.message || error);
+  },
+});
+
 const handleCommand = createCommandHandler({
   adminBootstrapToken: ADMIN_BOOTSTRAP_TOKEN,
   admins: ADMINS,
@@ -266,11 +295,16 @@ registerApiRoutes(app, {
   setPersonaEnabled: runtime.setPersonaEnabled,
   isPersonaEnabled: runtime.isPersonaEnabled,
   attachmentService,
+  adminSessions,
   nodeEngineStore,
   nodeEngineRegistry,
+  nodeEngineRunner,
+  nodeEngineQueue,
+  auditLog,
 });
 
 sessionManager.start();
+nodeEngineQueue.start();
 const initialRetention = storage.runRetention({
   sessionMaxAgeMs: PERSISTED_SESSION_RETENTION_MS,
   logMaxAgeMs: LOG_RETENTION_MS,

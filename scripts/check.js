@@ -5,54 +5,62 @@ const { execFileSync } = require("child_process");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 
-const NODE_CHECK_FILES = [
-  "server.js",
-  "persona-registry.js",
-  "persona-store.js",
-  "pharmacius.js",
-  "attachment-store.js",
-  "attachment-pipeline.js",
-  "attachment-service.js",
-  "node-engine-registry.js",
-  "node-engine-store.js",
-  "personas.js",
-  "runtime-state.js",
-  "client-registry.js",
-  "sessions.js",
-  "chat-routing.js",
-  "http-api.js",
-  "websocket.js",
-  "commands.js",
-  "config.js",
-  "network-policy.js",
-  "ollama.js",
-  "storage.js",
-  "attachment-store.js",
-  "attachment-pipeline.js",
-  "attachment-service.js",
-  "scripts/check.js",
-  "scripts/smoke.js",
-  "public/app.js",
+function toRelative(file) {
+  return path.relative(ROOT_DIR, file).split(path.sep).join("/");
+}
+
+function listFiles(relativeDir, matcher, { recursive = false } = {}) {
+  const absoluteDir = path.join(ROOT_DIR, relativeDir);
+  if (!fs.existsSync(absoluteDir)) return [];
+
+  const found = [];
+
+  for (const entry of fs.readdirSync(absoluteDir, { withFileTypes: true })) {
+    const absoluteEntry = path.join(absoluteDir, entry.name);
+    if (entry.isDirectory()) {
+      if (recursive) {
+        found.push(...listFiles(path.join(relativeDir, entry.name), matcher, { recursive: true }));
+      }
+      continue;
+    }
+    if (matcher(absoluteEntry, entry.name)) {
+      found.push(toRelative(absoluteEntry));
+    }
+  }
+
+  return found;
+}
+
+function listRootFiles(matcher) {
+  return fs.readdirSync(ROOT_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && matcher(entry.name))
+    .map((entry) => entry.name);
+}
+
+function uniqueSorted(files) {
+  return [...new Set(files)].sort((a, b) => a.localeCompare(b));
+}
+
+const NODE_CHECK_FILES = uniqueSorted([
+  ...listRootFiles((name) => name.endsWith(".js")),
+  ...listFiles("scripts", (_file, name) => name.endsWith(".js")),
+  ...listFiles("public", (_file, name) => name.endsWith(".js")),
   "public/admin/personas.js",
-];
+]);
 
-const HTML_FILES = [
-  "public/index.html",
-  "public/admin/index.html",
-  "public/admin/personas.html",
-];
+const HTML_FILES = uniqueSorted(listFiles("public", (_file, name) => name.endsWith(".html"), { recursive: true }));
 
-const MODULE_JS_FILES = [
-  "public/admin/admin.js",
-  "public/admin/admin-api.js",
-  "public/admin/admin-store.js",
-  "public/admin/modules/dashboard.js",
-  "public/admin/modules/personas.js",
-  "public/admin/modules/runtime.js",
-  "public/admin/modules/channels.js",
-  "public/admin/modules/data.js",
-  "public/admin/modules/node-engine.js",
-];
+const JSON_FILES = uniqueSorted([
+  "package.json",
+  ...listFiles("apps", (_file, name) => name === "package.json", { recursive: true }),
+  ...listFiles("packages", (_file, name) => name === "package.json", { recursive: true }),
+  ...listFiles("ops", (_file, name) => name.endsWith(".json"), { recursive: true }),
+]);
+
+const MODULE_JS_FILES = uniqueSorted([
+  ...listFiles("public/admin", (_file, name) => name.endsWith(".js") && name !== "personas.js"),
+  ...listFiles("public/admin/modules", (_file, name) => name.endsWith(".js")),
+]);
 
 function runNodeCheck(file) {
   const absoluteFile = path.join(ROOT_DIR, file);
@@ -90,9 +98,15 @@ async function compileModule(file) {
   });
 }
 
+function parseJsonFile(file) {
+  const absoluteFile = path.join(ROOT_DIR, file);
+  JSON.parse(fs.readFileSync(absoluteFile, "utf8"));
+}
+
 async function main() {
   NODE_CHECK_FILES.forEach(runNodeCheck);
   HTML_FILES.forEach(compileInlineScripts);
+  JSON_FILES.forEach(parseJsonFile);
   for (const file of MODULE_JS_FILES) {
     await compileModule(file);
   }
@@ -101,6 +115,7 @@ async function main() {
     ok: true,
     nodeChecked: NODE_CHECK_FILES.length,
     htmlCompiled: HTML_FILES.length,
+    jsonParsed: JSON_FILES.length,
     moduleCompiled: MODULE_JS_FILES.length,
   }));
 }

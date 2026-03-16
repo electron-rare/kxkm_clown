@@ -16,8 +16,12 @@ function createStorage(dataDir, {
   }
 
   function getMemoryPath(nick) {
-    const safe = nick.replace(/[^a-z0-9_-]/gi, "_");
-    return path.join(dataDir, "memory", `${safe}.json`);
+    const safe = nick.replace(/[^a-z0-9_-]/gi, "_").slice(0, 40);
+    const resolved = path.join(dataDir, "memory", `${safe}.json`);
+    if (!resolved.startsWith(path.join(dataDir, "memory"))) {
+      throw new Error("Invalid memory path");
+    }
+    return resolved;
   }
 
   function loadMemory(nick) {
@@ -68,11 +72,12 @@ function createStorage(dataDir, {
   function logByNick(nick, channel, role, text) {
     const safe = nick.replace(/[^a-z0-9_-]/gi, "_").slice(0, 20);
     const safeChan = safeChannel(channel);
+    const safeRole = String(role || "").replace(/[^a-z0-9_-]/gi, "_").slice(0, 20);
     const ts = new Date().toISOString();
-    const line = `[${ts}] [${safeChan}] <${role}> ${text.slice(0, 2000)}\n`;
+    const line = `[${ts}] [${safeChan}] <${safeRole}> ${text.slice(0, 2000)}\n`;
     try {
-      fs.appendFileSync(path.join(dataDir, "logs", `nick_${safe}.log`), line);
-      fs.appendFileSync(path.join(dataDir, "logs", `${safeChan}.log`), `[${ts}] <${role}> ${text.slice(0, 2000)}\n`);
+      fs.appendFileSync(path.join(logsDir, `nick_${safe}.log`), line);
+      fs.appendFileSync(path.join(logsDir, `${safeChan}.log`), `[${ts}] <${safeRole}> ${text.slice(0, 2000)}\n`);
     } catch (e) {
       console.error("[log] write error:", e.message);
     }
@@ -221,7 +226,9 @@ function createStorage(dataDir, {
 
   function saveSession(id, session) {
     if (!session) return;
-    const file = path.join(sessionsDir, `${id}.json`);
+    const safeId = String(id || "").replace(/[^a-z0-9_#:-]/gi, "_").slice(0, 180);
+    if (!safeId) return;
+    const file = path.join(sessionsDir, `${safeId}.json`);
     fs.writeFileSync(file, JSON.stringify(session, (k, v) => k.startsWith("_") ? undefined : v, 2));
   }
 
@@ -336,7 +343,13 @@ function createStorage(dataDir, {
     if (!fs.existsSync(file)) return [];
     const content = fs.readFileSync(file, "utf-8").trim();
     if (!content) return [];
-    return content.split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    return content.split("\n").filter(Boolean).map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
   }
 
   function parseChannelLogLine(channel, line) {

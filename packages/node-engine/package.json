@@ -1,0 +1,20 @@
+{
+  "name": "@kxkm/node-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Node Engine core scaffold for V2",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "dependencies": {
+    "@kxkm/core": "*"
+  },
+  "scripts": {
+    "status": "node ../../scripts/workspace-package.js node-engine status",
+    "build": "tsc -p tsconfig.json --pretty false",
+    "check": "tsc -p tsconfig.json --noEmit --pretty false"
+  }
+}

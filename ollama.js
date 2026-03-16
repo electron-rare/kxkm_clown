@@ -1,3 +1,8 @@
+const { Ollama } = require("ollama");
+
+const OLLAMA_API_TIMEOUT_MS = 15_000; // 15s for metadata calls
+const OLLAMA_CHAT_TIMEOUT_MS = 5 * 60_000; // 5 min for streaming chat
+
 function createOllamaClient({
   ollamaUrl,
   hiddenModelPrefix,
@@ -5,9 +10,10 @@ function createOllamaClient({
   maxResponseTokensSmall,
   maxResponseChars,
 }) {
+  const client = new Ollama({ host: ollamaUrl });
+
   async function ollamaModels() {
-    const res = await fetch(`${ollamaUrl}/api/tags`);
-    const data = await res.json();
+    const data = await client.list({ signal: AbortSignal.timeout(OLLAMA_API_TIMEOUT_MS) });
     return data.models
       .filter((m) => !m.name.startsWith(hiddenModelPrefix))
       .map((m) => ({
@@ -18,8 +24,7 @@ function createOllamaClient({
   }
 
   async function ollamaAllModels() {
-    const res = await fetch(`${ollamaUrl}/api/tags`);
-    const data = await res.json();
+    const data = await client.list({ signal: AbortSignal.timeout(OLLAMA_API_TIMEOUT_MS) });
     return data.models.map((m) => ({
       name: m.name,
       size: m.details.parameter_size,
@@ -29,9 +34,7 @@ function createOllamaClient({
 
   async function ollamaLoadedModels() {
     try {
-      const res = await fetch(`${ollamaUrl}/api/ps`);
-      if (!res.ok) return [];
-      const data = await res.json();
+      const data = await client.ps({ signal: AbortSignal.timeout(OLLAMA_API_TIMEOUT_MS) });
       return (data.models || []).map((model) => ({
         name: model.name,
         size: model.size || null,
@@ -50,63 +53,43 @@ function createOllamaClient({
       abortSignal.addEventListener("abort", onAbort, { once: true });
     }
 
+    // Global timeout: abort if chat takes too long overall
+    const chatTimer = setTimeout(() => controller.abort(), OLLAMA_CHAT_TIMEOUT_MS);
+
     const numPredict = tokenLimit || (model.includes("mistral") ? maxResponseTokensSmall : maxResponseTokens);
 
-    const res = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    let fullResponse = "";
+
+    try {
+      const stream = await client.chat({
         model,
         messages,
         stream: true,
         options: { num_predict: numPredict },
-      }),
-      signal: controller.signal,
-    });
+        signal: controller.signal,
+      });
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Ollama ${res.status}: ${err.slice(0, 200)}`);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let fullResponse = "";
-    let buf = "";
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-
-        const lines = buf.split("\n");
-        buf = lines.pop();
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const obj = JSON.parse(line);
-            if (obj.message?.content) {
-              fullResponse += obj.message.content;
-              if (fullResponse.length > maxResponseChars) {
-                controller.abort();
-                onToken("", true, null);
-                return fullResponse.slice(0, maxResponseChars);
-              }
-              onToken(obj.message.content, obj.done || false);
-            }
-            if (obj.done) {
-              onToken("", true, {
-                total_duration: obj.total_duration,
-                eval_count: obj.eval_count,
-                eval_duration: obj.eval_duration,
-              });
-            }
-          } catch {}
+      for await (const chunk of stream) {
+        if (chunk.message?.content) {
+          fullResponse += chunk.message.content;
+          if (fullResponse.length > maxResponseChars) {
+            controller.abort();
+            onToken("", true, null);
+            clearTimeout(chatTimer);
+            return fullResponse.slice(0, maxResponseChars);
+          }
+          onToken(chunk.message.content, chunk.done || false);
+        }
+        if (chunk.done) {
+          onToken("", true, {
+            total_duration: chunk.total_duration,
+            eval_count: chunk.eval_count,
+            eval_duration: chunk.eval_duration,
+          });
         }
       }
     } catch (e) {
+      clearTimeout(chatTimer);
       if (e.name === "AbortError") {
         onToken("", true, null);
         return fullResponse;
@@ -114,6 +97,7 @@ function createOllamaClient({
       throw e;
     }
 
+    clearTimeout(chatTimer);
     return fullResponse;
   }
 

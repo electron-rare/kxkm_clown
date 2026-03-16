@@ -1,3 +1,5 @@
+const { createRateLimiter } = require("./rate-limit");
+
 function attachWebSocketHandlers({
   wss,
   getAllPersonas,
@@ -21,6 +23,11 @@ function attachWebSocketHandlers({
     findAvailableNick,
   } = clientRegistry;
   const { enqueueChannel, handleMessage, replayHistory } = chatRouter;
+
+  // Rate limit: 30 messages per 60s per IP
+  const messageLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
+  const sweepInterval = setInterval(() => messageLimiter.sweep(), 5 * 60_000);
+  sweepInterval.unref();
 
   let clientId = 0;
 
@@ -73,11 +80,30 @@ function attachWebSocketHandlers({
     }
     replayHistory(ws, info.channel);
 
+    const MAX_WS_MESSAGE_BYTES = 64 * 1024; // 64 KB max raw WebSocket frame
+    const MAX_TEXT_LENGTH = 8192; // max text field length
+
     ws.on("message", async (raw) => {
+      if (raw.length > MAX_WS_MESSAGE_BYTES) return;
+
       let message;
       try {
         message = JSON.parse(raw);
       } catch {
+        return;
+      }
+
+      if (!message || typeof message !== "object") return;
+      if (typeof message.type !== "string") return;
+      if (message.text !== undefined && typeof message.text !== "string") return;
+      if (typeof message.text === "string" && message.text.length > MAX_TEXT_LENGTH) {
+        ws.send(JSON.stringify({ type: "system", text: "Message trop long (max 8192 caractères)." }));
+        return;
+      }
+
+      // Rate limit by client IP
+      if (!messageLimiter.allow(info.clientIp || `ws_${id}`)) {
+        ws.send(JSON.stringify({ type: "system", text: "Débit limité — patientez quelques secondes." }));
         return;
       }
 

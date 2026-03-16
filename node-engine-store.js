@@ -13,17 +13,29 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function createNodeEngineStore({
   dataDir,
   registry,
 }) {
+  const projectRoot = path.dirname(dataDir);
   const rootDir = path.join(dataDir, "node-engine");
   const graphsDir = path.join(rootDir, "graphs");
   const runsDir = path.join(rootDir, "runs");
   const artifactsDir = path.join(rootDir, "artifacts");
   const cacheDir = path.join(rootDir, "cache");
+  const modelsRoot = path.join(projectRoot, "models");
+  const modelFamilies = {
+    base: path.join(modelsRoot, "base_models"),
+    finetuned: path.join(modelsRoot, "finetuned"),
+    lora: path.join(modelsRoot, "lora"),
+  };
+  const modelIndexFile = path.join(modelsRoot, "registry.json");
 
-  for (const dir of [rootDir, graphsDir, runsDir, artifactsDir, cacheDir]) {
+  for (const dir of [rootDir, graphsDir, runsDir, artifactsDir, cacheDir, modelsRoot, ...Object.values(modelFamilies)]) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
@@ -35,8 +47,12 @@ function createNodeEngineStore({
     return path.join(runsDir, `${id}.json`);
   }
 
-  function artifactSummaryPath(runId) {
-    return path.join(artifactsDir, runId, "summary.json");
+  function runArtifactDir(runId) {
+    return path.join(artifactsDir, runId);
+  }
+
+  function stepArtifactDir(runId, stepId) {
+    return path.join(runArtifactDir(runId), stepId);
   }
 
   function readJson(file, fallback = null) {
@@ -52,12 +68,23 @@ function createNodeEngineStore({
     fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n");
   }
 
+  function loadModelIndex() {
+    return readJson(modelIndexFile, { updatedAt: null, models: [] }) || { updatedAt: null, models: [] };
+  }
+
+  function saveModelIndex(index) {
+    writeJson(modelIndexFile, {
+      updatedAt: new Date().toISOString(),
+      models: index.models || [],
+    });
+  }
+
   function normalizeNode(node, index) {
     return {
       id: cleanText(node?.id, 80) || `node_${index + 1}`,
       type: cleanText(node?.type, 80),
       title: cleanText(node?.title, 120) || cleanText(node?.type, 80) || `Node ${index + 1}`,
-      params: node?.params && typeof node.params === "object" ? clone(node.params) : {},
+      params: isObject(node?.params) ? clone(node.params) : {},
       runtime: cleanText(node?.runtime, 80) || "local_cpu",
     };
   }
@@ -119,8 +146,14 @@ function createNodeEngineStore({
 
     const nodeIds = new Set();
     for (const node of graph.nodes) {
-      if (!node.type || !registry.getNodeType(node.type)) {
+      const nodeType = registry.getNodeType(node.type);
+      if (!node.type || !nodeType) {
         const error = new Error(`Type de node inconnu: ${node.type || "(vide)"}`);
+        error.statusCode = 400;
+        throw error;
+      }
+      if (!nodeType.runtimes.includes(node.runtime)) {
+        const error = new Error(`Runtime ${node.runtime} non supporté pour ${node.type}`);
         error.statusCode = 400;
         throw error;
       }
@@ -141,16 +174,26 @@ function createNodeEngineStore({
     }
   }
 
-  function ensureSeedGraph() {
-    const seed = normalizeGraph(registry.buildSeedGraphTemplate());
-    const file = graphPath(seed.id);
-    if (!fs.existsSync(file)) {
-      writeJson(file, seed);
+  let seedGraphsEnsured = false;
+  function ensureSeedGraphs() {
+    if (seedGraphsEnsured) return;
+    seedGraphsEnsured = true;
+
+    const seedGraphs = typeof registry.listSeedGraphs === "function"
+      ? registry.listSeedGraphs()
+      : [registry.buildSeedGraphTemplate()];
+
+    for (const template of seedGraphs) {
+      const graph = normalizeGraph(template);
+      const file = graphPath(graph.id);
+      if (!fs.existsSync(file)) {
+        writeJson(file, graph);
+      }
     }
   }
 
   function listGraphs() {
-    ensureSeedGraph();
+    ensureSeedGraphs();
     return fs.readdirSync(graphsDir)
       .filter((entry) => entry.endsWith(".json"))
       .map((entry) => readJson(path.join(graphsDir, entry), null))
@@ -160,7 +203,7 @@ function createNodeEngineStore({
   }
 
   function getGraph(id) {
-    ensureSeedGraph();
+    ensureSeedGraphs();
     const graph = readJson(graphPath(id), null);
     if (!graph) {
       const error = new Error(`Graph introuvable: ${id}`);
@@ -188,21 +231,55 @@ function createNodeEngineStore({
     const graph = normalizeGraph({
       ...input,
       id: cleanText(input.id, 80) || randomId("graph"),
-      nodes: input.nodes || [],
-      edges: input.edges || [],
     });
     validateGraph(graph);
     writeJson(graphPath(graph.id), graph);
     return graph;
   }
 
-  function listRuns(limit = 20) {
-    return fs.readdirSync(runsDir)
-      .filter((entry) => entry.endsWith(".json"))
-      .map((entry) => readJson(path.join(runsDir, entry), null))
-      .filter(Boolean)
-      .sort((a, b) => (b.startedAt || "").localeCompare(a.startedAt || ""))
-      .slice(0, limit);
+  function createRun({
+    graph,
+    actor = "admin",
+    runtimes = [],
+  }) {
+    const runId = randomId("run");
+    const createdAt = new Date().toISOString();
+    const run = {
+      id: runId,
+      graphId: graph.id,
+      graphName: graph.name,
+      graphVersion: graph.version,
+      graphSnapshot: clone(graph),
+      actor: cleanText(actor, 80) || "admin",
+      status: "queued",
+      createdAt,
+      queuedAt: createdAt,
+      startedAt: null,
+      finishedAt: null,
+      runtime: graph.runtime,
+      stepCount: graph.nodes.length,
+      runtimes,
+      cancelRequestedAt: null,
+      recoveredAt: null,
+      recoveryCount: 0,
+      steps: graph.nodes.map((node, index) => ({
+        id: node.id,
+        type: node.type,
+        title: node.title,
+        order: index + 1,
+        runtime: node.runtime,
+        status: "queued",
+        outputs: [],
+        error: null,
+        details: null,
+        startedAt: null,
+        finishedAt: null,
+      })),
+      artifactSummary: {},
+    };
+    writeJson(runPath(runId), run);
+    fs.mkdirSync(runArtifactDir(runId), { recursive: true });
+    return run;
   }
 
   function getRun(id) {
@@ -215,48 +292,295 @@ function createNodeEngineStore({
     return run;
   }
 
-  function runGraph(id, { actor = "admin" } = {}) {
-    const graph = getGraph(id);
-    const startedAt = new Date().toISOString();
-    const runId = randomId("run");
-    const steps = graph.nodes.map((node, index) => ({
-      id: node.id,
-      type: node.type,
-      title: node.title,
-      order: index + 1,
-      runtime: node.runtime,
-      status: "completed",
-      artifactType: registry.getNodeType(node.type)?.outputs?.[0] || null,
-    }));
+  function saveRun(run) {
+    writeJson(runPath(run.id), run);
+    return run;
+  }
 
-    const run = {
-      id: runId,
-      graphId: graph.id,
-      graphName: graph.name,
-      actor: cleanText(actor, 80) || "admin",
-      status: "completed",
-      startedAt,
-      finishedAt: new Date().toISOString(),
-      runtime: graph.runtime,
-      stepCount: steps.length,
-      steps,
-      artifactSummary: {
-        datasetArtifacts: steps.filter((step) => step.artifactType === "dataset" || step.artifactType === "dataset_ready").length,
-        modelArtifacts: steps.filter((step) => step.artifactType === "model" || step.artifactType === "registered_model").length,
-        deploymentArtifacts: steps.filter((step) => step.artifactType === "deployment").length,
-      },
-      note: "Run simulé Node Engine V1. Le scheduling réel sera branché dans un lot suivant.",
-    };
+  function listRuns(limit = 20) {
+    return fs.readdirSync(runsDir)
+      .filter((entry) => entry.endsWith(".json"))
+      .map((entry) => readJson(path.join(runsDir, entry), null))
+      .filter(Boolean)
+      .sort((a, b) => (
+        (b.finishedAt || b.startedAt || b.queuedAt || b.createdAt || "")
+          .localeCompare(a.finishedAt || a.startedAt || a.queuedAt || a.createdAt || "")
+      ))
+      .slice(0, limit);
+  }
 
-    writeJson(runPath(runId), run);
-    writeJson(artifactSummaryPath(runId), {
+  function listRunsByStatus(statuses = [], limit = 100) {
+    const wanted = new Set((statuses || []).map((status) => cleanText(status, 40)).filter(Boolean));
+    return fs.readdirSync(runsDir)
+      .filter((entry) => entry.endsWith(".json"))
+      .map((entry) => readJson(path.join(runsDir, entry), null))
+      .filter((run) => run && (!wanted.size || wanted.has(run.status)))
+      .sort((a, b) => (
+        (a.queuedAt || a.createdAt || a.startedAt || "")
+          .localeCompare(b.queuedAt || b.createdAt || b.startedAt || "")
+      ))
+      .slice(0, limit);
+  }
+
+  function updateRun(runId, patch = {}) {
+    const run = getRun(runId);
+    Object.assign(run, patch || {});
+    writeJson(runPath(run.id), run);
+    return run;
+  }
+
+  function markRunStep(runId, stepId, patch) {
+    const run = getRun(runId);
+    const step = run.steps.find((entry) => entry.id === stepId);
+    if (!step) {
+      const error = new Error(`Étape introuvable: ${stepId}`);
+      error.statusCode = 404;
+      throw error;
+    }
+    Object.assign(step, patch || {});
+    if (step.status === "running") run.status = "running";
+    return saveRun(run);
+  }
+
+  function ensureRunStepDir(runId, stepId) {
+    const dir = stepArtifactDir(runId, stepId);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  function writeStepArtifact(runId, stepId, outputName, value) {
+    const dir = ensureRunStepDir(runId, stepId);
+    writeJson(path.join(dir, `${outputName}.json`), value);
+    const run = getRun(runId);
+    const step = run.steps.find((entry) => entry.id === stepId);
+    if (step) {
+      if (!step.outputs.includes(outputName)) step.outputs.push(outputName);
+      saveRun(run);
+    }
+  }
+
+  function readStepOutputs(runId, stepId) {
+    const dir = stepArtifactDir(runId, stepId);
+    if (!fs.existsSync(dir)) return {};
+
+    const outputs = {};
+    for (const entry of fs.readdirSync(dir).sort()) {
+      if (!entry.endsWith(".json")) continue;
+      outputs[entry.replace(/\.json$/, "")] = readJson(path.join(dir, entry), null);
+    }
+    return outputs;
+  }
+
+  function getArtifacts(runId) {
+    const root = runArtifactDir(runId);
+    if (!fs.existsSync(root)) {
+      const error = new Error(`Artifacts introuvables pour ${runId}`);
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const artifacts = [];
+    for (const stepId of fs.readdirSync(root).sort()) {
+      const stepDir = path.join(root, stepId);
+      if (!fs.statSync(stepDir).isDirectory()) continue;
+      for (const entry of fs.readdirSync(stepDir).sort()) {
+        if (!entry.endsWith(".json")) continue;
+        artifacts.push({
+          stepId,
+          name: entry.replace(/\.json$/, ""),
+          file: path.join(stepDir, entry),
+          relativePath: path.relative(root, path.join(stepDir, entry)),
+          payload: readJson(path.join(stepDir, entry), null),
+        });
+      }
+    }
+    return artifacts;
+  }
+
+  function finishRun(runId, status) {
+    const run = getRun(runId);
+    run.status = cleanText(status, 40) || "completed";
+    if (!run.startedAt && run.status !== "queued") {
+      run.startedAt = run.queuedAt || run.createdAt || new Date().toISOString();
+    }
+    run.finishedAt = new Date().toISOString();
+
+    const root = runArtifactDir(runId);
+    const stepArtifacts = {};
+    let totalArtifacts = 0;
+    if (fs.existsSync(root)) {
+      for (const stepId of fs.readdirSync(root)) {
+        const stepDir = path.join(root, stepId);
+        try {
+          if (!fs.statSync(stepDir).isDirectory()) continue;
+        } catch { continue; }
+        const count = fs.readdirSync(stepDir).filter((f) => f.endsWith(".json")).length;
+        if (count) {
+          stepArtifacts[stepId] = count;
+          totalArtifacts += count;
+        }
+      }
+    }
+    run.artifactSummary = { totalArtifacts, stepArtifacts };
+
+    saveRun(run);
+    writeJson(path.join(runArtifactDir(runId), "summary.json"), {
       runId,
-      graphId: graph.id,
+      status: run.status,
+      artifactSummary: run.artifactSummary,
       generatedAt: run.finishedAt,
-      artifacts: run.artifactSummary,
-      note: run.note,
     });
     return run;
+  }
+
+  function requestRunCancel(runId) {
+    const run = getRun(runId);
+    if (["completed", "failed", "cancelled", "blocked", "not_configured"].includes(run.status)) {
+      return run;
+    }
+
+    if (run.status === "queued") {
+      return finishRun(runId, "cancelled");
+    }
+
+    run.cancelRequestedAt = new Date().toISOString();
+    return saveRun(run);
+  }
+
+  function recoverRunnableRuns() {
+    const recoveredAt = new Date().toISOString();
+    const candidates = listRunsByStatus(["queued", "running"], 500);
+    const recovered = [];
+
+    for (const run of candidates) {
+      let touched = false;
+
+      if (run.status === "running") {
+        run.status = "queued";
+        run.recoveredAt = recoveredAt;
+        run.recoveryCount = Number(run.recoveryCount || 0) + 1;
+        touched = true;
+      }
+
+      for (const step of run.steps || []) {
+        if (step.status === "running") {
+          step.status = "queued";
+          step.startedAt = null;
+          step.finishedAt = null;
+          step.error = null;
+          step.details = {
+            ...(isObject(step.details) ? step.details : {}),
+            recoveredAt,
+            recoveredFrom: "running",
+          };
+          touched = true;
+        }
+      }
+
+      if (touched) saveRun(run);
+      recovered.push(run);
+    }
+
+    return recovered;
+  }
+
+  function resolveModelFamily(family) {
+    if (family === "lora") return "lora";
+    if (family === "finetuned") return "finetuned";
+    return "base";
+  }
+
+  function registerModel({
+    alias,
+    modelName,
+    family = "base",
+    sourceRunId,
+    sourceStepId,
+    evaluation = null,
+    metadata = {},
+  }) {
+    const resolvedFamily = resolveModelFamily(family);
+    const index = loadModelIndex();
+    const baseAlias = cleanText(alias, 80) || "candidate";
+    const previousVersions = index.models.filter((entry) => entry.alias === baseAlias);
+    const version = previousVersions.length + 1;
+    const id = `${baseAlias}_v${version}`;
+    const modelDir = path.join(modelFamilies[resolvedFamily], id);
+    fs.mkdirSync(modelDir, { recursive: true });
+
+    const entry = {
+      id,
+      alias: baseAlias,
+      version,
+      family: resolvedFamily,
+      modelName: cleanText(modelName, 120),
+      sourceRunId: cleanText(sourceRunId, 80),
+      sourceStepId: cleanText(sourceStepId, 80),
+      evaluation: evaluation || null,
+      metadata: isObject(metadata) ? clone(metadata) : {},
+      deployedTargets: [],
+      createdAt: new Date().toISOString(),
+      modelDir: path.relative(projectRoot, modelDir),
+    };
+
+    writeJson(path.join(modelDir, "metadata.json"), entry);
+    index.models = index.models.filter((item) => item.id !== id).concat(entry);
+    saveModelIndex(index);
+    return entry;
+  }
+
+  function listModels(limit = 50) {
+    return loadModelIndex().models
+      .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+      .slice(0, limit);
+  }
+
+  function getModel(id) {
+    const model = loadModelIndex().models.find((entry) => entry.id === id) || null;
+    if (!model) {
+      const error = new Error(`Modèle introuvable: ${id}`);
+      error.statusCode = 404;
+      throw error;
+    }
+    return model;
+  }
+
+  function registerDeployment({
+    runId,
+    stepId,
+    target,
+    registeredModelId,
+    alias,
+    modelName,
+  }) {
+    const deployment = {
+      id: randomId("deploy"),
+      target: cleanText(target, 40) || "local",
+      registeredModelId: cleanText(registeredModelId, 80),
+      alias: cleanText(alias, 80),
+      modelName: cleanText(modelName, 120),
+      createdAt: new Date().toISOString(),
+      mode: "manifest_only",
+    };
+
+    const index = loadModelIndex();
+    const model = index.models.find((entry) => entry.id === deployment.registeredModelId);
+    if (!model) {
+      const error = new Error(`Modèle introuvable: ${deployment.registeredModelId}`);
+      error.statusCode = 404;
+      throw error;
+    }
+    const nextModel = {
+      ...model,
+      deployedTargets: [...new Set([...(model.deployedTargets || []), deployment.target])],
+    };
+
+    writeJson(path.join(runArtifactDir(runId), `${stepId}_deployment.json`), deployment);
+
+    index.models = index.models.map((entry) => entry.id === nextModel.id ? nextModel : entry);
+    saveModelIndex(index);
+    writeJson(path.join(modelFamilies[nextModel.family], nextModel.id, "metadata.json"), nextModel);
+    return deployment;
   }
 
   function getOverview() {
@@ -267,27 +591,43 @@ function createNodeEngineStore({
       nodeTypes: registry.listNodeTypes(),
       graphs,
       runs,
-      runtimes: ["local_cpu", "local_gpu", "remote_gpu", "cluster", "cloud_api"],
+      models: listModels(10),
+      runtimes: [],
       storage: {
         rootDir,
         graphsDir,
         runsDir,
         artifactsDir,
         cacheDir,
+        modelsRoot,
       },
     };
   }
 
-  ensureSeedGraph();
+  ensureSeedGraphs();
 
   return {
     listGraphs,
     getGraph,
     saveGraph,
     createGraph,
-    listRuns,
+    createRun,
     getRun,
-    runGraph,
+    listRuns,
+    listRunsByStatus,
+    updateRun,
+    markRunStep,
+    writeStepArtifact,
+    readStepOutputs,
+    ensureRunStepDir,
+    finishRun,
+    requestRunCancel,
+    recoverRunnableRuns,
+    getArtifacts,
+    registerModel,
+    listModels,
+    getModel,
+    registerDeployment,
     getOverview,
   };
 }

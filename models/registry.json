@@ -1,0 +1,1085 @@
+{
+  "updatedAt": "2026-03-15T22:12:03.651Z",
+  "models": [
+    {
+      "id": "starter_local_eval_v1",
+      "alias": "starter_local_eval",
+      "version": 1,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773588138132_90symv",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T15:22:18.139Z",
+      "modelDir": "models/base_models/starter_local_eval_v1"
+    },
+    {
+      "id": "starter_local_eval_v2",
+      "alias": "starter_local_eval",
+      "version": 2,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773588186916_rokgs6",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T15:23:06.924Z",
+      "modelDir": "models/base_models/starter_local_eval_v2"
+    },
+    {
+      "id": "starter_local_eval_v3",
+      "alias": "starter_local_eval",
+      "version": 3,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773588672680_mee4xa",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T15:31:12.687Z",
+      "modelDir": "models/base_models/starter_local_eval_v3"
+    },
+    {
+      "id": "starter_local_eval_v4",
+      "alias": "starter_local_eval",
+      "version": 4,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602039321_b2xmr0",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:13:59.544Z",
+      "modelDir": "models/base_models/starter_local_eval_v4"
+    },
+    {
+      "id": "starter_local_eval_v5",
+      "alias": "starter_local_eval",
+      "version": 5,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602039976_fb3hfj",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:14:00.234Z",
+      "modelDir": "models/base_models/starter_local_eval_v5"
+    },
+    {
+      "id": "starter_local_eval_v6",
+      "alias": "starter_local_eval",
+      "version": 6,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602039977_vgy654",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:14:00.522Z",
+      "modelDir": "models/base_models/starter_local_eval_v6"
+    },
+    {
+      "id": "starter_local_eval_v7",
+      "alias": "starter_local_eval",
+      "version": 7,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602062597_hcox7u",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:14:22.819Z",
+      "modelDir": "models/base_models/starter_local_eval_v7"
+    },
+    {
+      "id": "starter_local_eval_v8",
+      "alias": "starter_local_eval",
+      "version": 8,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602063251_aoi0en",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:14:23.510Z",
+      "modelDir": "models/base_models/starter_local_eval_v8"
+    },
+    {
+      "id": "starter_local_eval_v9",
+      "alias": "starter_local_eval",
+      "version": 9,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602063252_f09167",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:14:23.801Z",
+      "modelDir": "models/base_models/starter_local_eval_v9"
+    },
+    {
+      "id": "starter_local_eval_v10",
+      "alias": "starter_local_eval",
+      "version": 10,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602107165_adcf4g",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:15:07.386Z",
+      "modelDir": "models/base_models/starter_local_eval_v10"
+    },
+    {
+      "id": "starter_local_eval_v11",
+      "alias": "starter_local_eval",
+      "version": 11,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602107817_ivjvdx",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:15:08.074Z",
+      "modelDir": "models/base_models/starter_local_eval_v11"
+    },
+    {
+      "id": "starter_local_eval_v12",
+      "alias": "starter_local_eval",
+      "version": 12,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602107819_htc05d",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:15:08.365Z",
+      "modelDir": "models/base_models/starter_local_eval_v12"
+    },
+    {
+      "id": "starter_local_eval_v13",
+      "alias": "starter_local_eval",
+      "version": 13,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602132395_8i9fsd",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:15:32.615Z",
+      "modelDir": "models/base_models/starter_local_eval_v13"
+    },
+    {
+      "id": "starter_local_eval_v14",
+      "alias": "starter_local_eval",
+      "version": 14,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602133045_ix5t6f",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:15:33.309Z",
+      "modelDir": "models/base_models/starter_local_eval_v14"
+    },
+    {
+      "id": "starter_local_eval_v15",
+      "alias": "starter_local_eval",
+      "version": 15,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602133046_upb4l2",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:15:33.599Z",
+      "modelDir": "models/base_models/starter_local_eval_v15"
+    },
+    {
+      "id": "starter_local_eval_v16",
+      "alias": "starter_local_eval",
+      "version": 16,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602199331_2ffkex",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:16:39.551Z",
+      "modelDir": "models/base_models/starter_local_eval_v16"
+    },
+    {
+      "id": "starter_local_eval_v17",
+      "alias": "starter_local_eval",
+      "version": 17,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602199984_996yc7",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:16:40.239Z",
+      "modelDir": "models/base_models/starter_local_eval_v17"
+    },
+    {
+      "id": "starter_local_eval_v18",
+      "alias": "starter_local_eval",
+      "version": 18,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773602199986_wifavo",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:16:40.528Z",
+      "modelDir": "models/base_models/starter_local_eval_v18"
+    },
+    {
+      "id": "starter_local_eval_v19",
+      "alias": "starter_local_eval",
+      "version": 19,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773604571765_3u1ox1",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:56:12.257Z",
+      "modelDir": "models/base_models/starter_local_eval_v19"
+    },
+    {
+      "id": "starter_local_eval_v20",
+      "alias": "starter_local_eval",
+      "version": 20,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773604573026_56m38n",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:56:13.514Z",
+      "modelDir": "models/base_models/starter_local_eval_v20"
+    },
+    {
+      "id": "starter_local_eval_v21",
+      "alias": "starter_local_eval",
+      "version": 21,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773604573027_h72g6l",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:56:14.165Z",
+      "modelDir": "models/base_models/starter_local_eval_v21"
+    },
+    {
+      "id": "starter_local_eval_v22",
+      "alias": "starter_local_eval",
+      "version": 22,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773604760322_trbbyh",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:59:20.815Z",
+      "modelDir": "models/base_models/starter_local_eval_v22"
+    },
+    {
+      "id": "starter_local_eval_v23",
+      "alias": "starter_local_eval",
+      "version": 23,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773604761585_epxa66",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:59:22.073Z",
+      "modelDir": "models/base_models/starter_local_eval_v23"
+    },
+    {
+      "id": "starter_local_eval_v24",
+      "alias": "starter_local_eval",
+      "version": 24,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773604761586_p1d1s2",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T19:59:22.725Z",
+      "modelDir": "models/base_models/starter_local_eval_v24"
+    },
+    {
+      "id": "starter_local_eval_v25",
+      "alias": "starter_local_eval",
+      "version": 25,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773608512644_0wo7y8",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T21:01:53.136Z",
+      "modelDir": "models/base_models/starter_local_eval_v25"
+    },
+    {
+      "id": "starter_local_eval_v26",
+      "alias": "starter_local_eval",
+      "version": 26,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773608513910_mc5i0c",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T21:01:54.396Z",
+      "modelDir": "models/base_models/starter_local_eval_v26"
+    },
+    {
+      "id": "starter_local_eval_v27",
+      "alias": "starter_local_eval",
+      "version": 27,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773608513911_9utgy9",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T21:01:55.047Z",
+      "modelDir": "models/base_models/starter_local_eval_v27"
+    },
+    {
+      "id": "starter_local_eval_v28",
+      "alias": "starter_local_eval",
+      "version": 28,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773612721173_pyw9bt",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T22:12:01.662Z",
+      "modelDir": "models/base_models/starter_local_eval_v28"
+    },
+    {
+      "id": "starter_local_eval_v29",
+      "alias": "starter_local_eval",
+      "version": 29,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773612722434_v75br4",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T22:12:02.920Z",
+      "modelDir": "models/base_models/starter_local_eval_v29"
+    },
+    {
+      "id": "starter_local_eval_v30",
+      "alias": "starter_local_eval",
+      "version": 30,
+      "family": "base",
+      "modelName": "mistral:7b",
+      "sourceRunId": "run_1773612722435_mg65uy",
+      "sourceStepId": "register",
+      "evaluation": {
+        "kind": "benchmark",
+        "model": "mistral:7b",
+        "score": 1,
+        "cases": [
+          {
+            "prompt": "Decris la matiere sonore de ce texte.",
+            "output": "smoke",
+            "score": 1
+          },
+          {
+            "prompt": "Resume la posture editoriale attendue.",
+            "output": "smoke",
+            "score": 1
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "metadata": {
+        "graphId": "starter_local_eval",
+        "graphName": "Starter Local Eval"
+      },
+      "deployedTargets": [
+        "local"
+      ],
+      "createdAt": "2026-03-15T22:12:03.571Z",
+      "modelDir": "models/base_models/starter_local_eval_v30"
+    }
+  ]
+}

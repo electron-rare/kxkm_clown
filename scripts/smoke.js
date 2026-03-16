@@ -180,6 +180,7 @@ async function fetchJson(url, options = {}) {
   return {
     ok: response.ok,
     status: response.status,
+    headers: response.headers,
     body,
   };
 }
@@ -189,7 +190,150 @@ async function fetchText(url, options = {}) {
   return {
     ok: response.ok,
     status: response.status,
+    headers: response.headers,
     body: await response.text(),
+  };
+}
+
+function mergeHeaders(...headerSets) {
+  const headers = new Headers();
+  for (const source of headerSets) {
+    if (!source) continue;
+    const next = source instanceof Headers ? source : new Headers(source);
+    next.forEach((value, key) => headers.set(key, value));
+  }
+  return headers;
+}
+
+function readSetCookies(headers) {
+  if (typeof headers?.getSetCookie === "function") {
+    return headers.getSetCookie();
+  }
+  const single = headers?.get?.("set-cookie");
+  return single ? [single] : [];
+}
+
+function applySetCookies(cookieJar, headers) {
+  if (!cookieJar) return;
+
+  for (const rawCookie of readSetCookies(headers)) {
+    const pair = String(rawCookie || "").split(";")[0];
+    const divider = pair.indexOf("=");
+    if (divider <= 0) continue;
+    const name = pair.slice(0, divider).trim();
+    const value = pair.slice(divider + 1).trim();
+    if (!name) continue;
+    cookieJar.set(name, value);
+  }
+}
+
+function serializeCookies(cookieJar) {
+  return [...cookieJar.entries()]
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ");
+}
+
+async function fetchJsonWithCookies(url, options = {}, cookieJar = null) {
+  const headers = mergeHeaders(options.headers);
+  if (cookieJar?.size) {
+    headers.set("cookie", serializeCookies(cookieJar));
+  }
+  const result = await fetchJson(url, {
+    ...options,
+    headers,
+  });
+  applySetCookies(cookieJar, result.headers);
+  return result;
+}
+
+async function fetchTextWithCookies(url, options = {}, cookieJar = null) {
+  const headers = mergeHeaders(options.headers);
+  if (cookieJar?.size) {
+    headers.set("cookie", serializeCookies(cookieJar));
+  }
+  const result = await fetchText(url, {
+    ...options,
+    headers,
+  });
+  applySetCookies(cookieJar, result.headers);
+  return result;
+}
+
+function createAdminClient(appUrl, adminToken) {
+  const cookieJar = new Map();
+  const authMode = "session";
+  const sessionEndpoint = "/api/admin/session";
+
+  function buildHeaders(headers, method = "GET") {
+    const merged = mergeHeaders(headers);
+    if (!["GET", "HEAD", "OPTIONS"].includes(String(method || "GET").toUpperCase())) {
+      merged.set("origin", appUrl);
+      merged.set("referer", `${appUrl}/admin/index.html#/dashboard`);
+    }
+    return merged;
+  }
+
+  async function getSession() {
+    return fetchJsonWithCookies(`${appUrl}${sessionEndpoint}`, {}, cookieJar);
+  }
+
+  async function login(actor = "smoke_admin_ui") {
+    return fetchJsonWithCookies(`${appUrl}${sessionEndpoint}`, {
+      method: "POST",
+      headers: buildHeaders({ "content-type": "application/json" }, "POST"),
+      body: JSON.stringify({
+        token: adminToken,
+        actor,
+      }),
+    }, cookieJar);
+  }
+
+  async function logout() {
+    return fetchJsonWithCookies(`${appUrl}${sessionEndpoint}`, {
+      method: "DELETE",
+      headers: buildHeaders({}, "DELETE"),
+    }, cookieJar);
+  }
+
+  async function bootstrap(actor = "smoke_admin_ui") {
+    const existingSession = await getSession();
+    if (existingSession.ok && existingSession.body?.authenticated) {
+      return existingSession;
+    }
+    return login(actor);
+  }
+
+  return {
+    get authMode() {
+      return authMode;
+    },
+    get sessionEndpoint() {
+      return sessionEndpoint;
+    },
+    async bootstrap() {
+      return bootstrap();
+    },
+    async login(actor) {
+      return login(actor);
+    },
+    async getSession() {
+      return getSession();
+    },
+    async logout() {
+      return logout();
+    },
+    async fetchJson(relativePath, options = {}) {
+      return fetchJsonWithCookies(`${appUrl}${relativePath}`, {
+        ...options,
+        headers: buildHeaders(options.headers, options.method),
+      }, cookieJar);
+    },
+    async fetchText(relativePath, options = {}) {
+      return fetchTextWithCookies(`${appUrl}${relativePath}`, {
+        ...options,
+        headers: buildHeaders(options.headers, options.method),
+      }, cookieJar);
+    },
   };
 }
 
@@ -205,6 +349,39 @@ async function waitForHttp(url, timeoutMs = 10000) {
   }
 
   throw new Error(`Timeout en attente de ${url}`);
+}
+
+function extractOverviewScheduler(overview) {
+  return overview?.queue
+    || overview?.runtime?.queue
+    || overview?.scheduler
+    || null;
+}
+
+async function tryCancelRun(adminClient, runId) {
+  const candidates = [
+    { method: "POST", path: `/api/admin/node-engine/runs/${encodeURIComponent(runId)}/cancel` },
+    { method: "POST", path: `/api/admin/node-engine/runs/${encodeURIComponent(runId)}/abort` },
+    { method: "DELETE", path: `/api/admin/node-engine/runs/${encodeURIComponent(runId)}` },
+  ];
+
+  for (const candidate of candidates) {
+    const result = await adminClient.fetchJson(candidate.path, {
+      method: candidate.method,
+      headers: !["GET", "HEAD", "OPTIONS"].includes(candidate.method)
+        ? { "content-type": "application/json" }
+        : undefined,
+      body: candidate.method === "POST" ? JSON.stringify({}) : undefined,
+    });
+
+    if ([404, 405].includes(result.status)) continue;
+    return {
+      ...candidate,
+      result,
+    };
+  }
+
+  return null;
 }
 
 function createMessageCollector(ws) {
@@ -359,6 +536,8 @@ async function main() {
           HOST: "0.0.0.0",
           OLLAMA_URL: fakeOllamaUrl,
           ADMIN_BOOTSTRAP_TOKEN: ADMIN_TOKEN,
+          NODE_ENGINE_MAX_CONCURRENCY: "1",
+          NODE_ENGINE_STEP_DELAY_MS: "80",
           ...envOverrides,
         },
         stdio: ["ignore", "pipe", "pipe"],
@@ -372,6 +551,21 @@ async function main() {
       });
 
       await waitForHttp(`${appUrl}/api/status`);
+    }
+
+    async function waitForRunStatus(adminClientInstance, runId, predicate, timeoutMs = 12000) {
+      const deadline = Date.now() + timeoutMs;
+      let lastRun = null;
+
+      while (Date.now() < deadline) {
+        const result = await adminClientInstance.fetchJson(`/api/admin/node-engine/runs/${encodeURIComponent(runId)}`);
+        assert(result.ok, `Le run node-engine ${runId} doit rester lisible pendant le polling`);
+        lastRun = result.body;
+        if (predicate(lastRun)) return lastRun;
+        await delay(120);
+      }
+
+      throw new Error(`Timeout Node Engine run ${runId}: ${JSON.stringify(lastRun)}`);
     }
 
     fakeOllama = await startFakeOllamaServer(fakeOllamaPort);
@@ -402,21 +596,50 @@ async function main() {
     assert(channels.body.some((channel) => channel.name === "#qwen25" && channel.type === "dedicated"), "#qwen25 doit être exposé");
 
     const forbiddenAdmin = await fetchJson(`${appUrl}/api/admin/personas`);
-    assert(forbiddenAdmin.status === 403, `Sans token, l'admin doit répondre 403, reçu: ${forbiddenAdmin.status}`);
+    assert([401, 403].includes(forbiddenAdmin.status), `Sans auth admin, l'admin doit répondre 401/403, reçu: ${forbiddenAdmin.status}`);
 
     const invalidAdmin = await fetchJson(`${appUrl}/api/admin/personas`, {
       headers: { "x-admin-bootstrap-token": "bad-token" },
     });
-    assert(invalidAdmin.status === 403, `Avec un mauvais token, l'admin doit répondre 403, reçu: ${invalidAdmin.status}`);
+    assert([401, 403].includes(invalidAdmin.status), `Avec un mauvais token, l'admin doit refuser l'accès, reçu: ${invalidAdmin.status}`);
 
-    const adminHeaders = { "x-admin-bootstrap-token": ADMIN_TOKEN };
-    const adminPersonas = await fetchJson(`${appUrl}/api/admin/personas`, { headers: adminHeaders });
+    let adminClient = createAdminClient(appUrl, ADMIN_TOKEN);
+    const adminSessionBeforeLogin = await adminClient.getSession();
+    assert(adminSessionBeforeLogin.status === 401, `Avant login, /api/admin/session doit répondre 401, reçu: ${adminSessionBeforeLogin.status}`);
+
+    const adminLogin = await adminClient.login("smoke_admin_ui");
+    assert(adminLogin.ok, "Le login session admin doit réussir");
+    assert(adminLogin.body?.authenticated === true, "Le login session admin doit répondre authenticated=true");
+    assert(adminClient.authMode === "session", `L'admin smoke doit utiliser la session cookie, reçu: ${adminClient.authMode}`);
+
+    const adminSessionAfterLogin = await adminClient.getSession();
+    assert(adminSessionAfterLogin.ok, "La session admin doit être lisible après login");
+    assert(adminSessionAfterLogin.body?.authenticated === true, "La session admin doit rester authentifiée après login");
+
+    const adminLogout = await adminClient.logout();
+    assert(adminLogout.ok, "Le logout session admin doit réussir");
+    assert(adminLogout.body?.authenticated === false, "Le logout doit répondre authenticated=false");
+
+    const adminSessionAfterLogout = await adminClient.getSession();
+    assert(adminSessionAfterLogout.status === 401, `Après logout, /api/admin/session doit répondre 401, reçu: ${adminSessionAfterLogout.status}`);
+
+    const adminPersonasAfterLogout = await adminClient.fetchJson("/api/admin/personas");
+    assert([401, 403].includes(adminPersonasAfterLogout.status), `Après logout, l'admin doit refuser l'accès, reçu: ${adminPersonasAfterLogout.status}`);
+
+    const adminRelogin = await adminClient.login("smoke_admin_ui_relogin");
+    assert(adminRelogin.ok, "Le relogin session admin doit réussir");
+
+    const adminSessionAfterRelogin = await adminClient.getSession();
+    assert(adminSessionAfterRelogin.ok, "La session admin doit être relisible après relogin");
+    assert(adminSessionAfterRelogin.body?.authenticated === true, "Le relogin doit rétablir une session authentifiée");
+
+    const adminPersonas = await adminClient.fetchJson("/api/admin/personas");
     assert(adminPersonas.ok, "Le endpoint admin /api/admin/personas doit répondre avec le bon token");
 
     const adminPharmacius = adminPersonas.body.find((persona) => persona.id === "pharmacius");
     assert(adminPharmacius, "Pharmacius doit être présent dans le registre admin");
 
-    const runtimeStatus = await fetchJson(`${appUrl}/api/admin/runtime`, { headers: adminHeaders });
+    const runtimeStatus = await adminClient.fetchJson("/api/admin/runtime");
     assert(runtimeStatus.ok, "Le endpoint admin /api/admin/runtime doit répondre");
     assert(Array.isArray(runtimeStatus.body.channels), "Le runtime admin doit exposer les canaux");
     assert(runtimeStatus.body.network?.host === "0.0.0.0", `Le runtime admin doit exposer le host réseau, reçu: ${runtimeStatus.body.network?.host}`);
@@ -434,40 +657,156 @@ async function main() {
     assert(!fs.existsSync(staleSessionPath), "Le snapshot expiré doit être supprimé du disque");
     assert(!fs.existsSync(staleLogPath), "Le log expiré doit être supprimé du disque");
 
-    const nodeEngineOverview = await fetchJson(`${appUrl}/api/admin/node-engine/overview`, { headers: adminHeaders });
+    const nodeEngineOverview = await adminClient.fetchJson("/api/admin/node-engine/overview");
     assert(nodeEngineOverview.ok, "Le endpoint admin /api/admin/node-engine/overview doit répondre");
     assert(Array.isArray(nodeEngineOverview.body.families) && nodeEngineOverview.body.families.length >= 6, "Le Node Engine doit exposer ses familles de nodes");
     assert(Array.isArray(nodeEngineOverview.body.graphs) && nodeEngineOverview.body.graphs.length >= 1, "Le Node Engine doit exposer au moins un graphe");
     assert(Array.isArray(nodeEngineOverview.body.nodeTypes) && nodeEngineOverview.body.nodeTypes.length >= 10, "Le Node Engine doit exposer sa palette initiale de nodes");
+    const nodeEngineQueueState = extractOverviewScheduler(nodeEngineOverview.body);
+    assert(nodeEngineQueueState?.started === true, "Le Node Engine doit exposer une queue démarrée");
+    assert(nodeEngineQueueState?.maxConcurrency === 1, `La concurrence Node Engine attendue est 1, reçu: ${nodeEngineQueueState?.maxConcurrency}`);
+    assert(typeof nodeEngineQueueState?.activeCount === "number", "Le Node Engine doit exposer activeCount");
+    assert(typeof nodeEngineQueueState?.queuedCount === "number", "Le Node Engine doit exposer queuedCount");
+    assert(Array.isArray(nodeEngineQueueState?.activeRunIds), "Le Node Engine doit exposer activeRunIds");
+    assert(Array.isArray(nodeEngineQueueState?.queuedRunIds), "Le Node Engine doit exposer queuedRunIds");
 
-    const nodeEngineGraphs = await fetchJson(`${appUrl}/api/admin/node-engine/graphs`, { headers: adminHeaders });
+    const nodeEngineNodeTypes = await adminClient.fetchJson("/api/admin/node-engine/node-types");
+    assert(nodeEngineNodeTypes.ok, "Le endpoint admin /api/admin/node-engine/node-types doit répondre");
+    assert(Array.isArray(nodeEngineNodeTypes.body.families) && nodeEngineNodeTypes.body.families.length >= 6, "Le catalogue node-engine doit exposer ses familles");
+    assert(Array.isArray(nodeEngineNodeTypes.body.nodeTypes) && nodeEngineNodeTypes.body.nodeTypes.length >= 10, "Le catalogue node-engine doit exposer ses node types");
+
+    const nodeEngineGraphs = await adminClient.fetchJson("/api/admin/node-engine/graphs");
     assert(nodeEngineGraphs.ok, "Le endpoint admin /api/admin/node-engine/graphs doit répondre");
     assert(nodeEngineGraphs.body.some((graph) => graph.id === "starter_llm_training"), "Le graphe seed starter_llm_training doit être présent");
+    assert(nodeEngineGraphs.body.some((graph) => graph.id === "starter_local_eval"), "Le graphe seed starter_local_eval doit être présent");
 
-    const nodeEngineRun = await fetchJson(`${appUrl}/api/admin/node-engine/graphs/starter_llm_training/run`, {
+    const nodeEngineRun = await adminClient.fetchJson("/api/admin/node-engine/graphs/starter_local_eval/run", {
       method: "POST",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify({ actor: "smoke" }),
     });
-    assert(nodeEngineRun.status === 201, `Le POST run node-engine doit répondre 201, reçu: ${nodeEngineRun.status}`);
-    assert(nodeEngineRun.body.run.status === "completed", `Le run Node Engine V1 doit être simulé en completed, reçu: ${nodeEngineRun.body.run.status}`);
-    assert(nodeEngineRun.body.run.stepCount >= 6, `Le run Node Engine doit exposer ses étapes, reçu: ${nodeEngineRun.body.run.stepCount}`);
+    assert([200, 201, 202].includes(nodeEngineRun.status), `Le POST run node-engine doit répondre 200/201/202, reçu: ${nodeEngineRun.status}`);
+    assert(nodeEngineRun.body?.run?.id, "Le POST run node-engine doit exposer un run id");
+    assert(
+      String(nodeEngineRun.body?.run?.status || "").toLowerCase() === "queued",
+      `Le graphe local starter_local_eval doit entrer en queue, reçu: ${nodeEngineRun.body?.run?.status}`
+    );
+    assert(nodeEngineRun.body.run.stepCount >= 1, `Le run Node Engine doit exposer ses étapes, reçu: ${nodeEngineRun.body.run.stepCount}`);
 
-    const nodeEngineRuns = await fetchJson(`${appUrl}/api/admin/node-engine/runs`, { headers: adminHeaders });
+    const nodeEngineQueuedRun = await adminClient.fetchJson("/api/admin/node-engine/graphs/starter_local_eval/run", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ actor: "smoke_queued" }),
+    });
+    assert([200, 201, 202].includes(nodeEngineQueuedRun.status), `Le second POST run node-engine doit répondre 200/201/202, reçu: ${nodeEngineQueuedRun.status}`);
+    assert(nodeEngineQueuedRun.body?.run?.id, "Le second POST run node-engine doit exposer un run id");
+    assert(
+      String(nodeEngineQueuedRun.body?.run?.status || "").toLowerCase() === "queued",
+      `Le second run Node Engine doit aussi entrer en queue, reçu: ${nodeEngineQueuedRun.body?.run?.status}`
+    );
+
+    const nodeEngineRunRunning = await waitForRunStatus(
+      adminClient,
+      nodeEngineRun.body.run.id,
+      (run) => ["running", "completed"].includes(String(run.status || "").toLowerCase())
+    );
+    assert(
+      ["running", "completed"].includes(String(nodeEngineRunRunning.status || "").toLowerCase()),
+      `Le run local doit progresser vers running/completed, reçu: ${nodeEngineRunRunning.status}`
+    );
+
+    const nodeEngineQueueOverview = await adminClient.fetchJson("/api/admin/node-engine/overview");
+    assert(nodeEngineQueueOverview.ok, "Le Node Engine doit rester lisible pendant la queue");
+    const nodeEngineQueuedState = extractOverviewScheduler(nodeEngineQueueOverview.body);
+    assert(nodeEngineQueuedState?.queuedCount >= 1, "Le second run doit rester visible en file");
+    assert(nodeEngineQueuedState?.activeRunIds?.includes(nodeEngineRun.body.run.id), "Le premier run doit apparaître comme actif");
+    assert(nodeEngineQueuedState?.queuedRunIds?.includes(nodeEngineQueuedRun.body.run.id), "Le second run doit apparaître comme queued");
+
+    const cancelledQueuedRun = await tryCancelRun(adminClient, nodeEngineQueuedRun.body.run.id);
+    assert(cancelledQueuedRun?.result?.ok, "L'annulation d'un run queued doit réussir");
+    assert(cancelledQueuedRun.result.body?.run?.id === nodeEngineQueuedRun.body.run.id, "Le cancel queued doit retourner le run visé");
+    assert(
+      ["queued", "running", "cancelled"].includes(String(cancelledQueuedRun.result.body?.run?.status || "").toLowerCase()),
+      `Le cancel queued doit répondre avec un statut réaliste, reçu: ${cancelledQueuedRun.result.body?.run?.status}`
+    );
+
+    const cancelledQueuedRunDetails = await waitForRunStatus(
+      adminClient,
+      nodeEngineQueuedRun.body.run.id,
+      (run) => String(run.status || "").toLowerCase() === "cancelled"
+    );
+    assert(cancelledQueuedRunDetails.status === "cancelled", "Le run queued annulé doit finir cancelled");
+
+    const nodeEngineRunDetails = await waitForRunStatus(
+      adminClient,
+      nodeEngineRun.body.run.id,
+      (run) => ["completed", "failed", "cancelled", "not_configured", "blocked"].includes(String(run.status || "").toLowerCase())
+    );
+    assert(nodeEngineRunDetails.graphId === "starter_local_eval", `Le détail du run doit pointer sur starter_local_eval, reçu: ${nodeEngineRunDetails.graphId}`);
+    assert(
+      String(nodeEngineRunDetails.status || "").toLowerCase() === "completed",
+      `Le détail du run node-engine local doit exposer completed, reçu: ${nodeEngineRunDetails.status}`
+    );
+    assert(nodeEngineRunDetails.steps.some((step) => step.status === "completed"), "Le run Node Engine local doit exposer des étapes réellement complétées");
+
+    const nodeEngineTrainingRun = await adminClient.fetchJson("/api/admin/node-engine/graphs/starter_llm_training/run", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ actor: "smoke_training" }),
+    });
+    assert([200, 201, 202].includes(nodeEngineTrainingRun.status), `Le POST run training node-engine doit répondre 200/201/202, reçu: ${nodeEngineTrainingRun.status}`);
+    assert(nodeEngineTrainingRun.body?.run?.id, "Le POST run training node-engine doit exposer un run id");
+    assert(String(nodeEngineTrainingRun.body?.run?.status || "").toLowerCase() === "queued", "Le run training doit d'abord entrer en queue");
+
+    const nodeEngineTrainingRunDetails = await waitForRunStatus(
+      adminClient,
+      nodeEngineTrainingRun.body.run.id,
+      (run) => ["not_configured", "completed", "failed", "blocked", "cancelled"].includes(String(run.status || "").toLowerCase())
+    );
+    assert(
+      ["not_configured", "completed", "failed", "blocked"].includes(String(nodeEngineTrainingRunDetails.status || "").toLowerCase()),
+      `Le run training Node Engine doit exposer un statut réaliste, reçu: ${nodeEngineTrainingRunDetails.status}`
+    );
+
+    const nodeEngineArtifacts = await adminClient.fetchJson(`/api/admin/node-engine/artifacts/${encodeURIComponent(nodeEngineRun.body.run.id)}`);
+    assert(nodeEngineArtifacts.ok, "Les artifacts d'un run node-engine doivent être lisibles");
+    assert(nodeEngineArtifacts.body.length >= 1, "Le run node-engine local doit produire au moins un artifact");
+
+    const nodeEngineModels = await adminClient.fetchJson("/api/admin/node-engine/models");
+    assert(nodeEngineModels.ok, "Le registry local de modèles node-engine doit être lisible");
+    assert(nodeEngineModels.body.some((model) => model.alias === "starter_local_eval"), "Le registry local doit exposer le modèle starter_local_eval");
+
+    const nodeEngineModel = await adminClient.fetchJson(`/api/admin/node-engine/models/${encodeURIComponent(nodeEngineModels.body[0].id)}`);
+    assert(nodeEngineModel.ok, "Le détail d'un modèle node-engine doit être lisible");
+
+    const nodeEnginePreview = await adminClient.fetchJson("/api/admin/node-engine/nodes/preview", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ type: "lora_training", runtime: "local_gpu", params: { baseModel: "mistral:7b" } }),
+    });
+    assert(nodeEnginePreview.ok, "Le preview d'un node node-engine doit répondre");
+    assert(nodeEnginePreview.body.runtime?.id === "local_gpu", "Le preview node-engine doit exposer le runtime demandé");
+
+    const nodeEngineRuns = await adminClient.fetchJson("/api/admin/node-engine/runs");
     assert(nodeEngineRuns.ok, "Le endpoint admin /api/admin/node-engine/runs doit répondre");
     assert(nodeEngineRuns.body.some((run) => run.id === nodeEngineRun.body.run.id), "Le run Node Engine doit être relisible après exécution");
 
-    const adminChannels = await fetchJson(`${appUrl}/api/admin/channels`, { headers: adminHeaders });
+    const adminChannels = await adminClient.fetchJson("/api/admin/channels");
     assert(adminChannels.ok, "Le endpoint admin /api/admin/channels doit répondre");
     assert(adminChannels.body.some((channel) => channel.name === "#admin"), "Le registre admin des canaux doit contenir #admin");
 
-    const trainingExport = await fetchJson(`${appUrl}/api/training/export`, { headers: adminHeaders });
+    const trainingExport = await adminClient.fetchJson("/api/training/export");
     assert(trainingExport.ok, "L'export training doit être accessible avec le token admin");
 
-    const dpoExport = await fetchJson(`${appUrl}/api/dpo/export`, { headers: adminHeaders });
+    const dpoExport = await adminClient.fetchJson("/api/dpo/export");
     assert(dpoExport.ok, "L'export DPO doit être accessible avec le token admin");
 
     const customSourcePayload = {
@@ -489,10 +828,9 @@ async function main() {
         },
       ],
     };
-    const createdPersona = await fetchJson(`${appUrl}/api/admin/personas/from-source`, {
+    const createdPersona = await adminClient.fetchJson("/api/admin/personas/from-source", {
       method: "POST",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify(customSourcePayload),
@@ -509,33 +847,30 @@ async function main() {
     );
     assert(publicPersonasAfterCreate.body.some((persona) => persona.id === "deleuze_smoke"), "La persona custom doit apparaître dans /api/personas");
 
-    const disabledBatty = await fetchJson(`${appUrl}/api/admin/personas/batty/disable`, {
+    const disabledBatty = await adminClient.fetchJson("/api/admin/personas/batty/disable", {
       method: "POST",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify({}),
     });
     assert(disabledBatty.ok, "La désactivation runtime d'une persona doit réussir");
 
-    const adminPersonasAfterDisable = await fetchJson(`${appUrl}/api/admin/personas`, { headers: adminHeaders });
+    const adminPersonasAfterDisable = await adminClient.fetchJson("/api/admin/personas");
     assert(adminPersonasAfterDisable.body.find((persona) => persona.id === "batty")?.disabled === true, "Batty doit apparaître comme désactivée côté admin");
 
-    const enabledBatty = await fetchJson(`${appUrl}/api/admin/personas/batty/enable`, {
+    const enabledBatty = await adminClient.fetchJson("/api/admin/personas/batty/enable", {
       method: "POST",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify({}),
     });
     assert(enabledBatty.ok, "La réactivation runtime d'une persona doit réussir");
 
-    const updatedTopic = await fetchJson(`${appUrl}/api/admin/channels/general/topic`, {
+    const updatedTopic = await adminClient.fetchJson("/api/admin/channels/general/topic", {
       method: "PUT",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify({
@@ -545,28 +880,21 @@ async function main() {
     });
     assert(updatedTopic.ok, "Le topic admin doit être éditable");
 
-    const searchedHistory = await fetchJson(`${appUrl}/api/admin/history/search?q=Blade%20Runner&limit=5`, {
-      headers: adminHeaders,
-    });
+    const searchedHistory = await adminClient.fetchJson("/api/admin/history/search?q=Blade%20Runner&limit=5");
     assert(searchedHistory.ok, "La recherche historique admin doit répondre");
 
-    const logsSummary = await fetchJson(`${appUrl}/api/admin/logs/summary`, {
-      headers: adminHeaders,
-    });
+    const logsSummary = await adminClient.fetchJson("/api/admin/logs/summary");
     assert(logsSummary.ok, "Le résumé logs admin doit répondre");
 
-    const customSourceAfterCreate = await fetchJson(`${appUrl}/api/admin/personas/deleuze_smoke/source`, {
-      headers: adminHeaders,
-    });
+    const customSourceAfterCreate = await adminClient.fetchJson("/api/admin/personas/deleuze_smoke/source");
     assert(customSourceAfterCreate.ok, "Le GET source de la persona custom doit répondre");
     assert(customSourceAfterCreate.body.preferredName === "DeleuzeSmoke", `Le preferredName custom attendu est DeleuzeSmoke, reçu: ${customSourceAfterCreate.body.preferredName}`);
 
     const marker = `[smoke:${Date.now()}]`;
     const updatedStyle = `${adminPharmacius.style}\n${marker}`;
-    const updatedPersona = await fetchJson(`${appUrl}/api/admin/personas/pharmacius`, {
+    const updatedPersona = await adminClient.fetchJson("/api/admin/personas/pharmacius", {
       method: "PUT",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify({
@@ -577,13 +905,11 @@ async function main() {
     });
     assert(updatedPersona.ok, "Le PUT admin Pharmacius doit réussir");
 
-    const adminPersonasAfterPut = await fetchJson(`${appUrl}/api/admin/personas`, { headers: adminHeaders });
+    const adminPersonasAfterPut = await adminClient.fetchJson("/api/admin/personas");
     const updatedPharmacius = adminPersonasAfterPut.body.find((persona) => persona.id === "pharmacius");
     assert(updatedPharmacius.style.includes(marker), "Le PUT admin doit persister la personnalité mise à jour");
 
-    const sourceBefore = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/source`, {
-      headers: adminHeaders,
-    });
+    const sourceBefore = await adminClient.fetchJson("/api/admin/personas/pharmacius/source");
     assert(sourceBefore.ok, "Le GET source persona doit répondre");
     assert(sourceBefore.body.id === "pharmacius", "La source Pharmacius doit être identifiée");
 
@@ -606,10 +932,9 @@ async function main() {
         },
       ],
     };
-    const updatedSource = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/source`, {
+    const updatedSource = await adminClient.fetchJson("/api/admin/personas/pharmacius/source", {
       method: "PUT",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify(sourcePayload),
@@ -618,16 +943,13 @@ async function main() {
     assert(updatedSource.body.source.preferredName === "PharmaciusSmoke", "Le preferredName doit être persisté");
     assert(updatedSource.body.source.preferredModel === "mistral:7b", "Le preferredModel doit être persisté");
 
-    const feedbackAfterManualEdit = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/feedback`, {
-      headers: adminHeaders,
-    });
+    const feedbackAfterManualEdit = await adminClient.fetchJson("/api/admin/personas/pharmacius/feedback");
     assert(feedbackAfterManualEdit.ok, "Le GET feedback persona doit répondre");
     assert(feedbackAfterManualEdit.body.some((entry) => entry.kind === "admin_edit"), "Le feedback admin_edit doit être journalisé après PUT persona");
 
-    const manualFeedbackResult = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/feedback`, {
+    const manualFeedbackResult = await adminClient.fetchJson("/api/admin/personas/pharmacius/feedback", {
       method: "POST",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify({
@@ -639,16 +961,13 @@ async function main() {
     });
     assert(manualFeedbackResult.status === 201, `Le POST feedback persona doit répondre 201, reçu: ${manualFeedbackResult.status}`);
 
-    const proposalsAfterManualEdit = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/proposals`, {
-      headers: adminHeaders,
-    });
+    const proposalsAfterManualEdit = await adminClient.fetchJson("/api/admin/personas/pharmacius/proposals");
     assert(proposalsAfterManualEdit.ok, "Le GET proposals persona doit répondre");
     assert(proposalsAfterManualEdit.body.some((entry) => entry.mode === "manual_edit"), "La proposal manual_edit doit être journalisée après PUT persona");
 
-    const reinforceResult = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/reinforce`, {
+    const reinforceResult = await adminClient.fetchJson("/api/admin/personas/pharmacius/reinforce", {
       method: "POST",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify({ autoApply: true }),
@@ -666,21 +985,16 @@ async function main() {
       "Le reinforce doit exposer les modèles pertinents dans la proposal"
     );
 
-    const proposalsAfterReinforce = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/proposals`, {
-      headers: adminHeaders,
-    });
+    const proposalsAfterReinforce = await adminClient.fetchJson("/api/admin/personas/pharmacius/proposals");
     assert(proposalsAfterReinforce.body.some((entry) => entry.mode === "auto_applied"), "Une proposal auto_applied doit être visible après reinforce");
 
-    const feedbackAfterReinforce = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/feedback`, {
-      headers: adminHeaders,
-    });
+    const feedbackAfterReinforce = await adminClient.fetchJson("/api/admin/personas/pharmacius/feedback");
     assert(feedbackAfterReinforce.body.some((entry) => entry.kind === "auto_apply"), "Le reinforce doit journaliser un feedback auto_apply");
     assert(feedbackAfterReinforce.body.some((entry) => entry.kind === "drift_report"), "Le feedback manuel doit rester visible après reinforce");
 
-    const revertResult = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/revert`, {
+    const revertResult = await adminClient.fetchJson("/api/admin/personas/pharmacius/revert", {
       method: "POST",
       headers: {
-        ...adminHeaders,
         "content-type": "application/json",
       },
       body: JSON.stringify({}),
@@ -690,35 +1004,102 @@ async function main() {
     assert(revertResult.body.persona.model === updatedPharmacius.model, `Le revert doit restaurer le modèle pré-reinforce, reçu: ${revertResult.body.persona.model}`);
     assert(revertResult.body.persona.style.includes(marker), "Le revert doit restaurer la personnalité pré-reinforce");
 
+    const nodeEngineRecoveryRun = await adminClient.fetchJson("/api/admin/node-engine/graphs/starter_local_eval/run", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ actor: "smoke_recovery_a" }),
+    });
+    const nodeEngineRecoveryQueued = await adminClient.fetchJson("/api/admin/node-engine/graphs/starter_local_eval/run", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ actor: "smoke_recovery_b" }),
+    });
+    assert(nodeEngineRecoveryRun.ok && nodeEngineRecoveryQueued.ok, "Les runs de reprise Node Engine doivent être créables avant restart");
+    assert(nodeEngineRecoveryRun.body?.run?.id, "Le run de reprise A doit exposer un run id");
+    assert(nodeEngineRecoveryQueued.body?.run?.id, "Le run de reprise B doit exposer un run id");
+
+    const recoveryRunBeforeRestart = await waitForRunStatus(
+      adminClient,
+      nodeEngineRecoveryRun.body.run.id,
+      (run) => ["running", "completed"].includes(String(run.status || "").toLowerCase()),
+      12000
+    );
+    assert(
+      ["running", "completed"].includes(String(recoveryRunBeforeRestart.status || "").toLowerCase()),
+      `Le run de reprise A doit démarrer avant restart, reçu: ${recoveryRunBeforeRestart.status}`
+    );
+
+    const recoveryOverviewBeforeRestart = await adminClient.fetchJson("/api/admin/node-engine/overview");
+    const recoveryQueueBeforeRestart = extractOverviewScheduler(recoveryOverviewBeforeRestart.body);
+    assert(recoveryQueueBeforeRestart?.activeRunIds?.includes(nodeEngineRecoveryRun.body.run.id), "Le run de reprise A doit apparaître actif avant restart");
+    assert(recoveryQueueBeforeRestart?.queuedRunIds?.includes(nodeEngineRecoveryQueued.body.run.id), "Le run de reprise B doit apparaître en queue avant restart");
+
     await stopChild(appProcess);
     appProcess = null;
     await startAppProcess();
 
-    const sourceAfterRestart = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/source`, {
-      headers: adminHeaders,
-    });
+    adminClient = createAdminClient(appUrl, ADMIN_TOKEN);
+    await adminClient.bootstrap();
+
+    const sourceAfterRestart = await adminClient.fetchJson("/api/admin/personas/pharmacius/source");
     assert(sourceAfterRestart.ok, "Le GET source après redémarrage doit répondre");
     assert(sourceAfterRestart.body.preferredName === "PharmaciusSmoke", "La source persona doit survivre au redémarrage");
 
-    const proposalsAfterRestart = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/proposals`, {
-      headers: adminHeaders,
-    });
+    const proposalsAfterRestart = await adminClient.fetchJson("/api/admin/personas/pharmacius/proposals");
     assert(proposalsAfterRestart.ok, "Le GET proposals après redémarrage doit répondre");
     assert(proposalsAfterRestart.body.length >= proposalsAfterReinforce.body.length, "Les proposals doivent survivre au redémarrage");
 
-    const feedbackAfterRestart = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/feedback`, {
-      headers: adminHeaders,
-    });
+    const feedbackAfterRestart = await adminClient.fetchJson("/api/admin/personas/pharmacius/feedback");
     assert(feedbackAfterRestart.ok, "Le GET feedback après redémarrage doit répondre");
     assert(feedbackAfterRestart.body.length >= feedbackAfterReinforce.body.length, "Le feedback doit survivre au redémarrage");
 
-    const customSourceAfterRestart = await fetchJson(`${appUrl}/api/admin/personas/deleuze_smoke/source`, {
-      headers: adminHeaders,
-    });
+    const customSourceAfterRestart = await adminClient.fetchJson("/api/admin/personas/deleuze_smoke/source");
     assert(customSourceAfterRestart.ok, "La source de la persona custom doit survivre au redémarrage");
     assert(customSourceAfterRestart.body.subjectName === "DeleuzeSmoke", `Le sujet source custom attendu est DeleuzeSmoke, reçu: ${customSourceAfterRestart.body.subjectName}`);
 
-    const adminPersonasAfterRestart = await fetchJson(`${appUrl}/api/admin/personas`, { headers: adminHeaders });
+    const nodeEngineRunAfterRestart = await adminClient.fetchJson(`/api/admin/node-engine/runs/${encodeURIComponent(nodeEngineRun.body.run.id)}`);
+    assert(nodeEngineRunAfterRestart.ok, "Le run Node Engine doit survivre au redémarrage");
+    const nodeEngineOverviewAfterRestart = await adminClient.fetchJson("/api/admin/node-engine/overview");
+    assert(nodeEngineOverviewAfterRestart.ok, "L'overview Node Engine doit répondre après redémarrage");
+    const nodeEngineQueueAfterRestart = extractOverviewScheduler(nodeEngineOverviewAfterRestart.body);
+    assert(nodeEngineQueueAfterRestart?.lastRecovery?.recoveredRunIds?.includes(nodeEngineRecoveryRun.body.run.id), "Le redémarrage doit signaler la reprise du run A");
+    assert(nodeEngineQueueAfterRestart?.lastRecovery?.recoveredRunIds?.includes(nodeEngineRecoveryQueued.body.run.id), "Le redémarrage doit signaler la reprise du run B");
+
+    const recoveredRunningRun = await waitForRunStatus(
+      adminClient,
+      nodeEngineRecoveryRun.body.run.id,
+      (run) => ["completed", "failed", "cancelled", "not_configured", "blocked"].includes(String(run.status || "").toLowerCase()),
+      20000
+    );
+    assert(
+      Number(recoveredRunningRun.recoveryCount || 0) >= 1,
+      `Le run A doit incrémenter recoveryCount après restart, reçu: ${recoveredRunningRun.recoveryCount}`
+    );
+    assert(
+      Boolean(recoveredRunningRun.recoveredAt),
+      "Le run A doit exposer recoveredAt après reprise"
+    );
+    assert(
+      String(recoveredRunningRun.status || "").toLowerCase() === "completed",
+      `Le run en cours avant restart doit reprendre automatiquement et finir completed, reçu: ${recoveredRunningRun.status}`
+    );
+
+    const recoveredQueuedRun = await waitForRunStatus(
+      adminClient,
+      nodeEngineRecoveryQueued.body.run.id,
+      (run) => ["completed", "failed", "cancelled", "not_configured", "blocked"].includes(String(run.status || "").toLowerCase()),
+      20000
+    );
+    assert(
+      String(recoveredQueuedRun.status || "").toLowerCase() === "completed",
+      `Le run queued avant restart doit reprendre automatiquement et finir completed, reçu: ${recoveredQueuedRun.status}`
+    );
+
+    const adminPersonasAfterRestart = await adminClient.fetchJson("/api/admin/personas");
     const pharmaciusAfterRestart = adminPersonasAfterRestart.body.find((persona) => persona.id === "pharmacius");
     assert(pharmaciusAfterRestart.name === updatedPharmacius.name, "Le revert doit rester effectif après redémarrage");
     assert(pharmaciusAfterRestart.model === updatedPharmacius.model, "Le modèle reverté doit rester effectif après redémarrage");
@@ -865,9 +1246,7 @@ async function main() {
       (message) => message.type === "stream_end" && message.nick === "Pharmacius"
     );
 
-    const feedbackAfterChat = await fetchJson(`${appUrl}/api/admin/personas/pharmacius/feedback`, {
-      headers: adminHeaders,
-    });
+    const feedbackAfterChat = await adminClient.fetchJson("/api/admin/personas/pharmacius/feedback");
     assert(feedbackAfterChat.ok, "Le GET feedback après interaction chat doit répondre");
     assert(
       feedbackAfterChat.body.some((entry) => entry.kind === "chat_signal"),
@@ -890,7 +1269,9 @@ async function main() {
     const adminShellRestricted = await fetchText(`${appUrl}/admin/index.html`);
     assert(adminShellRestricted.ok, "La page admin doit rester lisible même hors allowlist admin");
 
-    const deniedAdminRuntime = await fetchJson(`${appUrl}/api/admin/runtime`, { headers: adminHeaders });
+    const deniedAdminRuntime = await fetchJson(`${appUrl}/api/admin/runtime`, {
+      headers: { "x-admin-bootstrap-token": ADMIN_TOKEN },
+    });
     assert(deniedAdminRuntime.status === 403, `L'API admin doit refuser hors allowlist réseau, reçu: ${deniedAdminRuntime.status}`);
     assert(
       deniedAdminRuntime.body?.error === "admin network not allowed",
@@ -941,6 +1322,32 @@ async function main() {
         host: status.body.host,
         accessMode: status.body.accessMode,
         adminAllowedSubnets: runtimeStatus.body.network?.adminAllowedSubnets?.length || 0,
+      },
+      adminAuth: {
+        mode: adminClient.authMode,
+        sessionEndpoint: adminClient.sessionEndpoint,
+        login: adminLogin.body?.authenticated === true,
+        logout: adminLogout.body?.authenticated === false,
+        relogin: adminSessionAfterRelogin.body?.authenticated === true,
+      },
+      nodeEngine: {
+        runId: nodeEngineRun.body.run.id,
+        status: nodeEngineRunDetails.status,
+        stepCount: nodeEngineRunDetails.stepCount,
+        queue: {
+          maxConcurrency: nodeEngineQueueState?.maxConcurrency,
+          activeCount: nodeEngineQueueState?.activeCount,
+          queuedCount: nodeEngineQueueState?.queuedCount,
+        },
+        cancel: {
+          method: cancelledQueuedRun?.method,
+          status: cancelledQueuedRunDetails.status,
+        },
+        recovery: {
+          recoveredRunIds: nodeEngineQueueAfterRestart?.lastRecovery?.recoveredRunIds?.length || 0,
+          runningRecoveryCount: recoveredRunningRun.recoveryCount || 0,
+          queuedRecoveryCount: recoveredQueuedRun.recoveryCount || 0,
+        },
       },
     }));
   } catch (error) {

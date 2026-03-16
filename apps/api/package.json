@@ -1,0 +1,25 @@
+{
+  "name": "@kxkm/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "V2 API scaffold",
+  "main": "dist/server.js",
+  "types": "dist/server.d.ts",
+  "dependencies": {
+    "@kxkm/auth": "*",
+    "@kxkm/chat-domain": "*",
+    "@kxkm/core": "*",
+    "@kxkm/node-engine": "*",
+    "@kxkm/persona-domain": "*",
+    "@kxkm/storage": "*",
+    "express": "^4.22.1"
+  },
+  "scripts": {
+    "status": "node ../../scripts/workspace-package.js api status",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json --pretty false",
+    "check": "tsc -p tsconfig.json --noEmit --pretty false",
+    "test": "node --test dist/app.test.js"
+  }
+}

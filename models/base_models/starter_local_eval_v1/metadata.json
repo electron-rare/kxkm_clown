@@ -1,0 +1,36 @@
+{
+  "id": "starter_local_eval_v1",
+  "alias": "starter_local_eval",
+  "version": 1,
+  "family": "base",
+  "modelName": "mistral:7b",
+  "sourceRunId": "run_1773588138132_90symv",
+  "sourceStepId": "register",
+  "evaluation": {
+    "kind": "benchmark",
+    "model": "mistral:7b",
+    "score": 1,
+    "cases": [
+      {
+        "prompt": "Decris la matiere sonore de ce texte.",
+        "output": "smoke",
+        "score": 1
+      },
+      {
+        "prompt": "Resume la posture editoriale attendue.",
+        "output": "smoke",
+        "score": 1
+      }
+    ],
+    "runtime": "local_cpu"
+  },
+  "metadata": {
+    "graphId": "starter_local_eval",
+    "graphName": "Starter Local Eval"
+  },
+  "deployedTargets": [
+    "local"
+  ],
+  "createdAt": "2026-03-15T15:22:18.139Z",
+  "modelDir": "models/base_models/starter_local_eval_v1"
+}

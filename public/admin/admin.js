@@ -1,5 +1,13 @@
-import { adminApi, loadAdminToken, saveAdminToken } from "./admin-api.js";
+import {
+  adminApi,
+  clearAdminSession,
+  getAdminAuthSnapshot,
+  getAdminSession,
+  getLegacyAdminToken,
+  openAdminSession,
+} from "./admin-api.js";
 import { getState, subscribe, updateState, setStatus } from "./admin-store.js";
+import { escapeHtml } from "./utils.js";
 import { mountDashboard } from "./modules/dashboard.js";
 import { mountPersonas } from "./modules/personas.js";
 import { mountRuntime } from "./modules/runtime.js";
@@ -48,7 +56,9 @@ const modules = {
 
 const tokenInput = document.getElementById("admin-token");
 const saveTokenButton = document.getElementById("save-token-button");
+const logoutButton = document.getElementById("logout-button");
 const refreshButton = document.getElementById("refresh-button");
+const authSummary = document.getElementById("auth-summary");
 const moduleRoot = document.getElementById("module-root");
 const statusBanner = document.getElementById("status-banner");
 const moduleEyebrow = document.getElementById("module-eyebrow");
@@ -69,6 +79,46 @@ function setActiveNav(moduleName) {
   });
 }
 
+function describeAuth(auth) {
+  if (auth.authenticated && auth.mode === "cookie") {
+    return "Session admin active via cookie same-origin.";
+  }
+  if (auth.authenticated && auth.mode === "legacy-header") {
+    return auth.sessionSupported === false
+      ? "Fallback local actif: le bootstrap token reste seulement en memoire pour cet onglet."
+      : "Acces admin actif en fallback local.";
+  }
+  if (auth.sessionSupported === true) {
+    return "Aucune session admin active. Ouvre une session avec un bootstrap token.";
+  }
+  if (auth.sessionSupported === false) {
+    return "Backend sans endpoint de session detecte. Le bootstrap token reste seulement en memoire pour cet onglet.";
+  }
+  return "Verification de la session admin en cours.";
+}
+
+function syncAuthControls(auth) {
+  authSummary.textContent = describeAuth(auth);
+  logoutButton.disabled = !auth.authenticated;
+
+  if (auth.authenticated && auth.mode === "cookie") {
+    tokenInput.placeholder = "session active, token optionnel";
+    saveTokenButton.textContent = "Rouvrir session";
+    return;
+  }
+
+  if (auth.authenticated && auth.mode === "legacy-header") {
+    tokenInput.placeholder = "fallback local actif pour cet onglet";
+    saveTokenButton.textContent = "Recharger l'acces";
+    return;
+  }
+
+  tokenInput.placeholder = auth.sessionSupported === false
+    ? "bootstrap token local (memoire seulement)"
+    : "bootstrap token pour ouvrir la session";
+  saveTokenButton.textContent = "Ouvrir session";
+}
+
 async function refreshPublicStatus() {
   try {
     const status = await adminApi.getPublicStatus();
@@ -77,6 +127,37 @@ async function refreshPublicStatus() {
   } catch (error) {
     setStatus(error.message, "error");
   }
+}
+
+async function refreshAdminAuth({ quiet = false } = {}) {
+  try {
+    const auth = await getAdminSession();
+    updateState({ auth });
+    return auth;
+  } catch (error) {
+    if (!quiet) setStatus(error.message, "error");
+    throw error;
+  }
+}
+
+function syncEmbeddedPersonasFrame() {
+  const frame = moduleRoot.querySelector(".admin-frame");
+  if (!frame?.contentWindow) return;
+
+  frame.contentWindow.postMessage({
+    type: "kxkm-admin-auth",
+    auth: getAdminAuthSnapshot(),
+    legacyToken: getLegacyAdminToken(),
+  }, window.location.origin);
+}
+
+function wirePersonasFrameBridge() {
+  const frame = moduleRoot.querySelector(".admin-frame");
+  if (!frame) return;
+  frame.addEventListener("load", () => {
+    syncEmbeddedPersonasFrame();
+  });
+  syncEmbeddedPersonasFrame();
 }
 
 async function mountCurrentModule() {
@@ -90,9 +171,9 @@ async function mountCurrentModule() {
   setActiveNav(moduleName);
   moduleRoot.innerHTML = '<div class="small">Chargement du module…</div>';
 
-  if (!state.token && moduleName !== "dashboard") {
-    moduleRoot.innerHTML = '<div class="result-entry"><strong>Token requis</strong><pre>Charge d’abord le bootstrap token admin pour ouvrir ce module.</pre></div>';
-    setStatus("Token admin requis pour ce module.", "info");
+  if (!state.auth.authenticated && moduleName !== "dashboard") {
+    moduleRoot.innerHTML = '<div class="result-entry"><strong>Session requise</strong><pre>Ouvre d’abord une session admin pour utiliser ce module.</pre></div>';
+    setStatus("Session admin requise pour ce module.", "info");
     return;
   }
 
@@ -102,7 +183,12 @@ async function mountCurrentModule() {
       state,
       setStatus,
     });
-    setStatus(`${descriptor.title} prêt.`, "ok");
+
+    if (moduleName === "personas") {
+      wirePersonasFrameBridge();
+    }
+
+    setStatus(`${descriptor.title} pret.`, "ok");
   } catch (error) {
     moduleRoot.innerHTML = `<div class="result-entry"><strong>Erreur module</strong><pre>${escapeHtml(error.message)}</pre></div>`;
     setStatus(error.message, "error");
@@ -114,18 +200,10 @@ function syncHash() {
   updateState({ module: modules[moduleName] ? moduleName : "dashboard" });
 }
 
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 subscribe((state) => {
-  tokenInput.value = state.token;
   statusBanner.textContent = state.status.text;
   statusBanner.className = `status-banner ${state.status.tone}`;
+  syncAuthControls(state.auth);
 });
 
 document.querySelectorAll(".nav-item").forEach((button) => {
@@ -135,16 +213,44 @@ document.querySelectorAll(".nav-item").forEach((button) => {
 });
 
 saveTokenButton.addEventListener("click", async () => {
-  const token = tokenInput.value.trim();
-  saveAdminToken(token);
-  updateState({ token });
-  setStatus(token ? "Token admin chargé." : "Token admin effacé.", token ? "ok" : "info");
-  await mountCurrentModule();
+  try {
+    setStatus("Ouverture de la session admin…", "info");
+    const auth = await openAdminSession(tokenInput.value.trim());
+    tokenInput.value = "";
+    updateState({ auth });
+    await refreshPublicStatus();
+    await mountCurrentModule();
+    if (getState().module === "personas") syncEmbeddedPersonasFrame();
+  } catch (error) {
+    updateState({ auth: getAdminAuthSnapshot() });
+    setStatus(error.message, "error");
+  }
+});
+
+logoutButton.addEventListener("click", async () => {
+  try {
+    setStatus("Fermeture de la session admin…", "info");
+    const auth = await clearAdminSession();
+    tokenInput.value = "";
+    updateState({ auth });
+    await mountCurrentModule();
+    setStatus("Session admin fermee.", "info");
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
 });
 
 refreshButton.addEventListener("click", async () => {
+  setStatus("Rafraichissement admin…", "info");
   await refreshPublicStatus();
+  await refreshAdminAuth({ quiet: true }).catch(() => null);
   await mountCurrentModule();
+});
+
+tokenInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    saveTokenButton.click();
+  }
 });
 
 window.addEventListener("hashchange", async () => {
@@ -153,10 +259,10 @@ window.addEventListener("hashchange", async () => {
 });
 
 async function bootstrap() {
-  const token = loadAdminToken();
-  updateState({ token });
   syncHash();
   await refreshPublicStatus();
+  await refreshAdminAuth({ quiet: true }).catch(() => null);
+  syncAuthControls(getState().auth);
   await mountCurrentModule();
 }
 

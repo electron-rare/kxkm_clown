@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/auth" },
+    { "path": "./packages/chat-domain" },
+    { "path": "./packages/persona-domain" },
+    { "path": "./packages/node-engine" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/tui" },
+    { "path": "./packages/ui" },
+    { "path": "./apps/api" },
+    { "path": "./apps/worker" }
+  ]
+}

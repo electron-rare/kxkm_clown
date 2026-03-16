@@ -1,0 +1,26 @@
+{
+  "name": "@kxkm/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "V2 web shell scaffold for React/Vite migration",
+  "dependencies": {
+    "@xyflow/react": "^12.10.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "scripts": {
+    "status": "node ../../scripts/workspace-package.js web status",
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc -p tsconfig.json --noEmit --pretty false",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "jsdom": "^29.0.0",
+    "vitest": "^4.1.0"
+  }
+}

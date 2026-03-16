@@ -285,6 +285,15 @@ function createChatRouter({
       userRateLimits.set(nick, bucket);
     }
 
+    // Prune stale rate-limit entries to prevent unbounded growth
+    if (userRateLimits.size > 200) {
+      for (const [key, entry] of userRateLimits) {
+        if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+          userRateLimits.delete(key);
+        }
+      }
+    }
+
     bucket.count++;
     return bucket.count <= RATE_LIMIT_MAX;
   }

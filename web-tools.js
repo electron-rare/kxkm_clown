@@ -91,6 +91,20 @@ function extractTitle(html) {
   return match ? stripHtml(match[1]) : "";
 }
 
+function isInternalHostname(hostname) {
+  if (!hostname) return true;
+  const lower = hostname.toLowerCase();
+  if (lower === "localhost" || lower === "127.0.0.1" || lower === "::1") return true;
+  if (lower.endsWith(".local") || lower.endsWith(".internal")) return true;
+  // Block private IP ranges
+  if (/^10\./.test(lower)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(lower)) return true;
+  if (/^192\.168\./.test(lower)) return true;
+  if (/^0\./.test(lower)) return true;
+  if (lower === "[::1]") return true;
+  return false;
+}
+
 function enforceHttpUrl(rawUrl) {
   let url;
   try {
@@ -104,6 +118,12 @@ function enforceHttpUrl(rawUrl) {
   if (!["http:", "https:"].includes(url.protocol)) {
     const error = new Error("Seules les URLs http(s) sont autorisées");
     error.statusCode = 400;
+    throw error;
+  }
+
+  if (isInternalHostname(url.hostname)) {
+    const error = new Error("Les URLs internes ou privées ne sont pas autorisées");
+    error.statusCode = 403;
     throw error;
   }
 
@@ -182,9 +202,18 @@ function createWebTools({
       }
 
       const contentType = response.headers.get("content-type") || "";
+      const contentLength = Number(response.headers.get("content-length") || 0);
+      const MAX_FETCH_BYTES = 2 * 1024 * 1024; // 2 MB limit
+      if (contentLength > MAX_FETCH_BYTES) {
+        throw new Error(`Page trop volumineuse (${contentLength} octets)`);
+      }
       const text = await response.text();
-      const pageTitle = contentType.includes("html") ? extractTitle(text) : "";
-      const cleaned = contentType.includes("html") ? stripHtml(text) : text.replace(/\s+/g, " ").trim();
+      if (text.length > MAX_FETCH_BYTES) {
+        // Truncate silently if content-length header was missing/wrong
+      }
+      const safeText = text.slice(0, MAX_FETCH_BYTES);
+      const pageTitle = contentType.includes("html") ? extractTitle(safeText) : "";
+      const cleaned = contentType.includes("html") ? stripHtml(safeText) : safeText.replace(/\s+/g, " ").trim();
 
       return {
         url: response.url || url,

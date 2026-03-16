@@ -1,0 +1,17 @@
+{
+  "name": "@kxkm/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UI scaffold for V2",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "status": "node ../../scripts/workspace-package.js ui status",
+    "build": "tsc -p tsconfig.json --pretty false",
+    "check": "tsc -p tsconfig.json --noEmit --pretty false"
+  }
+}

@@ -2,14 +2,14 @@
 
 ## Positionnement
 
-Le moteur nodal de KXKM_Clown ne doit plus rester limité à l'édition des personas.
+Le Node Engine n'est plus un simple module admin. En V2, il devient le cœur d'orchestration du produit.
 
 Direction cible:
-- unifier édition de personas, pipelines datasets, fine-tuning, évaluation et déploiement
-- garder la stack actuelle `vanilla + Drawflow + event bus`
-- faire du nodal un orchestrateur de jobs IA traçables, pas un simple canvas décoratif
+- unifier workflows chat, personas, datasets, fine-tuning, évaluation et déploiement
+- sortir du couplage `vanilla + Drawflow` en allant vers une surface `React/Vite`
+- conserver les bonnes propriétés déjà livrées: traçabilité, runs persistés, annulation, reprise
 
-Le produit visé est un `admin global + node engine`, où la carte personas actuelle devient un premier sous-ensemble d'un moteur de graphes plus large.
+Le produit visé est un `apps/web + apps/api + apps/worker`, où le Node Engine pilote les tâches longues et les workflows structurants.
 
 ## Pipeline cible
 
@@ -145,49 +145,57 @@ Règles:
 - cache optionnel par hash d'inputs
 - journal de job pour chaque node exécuté
 - reprise possible si un node a déjà produit un artefact valide
+- cycle de vie de run explicite: `draft -> validated -> queued -> running -> completed|failed|cancelled|blocked|not_configured`
+- la création d'un run ne doit pas supposer une complétion immédiate; l'admin doit toujours pouvoir relire l'état via `GET /runs/:id`
 
-## Intégration au projet actuel
+État réellement livré:
+- validation statique des graphes et exécution topologique locale
+- exécution réelle des nodes dataset/processing/evaluation/registry/deploy
+- queue persistée avec reprise automatique des runs `queued/running`
+- annulation coopérative au step boundary
+- training via adaptateurs externes ou statut `not_configured`
+- persistance des runs, étapes, artefacts et modèles enregistrés
+- prochaine étape: adaptateurs training réels et runtimes distants branchés
 
-### Frontend admin
+## Intégration V2
 
-Le point d'entrée reste `/admin/index.html`.
+### Frontend
 
-Ajouter un module:
-- `#/node-engine`
-
-Structure frontend cible:
-- `public/admin/modules/node-engine.js`
-- `public/admin/modules/node-engine-nodes.js`
-- `public/admin/modules/node-engine-store.js`
-- `public/admin/modules/node-engine-api.js`
-
-La vue Drawflow personas reste en place, mais le moteur nodal doit converger vers:
+La surface cible vit dans `apps/web` et doit offrir:
 - palette de nodes
-- graphe éditable
+- éditeur de graphe
 - inspecteur de node
-- panneau d'artefacts
-- vue jobs / logs
-- vue exécutions passées
+- vue runs / queue / workers
+- panneau artifacts / models
+- workflows spécialisés personas
 
-### Backend
+### Backend API
 
-Ajouter une couche dédiée, séparée du runtime chat:
-- `node-engine-registry.js` pour enregistrer les types de nodes
-- `node-engine-runner.js` pour résoudre et exécuter les graphes
-- `node-engine-store.js` pour stocker graphes, runs, artefacts et états
-- `node-engine-runtimes.js` pour les adaptateurs `cpu`, `gpu`, `remote`, `cluster`
+La couche HTTP/WS vit dans `apps/api` et branche:
+- `packages/node-engine` pour registry, graphes, runs et queue
+- `packages/auth` pour permissions
+- `packages/storage` pour persistance et rétention
+
+### Worker
+
+L'exécution des tâches longues vit dans `apps/worker`:
+- preview
+- évaluation
+- fine-tuning
+- déploiement
+- runtimes distants
 
 ### API admin
 
 Famille d'API cible:
-- `GET /api/admin/node-engine/graphs`
-- `POST /api/admin/node-engine/graphs`
-- `GET /api/admin/node-engine/graphs/:id`
-- `PUT /api/admin/node-engine/graphs/:id`
+- `GET /api/admin/node-engine/overview`
+- `GET/POST/PUT /api/admin/node-engine/graphs`
 - `POST /api/admin/node-engine/graphs/:id/run`
 - `GET /api/admin/node-engine/runs/:id`
+- `POST /api/admin/node-engine/runs/:id/cancel`
 - `GET /api/admin/node-engine/artifacts/:id`
 - `POST /api/admin/node-engine/nodes/preview`
+- `GET /api/admin/node-engine/models`
 
 ## Stockage local
 
@@ -243,16 +251,45 @@ Invariants:
 
 ## Ordre de livraison recommandé
 
-### V1 — Fondation nodale
-- schéma de graphe
-- registry de nodes
-- stockage graph/runs
+### Phase 1
+- porter le runtime actuel dans `packages/node-engine`
+- formaliser types et contrats
+- garder la V1 comme oracle comportemental
+
+### Phase 2
+- brancher le worker séparé
+- porter la queue et la reprise
+- isoler les runtimes de training
+
+### Phase 3
+- livrer la surface React/Vite complète
+- brancher les adaptateurs training réels
+- brancher les runtimes distants
 - module admin `#/node-engine`
 - nodes de dataset source et processing simples
+
+État:
+- livré
 
 ### V2 — Training local
 - `lora_training`
 - `qlora_training`
+- `node-engine-runner.js` et `node-engine-runtimes.js`
+- runs persistés et relisibles, y compris quand l'exécution devient asynchrone
+- statuts `queued`, `running`, `completed`, `failed`
+
+État:
+- partiellement livré
+- runner local réel, queue async persistée et runtimes déclarés en place
+- training encore dépendant d'adaptateurs externes
+- asynchronie de base livrée; orchestration avancée encore ouverte
+
+### V3 — Runtimes distants et déploiement
+- `remote_gpu`, `cluster`, `cloud_api`
+- contrats `deploy_local`, `deploy_gpu_cluster`, `deploy_edge`
+- séparation opérationnelle durcie entre runtime chat et runtime training
+- reprise partielle et cache plus robustes
+- résumés d'artefacts et journaux de run exploitables par le shell admin
 - suivi de jobs
 - registry modèles
 - benchmark minimal

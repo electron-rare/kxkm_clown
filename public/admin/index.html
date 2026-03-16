@@ -17,11 +17,13 @@
       </div>
       <div class="header-actions">
         <label class="token-field">
-          <span>Token admin</span>
-          <input id="admin-token" type="password" placeholder="bootstrap token">
+          <span>Bootstrap admin</span>
+          <input id="admin-token" type="password" placeholder="bootstrap token pour ouvrir la session">
         </label>
-        <button id="save-token-button" type="button">Charger le token</button>
+        <button id="save-token-button" type="button">Ouvrir session</button>
+        <button id="logout-button" class="secondary" type="button" disabled>Fermer session</button>
         <button id="refresh-button" class="secondary" type="button">Rafraîchir</button>
+        <p id="auth-summary" class="auth-summary">Vérification de la session admin en cours.</p>
         <a class="secondary-link" href="/admin/personas.html" target="_blank" rel="noopener">Ouvrir la page personas</a>
       </div>
     </header>

@@ -80,16 +80,20 @@ function createPersonaStore({
     return persona;
   }
 
+  function safeFsId(id) {
+    return String(id || "").replace(/[^a-z0-9_-]/gi, "_").slice(0, 40);
+  }
+
   function sourcePath(id) {
-    return path.join(sourcesDir, `${id}.json`);
+    return path.join(sourcesDir, `${safeFsId(id)}.json`);
   }
 
   function feedbackPath(id) {
-    return path.join(feedbackDir, `${id}.jsonl`);
+    return path.join(feedbackDir, `${safeFsId(id)}.jsonl`);
   }
 
   function proposalsPath(id) {
-    return path.join(proposalsDir, `${id}.jsonl`);
+    return path.join(proposalsDir, `${safeFsId(id)}.jsonl`);
   }
 
   function createEmptySource(persona) {
@@ -247,8 +251,10 @@ function createPersonaStore({
     const existing = readJson(sourcePath(id), null);
     if (!existing) return createEmptySource(persona);
 
+    const defaults = createEmptySource(persona);
+
     return {
-      ...createEmptySource(persona),
+      ...defaults,
       ...existing,
       id: persona.id,
       subjectName: cleanText(existing.subjectName, 120) || persona.name,
@@ -262,8 +268,8 @@ function createPersonaStore({
       quotes: cleanList(existing.quotes, 10, 220),
       notes: cleanText(existing.notes, 1200),
       sources: cleanSourceRefs(existing.sources),
-      createdAt: cleanText(existing.createdAt, 80) || createEmptySource(persona).createdAt,
-      updatedAt: cleanText(existing.updatedAt, 80) || createEmptySource(persona).updatedAt,
+      createdAt: cleanText(existing.createdAt, 80) || defaults.createdAt,
+      updatedAt: cleanText(existing.updatedAt, 80) || defaults.updatedAt,
     };
   }
 

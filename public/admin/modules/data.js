@@ -1,10 +1,4 @@
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import { escapeHtml } from "../utils.js";
 
 function renderEntries(items) {
   if (!items.length) return '<p class="small">Aucun résultat.</p>';

@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "references": [
+    { "path": "../../packages/auth" },
+    { "path": "../../packages/chat-domain" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/node-engine" },
+    { "path": "../../packages/persona-domain" },
+    { "path": "../../packages/storage" }
+  ],
+  "include": ["src/**/*.ts"]
+}

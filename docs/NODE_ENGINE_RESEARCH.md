@@ -19,6 +19,10 @@ Ancrer le futur `Node Engine` de KXKM_Clown sur des références produit et tech
   - https://mlflow.org/docs/latest/ml/model-registry/
 - Kubeflow Pipelines documentation:
   - https://www.kubeflow.org/docs/components/pipelines/overview/
+- MDN documentation:
+  - https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
+- OWASP guidance:
+  - https://owasp.org/www-community/attacks/csrf
 
 ## Ce qui en ressort pour KXKM_Clown
 
@@ -69,8 +73,30 @@ Point retenu depuis Kubeflow Pipelines:
 - séparation nette entre définition et exécution
 
 Décision pour KXKM_Clown:
-- le Node Engine V1 pose le schéma et le stockage
-- un vrai runner dédié reste un lot suivant
+- le Node Engine V2 a maintenant un vrai runner dédié
+- l'étape suivante n'est plus "avoir un runner", mais "avoir une vraie asynchronie, des runtimes distants et des adaptateurs training branchés"
+
+### 6. Un run utile n'est pas forcément synchrone
+
+Point retenu depuis Kubeflow et MLflow:
+- création de run et complétion de run ne sont pas forcément le même événement
+- l'état doit rester relisible pendant `queued`, `running`, puis dans un état terminal
+
+Décision pour KXKM_Clown:
+- le smoke et les contrats admin ne doivent pas figer le Node Engine sur un `completed` immédiat
+- la V2 devra exposer des runs persistés consultables via `overview`, `runs` et `runs/:id`
+
+### 7. L'auth admin doit devenir une vraie session HTTP, pas un simple stockage frontend
+
+Point retenu depuis MDN et OWASP:
+- un cookie `HttpOnly` et `SameSite=Strict` est un meilleur transport de session qu'un secret conservé en JS
+- le passage au cookie ne dispense pas d'un garde-fou réseau ni de contrôles `Origin/Referer` sur les écritures
+
+Décision pour KXKM_Clown:
+- ouverture de session admin par bootstrap token sur réseau autorisé
+- portage ensuite par cookie `HttpOnly`
+- écriture admin bornée par same-origin
+- le fallback legacy header doit rester transitoire et être retiré une fois la migration totalement stabilisée
 
 ## Conclusion
 

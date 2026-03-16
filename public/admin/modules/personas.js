@@ -1,4 +1,8 @@
-export async function mountPersonas(container) {
+export async function mountPersonas(container, { state } = {}) {
+  const authNote = state?.auth?.mode === "legacy-header"
+    ? "La surface personas tourne en page dediee, avec un pont d'auth local injecte depuis le shell pour cet onglet."
+    : "La surface personas reste dediee pour cette iteration et reutilise la meme session admin same-origin du shell.";
+
   container.innerHTML = `
     <div class="stack">
       <section class="panel">
@@ -9,7 +13,7 @@ export async function mountPersonas(container) {
           </div>
           <a class="secondary-link" href="/admin/personas.html" target="_blank" rel="noopener">Ouvrir dans un onglet</a>
         </div>
-        <p class="small">La surface personas reste dédiée pour cette itération, mais elle partage le même token admin via <code>sessionStorage</code>.</p>
+        <p class="small">${authNote}</p>
       </section>
       <iframe class="admin-frame" src="/admin/personas.html?embedded=1" title="Admin personas nodal"></iframe>
     </div>

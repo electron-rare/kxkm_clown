@@ -2,17 +2,58 @@
   "name": "kxkm-clown",
   "version": "0.1.0",
   "description": "KXKM_Clown — mIRC-style local LLM chat",
+  "private": true,
   "main": "server.js",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "node scripts/build.js",
-    "check": "node scripts/check.js",
+    "build": "node scripts/build-v2.js && node scripts/build.js",
+    "build:v2": "node scripts/build-v2.js",
+    "check": "node scripts/check.js && node scripts/check-v2.js",
+    "check:v2": "node scripts/check-v2.js",
     "smoke": "node scripts/smoke.js",
-    "verify": "npm run check && npm run smoke"
+    "smoke:v2": "node scripts/smoke-v2.js",
+    "verify": "npm run check && npm run smoke",
+    "chain": "bash scripts/chain-actions.sh",
+    "test:v2": "node scripts/test-v2.js",
+    "verify:all": "bash scripts/chain-actions.sh",
+    "dev:v2:api": "npm run dev -w @kxkm/api",
+    "dev:v2:web": "npm run dev -w @kxkm/web",
+    "dev:v2:worker": "npm run dev -w @kxkm/worker",
+    "v2:init": "python3 scripts/orchestrate_batches.py init --root ops/v2",
+    "v2:status": "python3 scripts/orchestrate_batches.py status --root ops/v2",
+    "v2:next": "python3 scripts/orchestrate_batches.py run-next --root ops/v2",
+    "v2:all": "python3 scripts/orchestrate_batches.py run-all --root ops/v2",
+    "turbo:build": "turbo run build",
+    "turbo:check": "turbo run check",
+    "turbo:test": "turbo run test"
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "ws": "^8.18.0"
+    "@xyflow/react": "^12.10.1",
+    "express": "^4.22.1",
+    "ollama": "^0.6.3",
+    "pg": "^8.20.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.18.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/supertest": "^7.2.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^6.0.1",
+    "supertest": "^7.2.2",
+    "tsx": "^4.21.0",
+    "turbo": "^2.8.17",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.0"
   }
 }

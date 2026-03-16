@@ -1,0 +1,2 @@
+batch,task,status,next_step,query
+"lot-0-cadrage","agents","planned","manual_implementation","Définir agents, sous-agents, compétences et ownership"

@@ -35,6 +35,9 @@ const RETENTION_LOG_DAYS = Number.isFinite(Number.parseInt(process.env.RETENTION
 const RETENTION_SWEEP_MS = Number.isFinite(Number.parseInt(process.env.RETENTION_SWEEP_MS || "", 10))
   ? Math.max(60 * 1000, Number.parseInt(process.env.RETENTION_SWEEP_MS || "", 10))
   : 6 * 60 * 60 * 1000;
+const NODE_ENGINE_MAX_CONCURRENCY = Number.isFinite(Number.parseInt(process.env.NODE_ENGINE_MAX_CONCURRENCY || "", 10))
+  ? Math.max(1, Number.parseInt(process.env.NODE_ENGINE_MAX_CONCURRENCY || "", 10))
+  : 1;
 const PERSISTED_SESSION_RETENTION_MS = RETENTION_SESSION_DAYS * 24 * 60 * 60 * 1000;
 const LOG_RETENTION_MS = RETENTION_LOG_DAYS * 24 * 60 * 60 * 1000;
 
@@ -66,6 +69,7 @@ module.exports = {
   RETENTION_SESSION_DAYS,
   RETENTION_LOG_DAYS,
   RETENTION_SWEEP_MS,
+  NODE_ENGINE_MAX_CONCURRENCY,
   PERSISTED_SESSION_RETENTION_MS,
   LOG_RETENTION_MS,
   OWNER_NICK,

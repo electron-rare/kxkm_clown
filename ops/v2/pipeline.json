@@ -1,0 +1,57 @@
+{
+  "project": "kxkm-clown-v2",
+  "max_parallel_tasks": 3,
+  "task_command_template": "bash -lc \"PATH=/tmp/node-local/bin:$PATH node scripts/v2-agent-task.js --batch {batch} --task {task} --query {query} --out {out}\"",
+  "batches": [
+    {
+      "id": "lot-0-cadrage",
+      "description": "Docs, architecture, feature map, agents, invariants, orchestration",
+      "depends_on": [],
+      "tasks": [
+        { "id": "architecture", "query": "Verrouiller architecture V2 et monorepo apps/packages" },
+        { "id": "docs", "query": "Maintenir spec, memory, README, feature map et mermaid" },
+        { "id": "agents", "query": "Définir agents, sous-agents, compétences et ownership" }
+      ]
+    },
+    {
+      "id": "lot-1-socle",
+      "description": "Workspace V2, packages, scripts TUI, verification",
+      "depends_on": ["lot-0-cadrage"],
+      "tasks": [
+        { "id": "workspace", "query": "Poser apps web api worker et packages métier" },
+        { "id": "verification", "query": "Étendre check build smoke au socle V2" },
+        { "id": "ops-tui", "query": "Préparer TUI, logs et suivi batch" }
+      ]
+    },
+    {
+      "id": "lot-2-domaines",
+      "description": "Auth, chat, storage, personas, node engine",
+      "depends_on": ["lot-1-socle"],
+      "tasks": [
+        { "id": "auth-chat", "query": "Porter auth et chat-domain en V2" },
+        { "id": "personas", "query": "Porter persona-domain et Pharmacius V2" },
+        { "id": "node-engine", "query": "Porter node-engine central et storage V2" }
+      ]
+    },
+    {
+      "id": "lot-3-surfaces",
+      "description": "Shell React/Vite, admin, chat, node engine, ops",
+      "depends_on": ["lot-2-domaines"],
+      "tasks": [
+        { "id": "web-shell", "query": "Créer shell React/Vite chat/admin" },
+        { "id": "persona-ui", "query": "Créer UI personas et reinforce" },
+        { "id": "engine-ui", "query": "Créer UI Node Engine et overview ops" }
+      ]
+    },
+    {
+      "id": "lot-4-bascule",
+      "description": "Migration, parité, rollback, bascule",
+      "depends_on": ["lot-3-surfaces"],
+      "tasks": [
+        { "id": "migration", "query": "Préparer migration V1 vers V2" },
+        { "id": "parity", "query": "Valider la parité minimale V1 -> V2" },
+        { "id": "cutover", "query": "Préparer bascule et rollback" }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,6 @@
 import net from "node:net";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import express, { type Request, type Response, type NextFunction } from "express";
 import {
   asApiData,
@@ -43,8 +45,36 @@ import {
 
 const COOKIE_NAME = "kxkm_v2_session";
 
+function localStoreFiles() {
+  const storeDir = path.resolve(process.cwd(), process.env.KXKM_LOCAL_DATA_DIR || "data/v2-local");
+  return {
+    personas: path.join(storeDir, "personas.json"),
+    personaSources: path.join(storeDir, "persona-sources.json"),
+    personaFeedback: path.join(storeDir, "persona-feedback.json"),
+    personaProposals: path.join(storeDir, "persona-proposals.json"),
+  };
+}
+
 interface SessionRequest extends Request {
   session?: AuthSession;
+}
+
+async function readJson<T>(filePath: string, fallback: T): Promise<T> {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code !== "ENOENT") {
+      console.warn(`[kxkm/api] failed to read ${filePath}: ${e.message}`);
+    }
+    return fallback;
+  }
+}
+
+async function writeJson(filePath: string, data: unknown): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
 // ---------------------------------------------------------------------------
@@ -81,25 +111,58 @@ function createInMemorySessionRepo() {
 }
 
 function createInMemoryPersonaRepo() {
-  const personas = new Map<string, PersonaRecord>(
-    PERSONA_SEED_CATALOG.map((persona) => [persona.id, clonePersona(persona)]),
-  );
+  const files = localStoreFiles();
+  const personas = new Map<string, PersonaRecord>();
+  let loaded = false;
+
+  async function ensureLoaded(): Promise<void> {
+    if (loaded) return;
+    loaded = true;
+
+    const saved = await readJson<PersonaRecord[]>(files.personas, []);
+    if (saved.length > 0) {
+      for (const persona of saved) {
+        personas.set(persona.id, { ...persona });
+      }
+      return;
+    }
+
+    for (const seed of PERSONA_SEED_CATALOG) {
+      personas.set(seed.id, clonePersona(seed));
+    }
+    await writeJson(files.personas, [...personas.values()]);
+  }
+
+  async function persist(): Promise<void> {
+    await writeJson(files.personas, [...personas.values()]);
+  }
+
   return {
     async list(): Promise<PersonaRecord[]> {
+      await ensureLoaded();
       return [...personas.values()];
     },
     async findById(id: string): Promise<PersonaRecord | null> {
+      await ensureLoaded();
       return personas.get(id) || null;
     },
     async upsert(persona: PersonaRecord): Promise<PersonaRecord> {
+      await ensureLoaded();
       personas.set(persona.id, { ...persona });
+      await persist();
       return { ...persona };
     },
     async seedCatalog(catalog: PersonaRecord[]): Promise<void> {
+      await ensureLoaded();
+      let changed = false;
       for (const p of catalog) {
         if (!personas.has(p.id)) {
           personas.set(p.id, clonePersona(p));
+          changed = true;
         }
+      }
+      if (changed) {
+        await persist();
       }
     },
   };
@@ -173,50 +236,116 @@ function createInMemoryNodeRunRepo() {
 }
 
 function createInMemoryPersonaSourceRepo() {
+  const files = localStoreFiles();
   const sources = new Map<string, PersonaSourceRecord>();
+  let loaded = false;
+
+  async function ensureLoaded(): Promise<void> {
+    if (loaded) return;
+    loaded = true;
+    const saved = await readJson<Record<string, PersonaSourceRecord>>(files.personaSources, {});
+    for (const [personaId, source] of Object.entries(saved)) {
+      sources.set(personaId, { ...source });
+    }
+  }
+
+  async function persist(): Promise<void> {
+    const objectView = Object.fromEntries(sources.entries());
+    await writeJson(files.personaSources, objectView);
+  }
+
   return {
     async findByPersonaId(personaId: string): Promise<PersonaSourceRecord | null> {
+      await ensureLoaded();
       return sources.get(personaId) || null;
     },
     async upsert(source: PersonaSourceRecord): Promise<PersonaSourceRecord> {
+      await ensureLoaded();
       sources.set(source.personaId, { ...source });
+      await persist();
       return { ...source };
     },
   };
 }
 
 function createInMemoryPersonaFeedbackRepo() {
+  const files = localStoreFiles();
   const feedback = new Map<string, PersonaFeedbackRecord[]>();
-  return {
-    async listByPersonaId(personaId: string): Promise<PersonaFeedbackRecord[]> {
-      return feedback.get(personaId) || [];
-    },
-    async create(record: PersonaFeedbackRecord): Promise<PersonaFeedbackRecord> {
+  let loaded = false;
+
+  async function ensureLoaded(): Promise<void> {
+    if (loaded) return;
+    loaded = true;
+    const saved = await readJson<PersonaFeedbackRecord[]>(files.personaFeedback, []);
+    for (const record of saved) {
       const list = feedback.get(record.personaId) || [];
       list.push({ ...record });
       feedback.set(record.personaId, list);
+    }
+  }
+
+  async function persist(): Promise<void> {
+    const all = [...feedback.values()].flat();
+    await writeJson(files.personaFeedback, all);
+  }
+
+  return {
+    async listByPersonaId(personaId: string): Promise<PersonaFeedbackRecord[]> {
+      await ensureLoaded();
+      return feedback.get(personaId) || [];
+    },
+    async create(record: PersonaFeedbackRecord): Promise<PersonaFeedbackRecord> {
+      await ensureLoaded();
+      const list = feedback.get(record.personaId) || [];
+      list.push({ ...record });
+      feedback.set(record.personaId, list);
+      await persist();
       return { ...record };
     },
   };
 }
 
 function createInMemoryPersonaProposalRepo() {
+  const files = localStoreFiles();
   const proposals = new Map<string, PersonaProposalRecord[]>();
-  return {
-    async listByPersonaId(personaId: string): Promise<PersonaProposalRecord[]> {
-      return proposals.get(personaId) || [];
-    },
-    async create(record: PersonaProposalRecord): Promise<PersonaProposalRecord> {
+  let loaded = false;
+
+  async function ensureLoaded(): Promise<void> {
+    if (loaded) return;
+    loaded = true;
+    const saved = await readJson<PersonaProposalRecord[]>(files.personaProposals, []);
+    for (const record of saved) {
       const list = proposals.get(record.personaId) || [];
       list.push({ ...record });
       proposals.set(record.personaId, list);
+    }
+  }
+
+  async function persist(): Promise<void> {
+    const all = [...proposals.values()].flat();
+    await writeJson(files.personaProposals, all);
+  }
+
+  return {
+    async listByPersonaId(personaId: string): Promise<PersonaProposalRecord[]> {
+      await ensureLoaded();
+      return proposals.get(personaId) || [];
+    },
+    async create(record: PersonaProposalRecord): Promise<PersonaProposalRecord> {
+      await ensureLoaded();
+      const list = proposals.get(record.personaId) || [];
+      list.push({ ...record });
+      proposals.set(record.personaId, list);
+      await persist();
       return { ...record };
     },
     async markApplied(id: string): Promise<void> {
+      await ensureLoaded();
       for (const list of proposals.values()) {
         const proposal = list.find((p) => p.id === id);
         if (proposal) {
           proposal.applied = true;
+          await persist();
           return;
         }
       }
@@ -395,7 +524,7 @@ export async function createApp(): Promise<express.Express> {
 
     storageMode = "postgres";
   } else {
-    console.warn("[kxkm/api] DATABASE_URL not set — using in-memory stores (data will not persist across restarts)");
+    console.warn("[kxkm/api] DATABASE_URL not set — using local persona storage + in-memory runtime stores");
 
     sessionRepo = createInMemorySessionRepo();
     personaRepo = createInMemoryPersonaRepo();
@@ -513,11 +642,12 @@ export async function createApp(): Promise<express.Express> {
       // Admin role requires ADMIN_TOKEN env var match.
       let role: UserRole = "viewer";
       const adminToken = process.env.ADMIN_TOKEN;
-      if (adminToken && req.body?.token === adminToken) {
+      const tokenMatches = Boolean(adminToken && req.body?.token === adminToken);
+      if (input.role === "admin" && tokenMatches) {
         role = "admin";
       } else if (input.role === "operator" || input.role === "editor") {
         // Allow non-admin elevated roles only if admin token is provided
-        if (adminToken && req.body?.token === adminToken) {
+        if (tokenMatches) {
           role = input.role as UserRole;
         }
       }

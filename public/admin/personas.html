@@ -76,6 +76,65 @@
     margin-bottom: 20px;
   }
 
+  .toolbar-ux {
+    grid-template-columns: minmax(240px, 1.2fr) minmax(180px, 220px) auto auto 1fr;
+    margin-top: -8px;
+  }
+
+  .toolbar-ux select {
+    border: 1px solid var(--border);
+    background: var(--input);
+    color: var(--fg);
+    padding: 10px 12px;
+    border-radius: 4px;
+  }
+
+  .toggle-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--fg-dim);
+    padding: 8px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .toggle-chip input {
+    accent-color: var(--cyan);
+  }
+
+  .persona-count {
+    justify-self: end;
+    color: var(--fg-dim);
+    font-size: 13px;
+  }
+
+  .persona-rail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    background: var(--panel-alt);
+  }
+
+  .persona-rail button {
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .persona-rail button.active {
+    border-color: rgba(0, 229, 255, 0.35);
+    background: rgba(0, 229, 255, 0.14);
+    color: var(--white);
+  }
+
   input,
   textarea,
   button {
@@ -513,6 +572,14 @@
       grid-template-columns: 1fr;
     }
 
+    .toolbar-ux {
+      grid-template-columns: 1fr;
+    }
+
+    .persona-count {
+      justify-self: start;
+    }
+
     .fields {
       grid-template-columns: 1fr;
     }
@@ -555,6 +622,20 @@
     <button id="refresh-button" class="secondary">Recharger</button>
     <div id="status" class="status info">Saisis le token admin puis charge l’état complet des personas.</div>
   </section>
+
+  <section class="toolbar toolbar-ux">
+    <input id="persona-filter" type="text" placeholder="Filtrer par id, nom, modèle, thème…">
+    <select id="persona-sort" aria-label="Tri personas">
+      <option value="priority">Tri: priorité</option>
+      <option value="name">Tri: nom</option>
+      <option value="model">Tri: modèle</option>
+    </select>
+    <label class="toggle-chip"><input id="persona-only-custom" type="checkbox"> custom seulement</label>
+    <label class="toggle-chip"><input id="persona-only-disabled" type="checkbox"> runtime OFF</label>
+    <div id="persona-count" class="persona-count">0 persona</div>
+  </section>
+
+  <section id="persona-rail" class="persona-rail"></section>
 
   <section class="persona-card">
     <div class="section-title">

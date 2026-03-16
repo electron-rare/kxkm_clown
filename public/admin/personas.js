@@ -24,6 +24,12 @@ const createFactsInput = document.getElementById("create-facts");
 const createQuotesInput = document.getElementById("create-quotes");
 const createNotesInput = document.getElementById("create-notes");
 const createSourcesInput = document.getElementById("create-sources");
+const personaFilterInput = document.getElementById("persona-filter");
+const personaSortSelect = document.getElementById("persona-sort");
+const personaOnlyCustomInput = document.getElementById("persona-only-custom");
+const personaOnlyDisabledInput = document.getElementById("persona-only-disabled");
+const personaCountEl = document.getElementById("persona-count");
+const personaRail = document.getElementById("persona-rail");
 const graphPersonaSelect = document.getElementById("graph-persona-select");
 const graphCenterButton = document.getElementById("graph-center-button");
 const graphCanvas = document.getElementById("graph-canvas");
@@ -40,6 +46,7 @@ let selectedGraphPersonaId = "";
 let selectedGraphNodeKey = "";
 let graphEditor = null;
 let graphNodeIds = new Map();
+let selectedPersonaCardId = "";
 
 const graphBus = createEventBus();
 
@@ -116,6 +123,76 @@ function summarizeItems(label, items, maxItems = 3, maxLength = 36) {
 
 function getPersonaById(id) {
   return personas.find((persona) => persona.id === id) || null;
+}
+
+function personaSearchBlob(persona) {
+  const source = persona.source || {};
+  return [
+    persona.id,
+    persona.name,
+    persona.model,
+    persona.baseName,
+    persona.desc,
+    source.subjectName,
+    source.query,
+    ...(source.themes || []),
+    ...(source.lexicon || []),
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function getVisiblePersonas(items = personas) {
+  const query = (personaFilterInput?.value || "").trim().toLowerCase();
+  const onlyCustom = Boolean(personaOnlyCustomInput?.checked);
+  const onlyDisabled = Boolean(personaOnlyDisabledInput?.checked);
+  const sort = personaSortSelect?.value || "priority";
+
+  const filtered = items.filter((persona) => {
+    if (onlyCustom && !persona.isCustom) return false;
+    if (onlyDisabled && !persona.disabled) return false;
+    if (query && !personaSearchBlob(persona).includes(query)) return false;
+    return true;
+  });
+
+  filtered.sort((a, b) => {
+    if (sort === "name") return String(a.name || "").localeCompare(String(b.name || ""), "fr");
+    if (sort === "model") return String(a.model || "").localeCompare(String(b.model || ""), "fr");
+    return Number(a.priority || 0) - Number(b.priority || 0);
+  });
+
+  return filtered;
+}
+
+function renderPersonaCount(visibleCount, totalCount) {
+  if (!personaCountEl) return;
+  const suffix = visibleCount > 1 ? "s" : "";
+  if (visibleCount === totalCount) {
+    personaCountEl.textContent = `${visibleCount} persona${suffix}`;
+    return;
+  }
+  personaCountEl.textContent = `${visibleCount}/${totalCount} persona${suffix}`;
+}
+
+function focusPersonaCard(personaId) {
+  const card = getCard(personaId);
+  if (!card) return;
+  selectedPersonaCardId = personaId;
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+  flashElement(card);
+  renderPersonaRail(getVisiblePersonas(personas));
+}
+
+function renderPersonaRail(items) {
+  if (!personaRail) return;
+  if (!items.length) {
+    personaRail.innerHTML = '<div class="small">Aucune persona ne correspond aux filtres.</div>';
+    return;
+  }
+
+  personaRail.innerHTML = items.map((persona) => {
+    const active = selectedPersonaCardId === persona.id ? "active" : "";
+    const state = persona.disabled ? "OFF" : "ON";
+    return `<button type="button" class="${active}" data-rail-persona-id="${escapeHtml(persona.id)}">${escapeHtml(persona.name)} · ${escapeHtml(state)}</button>`;
+  }).join("");
 }
 
 function syncAuthChrome() {
@@ -428,8 +505,11 @@ function renderProposals(items) {
 function renderPersonas(items) {
   personaGrid.innerHTML = "";
 
+  renderPersonaCount(items.length, personas.length);
+  renderPersonaRail(items);
+
   if (!items.length) {
-    personaGrid.innerHTML = '<div class="status info">Aucune persona reçue.</div>';
+    personaGrid.innerHTML = '<div class="status info">Aucune persona ne correspond aux filtres actifs.</div>';
     return;
   }
 
@@ -564,6 +644,11 @@ function renderPersonas(items) {
     `;
     personaGrid.appendChild(article);
   }
+}
+
+function applyPersonaFilters() {
+  const visible = getVisiblePersonas(personas);
+  renderPersonas(visible);
 }
 
 async function hydratePersona(persona) {
@@ -1279,7 +1364,7 @@ async function loadPersonas(preferredPersonaId = selectedGraphPersonaId) {
     const base = await apiFetch("/api/admin/personas");
     const items = await Promise.all(base.map((persona) => hydratePersona(persona)));
     personas = items;
-    renderPersonas(items);
+    applyPersonaFilters();
     selectedGraphPersonaId = preferredPersonaId === NEW_PERSONA_GRAPH_ID
       ? NEW_PERSONA_GRAPH_ID
       : preferredPersonaId && items.some((persona) => persona.id === preferredPersonaId)
@@ -1389,6 +1474,28 @@ personaGrid.addEventListener("click", (event) => {
       togglePersonaEnabled(id);
       break;
   }
+});
+
+personaRail?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-rail-persona-id]");
+  if (!button) return;
+  focusPersonaCard(button.dataset.railPersonaId);
+});
+
+personaFilterInput?.addEventListener("input", () => {
+  applyPersonaFilters();
+});
+
+personaSortSelect?.addEventListener("change", () => {
+  applyPersonaFilters();
+});
+
+personaOnlyCustomInput?.addEventListener("change", () => {
+  applyPersonaFilters();
+});
+
+personaOnlyDisabledInput?.addEventListener("change", () => {
+  applyPersonaFilters();
 });
 
 graphInspector.addEventListener("click", (event) => {

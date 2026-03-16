@@ -1,26 +1,42 @@
-import { describe, it, before } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { rm } from "node:fs/promises";
 import supertest from "supertest";
 import { createApp } from "./app.js";
 
 // Ensure no Postgres connection is attempted
 delete process.env.DATABASE_URL;
+process.env.ADMIN_TOKEN = "test-admin-token";
+const TEST_LOCAL_DIR = path.join(process.cwd(), ".tmp-test-v2-local");
+process.env.KXKM_LOCAL_DATA_DIR = TEST_LOCAL_DIR;
 
 describe("V2 API", () => {
   let request: ReturnType<typeof supertest>;
 
   before(async () => {
+    await rm(TEST_LOCAL_DIR, { recursive: true, force: true });
     const app = await createApp();
     request = supertest(app);
+  });
+
+  after(async () => {
+    await rm(TEST_LOCAL_DIR, { recursive: true, force: true });
+    delete process.env.KXKM_LOCAL_DATA_DIR;
+    delete process.env.ADMIN_TOKEN;
   });
 
   // ---------------------------------------------------------------------------
   // Helper: login and return session cookie string
   // ---------------------------------------------------------------------------
   async function loginAs(role: string, username = `test_${role}`): Promise<string> {
+    const payload: Record<string, string> = { username, role };
+    if (["admin", "operator", "editor"].includes(role) && process.env.ADMIN_TOKEN) {
+      payload.token = process.env.ADMIN_TOKEN;
+    }
     const res = await request
       .post("/api/session/login")
-      .send({ username, role })
+      .send(payload)
       .expect(200);
 
     const setCookie = res.headers["set-cookie"];
@@ -71,7 +87,7 @@ describe("V2 API", () => {
     it("POST /api/session/login creates session", async () => {
       const res = await request
         .post("/api/session/login")
-        .send({ username: "admin_user", role: "admin" })
+        .send({ username: "admin_user", role: "admin", token: process.env.ADMIN_TOKEN })
         .expect(200);
 
       assert.equal(res.body.ok, true);
@@ -119,14 +135,14 @@ describe("V2 API", () => {
     it("POST /api/session/login rejects invalid payload", async () => {
       await request
         .post("/api/session/login")
-        .send({ username: "", role: "admin" })
+        .send({ username: "", role: "admin", token: process.env.ADMIN_TOKEN })
         .expect(400);
     });
 
     it("POST /api/session/login rejects invalid role", async () => {
       await request
         .post("/api/session/login")
-        .send({ username: "tester", role: "superadmin" })
+        .send({ username: "tester", role: "superadmin", token: process.env.ADMIN_TOKEN })
         .expect(400);
     });
   });
@@ -212,6 +228,28 @@ describe("V2 API", () => {
 
       assert.equal(res.body.ok, true);
       assert.ok(Array.isArray(res.body.data));
+    });
+
+    it("persists local persona updates across app recreation", async () => {
+      const app2 = await createApp();
+      const request2 = supertest(app2);
+      const login2 = await request2
+        .post("/api/session/login")
+        .send({ username: "reload_admin", role: "admin", token: process.env.ADMIN_TOKEN })
+        .expect(200);
+
+      const setCookie = login2.headers["set-cookie"];
+      const raw = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+      assert.ok(raw, "expected Set-Cookie header after app recreation login");
+      const cookie2 = raw.split(";")[0];
+
+      const res = await request2
+        .get("/api/personas/batty")
+        .set("Cookie", cookie2)
+        .expect(200);
+
+      assert.equal(res.body.ok, true);
+      assert.equal(res.body.data.summary, "Updated summary");
     });
   });
 

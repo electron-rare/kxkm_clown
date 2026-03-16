@@ -1,6 +1,6 @@
 # TODO (kxkm-clown-v2)
 
-Updated: 2026-03-16T06:31:43Z
+Updated: 2026-03-16T06:48:45Z
 
 ## lot-0-cadrage
 - [x] architecture (done) | out: /home/kxkm/KXKM_Clown/ops/v2/outputs/lot-0-cadrage/architecture.csv

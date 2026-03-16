@@ -88,6 +88,9 @@ services:
     command: ["node", "apps/worker/dist/index.js"]
     environment:
       <<: *common-env
+      PYTHON_BIN: "${PYTHON_BIN:-/home/kxkm/venv/bin/python3}"
+      SCRIPTS_DIR: "${SCRIPTS_DIR:-/app/scripts}"
+      TRAINING_TIMEOUT_MS: "${TRAINING_TIMEOUT_MS:-3600000}"
     depends_on:
       postgres:
         condition: service_healthy

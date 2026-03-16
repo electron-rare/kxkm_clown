@@ -40,6 +40,11 @@ import {
 } from "@kxkm/node-engine";
 import { createIsoTimestamp } from "@kxkm/core";
 import { formatOverviewLine, ansi } from "@kxkm/tui";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import * as path from "node:path";
+
+const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -49,6 +54,9 @@ const POLL_INTERVAL_MS = 2000;
 const MAX_CONCURRENCY = Number(process.env.NODE_ENGINE_MAX_CONCURRENCY) || 1;
 const STEP_DELAY_MS = 100;
 const DRY_RUN = process.argv.includes("--dry-run") || process.env.DRY_RUN === "1";
+const PYTHON_BIN = process.env.PYTHON_BIN || "/home/kxkm/venv/bin/python3";
+const SCRIPTS_DIR = process.env.SCRIPTS_DIR || path.resolve(process.cwd(), "scripts");
+const TRAINING_TIMEOUT_MS = Number(process.env.TRAINING_TIMEOUT_MS) || 60 * 60 * 1000; // 1h
 
 // ---------------------------------------------------------------------------
 // Logging helpers
@@ -101,42 +109,136 @@ async function executeNodeStub(
     case "chat_dataset":
       return { dataset_ready: inputs.dataset ?? { items: [], format: "stub" } };
 
-    // Evaluation
+    // Evaluation — execute via eval_model.py
     case "prompt_test":
-    case "benchmark":
-      return { evaluation: { kind: "stub", score: 1 } };
+    case "benchmark": {
+      const evalModel = typeof params.model === "string" && params.model
+        ? params.model
+        : (inputs.model as Record<string, unknown>)?.modelName as string || "unsloth/llama-3-8b";
+      const adapterPath = (inputs.model as Record<string, unknown>)?.adapterPath as string || undefined;
+      const promptsPath = typeof params.promptsPath === "string" ? params.promptsPath : "";
+      const evalOutputPath = `/tmp/kxkm-eval-${Date.now()}.json`;
 
-    // Training — build a real job spec, log the command, return stub result
+      if (DRY_RUN) {
+        log(`    [dry-run] would evaluate model=${evalModel} adapter=${adapterPath || "none"}`);
+        return { evaluation: { kind: "dry-run", score: 1 } };
+      }
+
+      if (!promptsPath) {
+        // No prompts file — return stub score
+        log(`    [eval] no promptsPath provided — returning stub evaluation`);
+        return { evaluation: { kind: "stub", score: 1 } };
+      }
+
+      const scriptPath = path.join(SCRIPTS_DIR, "eval_model.py");
+      const args = [
+        scriptPath,
+        "--model", evalModel,
+        "--prompts", promptsPath,
+        "--output", evalOutputPath,
+      ];
+      if (adapterPath) args.push("--adapter", adapterPath);
+
+      log(`    [eval] ${PYTHON_BIN} ${args.join(" ")}`);
+
+      try {
+        const { stdout, stderr } = await execFileAsync(PYTHON_BIN, args, {
+          timeout: TRAINING_TIMEOUT_MS,
+          maxBuffer: 50 * 1024 * 1024,
+        });
+        if (stderr) log(`    [eval] stderr: ${stderr.slice(-500)}`);
+
+        const jsonLine = stdout.trim().split("\n").pop() || "{}";
+        const evalResult = JSON.parse(jsonLine);
+        log(`    [eval] result: status=${evalResult.status} score=${evalResult.score}`);
+
+        return {
+          evaluation: {
+            kind: "real",
+            score: evalResult.score,
+            metrics: evalResult.metrics,
+            outputFile: evalOutputPath,
+          },
+        };
+      } catch (err) {
+        logError(`    [eval] failed`, err);
+        return { evaluation: { kind: "error", score: 0, error: err instanceof Error ? err.message : String(err) } };
+      }
+    }
+
+    // Training — execute via train_unsloth.py
     case "lora_training":
     case "qlora_training": {
       const baseModel = typeof params.baseModel === "string" && params.baseModel
         ? params.baseModel
         : "unsloth/llama-3-8b";
-      const jobSpec = validateJobSpec({
-        type: nodeType as TrainingJobSpec["type"],
-        baseModel,
-        datasetPath: typeof params.datasetPath === "string" ? params.datasetPath : "/data/dataset.jsonl",
-        outputDir: typeof params.outputDir === "string" ? params.outputDir : "/tmp/kxkm-training-output",
-        hyperparams: {
-          ...DEFAULT_HYPERPARAMS,
-          ...(params.hyperparams && typeof params.hyperparams === "object" ? params.hyperparams : {}),
-        },
-      });
-      const command = buildTrlCommand(jobSpec);
-      if (DRY_RUN) {
-        log(`    [dry-run] would execute: ${command}`);
-      } else {
-        log(`    [training] command: ${command}`);
-        log(`    [training] execution skipped — stub mode (use --dry-run to preview commands)`);
-      }
-      return {
-        model: {
-          kind: DRY_RUN ? "dry-run" : "stub",
-          modelName: `${baseModel}-finetuned`,
-          command,
-          jobSpec,
-        },
+      const datasetPath = typeof params.datasetPath === "string" ? params.datasetPath : "";
+      const outputDir = typeof params.outputDir === "string"
+        ? params.outputDir
+        : `/tmp/kxkm-training-${Date.now()}`;
+      const hp = {
+        ...DEFAULT_HYPERPARAMS,
+        ...(params.hyperparams && typeof params.hyperparams === "object" ? params.hyperparams : {}),
       };
+
+      if (DRY_RUN) {
+        const jobSpec = validateJobSpec({
+          type: nodeType as TrainingJobSpec["type"], baseModel,
+          datasetPath: datasetPath || "/data/dataset.jsonl",
+          outputDir, hyperparams: hp,
+        });
+        log(`    [dry-run] would execute: ${buildTrlCommand(jobSpec)}`);
+        return { model: { kind: "dry-run", modelName: `${baseModel}-finetuned`, jobSpec } };
+      }
+
+      if (!datasetPath) {
+        return { model: { kind: "error", error: "datasetPath is required for training" } };
+      }
+
+      const scriptPath = path.join(SCRIPTS_DIR, "train_unsloth.py");
+      const args = [
+        scriptPath,
+        "--model", baseModel,
+        "--data", datasetPath,
+        "--output", outputDir,
+        "--method", nodeType === "qlora_training" ? "qlora" : "lora",
+        "--lr", String(hp.learningRate),
+        "--epochs", String(hp.epochs),
+        "--batch-size", String(hp.batchSize),
+        "--lora-rank", String(hp.loraRank),
+        "--lora-alpha", String(hp.loraAlpha),
+        "--warmup-steps", String(hp.warmupSteps),
+        "--max-seq-length", String(hp.maxSeqLength),
+      ];
+      if (nodeType === "qlora_training") args.push("--quantize", "4bit");
+
+      log(`    [training] ${PYTHON_BIN} ${args.join(" ")}`);
+
+      try {
+        const { stdout, stderr } = await execFileAsync(PYTHON_BIN, args, {
+          timeout: TRAINING_TIMEOUT_MS,
+          maxBuffer: 50 * 1024 * 1024,
+        });
+        if (stderr) log(`    [training] stderr: ${stderr.slice(-500)}`);
+
+        const jsonLine = stdout.trim().split("\n").pop() || "{}";
+        const trainResult = JSON.parse(jsonLine);
+        log(`    [training] result: status=${trainResult.status} loss=${trainResult.metrics?.trainLoss}`);
+
+        return {
+          model: {
+            kind: "trained",
+            modelName: `${baseModel}-finetuned`,
+            adapterPath: trainResult.adapterPath || outputDir,
+            metrics: trainResult.metrics,
+            status: trainResult.status,
+          },
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logError(`    [training] failed`, err);
+        return { model: { kind: "error", error: msg } };
+      }
     }
 
     // Registry

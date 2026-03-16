@@ -41,8 +41,8 @@ FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
-# System deps: tini for PID 1, bash for training scripts
-RUN apk add --no-cache tini bash
+# System deps: tini for PID 1, bash for training scripts, ca-certs for HTTPS
+RUN apk add --no-cache tini bash ca-certificates
 
 # Copy the assembled dist produced by scripts/build.js
 COPY --from=build /app/dist ./

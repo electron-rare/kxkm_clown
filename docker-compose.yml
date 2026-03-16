@@ -61,6 +61,8 @@ services:
     profiles: [v2]
     network_mode: host
     command: ["node", "apps/api/dist/server.js"]
+    volumes:
+      - ./data:/app/data
     environment:
       OLLAMA_URL: "http://localhost:11434"
       DATABASE_URL: "postgres://kxkm:kxkm@localhost:5432/kxkm_clown"

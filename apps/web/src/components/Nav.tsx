@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Tableau de bord" },
   { id: "channels", label: "Canaux" },
   { id: "chat", label: "Chat" },
+  { id: "voice", label: "Chat Vocal" },
   { id: "personas", label: "Personas" },
   { id: "history", label: "Historique" },
   { id: "node-engine", label: "Node Engine", roles: ["admin", "operator"] },

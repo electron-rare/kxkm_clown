@@ -231,12 +231,18 @@ Livré:
 - [x] Commit corrections + docs + autoresearch
 - [x] Push et redéployer sur kxkm-ai (V2 API healthy)
 
-## Lot 12 — Training pipeline réel `[à venir]`
+## Lot 12 — Training pipeline réel `[complété]`
 
-Prérequis serveur (kxkm-ai) :
-- [ ] Installer PyTorch + CUDA sur kxkm-ai (RTX 4090 disponible)
-- [ ] Installer Unsloth + TRL + transformers
-- [ ] Créer scripts/train_unsloth.py (wrapper Python)
-- [ ] Worker : exécution réelle via child_process au lieu de stubs
-- [ ] Pipeline complet : DPO extraction → dataset build → fine-tune → évaluation → registry
-- [ ] GPU passthrough Docker validé
+Livré:
+- PyTorch 2.10+cu128 + Unsloth 2026.3.4 + TRL 0.24.0 installés sur kxkm-ai (venv)
+- scripts/train_unsloth.py : wrapper LoRA/QLoRA via Unsloth, output JSON sur stdout
+- scripts/eval_model.py : évaluation modèle sur prompts JSONL, score F1 + support adapter
+- Worker V2 : exécution réelle via child_process (training + évaluation nodes)
+- Testé sur kxkm-ai : Llama-3.2-1B-Instruct QLoRA 4bit, training 23s, évaluation 20s
+- Config : PYTHON_BIN, SCRIPTS_DIR, TRAINING_TIMEOUT_MS
+
+Reste à faire (futur) :
+- [ ] Pipeline DPO complet : extraction paires → dataset build → fine-tune → éval → registry
+- [ ] GPU passthrough Docker (worker hors container, accès GPU natif)
+- [ ] Mutation automatique hyperparamètres autoresearch
+- [ ] Keep/discard → alias model registry

@@ -64,7 +64,18 @@ function createOllamaClient({
       }
     }
 
-    const numPredict = tokenLimit || (model.includes("mistral") ? maxResponseTokensSmall : maxResponseTokens);
+    const MODEL_TOKEN_LIMITS = {
+      mistral: 8192,
+      llama: 4096,
+      qwen: 8192,
+      phi: 4096,
+      gemma: 8192,
+    };
+    let numPredict = tokenLimit;
+    if (!numPredict) {
+      const match = Object.entries(MODEL_TOKEN_LIMITS).find(([key]) => model.toLowerCase().includes(key));
+      numPredict = match ? Math.min(match[1], maxResponseTokensSmall) : maxResponseTokens;
+    }
 
     let fullResponse = "";
 

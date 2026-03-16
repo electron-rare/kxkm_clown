@@ -1,3 +1,6 @@
+const POSITIVE_PREFERENCE_RE = /bien vu|exactement|merci|bravo|oui|correct|t'as raison|bien dit|parfait|yes|nice|good/i;
+const NEGATIVE_PREFERENCE_RE = /non|faux|n'importe quoi|nawak|wrong|pas du tout|incorrect/i;
+
 function createChatRouter({
   admins,
   contextMaxMessages,
@@ -51,15 +54,12 @@ function createChatRouter({
     const round = lastRoundResponses.get(channel);
     if (!round || round.length < 2) return null;
 
-    const positivePatterns = /bien vu|exactement|merci|bravo|oui|correct|t'as raison|bien dit|parfait|yes|nice|good/i;
-    const negativePatterns = /non|faux|n'importe quoi|nawak|wrong|pas du tout|incorrect/i;
-
     for (const response of round) {
       const nameMentioned = text.toLowerCase().includes(response.botNick.toLowerCase());
-      if (nameMentioned && positivePatterns.test(text)) {
+      if (nameMentioned && POSITIVE_PREFERENCE_RE.test(text)) {
         return { chosen: response, type: "implicit_positive" };
       }
-      if (nameMentioned && negativePatterns.test(text)) {
+      if (nameMentioned && NEGATIVE_PREFERENCE_RE.test(text)) {
         return { rejected: response, type: "implicit_negative" };
       }
     }

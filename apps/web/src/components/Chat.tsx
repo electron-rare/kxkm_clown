@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useWebSocket } from "../hooks/useWebSocket";
 
 const WS_URL = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:3333";
@@ -22,6 +22,56 @@ const MAX_MESSAGES = 500;
 const MAX_HISTORY = 100;
 let msgIdCounter = 0;
 
+interface ChatMessageProps {
+  msg: ChatMsg;
+  getNickColor: (nick: string) => string | undefined;
+  channel: string;
+}
+
+const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, channel }: ChatMessageProps) {
+  switch (msg.type) {
+    case "system":
+      return (
+        <div className="chat-msg chat-msg-system">
+          {(msg.text || "").split("\n").map((line, i) => (
+            <div key={i}>{line || "\u00A0"}</div>
+          ))}
+        </div>
+      );
+
+    case "join":
+      return (
+        <div className="chat-msg chat-msg-system">
+          {"-->  "}{msg.nick} a rejoint {msg.channel || channel}
+        </div>
+      );
+
+    case "part":
+      return (
+        <div className="chat-msg chat-msg-system">
+          {"<--  "}{msg.nick} a quitte {msg.channel || channel}
+        </div>
+      );
+
+    case "message":
+    default: {
+      const color = msg.nick ? getNickColor(msg.nick) : undefined;
+      const className = color ? "chat-msg chat-msg-persona" : "chat-msg chat-msg-user";
+      return (
+        <div
+          className={className}
+          style={color ? { color } : undefined}
+        >
+          <span className="chat-nick" style={color ? { color } : undefined}>
+            {"<"}{msg.nick || "???"}{">"}{" "}
+          </span>
+          <span className="chat-text">{msg.text}</span>
+        </div>
+      );
+    }
+  }
+});
+
 export default function Chat() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [users, setUsers] = useState<string[]>([]);
@@ -44,7 +94,10 @@ export default function Chat() {
     switch (type) {
       case "persona":
         if (typeof msg.nick === "string" && typeof msg.color === "string") {
-          setPersonaColors((prev) => ({ ...prev, [msg.nick as string]: msg.color as string }));
+          const color = msg.color as string;
+          if (/^#[0-9a-fA-F]{3,8}$|^[a-z]{3,20}$/i.test(color)) {
+            setPersonaColors((prev) => ({ ...prev, [msg.nick as string]: color }));
+          }
         }
         return;
 
@@ -215,54 +268,9 @@ export default function Chat() {
     }
   }
 
-  function getNickColor(nick: string): string | undefined {
+  const getNickColor = useCallback((nick: string): string | undefined => {
     return personaColors[nick];
-  }
-
-  function renderMessage(msg: ChatMsg) {
-    switch (msg.type) {
-      case "system":
-        return (
-          <div key={msg.id} className="chat-msg chat-msg-system">
-            {(msg.text || "").split("\n").map((line, i) => (
-              <div key={i}>{line || "\u00A0"}</div>
-            ))}
-          </div>
-        );
-
-      case "join":
-        return (
-          <div key={msg.id} className="chat-msg chat-msg-system">
-            {"-->  "}{msg.nick} a rejoint {msg.channel || channel}
-          </div>
-        );
-
-      case "part":
-        return (
-          <div key={msg.id} className="chat-msg chat-msg-system">
-            {"<--  "}{msg.nick} a quitte {msg.channel || channel}
-          </div>
-        );
-
-      case "message":
-      default: {
-        const color = msg.nick ? getNickColor(msg.nick) : undefined;
-        const className = color ? "chat-msg chat-msg-persona" : "chat-msg chat-msg-user";
-        return (
-          <div
-            key={msg.id}
-            className={className}
-            style={color ? { color } : undefined}
-          >
-            <span className="chat-nick" style={color ? { color } : undefined}>
-              {"<"}{msg.nick || "???"}{">"}{" "}
-            </span>
-            <span className="chat-text">{msg.text}</span>
-          </div>
-        );
-      }
-    }
-  }
+  }, [personaColors]);
 
   return (
     <div className="chat-container">
@@ -275,7 +283,9 @@ export default function Chat() {
 
       <div className="chat-body">
         <div className="chat-messages" ref={messagesContainerRef}>
-          {messages.map(renderMessage)}
+          {messages.map((msg) => (
+            <ChatMessage key={msg.id} msg={msg} getNickColor={getNickColor} channel={channel} />
+          ))}
           <div ref={messagesEndRef} />
         </div>
 

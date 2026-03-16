@@ -53,12 +53,29 @@ Le score par defaut est derive du statut terminal, avec bonus de vitesse pour le
 
 La table statusScores du JSON permet d'ajuster le comportement sans changer le script.
 
+## Score metier via artefacts
+
+Le script extrait automatiquement les scores depuis les artefacts d'evaluation du run.
+Les metriques supportees (par ordre de priorite) :
+
+- `score` — score generique (0-1)
+- `eval_score` — score d'evaluation
+- `accuracy` — precision
+- `f1` — F1 score
+- `bleu` — score BLEU (traduction/generation)
+- `perplexity` — perplexite (inversee: 1/(1+p), plus bas = mieux)
+
+Pour qu'un run produise un score metier, le graph doit inclure un node `benchmark` ou `prompt_test` qui ecrit un artefact de type `evaluation` avec une de ces metriques dans le champ `data`.
+
+Si aucun artefact d'evaluation n'est trouve, le fallback est le score base sur le statut terminal.
+
 ## Limites actuelles
 
-- pas encore de metriques metier (qualite persona, cout tokens, latence p95)
 - keep/discard est une decision de session, pas encore un alias model registry
 - pas de mutation automatique des graphes ou hyperparametres
 
-## Etape suivante recommandee
+## Etapes suivantes
 
-Ajouter un node d'evaluation canonique qui produit un score metier dans un artefact persiste, puis brancher ce score comme source principale de decision dans la boucle autoresearch.
+1. Brancher keep/discard comme alias dans le model registry (register_model node)
+2. Ajouter mutation automatique des hyperparametres entre experiments
+3. Integrer les metriques cout tokens et latence p95

@@ -67,7 +67,13 @@ function loadConfig(configPath) {
   };
 }
 
-function scoreRun(status, elapsedMs, statusScores) {
+function scoreRun(status, elapsedMs, statusScores, artifactScore) {
+  // If an artifact-based metric score exists, use it as primary
+  if (Number.isFinite(artifactScore) && artifactScore > 0) {
+    const speedBonus = Math.max(0, 1 - elapsedMs / (10 * 60 * 1000));
+    return artifactScore + speedBonus * 0.1;
+  }
+  // Fallback: status-based scoring
   const base = Number(statusScores[status]);
   const safeBase = Number.isFinite(base) ? base : -1;
   const speedBonus = safeBase > 0 ? Math.max(0, 1 - elapsedMs / (10 * 60 * 1000)) : 0;
@@ -81,7 +87,7 @@ function ensureTsvHeader(filePath) {
     fs.writeFileSync(
       filePath,
       [
-        "timestamp\texperiment\trun_id\tgraph_id\tstatus\telapsed_ms\tscore\tdecision\ttag",
+        "timestamp\texperiment\trun_id\tgraph_id\tstatus\telapsed_ms\tartifact_score\tscore\tdecision\ttag",
       ].join("\n") + "\n",
       "utf8",
     );
@@ -90,6 +96,32 @@ function ensureTsvHeader(filePath) {
 
 function appendTsv(filePath, row) {
   fs.appendFileSync(filePath, row.join("\t") + "\n", "utf8");
+}
+
+async function extractArtifactScore(pool, runId) {
+  // Look for evaluation artifacts that contain a metric score
+  try {
+    const result = await pool.query(
+      `SELECT data FROM node_run_artifacts
+       WHERE run_id = $1 AND type = 'evaluation'
+       ORDER BY created_at DESC LIMIT 1`,
+      [runId],
+    );
+    if (result.rows.length === 0) return NaN;
+    const data = result.rows[0].data;
+    if (!data || typeof data !== "object") return NaN;
+    // Support multiple metric names: score, eval_score, accuracy, f1, bleu
+    for (const key of ["score", "eval_score", "accuracy", "f1", "bleu", "perplexity"]) {
+      if (Number.isFinite(data[key])) {
+        // For perplexity, lower is better — invert it
+        if (key === "perplexity") return 1 / (1 + data[key]);
+        return data[key];
+      }
+    }
+    return NaN;
+  } catch {
+    return NaN;
+  }
 }
 
 async function ensureGraphExists(pool, graphId) {
@@ -202,7 +234,8 @@ async function main() {
         config.pollIntervalMs,
       );
 
-      const score = scoreRun(outcome.status, outcome.elapsedMs, config.statusScores);
+      const artifactScore = await extractArtifactScore(pool, run.id);
+      const score = scoreRun(outcome.status, outcome.elapsedMs, config.statusScores, artifactScore);
       const isBest = score > bestScore;
       const decision = isBest ? "keep" : "discard";
 
@@ -218,15 +251,17 @@ async function main() {
         config.graphId,
         outcome.status,
         String(outcome.elapsedMs),
+        Number.isFinite(artifactScore) ? artifactScore.toFixed(6) : "",
         score.toFixed(6),
         decision,
         config.tag,
       ]);
 
       const suffix = outcome.timedOut ? " timeout" : "";
+      const metricInfo = Number.isFinite(artifactScore) ? " metric=" + artifactScore.toFixed(4) : "";
       console.log(
         "[autoresearch] " + run.id + " status=" + outcome.status +
-          " score=" + score.toFixed(4) + " decision=" + decision + suffix,
+          metricInfo + " score=" + score.toFixed(4) + " decision=" + decision + suffix,
       );
     }
 

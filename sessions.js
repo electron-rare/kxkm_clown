@@ -84,7 +84,12 @@ function createSessionManager({
     intervalIds.length = 0;
   }
 
+  let _lastSaveAllTs = 0;
+
   function saveAllSessions() {
+    const now = Date.now();
+    if (now - _lastSaveAllTs < 2000) return;
+    _lastSaveAllTs = now;
     for (const [id, session] of sessions) {
       saveSession(id, session);
     }

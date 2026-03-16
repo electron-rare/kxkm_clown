@@ -339,6 +339,25 @@ function registerApiRoutes(app, {
     });
   });
 
+  function validateExtensionMime(fileName, mime) {
+    const ext = path.extname(fileName).toLowerCase();
+    const extMimeMap = {
+      ".jpg": "image/", ".jpeg": "image/", ".png": "image/", ".gif": "image/",
+      ".webp": "image/", ".svg": "image/", ".bmp": "image/", ".ico": "image/",
+      ".mp3": "audio/", ".wav": "audio/", ".ogg": "audio/", ".flac": "audio/",
+      ".m4a": "audio/", ".aac": "audio/",
+      ".txt": "text/", ".html": "text/", ".css": "text/", ".xml": "text/",
+      ".pdf": "application/pdf",
+      ".json": "application/json",
+      ".csv": "text/csv",
+      ".jsonl": "application/x-ndjson",
+    };
+    const expected = extMimeMap[ext];
+    if (!expected) return true; // unknown extension — allow
+    if (expected.endsWith("/")) return mime.startsWith(expected);
+    return mime === expected;
+  }
+
   // SEC-03 fix: Attachment endpoints require network auth
   app.post("/api/chat/attachments", requireAdminNetwork, async (req, res) => {
     try {
@@ -353,6 +372,11 @@ function registerApiRoutes(app, {
         .split(";")[0]
         .trim()
         .toLowerCase();
+
+      if (!validateExtensionMime(fileName, mime)) {
+        return res.status(400).json({ error: `File extension does not match mime type: ${fileName} / ${mime}` });
+      }
+
       const buffer = await readRequestBuffer(req, MAX_UPLOAD_BYTES);
 
       const attachment = await attachmentService.ingestAttachment({
@@ -457,7 +481,11 @@ function registerApiRoutes(app, {
 
   app.post("/api/admin/personas/from-source", requireAdmin, async (req, res) => {
     try {
-      const result = createPersonaFromSource(req.body || {});
+      const body = req.body || {};
+      if (!body.nick && !body.name) {
+        return res.status(400).json({ error: "nick or name is required" });
+      }
+      const result = createPersonaFromSource(body);
       const source = updatePersonaSource(result.persona.id, {
         subjectName: req.body?.subjectName || req.body?.name || result.persona.name,
         query: req.body?.query,

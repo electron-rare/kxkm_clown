@@ -268,6 +268,10 @@ function createStorage(dataDir, {
         .slice(-MAX_SESSION_MESSAGES)
       : [];
 
+    if (Array.isArray(session.messages) && session.messages.length > MAX_SESSION_MESSAGES * 0.9) {
+      console.warn(`[storage] Session approaching message limit: ${session.messages.length}/${MAX_SESSION_MESSAGES} messages`);
+    }
+
     return {
       model: cleanText(session.model, 120) || null,
       persona: cleanText(session.persona, 120) || null,

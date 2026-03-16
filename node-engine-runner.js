@@ -15,7 +15,7 @@ function isObject(value) {
 }
 
 function clone(value) {
-  return JSON.parse(JSON.stringify(value));
+  return structuredClone(value);
 }
 
 function cleanText(value, maxLength = 400) {
@@ -166,6 +166,7 @@ function normalizeMessagesRow(row) {
 }
 
 function topologicalSort(graph) {
+  if (!Array.isArray(graph.edges)) graph.edges = [];
   const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
   const incoming = new Map(graph.nodes.map((node) => [node.id, 0]));
   const outgoing = new Map(graph.nodes.map((node) => [node.id, []]));

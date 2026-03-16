@@ -59,17 +59,17 @@ services:
     extra_hosts: *extra-hosts
     command: ["node", "apps/api/dist/server.js"]
     ports:
-      - "${API_PORT:-3334}:3334"
+      - "${API_PORT:-4180}:4180"
     environment:
       <<: *common-env
-      PORT: "3334"
+      V2_API_PORT: "4180"
       ADMIN_BOOTSTRAP_TOKEN: "${ADMIN_BOOTSTRAP_TOKEN:-}"
       ADMIN_ALLOWED_SUBNETS: "${ADMIN_ALLOWED_SUBNETS:-}"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3334/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4180/health"]
       interval: 15s
       timeout: 5s
       retries: 3

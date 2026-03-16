@@ -241,8 +241,14 @@ Livré:
 - Testé sur kxkm-ai : Llama-3.2-1B-Instruct QLoRA 4bit, training 23s, évaluation 20s
 - Config : PYTHON_BIN, SCRIPTS_DIR, TRAINING_TIMEOUT_MS
 
+Livré (suite) :
+- Pipeline DPO complet : GET /api/v2/export/dpo + scripts/v2-dpo-pipeline.js
+- train_unsloth.py : support --method dpo (TRL DPOTrainer, chosen/rejected pairs)
+- Autoresearch : mutation hyperparamètres (random/values strategies)
+- Model registry file-based : data/node-engine/registry/{tag}-{timestamp}.json
+- Worker : sft_training node type, DPO via params.dpo flag
+
 Reste à faire (futur) :
-- [ ] Pipeline DPO complet : extraction paires → dataset build → fine-tune → éval → registry
 - [ ] GPU passthrough Docker (worker hors container, accès GPU natif)
-- [ ] Mutation automatique hyperparamètres autoresearch
-- [ ] Keep/discard → alias model registry
+- [ ] Intégration Ollama : importer adapter fine-tuné comme modèle Ollama
+- [ ] Dashboard training dans le frontend React (progression, métriques, historique)

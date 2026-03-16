@@ -15,6 +15,7 @@ import ChatHistory from "./components/ChatHistory";
 import NodeEditor from "./components/NodeEditor";
 import TrainingDashboard from "./components/TrainingDashboard";
 import Analytics from "./components/Analytics";
+import Collectif from "./components/Collectif";
 
 function parseHash(): { page: string; id: string } {
   const hash = window.location.hash.replace(/^#\/?/, "");
@@ -167,6 +168,9 @@ export default function App() {
 
       case "history":
         return <ChatHistory />;
+
+      case "collectif":
+        return <Collectif onNavigate={navigate} />;
 
       case "analytics":
         return <Analytics />;

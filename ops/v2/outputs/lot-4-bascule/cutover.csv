@@ -1,0 +1,2 @@
+batch,task,status,next_step,query
+"lot-4-bascule","cutover","planned","manual_implementation","Préparer bascule et rollback"

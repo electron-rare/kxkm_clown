@@ -1,6 +1,6 @@
 {
   "project": "kxkm-clown-v2",
-  "updated_at": "2026-03-16T05:35:34Z",
+  "updated_at": "2026-03-16T05:52:42Z",
   "batches": {
     "lot-0-cadrage": {
       "status": "done",
@@ -105,27 +105,27 @@
       }
     },
     "lot-4-bascule": {
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "lot-3-surfaces"
       ],
       "tasks": {
         "migration": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-4-bascule/migration.csv",
           "last_error": ""
         },
         "parity": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-4-bascule/parity.csv",
           "last_error": ""
         },
         "cutover": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-4-bascule/cutover.csv",
           "last_error": ""
         }
       }

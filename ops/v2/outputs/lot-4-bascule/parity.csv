@@ -1,0 +1,2 @@
+batch,task,status,next_step,query
+"lot-4-bascule","parity","planned","manual_implementation","Valider la parité minimale V1 -> V2"

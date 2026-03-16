@@ -1,6 +1,6 @@
 # TODO (kxkm-clown-v2)
 
-Updated: 2026-03-16T05:35:34Z
+Updated: 2026-03-16T05:52:42Z
 
 ## lot-0-cadrage
 - [x] architecture (done) | out: /home/kxkm/KXKM_Clown/ops/v2/outputs/lot-0-cadrage/architecture.csv
@@ -23,6 +23,6 @@ Updated: 2026-03-16T05:35:34Z
 - [x] engine-ui (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/engine-ui.csv
 
 ## lot-4-bascule
-- [ ] migration (pending)
-- [ ] parity (pending)
-- [ ] cutover (pending)
+- [x] migration (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-4-bascule/migration.csv
+- [x] parity (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-4-bascule/parity.csv
+- [x] cutover (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-4-bascule/cutover.csv

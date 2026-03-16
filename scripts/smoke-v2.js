@@ -11,6 +11,7 @@ const port = portIdx !== -1 ? Number(ARGS[portIdx + 1]) : 4180;
 const verbose = ARGS.includes("--verbose");
 
 const BASE = `http://127.0.0.1:${port}`;
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || null;
 
 // ANSI helpers
 const GREEN = "\x1b[32m";
@@ -100,8 +101,12 @@ async function runAll() {
   // ── 2. Session lifecycle ─────────────────────────────────────────
 
   await test("Session", "POST /api/session/login -> 200, sets cookie", async () => {
+    const loginBody = { username: "smoke_test", role: "admin" };
+    if (ADMIN_TOKEN) {
+      loginBody.token = ADMIN_TOKEN;
+    }
     const r = await api("POST", "/api/session/login", {
-      body: { username: "smoke_test", role: "admin" },
+      body: loginBody,
     });
     logTiming(r.elapsed);
     assert(r.status === 200, `expected 200, got ${r.status}`);
@@ -140,8 +145,12 @@ async function runAll() {
 
   // Re-login for subsequent tests
   await test("Session", "Re-login for remaining tests -> 200", async () => {
+    const loginBody = { username: "smoke_test", role: "admin" };
+    if (ADMIN_TOKEN) {
+      loginBody.token = ADMIN_TOKEN;
+    }
     const r = await api("POST", "/api/session/login", {
-      body: { username: "smoke_test", role: "admin" },
+      body: loginBody,
     });
     logTiming(r.elapsed);
     assert(r.status === 200, `expected 200, got ${r.status}`);

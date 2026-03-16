@@ -1,3 +1,12 @@
+const { timingSafeEqual } = require("crypto");
+function safeCompare(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
 function createCommandHandler({
   adminBootstrapToken,
   admins,
@@ -884,7 +893,7 @@ function createCommandHandler({
         if (typeof isAdminNetworkAllowed === "function" && !isAdminNetworkAllowed(info.clientIp)) {
           return send(ws, "system", "*** Bootstrap admin refuse depuis ce reseau");
         }
-        if (args[0] !== adminBootstrapToken) {
+        if (!safeCompare(args[0], adminBootstrapToken)) {
           return send(ws, "system", "*** Token admin invalide");
         }
         claimOwnerNick(ws, info);

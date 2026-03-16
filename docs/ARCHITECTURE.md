@@ -247,6 +247,22 @@ flowchart LR
     Proposals -- "revert" --> Overrides
 ```
 
+### 4.4 Persona editorial state machine
+
+Pipeline editorial de renforcement des personas via Pharmacius.
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> collecting : feedback reçu
+    collecting --> generating : seuil atteint
+    generating --> review : proposals générées
+    review --> applied : admin approuve
+    review --> reverted : admin rejette
+    applied --> idle : cycle terminé
+    reverted --> idle : cycle terminé
+```
+
 ---
 
 ## 5. Stockage
@@ -312,7 +328,7 @@ Le systeme distingue quatre niveaux de privileges, configures via `config.js` :
 | Role       | Description                                    | Source de configuration    |
 |------------|------------------------------------------------|----------------------------|
 | `admin`    | Acces complet, gestion personas et node-engine | `ADMINS` (liste de nicks)  |
-| `ops`      | Operations, monitoring, acces TUI              | `OPS` (liste de nicks)     |
+| `operator` | Operations, monitoring, acces TUI              | `OPS` (liste de nicks)     |
 | `editor`   | Modification personas (via admin UI)           | Session admin authentifiee |
 | `viewer`   | Chat public, lecture seule                     | Tout client connecte       |
 

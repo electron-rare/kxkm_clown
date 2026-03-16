@@ -153,8 +153,8 @@ flowchart TD
 | Multi-canaux | OK | OK | haute |
 | Streaming LLM | OK | OK | haute |
 | Tab completion | OK | OK | moyenne |
-| Historique messages | OK | prevu | basse |
-| DOM pruning | OK | prevu | basse |
+| Historique messages | OK | OK | basse |
+| DOM pruning | OK | OK | basse |
 | Upload fichiers | OK | OK | moyenne |
 | Commandes slash | OK | OK | moyenne |
 | **Admin** | | | |

@@ -77,7 +77,15 @@ function readFileDataset(rootDir, inputPath) {
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean)
-      .map((line) => JSON.parse(line));
+      .map((line, index) => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          console.warn(`[readFileDataset] Skipping invalid JSONL line ${index + 1}: ${e.message}`);
+          return null;
+        }
+      })
+      .filter(Boolean);
   } else if (format === "json") {
     const parsed = JSON.parse(text);
     if (Array.isArray(parsed)) items = parsed;

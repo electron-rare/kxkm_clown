@@ -19,6 +19,13 @@ Produit prive multi-utilisateur, architecture locale, identite IRC forte, Node E
 - Validation operee: lot-2-domaines relance et passe en done
 - Hygiene appliquee: logs lot-2 analyses puis purges, outputs CSV conserves
 
+## Fondation culturelle — Manifeste
+
+Le projet repose sur deux fichiers manifeste qui definissent l'univers de references et les easter eggs:
+
+- `data/manifeste.md` — Easter eggs, références culturelles (Hitchhiker's Guide, Blade Runner, SF, musique concrète, demoscene, funk)
+- `data/manifeste_references_nouvelles.md` — Références étendues en 9 catégories (crypto-anarchisme, afrofuturisme, noise/industrial, cyberfeminisme, situationnisme, open source, net.art, éco-anarchisme)
+
 ## Prochain focus
 
 - lot-3-surfaces

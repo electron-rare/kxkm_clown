@@ -11,6 +11,18 @@ function createStorage(dataDir, {
   const logsDir = path.join(dataDir, "logs");
   const MAX_SESSION_MESSAGES = 400;
 
+  // Per-key write queue to prevent concurrent file corruption
+  const _writeQueues = new Map();
+  function _enqueue(key, fn) {
+    const prev = _writeQueues.get(key) || Promise.resolve();
+    const next = prev.then(fn, fn);
+    _writeQueues.set(key, next);
+    next.then(() => {
+      if (_writeQueues.get(key) === next) _writeQueues.delete(key);
+    });
+    return next;
+  }
+
   function cleanText(value, maxLength = 4000) {
     return String(value || "").trim().slice(0, maxLength);
   }
@@ -75,12 +87,20 @@ function createStorage(dataDir, {
     const safeRole = String(role || "").replace(/[^a-z0-9_-]/gi, "_").slice(0, 20);
     const ts = new Date().toISOString();
     const line = `[${ts}] [${safeChan}] <${safeRole}> ${text.slice(0, 2000)}\n`;
-    try {
-      fs.appendFileSync(path.join(logsDir, `nick_${safe}.log`), line);
-      fs.appendFileSync(path.join(logsDir, `${safeChan}.log`), `[${ts}] <${safeRole}> ${text.slice(0, 2000)}\n`);
-    } catch (e) {
-      console.error("[log] write error:", e.message);
-    }
+    const chanLine = `[${ts}] <${safeRole}> ${text.slice(0, 2000)}\n`;
+    return _enqueue(`log:nick_${safe}`, () => {
+      try {
+        fs.appendFileSync(path.join(logsDir, `nick_${safe}.log`), line);
+      } catch (e) {
+        console.error("[log] write error:", e.message);
+      }
+    }).then(() => _enqueue(`log:${safeChan}`, () => {
+      try {
+        fs.appendFileSync(path.join(logsDir, `${safeChan}.log`), chanLine);
+      } catch (e) {
+        console.error("[log] write error:", e.message);
+      }
+    }));
   }
 
   function logDPOPair(nick, prompt, chosen, rejected, chosenModel, rejectedModel) {
@@ -225,11 +245,13 @@ function createStorage(dataDir, {
   }
 
   function saveSession(id, session) {
-    if (!session) return;
+    if (!session) return Promise.resolve();
     const safeId = String(id || "").replace(/[^a-z0-9_#:-]/gi, "_").slice(0, 180);
-    if (!safeId) return;
-    const file = path.join(sessionsDir, `${safeId}.json`);
-    fs.writeFileSync(file, JSON.stringify(session, (k, v) => k.startsWith("_") ? undefined : v, 2));
+    if (!safeId) return Promise.resolve();
+    return _enqueue(`session:${safeId}`, () => {
+      const file = path.join(sessionsDir, `${safeId}.json`);
+      fs.writeFileSync(file, JSON.stringify(session, (k, v) => k.startsWith("_") ? undefined : v, 2));
+    });
   }
 
   function normalizeSessionSnapshot(session) {

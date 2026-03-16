@@ -294,6 +294,16 @@ function createChatRouter({
       }
     }
 
+    // Hard cap: if still above 500 after stale pruning, evict oldest entries
+    if (userRateLimits.size > 500) {
+      const sorted = [...userRateLimits.entries()]
+        .sort((a, b) => a[1].windowStart - b[1].windowStart);
+      const toRemove = sorted.slice(0, userRateLimits.size - 500);
+      for (const [key] of toRemove) {
+        userRateLimits.delete(key);
+      }
+    }
+
     bucket.count++;
     return bucket.count <= RATE_LIMIT_MAX;
   }

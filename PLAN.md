@@ -171,7 +171,8 @@ Corrigé:
 - P1 BUG-02: Timeout promise leak (AbortSignal cancel)
 - P1 SEC-03: Attachment endpoints unauthenticated (requireAdminNetwork)
 
-### Phase C — Feature parity V2 `[en cours — 8/10 fait]`
+### Phase C — Feature parity V2 `[complété — 10/10]`
+
 Livré:
 - Recovery on crash (worker recoverStaleRuns + shouldCancel)
 - Cancel support (requestCancel repo + API endpoint + worker callback)
@@ -181,11 +182,43 @@ Livré:
 - Subnet gate V2 (CIDR middleware ADMIN_SUBNET)
 - Retention sweep V2 (deleteOlderThan + POST /api/v2/admin/retention-sweep)
 - Export HTML V2 (GET /api/v2/export/html)
-
 - Upload fichiers V2 (bouton upload base64 Chat.tsx)
 - Tab completion chat V2 (nicks + slash commands, Tab cycling)
+- Historique messages V2 (ArrowUp/Down, 100 items max)
+- DOM pruning V2 (élagage automatique à 500 messages)
 
-### Phase D — Optimisation & polish
-- [ ] Docker / docker-compose pour déploiement
-- [ ] Documentation utilisateur
-- [ ] Performance profiling hot paths
+### Phase D — Déploiement & polish `[complété]`
+
+Livré:
+- Docker Compose reconfiguré (Ollama natif via extra_hosts, profils v1/v2/ollama)
+- .env.example avec toutes les variables documentées
+- .gitignore sécurisé (protection .env)
+- Déploiement V2 sur kxkm-ai (API healthy port 4180, worker actif, Postgres container)
+- README complet (démarrage dev/Docker, admin, architecture, variables)
+
+### Phase E — Refonte globale `[en cours]`
+
+#### E.1 — Deep analyse code V1+V2
+
+- [x] Analyse systématique (25 findings: 5 P0, 10 P1, 10 P2)
+- [ ] Corrections P0 chirurgicales (JSON crash, storage race, ollama leak)
+- [ ] Corrections P1 chirurgicales (shutdown, rate limits, timingSafeEqual)
+
+#### E.2 — Veille OSS mise à jour
+
+- [x] Recherche web complète (20+ projets analysés)
+- [x] docs/OSS_WATCH_2026-03-16.md enrichi (chat UI, orchestration, training, libs)
+
+#### E.3 — Documentation & specs
+
+- [ ] Mermaid persona editorial state machine ajouté
+- [ ] FEATURE_MAP.md matrice de parité mise à jour
+- [ ] ARCHITECTURE.md RBAC terminology fix (ops → operator)
+- [ ] NODE_ENGINE_ARCHITECTURE.md training status mis à jour
+- [ ] SPEC.md table commandes slash ajoutée
+- [ ] PROJECT_MEMORY.md référence manifeste ajoutée
+
+#### E.4 — Redéploiement
+
+- [ ] Commit corrections + docs
+- [ ] Push et redéployer sur kxkm-ai

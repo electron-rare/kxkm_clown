@@ -331,6 +331,7 @@ const retentionIntervalId = setInterval(() => {
 function gracefulShutdown(signal) {
   console.log(`\n[shutdown] ${signal} received, saving sessions...`);
   sessionManager.stop();
+  nodeEngineQueue.stop();
   clearInterval(retentionIntervalId);
   sessionManager.saveAllSessions();
 

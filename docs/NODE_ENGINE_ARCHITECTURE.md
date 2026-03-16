@@ -153,9 +153,8 @@ Règles:
 - exécution réelle des nodes dataset/processing/evaluation/registry/deploy
 - queue persistée avec reprise automatique des runs `queued/running`
 - annulation coopérative au step boundary
-- training via adaptateurs externes ou statut `not_configured`
+- training via adaptateurs réels TRL + Unsloth (Lot 10) — opérationnel
 - persistance des runs, étapes, artefacts et modèles enregistrés
-- prochaine étape: adaptateurs training réels et runtimes distants branchés
 
 ## Intégration V2
 
@@ -279,10 +278,11 @@ Invariants:
 - statuts `queued`, `running`, `completed`, `failed`
 
 État:
-- partiellement livré
+- livré
 - runner local réel, queue async persistée et runtimes déclarés en place
-- training encore dépendant d'adaptateurs externes
+- adaptateurs training réels TRL + Unsloth livrés (Lot 10)
 - asynchronie de base livrée; orchestration avancée encore ouverte
+- runtimes `remote_gpu`, `cluster`, `cloud_api` déclarés mais pas encore opérationnels
 
 ### V3 — Runtimes distants et déploiement
 - `remote_gpu`, `cluster`, `cloud_api`

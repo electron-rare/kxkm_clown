@@ -48,13 +48,21 @@ function createOllamaClient({
 
   async function ollamaChat(model, messages, onToken, abortSignal, tokenLimit) {
     const controller = new AbortController();
+    let onAbort;
     if (abortSignal) {
-      const onAbort = () => controller.abort();
+      onAbort = () => controller.abort();
       abortSignal.addEventListener("abort", onAbort, { once: true });
     }
 
     // Global timeout: abort if chat takes too long overall
     const chatTimer = setTimeout(() => controller.abort(), OLLAMA_CHAT_TIMEOUT_MS);
+
+    function cleanup() {
+      clearTimeout(chatTimer);
+      if (abortSignal && onAbort) {
+        abortSignal.removeEventListener("abort", onAbort);
+      }
+    }
 
     const numPredict = tokenLimit || (model.includes("mistral") ? maxResponseTokensSmall : maxResponseTokens);
 
@@ -75,7 +83,7 @@ function createOllamaClient({
           if (fullResponse.length > maxResponseChars) {
             controller.abort();
             onToken("", true, null);
-            clearTimeout(chatTimer);
+            cleanup();
             return fullResponse.slice(0, maxResponseChars);
           }
           onToken(chunk.message.content, chunk.done || false);
@@ -89,7 +97,7 @@ function createOllamaClient({
         }
       }
     } catch (e) {
-      clearTimeout(chatTimer);
+      cleanup();
       if (e.name === "AbortError") {
         onToken("", true, null);
         return fullResponse;
@@ -97,7 +105,7 @@ function createOllamaClient({
       throw e;
     }
 
-    clearTimeout(chatTimer);
+    cleanup();
     return fullResponse;
   }
 

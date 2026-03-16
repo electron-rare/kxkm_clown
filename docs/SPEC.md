@@ -61,3 +61,19 @@ sequenceDiagram
 - Pas de melange runtime editorial et exports training
 - Pas d ouverture internet par defaut
 - Toute mutation admin doit etre auditable
+
+## Commandes slash
+
+| Commande | Description | Admin |
+|----------|-------------|-------|
+| `/help` | Aide | non |
+| `/clear` | Effacer le chat | non |
+| `/nick` | Changer pseudo | non |
+| `/join` | Rejoindre un canal | non |
+| `/msg` | Message privé | non |
+| `/web` | Recherche web | non |
+| `/status` | Statut système | non |
+| `/model` | Changer modèle | oui |
+| `/persona` | Gérer personas | oui |
+| `/reload` | Recharger config | oui |
+| `/export` | Exporter données | oui |

@@ -1,5 +1,14 @@
 const path = require("path");
+const { timingSafeEqual } = require("crypto");
 const { MAX_UPLOAD_BYTES } = require("./attachment-pipeline");
+
+function safeCompare(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 function registerApiRoutes(app, {
   adminBootstrapToken,
@@ -274,7 +283,7 @@ function registerApiRoutes(app, {
       }
 
       const token = String(req.body?.token || "").trim();
-      if (token !== adminBootstrapToken) {
+      if (!safeCompare(token, adminBootstrapToken)) {
         return res.status(403).json({ error: "invalid admin bootstrap token" });
       }
 

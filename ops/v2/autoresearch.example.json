@@ -1,0 +1,15 @@
+{
+  "graphId": "graph_replace_me",
+  "maxExperiments": 12,
+  "runTimeoutMs": 300000,
+  "pollIntervalMs": 2000,
+  "statusScores": {
+    "completed": 1,
+    "failed": 0,
+    "cancelled": -1,
+    "blocked": -1,
+    "not_configured": -1
+  },
+  "outputFile": "data/node-engine/autoresearch/results.tsv",
+  "tag": "persona-baseline"
+}

@@ -31,6 +31,27 @@ describe("V2 API", () => {
   }
 
   // ---------------------------------------------------------------------------
+  // Storage contract
+  // ---------------------------------------------------------------------------
+  describe("Storage contract", () => {
+    it("throws in production without DATABASE_URL", async () => {
+      const savedEnv = process.env.NODE_ENV;
+      const savedDb = process.env.DATABASE_URL;
+      try {
+        delete process.env.DATABASE_URL;
+        process.env.NODE_ENV = "production";
+        await assert.rejects(
+          createApp(),
+          /DATABASE_URL is required when NODE_ENV=production/,
+        );
+      } finally {
+        if (savedEnv !== undefined) { process.env.NODE_ENV = savedEnv; } else { delete process.env.NODE_ENV; }
+        if (savedDb !== undefined) { process.env.DATABASE_URL = savedDb; } else { delete process.env.DATABASE_URL; }
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Health
   // ---------------------------------------------------------------------------
   describe("Health", () => {

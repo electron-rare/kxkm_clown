@@ -372,6 +372,11 @@ export async function createApp(): Promise<express.Express> {
   let proposalRepo: ProposalRepo;
   let storageMode: "postgres" | "memory";
 
+  const isProduction = (process.env.NODE_ENV || "").toLowerCase() === "production";
+  if (!process.env.DATABASE_URL && isProduction) {
+    throw new Error("DATABASE_URL is required when NODE_ENV=production");
+  }
+
   if (process.env.DATABASE_URL) {
     const dbConfig = loadDatabaseConfig();
     const pool = createPostgresPool(dbConfig);

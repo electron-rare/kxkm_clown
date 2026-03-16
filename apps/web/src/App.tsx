@@ -10,6 +10,7 @@ import GraphDetail from "./components/GraphDetail";
 import RunStatus from "./components/RunStatus";
 import ChannelList from "./components/ChannelList";
 import Chat from "./components/Chat";
+import ChatHistory from "./components/ChatHistory";
 import NodeEditor from "./components/NodeEditor";
 import TrainingDashboard from "./components/TrainingDashboard";
 
@@ -158,6 +159,9 @@ export default function App() {
 
       case "chat":
         return <Chat />;
+
+      case "history":
+        return <ChatHistory />;
 
       case "dashboard":
       default:

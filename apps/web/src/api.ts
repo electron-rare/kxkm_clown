@@ -253,4 +253,15 @@ export const api = {
   getChannels(): Promise<ChatChannel[]> {
     return apiFetch<ChatChannel[]>("/api/chat/channels");
   },
+
+  // Chat History
+  getChatHistoryDates(): Promise<{ files: Array<{ date: string; lines: number; size: number }> }> {
+    return apiFetch<{ files: Array<{ date: string; lines: number; size: number }> }>("/api/v2/chat/history");
+  },
+
+  async getChatHistoryByDate(date: string, limit = 200, offset = 0): Promise<{ messages: any[]; total: number; limit: number; offset: number }> {
+    return apiFetch<{ messages: any[]; total: number; limit: number; offset: number }>(
+      `/api/v2/chat/history/${date}?limit=${limit}&offset=${offset}`
+    );
+  },
 };

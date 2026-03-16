@@ -1,5 +1,5 @@
 import net from "node:net";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import express, { type Request, type Response, type NextFunction } from "express";
 import {
@@ -987,6 +987,82 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
       res.send(lines.join("\n") + (lines.length ? "\n" : ""));
     } catch {
       res.status(500).json({ ok: false, error: "dpo_export_error" });
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // Chat history — browse past chat log files
+  // -----------------------------------------------------------------------
+
+  const chatLogDir = path.resolve(process.cwd(), process.env.KXKM_LOCAL_DATA_DIR || "data", "chat-logs");
+
+  app.get("/api/v2/chat/history", requireSession, async (_req, res) => {
+    try {
+      await mkdir(chatLogDir, { recursive: true });
+      const entries = await readdir(chatLogDir);
+      const jsonlFiles = entries.filter((f) => f.startsWith("v2-") && f.endsWith(".jsonl"));
+
+      const files: Array<{ date: string; lines: number; size: number }> = [];
+
+      for (const filename of jsonlFiles) {
+        const dateMatch = filename.match(/^v2-(\d{4}-\d{2}-\d{2})\.jsonl$/);
+        if (!dateMatch) continue;
+        const filePath = path.join(chatLogDir, filename);
+        const fileStat = await stat(filePath);
+        const content = await readFile(filePath, "utf8");
+        const lineCount = content.trim() ? content.trim().split("\n").length : 0;
+        files.push({ date: dateMatch[1], lines: lineCount, size: fileStat.size });
+      }
+
+      files.sort((a, b) => b.date.localeCompare(a.date));
+      res.json(asApiData({ files }));
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException;
+      if (e.code === "ENOENT") {
+        res.json(asApiData({ files: [] }));
+        return;
+      }
+      res.status(500).json({ ok: false, error: "chat_history_error" });
+    }
+  });
+
+  app.get("/api/v2/chat/history/:date", requireSession, async (req, res) => {
+    try {
+      const date = readRouteParam(req.params.date);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        res.status(400).json({ ok: false, error: "invalid_date_format" });
+        return;
+      }
+
+      const filePath = path.join(chatLogDir, `v2-${date}.jsonl`);
+      let content: string;
+      try {
+        content = await readFile(filePath, "utf8");
+      } catch (err) {
+        const e = err as NodeJS.ErrnoException;
+        if (e.code === "ENOENT") {
+          res.status(404).json({ ok: false, error: "log_not_found" });
+          return;
+        }
+        throw err;
+      }
+
+      const allLines = content.trim().split("\n").filter(Boolean);
+      const limit = Math.min(Math.max(Number(req.query?.limit) || 200, 1), 1000);
+      const offset = Math.max(Number(req.query?.offset) || 0, 0);
+
+      const sliced = allLines.slice(offset, offset + limit);
+      const messages = sliced.map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return { text: line, type: "raw" };
+        }
+      });
+
+      res.json(asApiData({ messages, total: allLines.length, limit, offset }));
+    } catch {
+      res.status(500).json({ ok: false, error: "chat_history_error" });
     }
   });
 

@@ -266,7 +266,7 @@ async function analyzeImage(
   const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
 
   try {
-    const visionModel = "qwen2.5:14b";
+    const visionModel = process.env.VISION_MODEL || "minicpm-v";
     const response = await fetch(`${ollamaUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

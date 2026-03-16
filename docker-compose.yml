@@ -78,7 +78,7 @@ services:
       start_period: 10s
 
   # -------------------------------------------------------------------------
-  # V2 — Worker (poll loop)
+  # V2 — Worker (poll loop, GPU access for training)
   # -------------------------------------------------------------------------
   worker:
     build: .
@@ -91,6 +91,15 @@ services:
       PYTHON_BIN: "${PYTHON_BIN:-/home/kxkm/venv/bin/python3}"
       SCRIPTS_DIR: "${SCRIPTS_DIR:-/app/scripts}"
       TRAINING_TIMEOUT_MS: "${TRAINING_TIMEOUT_MS:-3600000}"
+    volumes:
+      - /home/kxkm/venv:/home/kxkm/venv:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       postgres:
         condition: service_healthy

@@ -11,6 +11,7 @@ import RunStatus from "./components/RunStatus";
 import ChannelList from "./components/ChannelList";
 import Chat from "./components/Chat";
 import NodeEditor from "./components/NodeEditor";
+import TrainingDashboard from "./components/TrainingDashboard";
 
 function parseHash(): { page: string; id: string } {
   const hash = window.location.hash.replace(/^#\/?/, "");
@@ -148,6 +149,9 @@ export default function App() {
             onBack={() => navigate("node-engine")}
           />
         );
+
+      case "training":
+        return <TrainingDashboard />;
 
       case "channels":
         return <ChannelList />;

@@ -232,6 +232,23 @@ export const api = {
     return apiFetch<ModelRecord[]>("/api/admin/node-engine/models");
   },
 
+  // Training
+  getTrainingRuns(): Promise<NodeRunRecord[]> {
+    return apiFetch<NodeRunRecord[]>("/api/admin/node-engine/runs");
+  },
+
+  async getDPOStats(): Promise<{ count: number }> {
+    try {
+      const res = await fetch(`${BASE}/api/v2/export/dpo`, { credentials: "include" });
+      if (!res.ok) return { count: 0 };
+      const text = await res.text();
+      const lines = text.trim().split("\n").filter(Boolean);
+      return { count: lines.length };
+    } catch {
+      return { count: 0 };
+    }
+  },
+
   // Chat
   getChannels(): Promise<ChatChannel[]> {
     return apiFetch<ChatChannel[]>("/api/chat/channels");

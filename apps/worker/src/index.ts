@@ -246,9 +246,34 @@ async function executeNodeStub(
     case "register_model":
       return { registered_model: { id: "stub" } };
 
-    // Deployment
-    case "deploy_api":
-      return { deployment: { id: "stub" } };
+    // Deployment — import LoRA adapter into Ollama
+    case "deploy_api": {
+      const modelInput = inputs.registered_model as Record<string, unknown> || inputs.model as Record<string, unknown> || {};
+      const adapterPath = modelInput.adapterPath as string || (typeof params.adapterPath === "string" ? params.adapterPath : "");
+      const baseOllamaModel = typeof params.baseOllamaModel === "string" ? params.baseOllamaModel : "llama3.2:1b";
+      const deployName = typeof params.deployName === "string" ? params.deployName : `kxkm-${Date.now()}`;
+
+      if (DRY_RUN || !adapterPath) {
+        log(`    [deploy] dry-run or no adapter: base=${baseOllamaModel} name=${deployName}`);
+        return { deployment: { kind: DRY_RUN ? "dry-run" : "stub", id: deployName } };
+      }
+
+      const scriptPath = path.join(SCRIPTS_DIR, "ollama-import-adapter.sh");
+      const args = [scriptPath, "--base-model", baseOllamaModel, "--adapter-path", adapterPath, "--name", deployName];
+
+      log(`    [deploy] importing to Ollama: ${deployName} from ${baseOllamaModel} + ${adapterPath}`);
+
+      try {
+        const { stdout, stderr } = await execFileAsync("/bin/bash", args, { timeout: 300000 });
+        if (stderr) log(`    [deploy] stderr: ${stderr.slice(-500)}`);
+        const result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
+        log(`    [deploy] result: ${JSON.stringify(result)}`);
+        return { deployment: { kind: "ollama", id: deployName, ...result } };
+      } catch (err) {
+        logError(`    [deploy] failed`, err);
+        return { deployment: { kind: "error", id: deployName, error: err instanceof Error ? err.message : String(err) } };
+      }
+    }
 
     default:
       return {};

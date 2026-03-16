@@ -41,14 +41,19 @@ FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
-# System deps: tini for PID 1
-RUN apk add --no-cache tini
+# System deps: tini for PID 1, bash for training scripts
+RUN apk add --no-cache tini bash
 
 # Copy the assembled dist produced by scripts/build.js
 COPY --from=build /app/dist ./
 
 # Re-install production deps inside dist/
 RUN npm ci --omit=dev --ignore-scripts 2>/dev/null || npm install --omit=dev --ignore-scripts
+
+# Copy training/eval scripts (not in dist/)
+COPY --from=build /app/scripts/train_unsloth.py ./scripts/
+COPY --from=build /app/scripts/eval_model.py ./scripts/
+COPY --from=build /app/scripts/ollama-import-adapter.sh ./scripts/
 
 # Ensure data directories exist (they will be mounted as volumes in prod)
 RUN mkdir -p data/logs data/sessions data/training data/memory data/dpo \

@@ -206,9 +206,18 @@ function personaColor(id: string, index: number): string {
 
 const CHAT_LOG_DIR = path.resolve(process.cwd(), "data/chat-logs");
 
-function ensureLogDir(): void {
-  fs.mkdirSync(CHAT_LOG_DIR, { recursive: true });
+let logDirReady = false;
+
+async function ensureLogDir(): Promise<void> {
+  if (logDirReady) return;
+  await fs.promises.mkdir(CHAT_LOG_DIR, { recursive: true });
+  logDirReady = true;
 }
+
+// Ensure log dir at startup (fire-and-forget)
+ensureLogDir().catch((err) =>
+  console.error("[ws-chat] Failed to create log dir:", err instanceof Error ? err.message : String(err)),
+);
 
 function logFilePath(): string {
   const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -216,13 +225,11 @@ function logFilePath(): string {
 }
 
 function logChatMessage(entry: ChatLogEntry): void {
-  try {
-    ensureLogDir();
-    const line = JSON.stringify(entry) + "\n";
-    fs.appendFileSync(logFilePath(), line, "utf8");
-  } catch (err) {
-    console.error("[ws-chat] Failed to log chat message:", err instanceof Error ? err.message : String(err));
-  }
+  ensureLogDir()
+    .then(() => fs.promises.appendFile(logFilePath(), JSON.stringify(entry) + "\n", "utf8"))
+    .catch((err) => {
+      console.error("[ws-chat] Failed to log chat message:", err instanceof Error ? err.message : String(err));
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -231,20 +238,19 @@ function logChatMessage(entry: ChatLogEntry): void {
 
 const PERSONA_MEMORY_DIR = path.resolve(process.cwd(), "data/persona-memory");
 
-function loadPersonaMemory(nick: string): PersonaMemory {
+async function loadPersonaMemory(nick: string): Promise<PersonaMemory> {
   const memPath = path.join(PERSONA_MEMORY_DIR, `${nick}.json`);
   try {
-    if (fs.existsSync(memPath)) {
-      return JSON.parse(fs.readFileSync(memPath, "utf-8")) as PersonaMemory;
-    }
-  } catch { /* corrupted file — start fresh */ }
+    const data = await fs.promises.readFile(memPath, "utf-8");
+    return JSON.parse(data) as PersonaMemory;
+  } catch { /* missing or corrupted file — start fresh */ }
   return { nick, facts: [], summary: "", lastUpdated: "" };
 }
 
-function savePersonaMemory(memory: PersonaMemory): void {
-  fs.mkdirSync(PERSONA_MEMORY_DIR, { recursive: true });
+async function savePersonaMemory(memory: PersonaMemory): Promise<void> {
+  await fs.promises.mkdir(PERSONA_MEMORY_DIR, { recursive: true });
   memory.lastUpdated = new Date().toISOString();
-  fs.writeFileSync(
+  await fs.promises.writeFile(
     path.join(PERSONA_MEMORY_DIR, `${memory.nick}.json`),
     JSON.stringify(memory, null, 2),
   );
@@ -255,7 +261,7 @@ async function updatePersonaMemory(
   recentMessages: string[],
   ollamaUrl: string,
 ): Promise<void> {
-  const memory = loadPersonaMemory(persona.nick);
+  const memory = await loadPersonaMemory(persona.nick);
 
   const prompt =
     `Tu es ${persona.nick}. Voici les derniers échanges:\n${recentMessages.join("\n")}\n\n` +
@@ -289,7 +295,7 @@ async function updatePersonaMemory(
       memory.summary = extracted.summary;
     }
 
-    savePersonaMemory(memory);
+    await savePersonaMemory(memory);
   } catch (err) {
     console.error(
       `[ws-chat] Memory update failed for ${persona.nick}:`,
@@ -304,8 +310,6 @@ async function updatePersonaMemory(
 
 async function searchWeb(query: string): Promise<string> {
   const apiBase = process.env.WEB_SEARCH_API_BASE;
-
-  let html: string;
 
   if (apiBase) {
     // Custom search API
@@ -372,7 +376,7 @@ async function searchWeb(query: string): Promise<string> {
       signal: AbortSignal.timeout(10_000),
     });
     if (liteRes.ok) {
-      html = await liteRes.text();
+      const html = await liteRes.text();
       // Extract any <a> with href containing http
       const linkRegex = /<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
       let m: RegExpExecArray | null;
@@ -658,6 +662,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         if (!currentNicks.has(nick)) {
           personaMessageCounts.delete(nick);
           personaRecentMessages.delete(nick);
+          personaMemoryLocks.delete(nick);
         }
       }
 
@@ -734,15 +739,15 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
   // --- pick personas for #general ---
 
-  function pickResponders(text: string): ChatPersona[] {
+  function pickResponders(text: string, pool: ChatPersona[] = personas): ChatPersona[] {
     // Check for direct @mention
-    const mentioned = personas.filter((p) =>
+    const mentioned = pool.filter((p) =>
       text.toLowerCase().includes(`@${p.nick.toLowerCase()}`),
     );
     if (mentioned.length > 0) return mentioned;
 
     // Pick random subset up to maxGeneralResponders
-    const shuffled = [...personas].sort(() => Math.random() - 0.5);
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
     return shuffled.slice(0, Math.min(maxGeneralResponders, shuffled.length));
   }
 
@@ -843,7 +848,8 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   // --- route text to personas (shared by chat messages and uploads) ---
 
   async function routeToPersonas(channel: string, text: string): Promise<void> {
-    const responders = pickResponders(text);
+    const personasSnapshot = [...personas];
+    const responders = pickResponders(text, personasSnapshot);
 
     // RAG: enrich user message with relevant context from indexed documents
     let enrichedText = text;
@@ -867,7 +873,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       });
 
       // Enrich persona with memory context
-      const memory = loadPersonaMemory(persona.nick);
+      const memory = await loadPersonaMemory(persona.nick);
       let personaWithMemory = persona;
       if (memory.facts.length > 0 || memory.summary) {
         const memoryBlock = [
@@ -884,62 +890,68 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
       let accumulated = "";
 
-      await streamOllamaChat(
-        ollamaUrl,
-        personaWithMemory,
-        enrichedText,
-        (chunk) => {
-          accumulated += chunk;
-          // Send streamed chunks — buffer ~100 chars to avoid flooding
-          // We send the full accumulated text each time (frontend can replace)
-        },
-        (fullText) => {
-          broadcast(channel, {
-            type: "message",
-            nick: persona.nick,
-            text: fullText,
-            color: persona.color,
-          });
-
-          // Log persona response
-          logChatMessage({
-            ts: new Date().toISOString(),
-            channel,
-            nick: persona.nick,
-            type: "message",
-            text: fullText,
-          });
-
-          // Track message for memory updates
-          trackPersonaMessage(persona.nick, `User: ${text}\n${persona.nick}: ${fullText}`);
-
-          // Update memory every 5 messages (async, non-blocking, serialized per persona)
-          const count = personaMessageCounts.get(persona.nick) || 0;
-          if (count > 0 && count % 5 === 0) {
-            const recentMessages = personaRecentMessages.get(persona.nick) || [];
-            const lockKey = persona.nick;
-            const prev = personaMemoryLocks.get(lockKey) || Promise.resolve();
-            const next = prev.then(() => updatePersonaMemory(persona, recentMessages, ollamaUrl)).catch(err => {
-              console.error(`[ws-chat] Memory update failed for ${persona.nick}:`, err);
+      try {
+        await streamOllamaChat(
+          ollamaUrl,
+          personaWithMemory,
+          enrichedText,
+          (chunk) => {
+            accumulated += chunk;
+            // Send streamed chunks — buffer ~100 chars to avoid flooding
+            // We send the full accumulated text each time (frontend can replace)
+          },
+          (fullText) => {
+            broadcast(channel, {
+              type: "message",
+              nick: persona.nick,
+              text: fullText,
+              color: persona.color,
             });
-            personaMemoryLocks.set(lockKey, next);
-          }
 
-          // TTS synthesis (async, non-blocking)
-          if (process.env.TTS_ENABLED === "1") {
-            synthesizeTTS(persona.nick, fullText, channel, broadcast).catch((err) => {
-              console.error(`[tts] Error for ${persona.nick}: ${err}`);
+            // Log persona response
+            logChatMessage({
+              ts: new Date().toISOString(),
+              channel,
+              nick: persona.nick,
+              type: "message",
+              text: fullText,
             });
-          }
-        },
-        (err) => {
-          console.error(`[ws-chat] Ollama error for ${persona.nick}:`, err.message);
-          broadcast(channel, {
-            type: "system",
-            text: `${persona.nick}: erreur Ollama — ${err.message}`,
-          });
-        },
-      );
+
+            // Track message for memory updates
+            trackPersonaMessage(persona.nick, `User: ${text}\n${persona.nick}: ${fullText}`);
+
+            // Update memory every 5 messages (async, non-blocking, serialized per persona)
+            const count = personaMessageCounts.get(persona.nick) || 0;
+            if (count > 0 && count % 5 === 0) {
+              const recentMessages = personaRecentMessages.get(persona.nick) || [];
+              const lockKey = persona.nick;
+              const prev = personaMemoryLocks.get(lockKey) || Promise.resolve();
+              const next = prev.then(() => updatePersonaMemory(persona, recentMessages, ollamaUrl)).catch(err => {
+                console.error(`[ws-chat] Memory update failed for ${persona.nick}:`, err);
+              });
+              personaMemoryLocks.set(lockKey, next);
+            }
+
+            // TTS synthesis (async, non-blocking)
+            if (process.env.TTS_ENABLED === "1") {
+              synthesizeTTS(persona.nick, fullText, channel, broadcast).catch((err) => {
+                console.error(`[tts] Error for ${persona.nick}: ${err}`);
+              });
+            }
+          },
+          (err) => {
+            console.error(`[ws-chat] Ollama error for ${persona.nick}:`, err.message);
+            broadcast(channel, {
+              type: "system",
+              text: `${persona.nick}: erreur Ollama — ${err.message}`,
+            });
+          },
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        broadcast(channel, { type: "system", text: `${persona.nick}: erreur de connexion` });
+        console.error(`[ws-chat] Ollama error for ${persona.nick}:`, msg);
+      }
     }
   }
 
@@ -1017,7 +1029,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       filename.endsWith(".csv") ||
       filename.endsWith(".jsonl")
     ) {
-      const text = buffer.toString("utf-8").slice(0, 12000);
+      const text = buffer.slice(0, 12000).toString("utf-8");
       analysis = `[Fichier texte: ${filename}]\n${text}`;
     } else if (mimeType.startsWith("image/")) {
       analysis = await analyzeImage(buffer, mimeType, filename, ollamaUrl);

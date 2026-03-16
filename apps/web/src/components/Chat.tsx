@@ -334,7 +334,7 @@ export default function Chat() {
           <input
             type="file"
             style={{ display: "none" }}
-            accept="image/*,audio/*,text/*,.pdf,.json,.jsonl,.csv"
+            accept="image/*,audio/*,text/*,.pdf,.json,.jsonl,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.epub,.html,.xml,.yaml,.yml,.toml,.ini,.log,.sh,.py,.js,.ts,.c,.cpp,.rs,.go,.java,.sql"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (!file || !ws.connected) return;

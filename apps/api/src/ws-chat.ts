@@ -490,6 +490,32 @@ async function synthesizeTTS(
 // Image analysis via Ollama vision
 // ---------------------------------------------------------------------------
 
+const OFFICE_EXTENSIONS = new Set([
+  "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+  "odt", "ods", "odp", "rtf", "epub",
+]);
+
+const OFFICE_MIMES = new Set([
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.oasis.opendocument.presentation",
+  "application/rtf",
+  "application/epub+zip",
+]);
+
+function isOfficeDocument(filename: string, mimeType: string): boolean {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  return OFFICE_EXTENSIONS.has(ext) || OFFICE_MIMES.has(mimeType);
+}
+
+// ---------------------------------------------------------------------------
+
 async function analyzeImage(
   buffer: Buffer,
   mimeType: string,
@@ -986,6 +1012,30 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         analysis = `[PDF: ${filename}, ${pages} page(s)]\n${text}`;
       } catch (err) {
         analysis = `[PDF: ${filename} — extraction échouée: ${err instanceof Error ? err.message : String(err)}]`;
+      }
+    } else if (isOfficeDocument(filename, mimeType)) {
+      // Word, Excel, PowerPoint, LibreOffice, RTF, EPUB
+      const ext = filename.split(".").pop() || "";
+      const tmpFile = path.join("/tmp", `kxkm-doc-${Date.now()}.${ext}`);
+      try {
+        fs.writeFileSync(tmpFile, buffer);
+        const pythonBin = process.env.PYTHON_BIN || "python3";
+        const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_document.py");
+        const { stdout, stderr } = await execFileAsync(pythonBin, [
+          scriptPath, "--input", tmpFile,
+        ], { timeout: 60_000 });
+        if (stderr) console.log(`[upload] doc extract: ${stderr.slice(-200)}`);
+        const jsonLine = stdout.trim().split("\n").pop() || "{}";
+        const result = JSON.parse(jsonLine);
+        if (result.text) {
+          analysis = `[Document ${ext.toUpperCase()}: ${filename}]\n${result.text}`;
+        } else {
+          analysis = `[Document: ${filename} — extraction échouée: ${result.error || "unknown"}]`;
+        }
+      } catch (err) {
+        analysis = `[Document: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
+      } finally {
+        try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
       }
     } else {
       analysis = `[Fichier: ${filename}, type: ${mimeType}, ${(size / 1024).toFixed(0)} KB]`;

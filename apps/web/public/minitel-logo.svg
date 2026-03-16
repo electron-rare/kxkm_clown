@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 120" width="320" height="120">
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="pinkGlow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feFlood flood-color="#ff69b4" flood-opacity="0.4" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="glow"/>
+      <feComposite in="SourceGraphic" in2="glow" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="320" height="120" fill="#0a0a0a" rx="4"/>
+
+  <!-- Decorative border -->
+  <rect x="4" y="4" width="312" height="112" fill="none" stroke="#33ff33" stroke-width="1" rx="2" opacity="0.3"/>
+
+  <!-- 3615 in blocky videotex style -->
+  <g filter="url(#glow)">
+    <text x="28" y="58" font-family="'Courier New', monospace" font-size="48" font-weight="bold" fill="#33ff33" letter-spacing="4">3615</text>
+  </g>
+
+  <!-- Subtle green glow behind 3615 -->
+  <text x="28" y="58" font-family="'Courier New', monospace" font-size="48" font-weight="bold" fill="#33ff33" letter-spacing="4" opacity="0.15" filter="url(#glow)">3615</text>
+
+  <!-- Pink accent line -->
+  <rect x="28" y="68" width="264" height="3" fill="#ff69b4" rx="1"/>
+  <rect x="28" y="68" width="264" height="3" fill="#ff69b4" rx="1" opacity="0.4" filter="url(#pinkGlow)"/>
+
+  <!-- KXKM in bold monospace -->
+  <g filter="url(#pinkGlow)">
+    <text x="28" y="100" font-family="'Courier New', monospace" font-size="36" font-weight="bold" fill="#ff69b4" letter-spacing="8">KXKM</text>
+  </g>
+
+  <!-- Small decorative dots -->
+  <circle cx="280" cy="30" r="2" fill="#33ff33" opacity="0.5"/>
+  <circle cx="290" cy="30" r="2" fill="#ff69b4" opacity="0.5"/>
+  <circle cx="300" cy="30" r="2" fill="#ffb000" opacity="0.5"/>
+
+  <!-- Scanline effect overlay -->
+  <g opacity="0.08">
+    <line x1="0" y1="10" x2="320" y2="10" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="14" x2="320" y2="14" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="18" x2="320" y2="18" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="22" x2="320" y2="22" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="26" x2="320" y2="26" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="30" x2="320" y2="30" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="34" x2="320" y2="34" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="38" x2="320" y2="38" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="42" x2="320" y2="42" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="46" x2="320" y2="46" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="50" x2="320" y2="50" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="54" x2="320" y2="54" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="58" x2="320" y2="58" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="62" x2="320" y2="62" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="66" x2="320" y2="66" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="70" x2="320" y2="70" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="74" x2="320" y2="74" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="78" x2="320" y2="78" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="82" x2="320" y2="82" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="86" x2="320" y2="86" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="90" x2="320" y2="90" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="94" x2="320" y2="94" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="98" x2="320" y2="98" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="102" x2="320" y2="102" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="106" x2="320" y2="106" stroke="#fff" stroke-width="0.5"/>
+    <line x1="0" y1="110" x2="320" y2="110" stroke="#fff" stroke-width="0.5"/>
+  </g>
+</svg>

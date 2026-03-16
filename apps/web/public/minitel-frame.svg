@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480" width="600" height="480">
+  <defs>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ddd2b8"/>
+      <stop offset="50%" stop-color="#d4c9a8"/>
+      <stop offset="100%" stop-color="#c4b998"/>
+    </linearGradient>
+    <linearGradient id="bezelGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#2a2a2a"/>
+    </linearGradient>
+    <filter id="bodyShadow">
+      <feDropShadow dx="4" dy="6" stdDeviation="8" flood-color="#00000044"/>
+    </filter>
+    <filter id="insetShadow">
+      <feOffset dx="0" dy="2"/>
+      <feGaussianBlur stdDeviation="4"/>
+      <feComposite operator="out" in="SourceGraphic"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer>
+      <feComposite operator="over" in="SourceGraphic"/>
+    </filter>
+  </defs>
+
+  <!-- Body shadow -->
+  <rect x="20" y="16" width="560" height="448" rx="18" ry="18" fill="url(#bodyGrad)" filter="url(#bodyShadow)"/>
+
+  <!-- Body -->
+  <rect x="20" y="16" width="560" height="448" rx="18" ry="18" fill="url(#bodyGrad)" stroke="#b0a688" stroke-width="1.5"/>
+
+  <!-- Top edge highlight -->
+  <rect x="22" y="18" width="556" height="4" rx="2" fill="#e8dfc8" opacity="0.6"/>
+
+  <!-- Screen bezel -->
+  <rect x="50" y="36" width="420" height="320" rx="8" ry="8" fill="url(#bezelGrad)" stroke="#111" stroke-width="2"/>
+
+  <!-- Screen bezel inner bevel -->
+  <rect x="54" y="40" width="412" height="312" rx="5" ry="5" fill="none" stroke="#333" stroke-width="1"/>
+
+  <!-- Screen glass area -->
+  <rect x="62" y="48" width="396" height="296" rx="6" ry="6" fill="#0a0a0a"/>
+
+  <!-- Screen glass reflection -->
+  <rect x="62" y="48" width="396" height="296" rx="6" ry="6" fill="url(#screenReflect)" opacity="0.08"/>
+  <defs>
+    <linearGradient id="screenReflect" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Speaker grille area -->
+  <rect x="490" y="50" width="72" height="200" rx="6" fill="#c4b998" stroke="#b0a688" stroke-width="1"/>
+
+  <!-- Speaker grille holes -->
+  <g fill="#8a7f68">
+    <!-- Column 1 -->
+    <circle cx="505" cy="70" r="3"/><circle cx="505" cy="84" r="3"/><circle cx="505" cy="98" r="3"/>
+    <circle cx="505" cy="112" r="3"/><circle cx="505" cy="126" r="3"/><circle cx="505" cy="140" r="3"/>
+    <circle cx="505" cy="154" r="3"/><circle cx="505" cy="168" r="3"/><circle cx="505" cy="182" r="3"/>
+    <circle cx="505" cy="196" r="3"/><circle cx="505" cy="210" r="3"/><circle cx="505" cy="224" r="3"/>
+    <circle cx="505" cy="238" r="3"/>
+    <!-- Column 2 -->
+    <circle cx="521" cy="77" r="3"/><circle cx="521" cy="91" r="3"/><circle cx="521" cy="105" r="3"/>
+    <circle cx="521" cy="119" r="3"/><circle cx="521" cy="133" r="3"/><circle cx="521" cy="147" r="3"/>
+    <circle cx="521" cy="161" r="3"/><circle cx="521" cy="175" r="3"/><circle cx="521" cy="189" r="3"/>
+    <circle cx="521" cy="203" r="3"/><circle cx="521" cy="217" r="3"/><circle cx="521" cy="231" r="3"/>
+    <!-- Column 3 -->
+    <circle cx="537" cy="70" r="3"/><circle cx="537" cy="84" r="3"/><circle cx="537" cy="98" r="3"/>
+    <circle cx="537" cy="112" r="3"/><circle cx="537" cy="126" r="3"/><circle cx="537" cy="140" r="3"/>
+    <circle cx="537" cy="154" r="3"/><circle cx="537" cy="168" r="3"/><circle cx="537" cy="182" r="3"/>
+    <circle cx="537" cy="196" r="3"/><circle cx="537" cy="210" r="3"/><circle cx="537" cy="224" r="3"/>
+    <circle cx="537" cy="238" r="3"/>
+    <!-- Column 4 -->
+    <circle cx="553" cy="77" r="3"/><circle cx="553" cy="91" r="3"/><circle cx="553" cy="105" r="3"/>
+    <circle cx="553" cy="119" r="3"/><circle cx="553" cy="133" r="3"/><circle cx="553" cy="147" r="3"/>
+    <circle cx="553" cy="161" r="3"/><circle cx="553" cy="175" r="3"/><circle cx="553" cy="189" r="3"/>
+    <circle cx="553" cy="203" r="3"/><circle cx="553" cy="217" r="3"/><circle cx="553" cy="231" r="3"/>
+  </g>
+
+  <!-- Brightness/contrast knobs -->
+  <circle cx="504" cy="268" r="8" fill="#8a7f68" stroke="#6e6555" stroke-width="1.5"/>
+  <line x1="504" y1="262" x2="504" y2="268" stroke="#555" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="548" cy="268" r="8" fill="#8a7f68" stroke="#6e6555" stroke-width="1.5"/>
+  <line x1="548" y1="262" x2="548" y2="268" stroke="#555" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Labels -->
+  <text x="504" y="294" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="7" fill="#8a7f68" letter-spacing="0.5">LUM.</text>
+  <text x="548" y="294" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="7" fill="#8a7f68" letter-spacing="0.5">CONTR.</text>
+
+  <!-- Bottom label area -->
+  <rect x="50" y="370" width="500" height="36" rx="4" fill="none"/>
+
+  <!-- MINITEL 1B brand -->
+  <text x="72" y="392" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="bold" fill="#6e6555" letter-spacing="3">MINITEL 1B</text>
+
+  <!-- FRANCE TELECOM sub-label -->
+  <text x="72" y="408" font-family="Helvetica, Arial, sans-serif" font-size="9" fill="#9a9080" letter-spacing="2">FRANCE TELECOM</text>
+
+  <!-- Decorative line under screen -->
+  <line x1="50" y1="362" x2="470" y2="362" stroke="#b0a688" stroke-width="1"/>
+
+  <!-- Power LED -->
+  <circle cx="540" cy="390" r="4" fill="#33aa33" opacity="0.8"/>
+  <circle cx="540" cy="390" r="4" fill="#33ff33" opacity="0.3">
+    <animate attributeName="opacity" values="0.3;0.6;0.3" dur="2s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Ventilation slots bottom -->
+  <g stroke="#b0a688" stroke-width="0.8" fill="none">
+    <line x1="200" y1="440" x2="400" y2="440"/>
+    <line x1="210" y1="444" x2="390" y2="444"/>
+    <line x1="220" y1="448" x2="380" y2="448"/>
+  </g>
+</svg>

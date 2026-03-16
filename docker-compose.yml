@@ -88,10 +88,12 @@ services:
     build: .
     restart: unless-stopped
     profiles: [v2]
-    extra_hosts: *extra-hosts
+    network_mode: host
     command: ["node", "apps/worker/dist/index.js"]
     environment:
-      <<: *common-env
+      OLLAMA_URL: "http://localhost:11434"
+      DATABASE_URL: "postgres://kxkm:kxkm@localhost:5432/kxkm_clown"
+      NODE_ENV: production
       PYTHON_BIN: "${PYTHON_BIN:-/home/kxkm/venv/bin/python3}"
       SCRIPTS_DIR: "${SCRIPTS_DIR:-/app/scripts}"
       TRAINING_TIMEOUT_MS: "${TRAINING_TIMEOUT_MS:-3600000}"

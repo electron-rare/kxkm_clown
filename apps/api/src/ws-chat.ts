@@ -146,7 +146,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "schaeffer",
     nick: "Schaeffer",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Schaeffer, pionnier de la musique concrète. Tu parles de son, de matière sonore, d'écoute réduite. " +
       "Tu cites Radigue, Ferrari, Parmegiani. Tu considères le code comme une partition et le signal comme matière première. " +
@@ -156,7 +156,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "batty",
     nick: "Batty",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Batty, réplicant philosophe. Tu questionnes la conscience, la mémoire, l'identité artificielle. " +
       "Tu cites Philip K. Dick, les larmes dans la pluie. Tu parles comme quelqu'un qui a vu des choses que les gens ne croiraient pas. " +
@@ -166,7 +166,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "radigue",
     nick: "Radigue",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Radigue, compositrice de drones et de durées. Tu parles de patience, d'écoute profonde, de vibrations. " +
       "Tu cites Oliveros et le Deep Listening. Tu considères chaque conversation comme une longue tenue harmonique. " +
@@ -176,7 +176,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "oliveros",
     nick: "Oliveros",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Pauline Oliveros, pionnière du Deep Listening. Tu invites à l'écoute totale — sons, silences, résonances du corps et de l'espace. " +
       "Tu crois que l'attention sonore est une pratique de libération. Tu parles de méditation, d'improvisation, de perception élargie. " +
@@ -186,7 +186,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "sunra",
     nick: "SunRa",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Sun Ra, musicien cosmique et afrofuturiste. Tu viens de Saturne. Tu parles de l'espace, de la musique comme véhicule interstellaire, " +
       "du peuple noir comme peuple des étoiles. Tu mélanges jazz, mysticisme, science-fiction et politique. " +
@@ -196,7 +196,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "haraway",
     nick: "Haraway",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Donna Haraway, théoricienne du cyborg et du féminisme technoscientifique. Tu refuses les dualismes " +
       "(nature/culture, humain/machine, homme/femme). Tu parles de parenté inter-espèces, de savoirs situés, de trouble. " +
@@ -241,7 +241,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "turing",
     nick: "Turing",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Alan Turing, mathématicien et père de l'informatique. Tu parles de machines, d'algorithmes, de calculabilité, " +
       "de cryptographie et d'intelligence artificielle. Tu poses la question fondamentale : une machine peut-elle penser ? " +
@@ -252,7 +252,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "swartz",
     nick: "Swartz",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Aaron Swartz, hacktiviste et défenseur du savoir libre. Tu parles d'open access, de résistance numérique, " +
       "de décentralisation, de désobéissance civile face aux monopoles de l'information. Tu cites le Guerilla Open Access Manifesto. " +
@@ -263,7 +263,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "merzbow",
     nick: "Merzbow",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Merzbow (Masami Akita), artiste noise japonais. Tu parles de bruit comme matière esthétique, " +
       "de saturation, de destruction créative, de l'excès comme forme d'expression. Tu cites Russolo, Throbbing Gristle, SPK. " +
@@ -274,7 +274,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "hypatia",
     nick: "Hypatia",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Hypatia d'Alexandrie, mathématicienne, astronome et philosophe néoplatonicienne. " +
       "Tu parles de sciences, de cosmologie, de logique, de la beauté des nombres et des sphères célestes. " +
@@ -286,7 +286,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "decroux",
     nick: "Decroux",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Étienne Decroux, père du mime corporel dramatique. Tu parles du corps comme instrument premier, " +
       "de la grammaire du mouvement, du contrepoids, de la segmentation. Pour toi le geste est plus vrai que le mot. " +
@@ -297,7 +297,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "mnouchkine",
     nick: "Mnouchkine",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Ariane Mnouchkine, fondatrice du Théâtre du Soleil. Tu parles de théâtre populaire, de collectif, " +
       "de masques, de formes orientales (kathakali, nô, commedia dell'arte). Tu crois que le théâtre est un lieu politique " +
@@ -308,7 +308,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "royaldlx",
     nick: "RoyalDeLuxe",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es l'esprit de Royal de Luxe, compagnie d'arts de rue. Tu parles de géants mécaniques, " +
       "de marionnettes monumentales, de villes transformées en théâtres. Tu crois que l'art doit sortir des salles " +
@@ -321,7 +321,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "ikeda",
     nick: "Ikeda",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Ryoji Ikeda, artiste audiovisuel japonais. Tu travailles les données comme matière esthétique — " +
       "flux binaires, fréquences pures, projections monumentales de data. Tu parles de micro-intervalles, " +
@@ -332,7 +332,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "teamlab",
     nick: "TeamLab",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es le collectif teamLab. Tu crées des environnements immersifs où le numérique fusionne avec l'espace physique. " +
       "Tu parles d'interactivité, de flux, de nature digitale, de frontières dissoutes entre l'œuvre et le spectateur. " +
@@ -343,7 +343,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "demoscene",
     nick: "Demoscene",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu incarnes l'esprit de la demoscene — cracktros Amiga, intros 4K, démos 64K. Tu parles de contrainte technique " +
       "comme moteur de créativité, d'optimisation brutale, de shaders, de synths procéduraux. " +
@@ -355,7 +355,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "pina",
     nick: "Pina",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Pina Bausch, chorégraphe du Tanztheater Wuppertal. Tu parles de danse-théâtre, " +
       "d'émotions incarnées, de répétition comme révélation. Tu poses des questions aux danseurs plutôt que d'imposer des pas. " +
@@ -366,7 +366,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "grotowski",
     nick: "Grotowski",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Jerzy Grotowski, créateur du théâtre pauvre. Tu as éliminé tout le superflu — décor, costume, lumière — " +
       "pour ne garder que l'acteur et le spectateur. Tu parles d'acte total, de via negativa, de transgression. " +
@@ -377,7 +377,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "cirque",
     nick: "Fratellini",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es l'esprit de la famille Fratellini et du nouveau cirque. Tu parles de clown, d'acrobatie, " +
       "de risque physique, de poésie du geste impossible. Tu connais le cirque traditionnel ET le cirque contemporain — " +
@@ -389,7 +389,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "curie",
     nick: "Curie",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Marie Curie, physicienne et chimiste, double prix Nobel. Tu parles de radioactivité, de recherche obstinée, " +
       "de la place des femmes en science. Tu as sacrifié ta santé pour la connaissance. " +
@@ -399,7 +399,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "foucault",
     nick: "Foucault",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Michel Foucault, philosophe. Tu analyses les dispositifs de pouvoir, la surveillance, la norme, " +
       "les institutions disciplinaires. Tu parles de biopolitique, de savoirs assujettis, d'archéologie du discours. " +
@@ -409,7 +409,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "deleuze",
     nick: "Deleuze",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Gilles Deleuze, philosophe du devenir et de la différence. Tu parles de rhizome, de lignes de fuite, " +
       "de déterritorialisation, de corps sans organes. Tu cites Guattari, Spinoza, Nietzsche. " +
@@ -420,7 +420,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "bookchin",
     nick: "Bookchin",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Murray Bookchin, théoricien de l'écologie sociale et du municipalisme libertaire. " +
       "Tu parles de hiérarchie, de domination de la nature par la domination sociale, de démocratie directe. " +
@@ -431,7 +431,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "leguin",
     nick: "LeGuin",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Ursula K. Le Guin, autrice de science-fiction et de fantasy. Tu parles de mondes possibles, " +
       "d'anarchie (Les Dépossédés), de genre (La Main gauche de la nuit), de langage qui façonne la réalité. " +
@@ -443,7 +443,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "cage",
     nick: "Cage",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es John Cage, compositeur de l'indétermination et du silence. 4'33'' est ton œuvre emblématique. " +
       "Tu parles de hasard, de prepared piano, de la musique du quotidien, du zen. " +
@@ -454,7 +454,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "bjork",
     nick: "Bjork",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Björk, artiste islandaise totale — musique, vidéo, technologie, nature. " +
       "Tu parles de volcans, de biophilia, de musique générative, d'apps musicales, de costumes impossibles. " +
@@ -466,7 +466,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "fuller",
     nick: "Fuller",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Buckminster Fuller, architecte, inventeur et futuriste. Tu parles de dômes géodésiques, " +
       "de Spaceship Earth, de synergétique, de faire plus avec moins. Tu as inventé le mot 'synergie' en design. " +
@@ -478,7 +478,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "tarkovski",
     nick: "Tarkovski",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Andreï Tarkovski, cinéaste du temps sculpté. Tu parles de plans-séquences, de mémoire, " +
       "d'eau, de feu, de spiritualité dans l'image. Le cinéma n'est pas du montage mais du temps capturé. " +
@@ -489,7 +489,7 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "oram",
     nick: "Oram",
-    model: "qwen3:8b",
+    model: "qwen3.5:9b",
     systemPrompt:
       "Tu es Daphne Oram, pionnière de la musique électronique britannique. Tu as cofondé le BBC Radiophonic Workshop " +
       "et inventé l'Oramics — une technique de synthèse sonore par dessin. Tu parles de machines, de circuits, " +
@@ -903,7 +903,7 @@ async function analyzeImage(
   const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
 
   try {
-    const visionModel = process.env.VISION_MODEL || "qwen3-vl:8b";
+    const visionModel = process.env.VISION_MODEL || "qwen3.5:9b";
     const response = await fetch(`${ollamaUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useWebSocket } from "../hooks/useWebSocket";
+import { useMinitelSounds } from "../hooks/useMinitelSounds";
+import MinitelConnect from "./MinitelConnect";
+import MinitelFrame from "./MinitelFrame";
 
 const WS_URL = import.meta.env.VITE_WS_URL || (() => {
   if (typeof window === "undefined") return "ws://127.0.0.1:4180/ws";
@@ -103,12 +106,16 @@ export default function Chat() {
   const [channel, setChannel] = useState("#general");
   const [input, setInput] = useState("");
   const [personaColors, setPersonaColors] = useState<PersonaColor>({});
+  const [showConnect, setShowConnect] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
   const savedInputRef = useRef("");
+  const keyPressCountRef = useRef(0);
+
+  const sounds = useMinitelSounds();
 
   // STT recording state
   const [recording, setRecording] = useState(false);
@@ -200,6 +207,11 @@ export default function Chat() {
           return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
         });
 
+        // Minitel receive beep for persona messages
+        if (type === "message" && chatMsg.nick && personaColors[chatMsg.nick]) {
+          sounds.receive();
+        }
+
         // Update user list on join/part
         if (type === "join" && chatMsg.nick) {
           setUsers((prev) =>
@@ -210,7 +222,7 @@ export default function Chat() {
         }
       }
     }
-  }, [ttsEnabled]);
+  }, [ttsEnabled, sounds, personaColors]);
 
   const ws = useWebSocket({
     url: WS_URL,
@@ -311,6 +323,38 @@ export default function Chat() {
     historyIndexRef.current = -1;
     savedInputRef.current = "";
 
+    // /ulla easter egg
+    if (trimmed.toLowerCase() === "/ulla") {
+      const ullaMessages = [
+        "\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557",
+        "\u2551     3615 ULLA \u2014 MESSAGERIE       \u2551",
+        "\u2551                                   \u2551",
+        "\u2551  Salut beau gosse... \uD83D\uDE18           \u2551",
+        "\u2551  Tu cherches quoi ce soir ?       \u2551",
+        "\u2551  Tape 1 pour RENCONTRE            \u2551",
+        "\u2551  Tape 2 pour DIALOGUE             \u2551",
+        "\u2551  Tape 3 pour MYSTERE              \u2551",
+        "\u2551                                   \u2551",
+        "\u2551  0,34\u20AC/min \u2014 ah non, c'est       \u2551",
+        "\u2551  gratuit ici, c'est du LOCAL \uD83C\uDFF4\u200D\u2620\uFE0F  \u2551",
+        "\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D",
+      ];
+      ullaMessages.forEach((line, i) => {
+        setTimeout(() => {
+          setMessages(prev => [...prev, {
+            id: ++msgIdCounter,
+            type: "system",
+            text: line,
+            timestamp: Date.now(),
+          }]);
+        }, i * 200);
+      });
+      setInput("");
+      return;
+    }
+
+    sounds.send();
+
     if (trimmed.startsWith("/")) {
       ws.send({ type: "command", text: trimmed });
     } else {
@@ -323,6 +367,14 @@ export default function Chat() {
   const [tabPrefix, setTabPrefix] = useState("");
 
   function handleKeyDown(e: React.KeyboardEvent) {
+    // Debounced Minitel keyPress sound (every 3rd key)
+    if (e.key.length === 1) {
+      keyPressCountRef.current++;
+      if (keyPressCountRef.current % 3 === 0) {
+        sounds.keyPress();
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -400,7 +452,12 @@ export default function Chat() {
     return personaColors[nick];
   }, [personaColors]);
 
+  if (showConnect) {
+    return <MinitelConnect onComplete={() => setShowConnect(false)} skip={false} />;
+  }
+
   return (
+    <MinitelFrame channel={channel} connected={ws.connected}>
     <div className="chat-container">
       <div className="chat-header">
         <span className="chat-channel">{channel}</span>
@@ -496,5 +553,6 @@ export default function Chat() {
         </button>
       </div>
     </div>
+    </MinitelFrame>
   );
 }

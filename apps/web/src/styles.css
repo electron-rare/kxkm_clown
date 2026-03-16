@@ -808,6 +808,41 @@ code {
 }
 .chat-audio-play:hover { background: rgba(47, 34, 24, 0.06); }
 
+/* ── Minitel Connect Animation ── */
+.minitel-connect {
+  position: fixed;
+  inset: 0;
+  background: #0a0a0a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.minitel-connect-screen {
+  font-family: "Courier New", monospace;
+  color: #33ff33;
+  font-size: 16px;
+  text-shadow: 0 0 8px rgba(51, 255, 51, 0.3);
+  max-width: 400px;
+  padding: 20px;
+}
+.minitel-connect-line {
+  margin-bottom: 4px;
+  animation: type-in 0.1s ease-out;
+}
+@keyframes type-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.minitel-cursor {
+  animation: cursor-blink 0.8s step-end infinite;
+  color: #33ff33;
+}
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 /* ── Node Editor ── */
 .node-editor-container {
   display: flex;
@@ -1099,5 +1134,300 @@ code {
 
   .chat-container {
     height: calc(100vh - 160px);
+  }
+}
+
+/* ========================================================================
+   3615-KXKM — Minitel Rose Theme
+   ======================================================================== */
+
+:root {
+  --minitel-black: #0a0a0a;
+  --minitel-green: #33ff33;
+  --minitel-amber: #ffb000;
+  --minitel-pink: #ff69b4;
+  --minitel-white: #c0c0c0;
+  --minitel-blue: #3333ff;
+  --minitel-red: #ff3333;
+  --minitel-cyan: #33ffff;
+  --minitel-dim: #555555;
+  --minitel-glow: 0 0 8px rgba(51, 255, 51, 0.3);
+  --minitel-font: "Courier New", "Liberation Mono", monospace;
+}
+
+/* Minitel frame — wraps the entire chat */
+.minitel-frame {
+  background: var(--minitel-black);
+  border: 3px solid #333;
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow:
+    inset 0 0 60px rgba(0, 0, 0, 0.8),
+    0 0 20px rgba(51, 255, 51, 0.1);
+  position: relative;
+  overflow: hidden;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* CRT scanlines overlay */
+.minitel-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15) 0px,
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* CRT flicker animation */
+.minitel-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(51, 255, 51, 0.02);
+  animation: crt-flicker 0.1s infinite;
+  pointer-events: none;
+  z-index: 11;
+}
+
+@keyframes crt-flicker {
+  0% { opacity: 0.97; }
+  50% { opacity: 1; }
+}
+
+/* Top service bar: 3615 KXKM */
+.minitel-service-top {
+  background: var(--minitel-green);
+  color: var(--minitel-black);
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  font-weight: bold;
+  padding: 2px 8px;
+  display: flex;
+  justify-content: space-between;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Bottom service bar: F1-F5 keys */
+.minitel-service-bottom {
+  background: var(--minitel-dim);
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
+  font-size: 11px;
+  padding: 2px 8px;
+  display: flex;
+  justify-content: space-around;
+  letter-spacing: 1px;
+}
+
+.minitel-service-bottom span {
+  opacity: 0.8;
+}
+
+/* Chat area in Minitel mode */
+.minitel-frame .chat-container {
+  background: transparent;
+  font-family: var(--minitel-font);
+  color: var(--minitel-green);
+}
+
+.minitel-frame .chat-header {
+  background: transparent;
+  border-bottom: 1px solid var(--minitel-dim);
+  color: var(--minitel-amber);
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.minitel-frame .chat-channel {
+  color: var(--minitel-pink);
+  font-weight: bold;
+}
+
+.minitel-frame .chat-status-on {
+  color: var(--minitel-green);
+  border-color: var(--minitel-green);
+}
+
+.minitel-frame .chat-status-off {
+  color: var(--minitel-red);
+  border-color: var(--minitel-red);
+}
+
+/* Messages */
+.minitel-frame .chat-messages {
+  background: var(--minitel-black);
+  color: var(--minitel-green);
+  text-shadow: var(--minitel-glow);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.minitel-frame .chat-msg {
+  padding: 2px 4px;
+}
+
+.minitel-frame .chat-msg-system {
+  color: var(--minitel-cyan);
+  font-style: normal;
+}
+
+.minitel-frame .chat-msg-user .chat-nick {
+  color: var(--minitel-amber) !important;
+}
+
+.minitel-frame .chat-msg-persona .chat-nick {
+  color: var(--minitel-pink) !important;
+  font-weight: bold;
+}
+
+/* Persona messages get the >>> NICK <<< treatment */
+.minitel-frame .chat-msg-persona .chat-nick::before {
+  content: ">>> ";
+  color: var(--minitel-pink);
+}
+
+.minitel-frame .chat-msg-persona .chat-nick::after {
+  content: " <<<";
+  color: var(--minitel-pink);
+}
+
+.minitel-frame .chat-msg-persona .chat-text {
+  color: var(--minitel-white);
+}
+
+.minitel-frame .chat-msg-user .chat-text {
+  color: var(--minitel-green);
+}
+
+/* Audio messages */
+.minitel-frame .chat-msg-audio {
+  color: var(--minitel-cyan);
+}
+
+.minitel-frame .chat-audio-play {
+  color: var(--minitel-pink);
+  border-color: var(--minitel-pink);
+}
+
+/* Users sidebar */
+.minitel-frame .chat-users {
+  background: var(--minitel-black);
+  border-left: 1px solid var(--minitel-dim);
+  color: var(--minitel-green);
+}
+
+.minitel-frame .chat-users-header {
+  color: var(--minitel-amber);
+  border-bottom: 1px solid var(--minitel-dim);
+}
+
+/* Input area */
+.minitel-frame .chat-input {
+  background: var(--minitel-black);
+  border-top: 1px solid var(--minitel-dim);
+}
+
+.minitel-frame .chat-input input {
+  background: var(--minitel-black);
+  color: var(--minitel-green);
+  border: 1px solid var(--minitel-dim);
+  font-family: var(--minitel-font);
+  caret-color: var(--minitel-green);
+  text-shadow: var(--minitel-glow);
+}
+
+.minitel-frame .chat-input input:focus {
+  border-color: var(--minitel-green);
+  box-shadow: 0 0 4px rgba(51, 255, 51, 0.3);
+}
+
+.minitel-frame .chat-input input::placeholder {
+  color: var(--minitel-dim);
+}
+
+/* Buttons */
+.minitel-frame .btn {
+  font-family: var(--minitel-font);
+  border-radius: 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.minitel-frame .btn-primary {
+  background: var(--minitel-pink);
+  color: var(--minitel-black);
+  border: none;
+  font-weight: bold;
+}
+
+.minitel-frame .btn-primary:hover {
+  background: #ff85c8;
+}
+
+.minitel-frame .btn-secondary {
+  background: transparent;
+  color: var(--minitel-green);
+  border: 1px solid var(--minitel-green);
+}
+
+.minitel-frame .chat-record-btn {
+  color: var(--minitel-green);
+  border-color: var(--minitel-green);
+}
+
+.minitel-frame .chat-record-btn.recording {
+  color: var(--minitel-red);
+  border-color: var(--minitel-red);
+}
+
+/* TTS toggle */
+.minitel-frame .chat-tts-toggle {
+  color: var(--minitel-amber);
+}
+
+/* Blocky cursor animation */
+.minitel-frame .chat-input input {
+  animation: cursor-blink 1s step-end infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { caret-color: var(--minitel-green); }
+  50% { caret-color: transparent; }
+}
+
+/* Upload button */
+.minitel-frame .chat-upload-btn {
+  color: var(--minitel-green);
+  border: 1px solid var(--minitel-green);
+  background: transparent;
+}
+
+/* Scrollbar */
+.minitel-frame .chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.minitel-frame .chat-messages::-webkit-scrollbar-track {
+  background: var(--minitel-black);
+}
+.minitel-frame .chat-messages::-webkit-scrollbar-thumb {
+  background: var(--minitel-dim);
+}
+
+/* Mobile: full width, vertical Minitel */
+@media (max-width: 720px) {
+  .minitel-frame {
+    max-width: 100%;
+    border-radius: 0;
+    border: none;
+    height: 100vh;
   }
 }

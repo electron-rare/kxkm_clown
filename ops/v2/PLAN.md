@@ -1,6 +1,6 @@
 # PLAN (kxkm-clown-v2)
 
-Updated: 2026-03-15T21:01:42Z
+Updated: 2026-03-16T05:35:34Z
 
 ## lot-0-cadrage [done]
 - Description: Docs, architecture, feature map, agents, invariants, orchestration
@@ -10,11 +10,11 @@ Updated: 2026-03-15T21:01:42Z
 - Description: Workspace V2, packages, scripts TUI, verification
 - Depends on: lot-0-cadrage
 
-## lot-2-domaines [pending]
+## lot-2-domaines [done]
 - Description: Auth, chat, storage, personas, node engine
 - Depends on: lot-1-socle
 
-## lot-3-surfaces [pending]
+## lot-3-surfaces [done]
 - Description: Shell React/Vite, admin, chat, node engine, ops
 - Depends on: lot-2-domaines
 

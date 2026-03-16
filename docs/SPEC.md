@@ -1,113 +1,63 @@
-# KXKM_Clown — Spécification V1 vérifiée et direction V2
+# KXKM_Clown - Specification operationnelle (V1 verifiee, V2 active)
 
-## Statut
+## 1. Portee
 
-Ce document décrit à la fois:
-- l'état réel vérifié de la `V1`
-- la cible approuvée de la `V2`
+Ce document decrit:
+- l etat reel verifie de la V1
+- l etat reel verifie de la V2
+- les invariants de migration V1 -> V2
 
-Vérifications disponibles:
-- `npm run check`
-- `npm run smoke`
-- `npm run build`
+## 2. V1 (reference comportementale)
 
-## V1 réellement livrée
+- Chat WebSocket multi-canaux, streaming LLM
+- Session admin cookie HttpOnly
+- Personas editoriales + feedback + proposals + reinforce/revert
+- Node Engine local (graphes, runs, queue, artifacts)
+- Stockage flat-file JSON/JSONL
 
-KXKM_Clown V1 est un chat web multi-LLM au look mIRC:
-- backend `Node.js` avec Express et WebSocket
-- stockage local JSON / JSONL dans `data/`
-- admin globale locale avec session cookie
-- personas culturelles pilotées localement
-- Node Engine déjà présent côté admin
+## 3. V2 (etat reel)
 
-Le contrat courant reste:
-- usage privé
-- exposition `LAN contrôlé`
-- bootstrap admin + allowlist réseau
-- session admin `HttpOnly` + contrôles same-origin
+- apps/api: routes session, personas, node-engine, RBAC
+- apps/web: shell React/Vite, chat live, surfaces personas/node-engine
+- apps/worker: execution runs Node Engine via storage V2
+- packages: core, auth, chat-domain, persona-domain, node-engine, storage, ui, tui
 
-## V2 approuvée
+## 4. Contrat storage V2
 
-La V2 sera:
-- un monorepo `apps/` + `packages/`
-- un backend `Node.js`
-- un frontend `React/Vite`
-- un produit privé multi-utilisateur
-- un `Node Engine` placé au centre de l'orchestration
+- API: postgres si DATABASE_URL, sinon fallback memory (dev/demo)
+- Worker: postgres obligatoire
+- API en production: DATABASE_URL obligatoire
 
-État déjà livré:
-- workspace TypeScript réel
-- `apps/api`, `apps/web`, `apps/worker` compilables
-- session V2 minimale avec cookie
-- RBAC `admin/editor/operator/viewer`
-- endpoints V2 minimaux `session`, `personas`, `node-engine`
-- shell React/Vite minimal
-- worker bootstrap minimal
+## 5. Flux principal (mermaid)
 
-## Architecture V2 visée
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant W as apps/web
+  participant A as apps/api
+  participant O as Ollama
+  participant S as storage
+  participant WK as apps/worker
 
-Applications:
-- `apps/web`
-- `apps/api`
-- `apps/worker`
+  U->>W: Message chat
+  W->>A: WS/API payload
+  A->>S: contexte + session + persona state
+  A->>O: inference/stream
+  O-->>A: chunks
+  A-->>W: streaming response
+  W-->>U: rendu IRC
 
-Packages:
-- `packages/core`
-- `packages/chat-domain`
-- `packages/persona-domain`
-- `packages/node-engine`
-- `packages/auth`
-- `packages/storage`
-- `packages/ui`
-- `packages/tui`
+  U->>W: run graph
+  W->>A: POST run
+  A->>S: enqueue run
+  WK->>S: poll queued runs
+  WK->>S: update step/runs/artifacts
+  A-->>W: status run
+```
 
-## Interfaces V2 à stabiliser
+## 6. Garde-fous
 
-### Session et rôles
-
-- `POST /api/session/login`
-- `POST /api/session/logout`
-- `GET /api/session`
-- rôles: `admin`, `editor`, `operator`, `viewer`
-
-### Personas
-
-- `GET /api/personas`
-- `GET /api/personas/:id`
-- `PUT /api/admin/personas/:id`
-- `GET/PUT /api/admin/personas/:id/source`
-- `GET /api/admin/personas/:id/feedback`
-- `GET /api/admin/personas/:id/proposals`
-- `POST /api/admin/personas/:id/reinforce`
-- `POST /api/admin/personas/:id/revert`
-
-### Node Engine
-
-- `GET /api/admin/node-engine/overview`
-- `GET/POST/PUT /api/admin/node-engine/graphs`
-- `POST /api/admin/node-engine/graphs/:id/run`
-- `POST /api/admin/node-engine/runs/:id/cancel`
-- `GET /api/admin/node-engine/runs/:id`
-- `GET /api/admin/node-engine/artifacts/:runId`
-- `GET /api/admin/node-engine/models`
-
-## Invariants de données
-
-- les snapshots de session restent des archives restaurées manuellement
-- `training/` et `dpo/` restent append-only
-- le pipeline personas reste séparé entre seed, source, feedback, proposals et overrides
-- `chat runtime`, `worker runtime` et `training runtime` doivent rester isolés
-
-## Garde-fous V2
-
-- ne pas perdre l'identité IRC / scène / terminal
-- ne pas exposer le produit sur Internet public
-- ne pas laisser le feedback modifier une persona sans journal
-- ne pas mélanger mémoire éditoriale et exports d'entraînement
-
-## Références
-
-- `docs/ARCHITECTURE.md`
-- `docs/FEATURE_MAP.md`
-- `docs/PROJECT_MEMORY.md`
-- `docs/NODE_ENGINE_ARCHITECTURE.md`
+- Pas de perte identite visuelle/tonale du projet
+- Pas de melange runtime editorial et exports training
+- Pas d ouverture internet par defaut
+- Toute mutation admin doit etre auditable

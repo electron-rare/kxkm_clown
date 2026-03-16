@@ -1,6 +1,6 @@
 # TODO (kxkm-clown-v2)
 
-Updated: 2026-03-15T21:01:42Z
+Updated: 2026-03-16T05:35:34Z
 
 ## lot-0-cadrage
 - [x] architecture (done) | out: /home/kxkm/KXKM_Clown/ops/v2/outputs/lot-0-cadrage/architecture.csv
@@ -13,14 +13,14 @@ Updated: 2026-03-15T21:01:42Z
 - [x] ops-tui (done) | out: /home/kxkm/KXKM_Clown/ops/v2/outputs/lot-1-socle/ops-tui.csv
 
 ## lot-2-domaines
-- [ ] auth-chat (pending)
-- [ ] personas (pending)
-- [ ] node-engine (pending)
+- [x] auth-chat (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-2-domaines/auth-chat.csv
+- [x] personas (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-2-domaines/personas.csv
+- [x] node-engine (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-2-domaines/node-engine.csv
 
 ## lot-3-surfaces
-- [ ] web-shell (pending)
-- [ ] persona-ui (pending)
-- [ ] engine-ui (pending)
+- [x] web-shell (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/web-shell.csv
+- [x] persona-ui (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/persona-ui.csv
+- [x] engine-ui (done) | out: /Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/engine-ui.csv
 
 ## lot-4-bascule
 - [ ] migration (pending)

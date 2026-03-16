@@ -2,39 +2,32 @@
 
 ## Objectif
 
-La V2 privilégie des outils terminal avec logs lisibles pour piloter les lots, inspecter l'état et nettoyer proprement les traces opératoires.
+Piloter les lots V2 via terminal, lire les logs, analyser, puis purger proprement les traces temporaires.
 
-## Orchestrateur batch
+## Commandes principales
 
-Scripts disponibles:
-- `python3 scripts/orchestrate_batches.py init --root ops/v2`
-- `python3 scripts/orchestrate_batches.py status --root ops/v2`
-- `python3 scripts/orchestrate_batches.py run-next --root ops/v2`
-- `python3 scripts/orchestrate_batches.py run-all --root ops/v2`
+```bash
+npm run v2:init
+npm run v2:status
+npm run v2:next
+npm run v2:all
 
-Raccourcis npm:
-- `npm run v2:init`
-- `npm run v2:status`
-- `npm run v2:next`
-- `npm run v2:all`
+node ops/v2/health-check.js --json
+node ops/v2/queue-viewer.js --json
+node ops/v2/persona-manager.js --json
+node ops/v2/log-rotate.js --dry-run
+```
 
-## Emplacement des traces
+## Incident corrige (2026-03-16)
 
-- état: `ops/v2/state.json`
-- plan batch: `ops/v2/PLAN.md`
-- todo batch: `ops/v2/TODO.md`
-- logs: `ops/v2/logs/<batch>/<task>.log`
-- outputs: `ops/v2/outputs/<batch>/<task>.csv`
+- Symptom: lot-2-domaines en failed
+- Cause: PATH non quote dans task_command_template (espaces dans chemin utilisateur)
+- Fix: PATH="/tmp/node-local/bin:$PATH" dans ops/v2/pipeline.json
+- Resultat: lot-2-domaines passe en done
 
-## Règles d'exploitation
+## Hygiene logs
 
-- lire les logs avant toute purge
-- conserver les outputs utiles comme traces de lot
-- supprimer les logs uniquement après synthèse dans `PLAN.md` / `TODO.md` / `PROJECT_MEMORY`
-- ne jamais confondre logs opératoires et données métier runtime
-
-## Étapes suivantes
-
-- ajouter un TUI de suivi queue/runs/workers
-- ajouter un TUI de suivi personas/sessions/logs
-- formaliser rotation et purge automatique des logs opératoires
+- Lire et resumer les logs avant purge
+- Conserver outputs CSV dans ops/v2/outputs
+- Supprimer les logs temporaires du lot une fois analyse terminee
+- Ne jamais purger les donnees metier runtime (data/)

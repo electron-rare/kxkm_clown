@@ -1,6 +1,6 @@
 {
   "project": "kxkm-clown-v2",
-  "updated_at": "2026-03-15T21:01:42Z",
+  "updated_at": "2026-03-16T05:35:34Z",
   "batches": {
     "lot-0-cadrage": {
       "status": "done",
@@ -53,53 +53,53 @@
       }
     },
     "lot-2-domaines": {
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "lot-1-socle"
       ],
       "tasks": {
         "auth-chat": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 2,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-2-domaines/auth-chat.csv",
           "last_error": ""
         },
         "personas": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 2,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-2-domaines/personas.csv",
           "last_error": ""
         },
         "node-engine": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 2,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-2-domaines/node-engine.csv",
           "last_error": ""
         }
       }
     },
     "lot-3-surfaces": {
-      "status": "pending",
+      "status": "done",
       "depends_on": [
         "lot-2-domaines"
       ],
       "tasks": {
         "web-shell": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/web-shell.csv",
           "last_error": ""
         },
         "persona-ui": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/persona-ui.csv",
           "last_error": ""
         },
         "engine-ui": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/engine-ui.csv",
           "last_error": ""
         }
       }

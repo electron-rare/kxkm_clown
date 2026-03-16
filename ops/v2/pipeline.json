@@ -1,7 +1,7 @@
 {
   "project": "kxkm-clown-v2",
   "max_parallel_tasks": 3,
-  "task_command_template": "bash -lc \"PATH=/tmp/node-local/bin:$PATH node scripts/v2-agent-task.js --batch {batch} --task {task} --query {query} --out {out}\"",
+  "task_command_template": "bash -lc \"PATH=\\\"/tmp/node-local/bin:$PATH\\\" node scripts/v2-agent-task.js --batch {batch} --task {task} --query {query} --out {out}\"",
   "batches": [
     {
       "id": "lot-0-cadrage",

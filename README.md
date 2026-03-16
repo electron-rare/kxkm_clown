@@ -74,7 +74,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 ## Variables d'environnement
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | URL du serveur Ollama |
 | `DATABASE_URL` | (auto via compose) | Connexion PostgreSQL |
 | `APP_PORT` | `3333` | Port V1 |
@@ -94,7 +94,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 ## Commandes slash
 
 | Commande | Description | Admin |
-|----------|-------------|-------|
+| --- | --- | --- |
 | `/help` | Aide | non |
 | `/nick <nom>` | Changer pseudo | non |
 | `/who` | Liste des connectes | non |

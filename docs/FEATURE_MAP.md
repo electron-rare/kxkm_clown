@@ -78,7 +78,7 @@ flowchart TD
 ## Chat
 
 | Fonctionnalite | Detail |
-|---|---|
+| --- | --- |
 | WebSocket temps reel | Connexion persistante `/ws`, events bidirectionnels JSON |
 | Multi-canaux | `#general`, canaux par persona, routage automatique |
 | Streaming LLM | Reponses en streaming via Ollama avec indicateur d'ecriture |
@@ -96,7 +96,7 @@ flowchart TD
 ## Pipeline Multimodal
 
 | Fonctionnalite | Detail |
-|---|---|
+| --- | --- |
 | RAG local | Embeddings via Ollama (`nomic-embed-text`), cosine similarity, contexte manifeste injecte |
 | STT (Speech-to-Text) | `faster-whisper` (CTranslate2, int8) ou fallback `openai-whisper`, modeles tiny/base/small/medium/large |
 | TTS (Text-to-Speech) | `piper-tts` local, voix francaises par persona (siwis, upmc, gilles), synthese async non-bloquante |
@@ -107,7 +107,7 @@ flowchart TD
 ## Admin Dashboard
 
 | Fonctionnalite | Detail |
-|---|---|
+| --- | --- |
 | Auth session | Cookie HttpOnly + fallback header legacy |
 | Module switcher | dashboard, personas, runtime, channels, data, node-engine |
 | Status strip | Connexion, clients connectes, sessions, personas actives, modeles |
@@ -117,7 +117,7 @@ flowchart TD
 ## Personas
 
 | Fonctionnalite | Detail |
-|---|---|
+| --- | --- |
 | Personas seed | Schaeffer, Batty, Radigue, Oliveros, Lessig, etc. (catalogue initial) |
 | Creation custom | Nouvelle persona depuis source editoriale |
 | Overrides runtime | Nom, modele, style modifiables a chaud |
@@ -133,7 +133,7 @@ flowchart TD
 ## Node Engine
 
 | Fonctionnalite | Detail |
-|---|---|
+| --- | --- |
 | Graphes DAG | Definition par noeuds et aretes, validation acyclique |
 | 7 familles de noeuds | dataset_source, data_processing, dataset_builder, training, evaluation, registry, deployment |
 | 16+ types de noeuds | Types specialises par famille |
@@ -148,7 +148,7 @@ flowchart TD
 ## Training & DPO
 
 | Fonctionnalite | Detail |
-|---|---|
+| --- | --- |
 | Pipeline DPO | Extraction paires chosen/rejected depuis feedback personas, export JSONL |
 | Training adapters | TRL (Hugging Face) + Unsloth, execution via Python venv |
 | Autoresearch | Boucle d'experimentation automatisee: mutations, scoring, keep/discard |
@@ -161,7 +161,7 @@ flowchart TD
 ## Stockage & Donnees
 
 | Fonctionnalite | Detail |
-|---|---|
+| --- | --- |
 | Persistance double | Postgres (production) ou flat-file JSON/JSONL (dev/demo) |
 | Stats utilisateur | Compteurs et metriques par utilisateur |
 | Memoire conversation | Contexte borne par persona/session |
@@ -177,7 +177,7 @@ flowchart TD
 ## Ops & Scripts
 
 | Fonctionnalite | Detail |
-|---|---|
+| --- | --- |
 | `npm run check` | Validation syntaxe V1 + TypeScript V2 |
 | `npm run smoke` | 30+ tests d'integration automatises |
 | `npm run build` | Build dist V1 + compilation V2 |
@@ -188,7 +188,7 @@ flowchart TD
 ## Securite
 
 | Fonctionnalite | Detail |
-|---|---|
+| --- | --- |
 | Subnet gate | Restriction d'acces admin par sous-reseau (`ADMIN_SUBNET`, `ADMIN_ALLOWED_SUBNETS`) |
 | Cookies HttpOnly | Sessions admin non accessibles depuis JS client |
 | Same-origin check | Verification origine sur les mutations |
@@ -199,7 +199,7 @@ flowchart TD
 ## Matrice de statut
 
 | Fonctionnalite | V1 | V2 | Priorite |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Chat** | | | |
 | WebSocket temps reel | OK | OK | haute |
 | Multi-canaux | OK | OK | haute |

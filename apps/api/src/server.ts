@@ -1,8 +1,10 @@
 import http from "node:http";
+import fs from "node:fs";
 import path from "node:path";
 import express from "express";
 import { createApp } from "./app.js";
 import { attachWebSocketChat } from "./ws-chat.js";
+import { LocalRAG } from "./rag.js";
 
 const port = Number(process.env.V2_API_PORT || 4180);
 
@@ -30,8 +32,32 @@ async function main() {
   const server = http.createServer(app);
 
   const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+
+  // -----------------------------------------------------------------------
+  // Initialize local RAG (embeddings via Ollama)
+  // -----------------------------------------------------------------------
+  const rag = new LocalRAG({ ollamaUrl });
+
+  // Index manifeste files asynchronously (non-blocking)
+  (async () => {
+    try {
+      for (const file of ["data/manifeste.md", "data/manifeste_references_nouvelles.md"]) {
+        const filePath = path.resolve(process.cwd(), file);
+        if (fs.existsSync(filePath)) {
+          const text = fs.readFileSync(filePath, "utf-8");
+          const count = await rag.addDocument(text, file);
+          console.log(`[rag] Indexed ${file}: ${count} chunks`);
+        }
+      }
+      console.log(`[rag] Ready: ${rag.size} total chunks`);
+    } catch (err) {
+      console.error("[rag] Init failed:", err);
+    }
+  })();
+
   attachWebSocketChat(server, {
     ollamaUrl,
+    rag,
     loadPersonas: async () => {
       const list = await personaRepo.list();
       return list.map((p) => ({

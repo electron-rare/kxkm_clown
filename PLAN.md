@@ -273,7 +273,16 @@ Objectif : faire du frontend React V2 l'interface chat principale.
 - [ ] Deep analyse sécurité/perf ws-chat.ts
 - [ ] Upload fichiers + analyse vision (images via qwen2.5:14b)
 
+### Phase 3 — Multimodal & intelligence (RAG, STT, TTS, mémoire, web) `[en cours]`
+- [ ] RAG local (nomic-embed-text, recherche contexte manifeste/sources)
+- [x] STT : faster-whisper installé, script transcribe_audio.py
+- [ ] STT : intégration upload audio → transcription → personas
+- [ ] TTS : synthèse vocale des réponses personas (piper-tts)
+- [ ] TTS : voix distinctes par persona
+- [ ] Recherche web dans le chat (/web intégrée au WebSocket V2)
+- [ ] Mémoire de contexte persistante par persona (résumé conversations, faits retenus)
+
 Reste à faire (futur) :
 - [ ] Migration sessions V1 → V2
 - [ ] Recherche historique conversations
-- [ ] Audio transcription (Whisper via Ollama ou API)
+- [ ] MCP (Model Context Protocol) pour intégration outils

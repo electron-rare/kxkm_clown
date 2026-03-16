@@ -1,7 +1,12 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { WebSocketServer, WebSocket } from "ws";
+import type { LocalRAG } from "./rag.js";
+
+const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,6 +38,7 @@ interface PersonaLoaderResult {
 
 interface ChatOptions {
   ollamaUrl: string;
+  rag?: LocalRAG;
   loadPersonas?: () => Promise<PersonaLoaderResult[]>;
   maxGeneralResponders?: number;
 }
@@ -65,7 +71,8 @@ type OutboundMessage =
   | { type: "join"; nick: string; channel: string; text: string }
   | { type: "part"; nick: string; channel: string; text: string }
   | { type: "userlist"; users: string[] }
-  | { type: "persona"; nick: string; color: string };
+  | { type: "persona"; nick: string; color: string }
+  | { type: "audio"; nick: string; data: string; mimeType: string };
 
 // Chat log entry
 interface ChatLogEntry {
@@ -74,6 +81,14 @@ interface ChatLogEntry {
   nick: string;
   type: "message" | "system";
   text: string;
+}
+
+// Persona persistent memory
+interface PersonaMemory {
+  nick: string;
+  facts: string[];
+  summary: string;
+  lastUpdated: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +170,152 @@ function logChatMessage(entry: ChatLogEntry): void {
   } catch (err) {
     console.error("[ws-chat] Failed to log chat message:", err instanceof Error ? err.message : String(err));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Persona memory (persistent, file-based)
+// ---------------------------------------------------------------------------
+
+const PERSONA_MEMORY_DIR = path.resolve(process.cwd(), "data/persona-memory");
+
+function loadPersonaMemory(nick: string): PersonaMemory {
+  const memPath = path.join(PERSONA_MEMORY_DIR, `${nick}.json`);
+  try {
+    if (fs.existsSync(memPath)) {
+      return JSON.parse(fs.readFileSync(memPath, "utf-8")) as PersonaMemory;
+    }
+  } catch { /* corrupted file — start fresh */ }
+  return { nick, facts: [], summary: "", lastUpdated: "" };
+}
+
+function savePersonaMemory(memory: PersonaMemory): void {
+  fs.mkdirSync(PERSONA_MEMORY_DIR, { recursive: true });
+  memory.lastUpdated = new Date().toISOString();
+  fs.writeFileSync(
+    path.join(PERSONA_MEMORY_DIR, `${memory.nick}.json`),
+    JSON.stringify(memory, null, 2),
+  );
+}
+
+async function updatePersonaMemory(
+  persona: ChatPersona,
+  recentMessages: string[],
+  ollamaUrl: string,
+): Promise<void> {
+  const memory = loadPersonaMemory(persona.nick);
+
+  const prompt =
+    `Tu es ${persona.nick}. Voici les derniers échanges:\n${recentMessages.join("\n")}\n\n` +
+    `Extrais 2-3 faits importants à retenir sur l'utilisateur ou le sujet. ` +
+    `Réponds en JSON: {"facts": ["fait1", "fait2"], "summary": "résumé en une phrase"}`;
+
+  try {
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: persona.model,
+        messages: [{ role: "user", content: prompt }],
+        stream: false,
+        format: "json",
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    const data = (await response.json()) as { message?: { content?: string } };
+    const extracted = JSON.parse(data.message?.content || "{}") as {
+      facts?: string[];
+      summary?: string;
+    };
+
+    if (extracted.facts && Array.isArray(extracted.facts)) {
+      const allFacts = [...new Set([...memory.facts, ...extracted.facts])].slice(-20);
+      memory.facts = allFacts;
+    }
+    if (extracted.summary) {
+      memory.summary = extracted.summary;
+    }
+
+    savePersonaMemory(memory);
+  } catch (err) {
+    console.error(
+      `[ws-chat] Memory update failed for ${persona.nick}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Web search (DuckDuckGo Lite scraping)
+// ---------------------------------------------------------------------------
+
+async function searchWeb(query: string): Promise<string> {
+  const apiBase = process.env.WEB_SEARCH_API_BASE;
+
+  let html: string;
+
+  if (apiBase) {
+    // Custom search API
+    const response = await fetch(`${apiBase}?q=${encodeURIComponent(query)}`, {
+      headers: { "User-Agent": "KXKM_Clown/2.0" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`Search API returned ${response.status}`);
+    const data = (await response.json()) as { results?: Array<{ title?: string; snippet?: string; url?: string }> };
+    if (data.results && data.results.length > 0) {
+      return data.results
+        .slice(0, 5)
+        .map((r, i) => `${i + 1}. ${r.title || "Sans titre"}\n   ${r.snippet || ""}\n   ${r.url || ""}`)
+        .join("\n\n");
+    }
+    return "(Aucun résultat)";
+  }
+
+  // DuckDuckGo Lite HTML scraping (no API key needed)
+  const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+  const response = await fetch(url, {
+    headers: { "User-Agent": "KXKM_Clown/2.0" },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`DuckDuckGo returned ${response.status}`);
+  html = await response.text();
+
+  // Extract result snippets from the HTML
+  // DuckDuckGo Lite uses <a class="result-link"> for titles and <td class="result-snippet"> for snippets
+  const results: Array<{ title: string; snippet: string; link: string }> = [];
+
+  // Match result links: <a rel="nofollow" href="..." class="result-link">Title</a>
+  const linkRegex = /<a[^>]*class="result-link"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
+
+  const links: Array<{ title: string; link: string }> = [];
+  let linkMatch: RegExpExecArray | null;
+  while ((linkMatch = linkRegex.exec(html)) !== null) {
+    const link = linkMatch[1] || "";
+    const title = (linkMatch[2] || "").replace(/<[^>]*>/g, "").trim();
+    if (title && link) links.push({ title, link });
+  }
+
+  const snippets: string[] = [];
+  let snippetMatch: RegExpExecArray | null;
+  while ((snippetMatch = snippetRegex.exec(html)) !== null) {
+    const snippet = (snippetMatch[1] || "").replace(/<[^>]*>/g, "").trim();
+    if (snippet) snippets.push(snippet);
+  }
+
+  for (let i = 0; i < Math.min(5, links.length); i++) {
+    results.push({
+      title: links[i]!.title,
+      link: links[i]!.link,
+      snippet: snippets[i] || "",
+    });
+  }
+
+  if (results.length === 0) return "(Aucun résultat trouvé)";
+
+  return results
+    .map((r, i) => `${i + 1}. ${r.title}\n   ${r.snippet}\n   ${r.link}`)
+    .join("\n\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -251,6 +412,51 @@ async function streamOllamaChat(
 }
 
 // ---------------------------------------------------------------------------
+// TTS synthesis (Piper TTS via Python script)
+// ---------------------------------------------------------------------------
+
+async function synthesizeTTS(
+  nick: string,
+  text: string,
+  channel: string,
+  broadcastFn: (channel: string, msg: OutboundMessage) => void,
+): Promise<void> {
+  if (!text || text.length < 10) return; // skip very short texts
+
+  const truncated = text.slice(0, 1000); // limit TTS to ~1000 chars
+  const outputPath = `/tmp/kxkm-tts-${Date.now()}.wav`;
+  const pythonBin = process.env.PYTHON_BIN || "/home/kxkm/venv/bin/python3";
+  const scriptPath = path.resolve(
+    process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts"),
+    "tts_synthesize.py",
+  );
+
+  try {
+    const { stdout } = await execFileAsync(pythonBin, [
+      scriptPath, "--text", truncated, "--voice", nick, "--output", outputPath,
+    ], { timeout: 30_000 });
+
+    const result = JSON.parse(stdout.trim().split("\n").pop() || "{}") as {
+      status?: string;
+      error?: string;
+    };
+
+    if (result.status === "completed" && fs.existsSync(outputPath)) {
+      const audioBuffer = fs.readFileSync(outputPath);
+      const base64 = audioBuffer.toString("base64");
+
+      // Broadcast audio to channel
+      broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
+    }
+  } catch (err) {
+    // TTS failure is non-critical, just log
+    console.error(`[tts] Synthesis failed for ${nick}: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    try { fs.unlinkSync(outputPath); } catch { /* ignore cleanup errors */ }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Image analysis via Ollama vision
 // ---------------------------------------------------------------------------
 
@@ -309,6 +515,7 @@ async function analyzeImage(
 export function attachWebSocketChat(server: http.Server, options: ChatOptions): WebSocketServer {
   const {
     ollamaUrl,
+    rag,
     loadPersonas,
     maxGeneralResponders = 2,
   } = options;
@@ -347,6 +554,21 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
   const wss = new WebSocketServer({ server, path: "/ws" });
   const clients = new Map<WebSocket, ClientInfo>();
+
+  // Persona memory: message counters and recent message buffers
+  const personaMessageCounts = new Map<string, number>();
+  const personaRecentMessages = new Map<string, string[]>();
+
+  function trackPersonaMessage(nick: string, text: string): void {
+    const count = (personaMessageCounts.get(nick) || 0) + 1;
+    personaMessageCounts.set(nick, count);
+
+    const recent = personaRecentMessages.get(nick) || [];
+    recent.push(text);
+    // Keep last 10 messages for context
+    if (recent.length > 10) recent.shift();
+    personaRecentMessages.set(nick, recent);
+  }
 
   // Clean up refresh timer when server closes
   wss.on("close", () => {
@@ -404,7 +626,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
   // --- handle slash commands ---
 
-  function handleCommand(ws: WebSocket, info: ClientInfo, text: string): void {
+  async function handleCommand(ws: WebSocket, info: ClientInfo, text: string): Promise<void> {
     const parts = text.trim().split(/\s+/);
     const cmd = parts[0]?.toLowerCase();
 
@@ -414,10 +636,11 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
           type: "system",
           text: [
             "=== Commandes disponibles ===",
-            "/help       — affiche cette aide",
-            "/nick <nom> — change ton pseudo",
-            "/who        — liste les utilisateurs connectes",
-            "/personas   — liste les personas actives",
+            "/help            — affiche cette aide",
+            "/nick <nom>      — change ton pseudo",
+            "/who             — liste les utilisateurs connectes",
+            "/personas        — liste les personas actives",
+            "/web <recherche> — recherche sur le web",
             `Mentionne un persona avec @Nom pour lui parler directement.`,
           ].join("\n"),
         });
@@ -462,6 +685,34 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         });
         break;
 
+      case "/web": {
+        const query = text.slice(4).trim();
+        if (!query) {
+          send(ws, { type: "system", text: "Usage: /web <recherche>" });
+          break;
+        }
+        send(ws, { type: "system", text: `Recherche: ${query}...` });
+
+        try {
+          const results = await searchWeb(query);
+          broadcast(info.channel, {
+            type: "system",
+            text: `Résultats pour "${query}":\n${results}`,
+          });
+          // Route to personas for commentary
+          await routeToPersonas(
+            info.channel,
+            `L'utilisateur a cherché "${query}" sur le web. Résultats:\n${results}\n\nCommente ces résultats.`,
+          );
+        } catch (err) {
+          send(ws, {
+            type: "system",
+            text: `Recherche échouée: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+        break;
+      }
+
       default:
         send(ws, { type: "system", text: `Commande inconnue: ${cmd}. Tape /help.` });
     }
@@ -472,6 +723,20 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   async function routeToPersonas(channel: string, text: string): Promise<void> {
     const responders = pickResponders(text);
 
+    // RAG: enrich user message with relevant context from indexed documents
+    let enrichedText = text;
+    if (rag && rag.size > 0) {
+      try {
+        const results = await rag.search(text, 2);
+        if (results.length > 0) {
+          const ragContext = results.map((r) => r.text).join("\n---\n");
+          enrichedText = text + "\n\n[Contexte pertinent]\n" + ragContext;
+        }
+      } catch {
+        // Ignore RAG errors — fall back to plain message
+      }
+    }
+
     for (const persona of responders) {
       // Send a typing indicator
       broadcast(channel, {
@@ -479,12 +744,28 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         text: `${persona.nick} est en train d'ecrire...`,
       });
 
+      // Enrich persona with memory context
+      const memory = loadPersonaMemory(persona.nick);
+      let personaWithMemory = persona;
+      if (memory.facts.length > 0 || memory.summary) {
+        const memoryBlock = [
+          "\n\n[Mémoire]",
+          memory.facts.length > 0 ? `Faits retenus: ${memory.facts.join(", ")}` : "",
+          memory.summary ? `Résumé: ${memory.summary}` : "",
+        ].filter(Boolean).join("\n");
+
+        personaWithMemory = {
+          ...persona,
+          systemPrompt: persona.systemPrompt + memoryBlock,
+        };
+      }
+
       let accumulated = "";
 
       await streamOllamaChat(
         ollamaUrl,
-        persona,
-        text,
+        personaWithMemory,
+        enrichedText,
         (chunk) => {
           accumulated += chunk;
           // Send streamed chunks — buffer ~100 chars to avoid flooding
@@ -506,6 +787,25 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
             type: "message",
             text: fullText,
           });
+
+          // Track message for memory updates
+          trackPersonaMessage(persona.nick, `User: ${text}\n${persona.nick}: ${fullText}`);
+
+          // Update memory every 5 messages (async, non-blocking)
+          const count = personaMessageCounts.get(persona.nick) || 0;
+          if (count > 0 && count % 5 === 0) {
+            const recent = personaRecentMessages.get(persona.nick) || [];
+            updatePersonaMemory(persona, recent, ollamaUrl).catch((err) => {
+              console.error(`[ws-chat] Memory update error for ${persona.nick}: ${err}`);
+            });
+          }
+
+          // TTS synthesis (async, non-blocking)
+          if (process.env.TTS_ENABLED === "1") {
+            synthesizeTTS(persona.nick, fullText, channel, broadcast).catch((err) => {
+              console.error(`[tts] Error for ${persona.nick}: ${err}`);
+            });
+          }
         },
         (err) => {
           console.error(`[ws-chat] Ollama error for ${persona.nick}:`, err.message);
@@ -584,6 +884,39 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       analysis = `[Fichier texte: ${filename}]\n${text}`;
     } else if (mimeType.startsWith("image/")) {
       analysis = await analyzeImage(buffer, mimeType, filename, ollamaUrl);
+    } else if (mimeType.startsWith("audio/")) {
+      // Transcribe audio via Whisper (faster-whisper or openai-whisper)
+      const ext = filename.split(".").pop() || "wav";
+      const tmpFile = path.join("/tmp", `kxkm-audio-${Date.now()}.${ext}`);
+
+      try {
+        fs.writeFileSync(tmpFile, buffer);
+        const scriptPath = path.resolve(
+          process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts"),
+          "transcribe_audio.py",
+        );
+        const pythonBin = process.env.PYTHON_BIN || "python3";
+
+        const { stdout, stderr } = await execFileAsync(pythonBin, [
+          scriptPath, "--input", tmpFile, "--language", "fr",
+        ], { timeout: 120_000 });
+
+        if (stderr) console.log(`[ws-chat][audio] ${stderr.trim().slice(-200)}`);
+
+        // stdout may contain multiple lines; the JSON result is on the last line
+        const lastLine = stdout.trim().split("\n").pop() || "{}";
+        const result = JSON.parse(lastLine) as { status?: string; transcript?: string; error?: string };
+
+        if (result.transcript) {
+          analysis = `[Audio: ${filename}]\nTranscription: ${result.transcript}`;
+        } else {
+          analysis = `[Audio: ${filename} — transcription échouée: ${result.error || "unknown"}]`;
+        }
+      } catch (err) {
+        analysis = `[Audio: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
+      } finally {
+        try { fs.unlinkSync(tmpFile); } catch { /* ignore cleanup errors */ }
+      }
     } else if (mimeType === "application/pdf") {
       try {
         const pdfParse = (await import("pdf-parse")).default;
@@ -689,7 +1022,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       }
 
       if (message.type === "command") {
-        handleCommand(ws, info, text);
+        await handleCommand(ws, info, text);
       } else if (message.type === "message") {
         await handleChatMessage(ws, info, text);
       }

@@ -9,7 +9,7 @@ const WS_URL = import.meta.env.VITE_WS_URL || (() => {
 
 interface ChatMsg {
   id: number;
-  type: "system" | "message" | "join" | "part" | "persona" | "channelInfo" | "userlist" | "command" | "uploadCapability";
+  type: "system" | "message" | "join" | "part" | "persona" | "channelInfo" | "userlist" | "command" | "uploadCapability" | "audio";
   nick?: string;
   text?: string;
   color?: string;
@@ -120,6 +120,18 @@ export default function Chat() {
       case "uploadCapability":
         // Silently ignore
         return;
+
+      case "audio": {
+        // Auto-play persona audio response
+        if (typeof msg.data === "string" && typeof msg.mimeType === "string") {
+          try {
+            const audio = new Audio(`data:${msg.mimeType};base64,${msg.data}`);
+            audio.volume = 0.7;
+            audio.play().catch(() => {}); // browsers may block autoplay
+          } catch { /* ignore playback errors */ }
+        }
+        return; // don't add to message list
+      }
 
       default: {
         const chatMsg: ChatMsg = {

@@ -2,10 +2,11 @@
 # KXKM_Clown — Docker Compose
 # ---------------------------------------------------------------------------
 # Usage:
-#   docker compose up -d                          # V1 only (app + postgres)
-#   docker compose --profile v2 up -d             # V1 + V2 (api + worker)
+#   docker compose up -d                          # postgres only
+#   docker compose --profile v1 up -d             # V1 app + postgres
+#   docker compose --profile v2 up -d             # V2 api + worker + postgres
+#   docker compose --profile v1 --profile v2 up -d     # V1 + V2 + postgres
 #   docker compose --profile ollama up -d          # include Ollama container
-#   docker compose --profile v2 --profile ollama up -d  # everything
 #
 # By default, Ollama is expected to run natively on the host (port 11434).
 # Set OLLAMA_URL in .env to override. Use --profile ollama to run it in Docker.
@@ -26,6 +27,7 @@ services:
   app:
     build: .
     restart: unless-stopped
+    profiles: [v1]
     extra_hosts: *extra-hosts
     ports:
       - "${APP_PORT:-3333}:3333"
@@ -69,7 +71,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4180/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4180/api/v2/health"]
       interval: 15s
       timeout: 5s
       retries: 3

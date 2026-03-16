@@ -282,6 +282,25 @@ Objectif : faire du frontend React V2 l'interface chat principale.
 - [ ] Recherche web dans le chat (/web intégrée au WebSocket V2)
 - [ ] Mémoire de contexte persistante par persona (résumé conversations, faits retenus)
 
+## Lot 16 — Refonte UI chat : Minitel rose 3615-KXKM `[complété]`
+
+Objectif : refonte esthétique complète du chat en mode Minitel/Télétel.
+L'interface IRC actuelle évolue vers une esthétique Minitel rose — écran phosphore,
+blocs VIDEOTEX, bandes de service, mosaïques, clavier AZERTY virtuel.
+
+- [ ] Palette phosphore : fond noir, texte vert/ambre, accents rose Minitel (#FF69B4)
+- [ ] Typo blocs : police monospace épaisse type VIDEOTEX (blocs 2×3)
+- [ ] Bande de service haute : 3615 KXKM — tarification (gratuit, c'est local)
+- [ ] Bande de service basse : F1=Sommaire F2=Suite F3=Retour F5=Envoi
+- [ ] Mosaïques VIDEOTEX : séparateurs, cadres, art ASCII Minitel
+- [ ] Écran de connexion : animation modem (biiiiip bzzz tchiiiik)
+- [ ] Messages personas : style serveur vocal Minitel (>>> SCHAEFFER <<<)
+- [ ] Curseur bloc clignotant vert/ambre
+- [ ] Sons : bips Minitel (touche, envoi, réception, déconnexion)
+- [ ] Easter egg : page 3615 ULLA si on tape /ulla
+- [ ] Mode dégradé : scanlines CRT + flicker
+- [ ] Responsive : mode portrait = écran Minitel vertical
+
 Reste à faire (futur) :
 - [ ] Migration sessions V1 → V2
 - [ ] Recherche historique conversations

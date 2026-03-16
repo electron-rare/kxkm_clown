@@ -1048,6 +1048,54 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
     }
   });
 
+  app.get("/api/v2/chat/search", requireSession, async (req, res) => {
+    const query = String(req.query.q || "").toLowerCase();
+    if (!query || query.length < 2) {
+      return res.json({ results: [], query: "" });
+    }
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+
+    const results: Array<{ date: string; ts: string; nick: string; text: string; type: string }> = [];
+
+    try {
+      await mkdir(chatLogDir, { recursive: true });
+      const files = await readdir(chatLogDir);
+      // Sort files descending (newest first)
+      files.sort().reverse();
+
+      for (const file of files) {
+        if (!file.endsWith(".jsonl")) continue;
+        if (results.length >= limit) break;
+
+        const dateMatch = file.match(/^v2-(\d{4}-\d{2}-\d{2})\.jsonl$/);
+        if (!dateMatch) continue;
+        const date = dateMatch[1];
+        const content = await readFile(path.join(chatLogDir, file), "utf-8");
+
+        for (const line of content.split("\n")) {
+          if (!line.trim()) continue;
+          try {
+            const entry = JSON.parse(line);
+            const text = String(entry.text || "").toLowerCase();
+            const nick = String(entry.nick || "").toLowerCase();
+            if (text.includes(query) || nick.includes(query)) {
+              results.push({
+                date,
+                ts: entry.ts || "",
+                nick: entry.nick || "",
+                text: entry.text || "",
+                type: entry.type || "message",
+              });
+              if (results.length >= limit) break;
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+
+    res.json({ results, query, total: results.length });
+  });
+
   app.get("/api/v2/chat/history/:date", requireSession, async (req, res) => {
     try {
       const date = readRouteParam(req.params.date);

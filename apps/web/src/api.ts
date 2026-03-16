@@ -272,4 +272,10 @@ export const api = {
       `/api/v2/chat/history/${date}?limit=${limit}&offset=${offset}`
     );
   },
+
+  async searchChatHistory(query: string, limit = 50): Promise<{ results: Array<{ date: string; ts: string; nick: string; text: string; type: string }>; query: string; total: number }> {
+    return apiFetch<{ results: Array<{ date: string; ts: string; nick: string; text: string; type: string }>; query: string; total: number }>(
+      `/api/v2/chat/search?q=${encodeURIComponent(query)}&limit=${limit}`
+    );
+  },
 };

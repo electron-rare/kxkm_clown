@@ -17,6 +17,14 @@ interface ChatLogMessage {
   size?: number;
 }
 
+interface SearchResult {
+  date: string;
+  ts: string;
+  nick: string;
+  text: string;
+  type: string;
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -67,9 +75,16 @@ export default function ChatHistory() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filterTerm, setFilterTerm] = useState("");
   const [offset, setOffset] = useState(0);
   const logViewerRef = useRef<HTMLDivElement>(null);
+
+  // Server-side search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchMode, setSearchMode] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const PAGE_SIZE = 200;
 
@@ -90,7 +105,7 @@ export default function ChatHistory() {
 
   // Load messages when date or offset changes
   useEffect(() => {
-    if (!selectedDate) return;
+    if (!selectedDate || searchMode) return;
     setLoading(true);
     setError("");
     api
@@ -105,18 +120,96 @@ export default function ChatHistory() {
         setError(err instanceof Error ? err.message : "Erreur de chargement");
       })
       .finally(() => setLoading(false));
-  }, [selectedDate, offset]);
+  }, [selectedDate, offset, searchMode]);
+
+  // Debounced server-side search
+  const executeSearch = useCallback((query: string) => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!query || query.length < 2) {
+      setSearchResults([]);
+      setSearchMode(false);
+      return;
+    }
+    searchTimerRef.current = setTimeout(() => {
+      setSearchLoading(true);
+      setSearchMode(true);
+      api
+        .searchChatHistory(query)
+        .then((data) => {
+          setSearchResults(data.results);
+        })
+        .catch(() => {
+          setSearchResults([]);
+        })
+        .finally(() => setSearchLoading(false));
+    }, 500);
+  }, []);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    executeSearch(value);
+  }, [executeSearch]);
+
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      const query = searchQuery.trim();
+      if (!query || query.length < 2) return;
+      setSearchLoading(true);
+      setSearchMode(true);
+      api
+        .searchChatHistory(query)
+        .then((data) => setSearchResults(data.results))
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearchLoading(false));
+    }
+  }, [searchQuery]);
+
+  const handleClearSearch = useCallback(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchMode(false);
+  }, []);
+
+  const handleSearchResultClick = useCallback((date: string) => {
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchMode(false);
+    setSelectedDate(date);
+    setOffset(0);
+    setFilterTerm("");
+  }, []);
 
   const handleDateSelect = useCallback((date: string) => {
     setSelectedDate(date);
     setOffset(0);
-    setSearchTerm("");
+    setFilterTerm("");
+    setSearchMode(false);
+    setSearchQuery("");
+    setSearchResults([]);
   }, []);
 
-  const filteredMessages = searchTerm
+  // Highlight matching text in search results
+  function highlightText(text: string, query: string): React.ReactNode {
+    if (!query) return text;
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const idx = lowerText.indexOf(lowerQuery);
+    if (idx === -1) return text;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <span className="search-highlight">{text.slice(idx, idx + query.length)}</span>
+        {text.slice(idx + query.length)}
+      </>
+    );
+  }
+
+  const filteredMessages = filterTerm
     ? messages.filter((msg) => {
         const rendered = renderMessage(msg).toLowerCase();
-        return rendered.includes(searchTerm.toLowerCase());
+        return rendered.includes(filterTerm.toLowerCase());
       })
     : messages;
 
@@ -127,6 +220,57 @@ export default function ChatHistory() {
     <div className="history-container">
       <h2>Historique des conversations</h2>
 
+      {/* Global search bar */}
+      <div className="history-global-search">
+        <div className="history-search-wrapper">
+          <input
+            type="text"
+            className="history-search history-search-global"
+            placeholder="Rechercher dans l'historique..."
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+          />
+          {searchQuery && (
+            <button className="history-search-clear" onClick={handleClearSearch} title="Effacer">
+              &times;
+            </button>
+          )}
+        </div>
+        {searchLoading && <span className="history-search-status">Recherche...</span>}
+        {searchMode && !searchLoading && (
+          <span className="history-search-status">
+            {searchResults.length} resultat{searchResults.length !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+
+      {/* Search results view */}
+      {searchMode && (
+        <div className="history-search-results">
+          {searchResults.length === 0 && !searchLoading && (
+            <div className="history-empty">Aucun resultat pour "{searchQuery}"</div>
+          )}
+          {searchResults.map((r, i) => (
+            <div
+              key={`sr-${i}`}
+              className="history-search-result"
+              onClick={() => handleSearchResultClick(r.date)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && handleSearchResultClick(r.date)}
+            >
+              <span className="search-result-date">{r.date}</span>
+              <span className="search-result-time">{formatTimestamp(r.ts)}</span>
+              <span className="search-result-nick">&lt;{highlightText(r.nick, searchQuery)}&gt;</span>
+              <span className="search-result-text">{highlightText(r.text, searchQuery)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Normal date-based view */}
+      {!searchMode && (
       <div className="history-layout">
         {/* Date picker sidebar */}
         <div className="history-sidebar">
@@ -150,14 +294,14 @@ export default function ChatHistory() {
 
         {/* Log viewer */}
         <div className="history-main">
-          {/* Search bar */}
+          {/* Filter bar */}
           <div className="history-toolbar">
             <input
               type="text"
               className="history-search"
               placeholder="Filtrer les messages..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={filterTerm}
+              onChange={(e) => setFilterTerm(e.target.value)}
             />
             {totalPages > 1 && (
               <div className="history-pagination">
@@ -191,7 +335,7 @@ export default function ChatHistory() {
           <div className="history-log" ref={logViewerRef}>
             {!loading && filteredMessages.length === 0 && selectedDate && (
               <div className="history-empty">
-                {searchTerm ? "Aucun message correspondant" : "Aucun message pour cette date"}
+                {filterTerm ? "Aucun message correspondant" : "Aucun message pour cette date"}
               </div>
             )}
             {filteredMessages.map((msg, i) => (
@@ -202,6 +346,7 @@ export default function ChatHistory() {
           </div>
         </div>
       </div>
+      )}
 
       <style>{`
         .history-container {
@@ -333,6 +478,115 @@ export default function ChatHistory() {
           text-align: center;
           color: #6e7681;
           font-family: monospace;
+        }
+        .history-global-search {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+        .history-search-wrapper {
+          position: relative;
+          flex: 1;
+        }
+        .history-search-global {
+          width: 100%;
+          box-sizing: border-box;
+          padding-right: 30px;
+          background: #0a0f14;
+          border: 1px solid #30363d;
+          border-radius: 4px;
+          color: #33ff33;
+          font-family: "Courier New", "Courier", monospace;
+          font-size: 0.95em;
+          padding-top: 8px;
+          padding-bottom: 8px;
+          padding-left: 10px;
+        }
+        .history-search-global::placeholder {
+          color: #2a6e2a;
+        }
+        .history-search-global:focus {
+          outline: none;
+          border-color: #33ff33;
+          box-shadow: 0 0 6px rgba(51, 255, 51, 0.3);
+        }
+        .history-search-clear {
+          position: absolute;
+          right: 6px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          color: #6e7681;
+          cursor: pointer;
+          font-size: 1.2em;
+          padding: 2px 6px;
+          font-family: monospace;
+        }
+        .history-search-clear:hover {
+          color: #ff4444;
+        }
+        .history-search-status {
+          font-family: monospace;
+          font-size: 0.85em;
+          color: #33ff33;
+          white-space: nowrap;
+        }
+        .history-search-results {
+          flex: 1;
+          overflow-y: auto;
+          background: #0a0f14;
+          border: 1px solid #30363d;
+          border-radius: 4px;
+          padding: 4px 0;
+          font-family: "Courier New", "Courier", monospace;
+          font-size: 0.85em;
+          line-height: 1.5;
+          color: #33ff33;
+          min-height: 300px;
+          max-height: calc(100vh - 200px);
+        }
+        .history-search-result {
+          padding: 6px 12px;
+          cursor: pointer;
+          display: flex;
+          gap: 8px;
+          align-items: baseline;
+          border-bottom: 1px solid #161b22;
+          transition: background 0.15s;
+        }
+        .history-search-result:hover {
+          background: #0d2818;
+        }
+        .search-result-date {
+          color: #2a6e2a;
+          font-size: 0.85em;
+          flex-shrink: 0;
+        }
+        .search-result-time {
+          color: #2a6e2a;
+          font-size: 0.85em;
+          flex-shrink: 0;
+        }
+        .search-result-nick {
+          color: #55cc55;
+          font-weight: bold;
+          flex-shrink: 0;
+        }
+        .search-result-text {
+          color: #33ff33;
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .search-highlight {
+          background: #33ff33;
+          color: #000;
+          font-weight: bold;
+          padding: 0 1px;
+          border-radius: 2px;
         }
       `}</style>
     </div>

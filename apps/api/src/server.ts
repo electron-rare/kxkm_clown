@@ -5,6 +5,7 @@ import express from "express";
 import { createApp } from "./app.js";
 import { attachWebSocketChat } from "./ws-chat.js";
 import { LocalRAG } from "./rag.js";
+import { ContextStore } from "./context-store.js";
 
 const port = Number(process.env.V2_API_PORT || 4180);
 
@@ -69,9 +70,25 @@ async function main() {
     }
   })();
 
+  // -----------------------------------------------------------------------
+  // Initialize persistent context store (auto-compaction, 750 MB max)
+  // -----------------------------------------------------------------------
+  const contextStore = new ContextStore({
+    ollamaUrl,
+    maxTotalSizeMB: 750,
+    maxEntriesBeforeCompact: 200,
+    compactionModel: "qwen3:8b",
+  });
+  contextStore.init().then(() => {
+    console.log("[context] Persistent context store ready");
+  }).catch((err) => {
+    console.error("[context] Init failed:", err);
+  });
+
   attachWebSocketChat(server, {
     ollamaUrl,
     rag,
+    contextStore,
     loadPersonas: async () => {
       const list = await personaRepo.list();
       return list.map((p) => ({

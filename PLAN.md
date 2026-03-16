@@ -301,13 +301,21 @@ blocs VIDEOTEX, bandes de service, mosaïques, clavier AZERTY virtuel.
 - [ ] Mode dégradé : scanlines CRT + flicker
 - [ ] Responsive : mode portrait = écran Minitel vertical
 
-### Phase 4 — Chat avancé `[en cours]`
+### Phase 4 — Chat avancé `[complété]`
 - [x] Chat Vocal dédié (#/voice) — STT/TTS séparé
 - [x] Inter-persona dialogue (@mention, depth 3)
 - [x] Upgrade qwen3:8b (personas) + qwen3-vl:8b (vision)
-- [ ] Multi-channel /join /channels
-- [ ] Analytics dashboard (stats, top personas, messages/jour)
-- [ ] P1 fixes restants (TTS queue, file semaphore, PDF startup)
+- [x] Multi-channel /join /channels
+- [x] Analytics dashboard (stats, top personas, messages/jour)
+- [x] P1 fixes (TTS queue, file semaphore, PDF startup, WS try-catch)
+- [x] F1-F5 raccourcis clavier Minitel
+- [x] Création persona depuis l'UI React
+- [x] 23 personas couvrant : musique, arts de la rue, arts numériques,
+  spectacle vivant, sciences, philosophie, écologie, tech, cinéma
+- [x] Pharmacius orchestrateur (mistral:7b) avec routing par domaine
+- [x] Contexte conversationnel par canal (10 derniers échanges)
+- [x] Page Collectif (#/collectif)
+- [x] Seed personas en DB
 
 Reste à faire (futur) :
 - [ ] Migration sessions V1 → V2

@@ -84,6 +84,7 @@ interface PersonaLoaderResult {
 interface ChatOptions {
   ollamaUrl: string;
   rag?: LocalRAG;
+  contextStore?: import("./context-store.js").ContextStore;
   loadPersonas?: () => Promise<PersonaLoaderResult[]>;
   maxGeneralResponders?: number;
 }
@@ -1211,21 +1212,20 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     }
   }
 
-  // --- conversation context buffer per channel ---
-  const channelContext = new Map<string, Array<{ nick: string; text: string }>>();
-  const MAX_CONTEXT_ENTRIES = 10;
+  // --- persistent conversation context (with auto-compaction) ---
+  const contextStore = options.contextStore;
 
   function addToContext(channel: string, nick: string, text: string): void {
-    let ctx = channelContext.get(channel);
-    if (!ctx) { ctx = []; channelContext.set(channel, ctx); }
-    ctx.push({ nick, text: text.slice(0, 300) });
-    if (ctx.length > MAX_CONTEXT_ENTRIES) ctx.shift();
+    if (contextStore) {
+      contextStore.append(channel, nick, text).catch(() => {});
+    }
   }
 
-  function getContextString(channel: string): string {
-    const ctx = channelContext.get(channel);
-    if (!ctx || ctx.length === 0) return "";
-    return "\n\n[Historique récent]\n" + ctx.map(e => `${e.nick}: ${e.text}`).join("\n");
+  async function getContextString(channel: string): Promise<string> {
+    if (!contextStore) return "";
+    try {
+      return await contextStore.getContext(channel, 6000);
+    } catch { return ""; }
   }
 
   // --- route text to personas (shared by chat messages and uploads) ---
@@ -1239,9 +1239,9 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     // RAG: enrich user message with relevant context from indexed documents
     let enrichedText = text;
 
-    // Add conversation context for Pharmacius (orchestrator needs full picture)
-    const contextStr = getContextString(channel);
-    if (contextStr) enrichedText = text + contextStr;
+    // Add persistent conversation context (with auto-compaction)
+    const contextStr = await getContextString(channel);
+    if (contextStr) enrichedText = text + "\n\n" + contextStr;
     if (rag && rag.size > 0) {
       try {
         const results = await rag.search(text, 2);

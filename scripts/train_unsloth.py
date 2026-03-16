@@ -154,7 +154,8 @@ def main():
             max_seq_length=args.max_seq_length,
             logging_steps=1,
             save_strategy="epoch",
-            fp16=True,
+            fp16=False,
+            bf16=True,
             optim="adamw_8bit",
             seed=42,
         )

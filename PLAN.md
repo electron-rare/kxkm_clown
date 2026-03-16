@@ -198,27 +198,45 @@ Livré:
 
 ### Phase E — Refonte globale `[en cours]`
 
-#### E.1 — Deep analyse code V1+V2
+#### E.1 — Deep analyse code V1+V2 `[complété]`
 
 - [x] Analyse systématique (25 findings: 5 P0, 10 P1, 10 P2)
-- [ ] Corrections P0 chirurgicales (JSON crash, storage race, ollama leak)
-- [ ] Corrections P1 chirurgicales (shutdown, rate limits, timingSafeEqual)
+- [x] Corrections P0 chirurgicales (JSON crash, storage race, ollama leak)
+- [x] Corrections P1 chirurgicales (shutdown, rate limits, timingSafeEqual)
+- [x] Corrections P2 (structuredClone, React.memo, regex optim, validation, debounce, token lookup)
 
-#### E.2 — Veille OSS mise à jour
+#### E.2 — Veille OSS mise à jour `[complété]`
 
 - [x] Recherche web complète (20+ projets analysés)
 - [x] docs/OSS_WATCH_2026-03-16.md enrichi (chat UI, orchestration, training, libs)
 
-#### E.3 — Documentation & specs
+#### E.3 — Documentation & specs `[complété]`
 
-- [ ] Mermaid persona editorial state machine ajouté
-- [ ] FEATURE_MAP.md matrice de parité mise à jour
-- [ ] ARCHITECTURE.md RBAC terminology fix (ops → operator)
-- [ ] NODE_ENGINE_ARCHITECTURE.md training status mis à jour
-- [ ] SPEC.md table commandes slash ajoutée
-- [ ] PROJECT_MEMORY.md référence manifeste ajoutée
+- [x] Mermaid persona editorial state machine ajouté
+- [x] FEATURE_MAP.md matrice de parité mise à jour
+- [x] ARCHITECTURE.md RBAC terminology fix (ops → operator)
+- [x] NODE_ENGINE_ARCHITECTURE.md training status mis à jour
+- [x] SPEC.md table commandes slash ajoutée
+- [x] PROJECT_MEMORY.md référence manifeste ajoutée
+- [x] AUTORESEARCH_MODE.md métriques artefact documentées
 
-#### E.4 — Redéploiement
+#### E.4 — Autoresearch avancé `[complété]`
 
-- [ ] Commit corrections + docs
-- [ ] Push et redéployer sur kxkm-ai
+- [x] Extraction score métier depuis artefacts d'évaluation (6 métriques)
+- [x] Score artefact prioritaire, fallback status-based
+- [x] TSV étendu avec colonne artifact_score
+
+#### E.5 — Redéploiement `[complété]`
+
+- [x] Commit corrections + docs + autoresearch
+- [x] Push et redéployer sur kxkm-ai (V2 API healthy)
+
+## Lot 12 — Training pipeline réel `[à venir]`
+
+Prérequis serveur (kxkm-ai) :
+- [ ] Installer PyTorch + CUDA sur kxkm-ai (RTX 4090 disponible)
+- [ ] Installer Unsloth + TRL + transformers
+- [ ] Créer scripts/train_unsloth.py (wrapper Python)
+- [ ] Worker : exécution réelle via child_process au lieu de stubs
+- [ ] Pipeline complet : DPO extraction → dataset build → fine-tune → évaluation → registry
+- [ ] GPU passthrough Docker validé

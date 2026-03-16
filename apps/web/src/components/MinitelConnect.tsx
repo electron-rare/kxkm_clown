@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const MODEM_SEQUENCE = [
   { text: "", delay: 500 },
@@ -23,12 +23,14 @@ interface MinitelConnectProps {
 export default function MinitelConnect({ onComplete, skip }: MinitelConnectProps) {
   const [lineIndex, setLineIndex] = useState(0);
   const [lines, setLines] = useState<string[]>([]);
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
 
   useEffect(() => {
-    if (skip) { onComplete(); return; }
+    if (skip) { onCompleteRef.current(); return; }
 
     if (lineIndex >= MODEM_SEQUENCE.length) {
-      const timer = setTimeout(onComplete, 500);
+      const timer = setTimeout(() => onCompleteRef.current(), 500);
       return () => clearTimeout(timer);
     }
 
@@ -39,7 +41,7 @@ export default function MinitelConnect({ onComplete, skip }: MinitelConnectProps
     }, entry.delay);
 
     return () => clearTimeout(timer);
-  }, [lineIndex, skip, onComplete]);
+  }, [lineIndex, skip]);
 
   return (
     <div className="minitel-connect">

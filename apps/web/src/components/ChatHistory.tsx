@@ -88,6 +88,13 @@ export default function ChatHistory() {
 
   const PAGE_SIZE = 200;
 
+  // Cleanup search timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, []);
+
   // Load available dates
   useEffect(() => {
     setLoading(true);

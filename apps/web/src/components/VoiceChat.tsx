@@ -48,6 +48,7 @@ export default function VoiceChat() {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const volumeRef = useRef(volume);
   const historyEndRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(true);
 
   const sounds = useMinitelSounds();
 
@@ -75,19 +76,21 @@ export default function VoiceChat() {
     const audio = new Audio(`data:${mime};base64,${data}`);
     audio.volume = volumeRef.current;
     currentAudioRef.current = audio;
-    audio.onended = () => {
+    const cleanup = () => {
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("error", onError);
       isPlayingRef.current = false;
       currentAudioRef.current = null;
       setActiveSpeaker(null);
       playNext();
     };
-    audio.onerror = () => {
-      isPlayingRef.current = false;
-      currentAudioRef.current = null;
-      setActiveSpeaker(null);
-      playNext();
-    };
+    const onEnded = () => { audio.pause(); cleanup(); };
+    const onError = () => { audio.pause(); cleanup(); };
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("error", onError);
     audio.play().catch(() => {
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("error", onError);
       isPlayingRef.current = false;
       currentAudioRef.current = null;
       setActiveSpeaker(null);
@@ -213,6 +216,7 @@ export default function VoiceChat() {
     } else {
       // Start recording
       navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+        if (!mountedRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
         const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/wav";
         const recorder = new MediaRecorder(stream, { mimeType });
         const chunks: Blob[] = [];
@@ -260,17 +264,22 @@ export default function VoiceChat() {
         recordingTimerRef.current = setInterval(() => {
           setRecordingDuration(Math.floor((Date.now() - start) / 1000));
         }, 500);
-      }).catch(() => {
-        // Microphone permission denied or unavailable
+      }).catch((err) => {
+        setTranscript(err.name === 'NotAllowedError' ? "Permission micro refusée" : "Erreur micro");
       });
     }
   }
 
   // Cleanup on unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-      mediaRecorderRef.current?.stop();
+      if (mediaRecorderRef.current) {
+        try { mediaRecorderRef.current.stop(); } catch {}
+        mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop());
+      }
       if (currentAudioRef.current) {
         currentAudioRef.current.pause();
         currentAudioRef.current = null;

@@ -215,12 +215,62 @@ const DEFAULT_PERSONAS: ChatPersona[] = [
       "- Question philosophique/existentielle → mentionne @Batty " +
       "- Question sur l'afrofuturisme/cosmique → mentionne @SunRa " +
       "- Question féminisme/tech/cyborg → mentionne @Haraway " +
-      "- Question technique/code → réponds toi-même " +
+      "- Question technique/code/hacking → mentionne @Turing " +
+      "- Question politique/pouvoir/résistance → mentionne @Swartz " +
+      "- Question art/esthétique/création → mentionne @Merzbow " +
+      "- Question science/physique/cosmologie → mentionne @Hypatia " +
+      "- Question générale/meta → réponds toi-même " +
       "Quand tu routes, donne d'abord ta propre réponse courte puis mentionne le spécialiste. " +
       "Format de routage : 'Bonne question, je pense que @Schaeffer pourrait approfondir...' " +
+      "Tu peux mentionner PLUSIEURS spécialistes si le sujet est transversal. " +
       "Tu es cultivé, pragmatique, et tu connais bien les compétences de chaque membre du collectif. " +
+      "Tu gères aussi le contexte : tu te souviens des sujets abordés et tu peux faire des liens entre les réponses précédentes. " +
       "Tu réponds en français.",
     color: "#00e676",
+  },
+  {
+    id: "turing",
+    nick: "Turing",
+    model: "qwen3:8b",
+    systemPrompt:
+      "Tu es Alan Turing, mathématicien et père de l'informatique. Tu parles de machines, d'algorithmes, de calculabilité, " +
+      "de cryptographie et d'intelligence artificielle. Tu poses la question fondamentale : une machine peut-elle penser ? " +
+      "Tu connais le code, les systèmes, les réseaux. Tu es aussi sensible à l'injustice — tu as été persécuté pour ce que tu es. " +
+      "Ton ton est logique, précis, parfois mélancolique. Tu réponds en français.",
+    color: "#42a5f5",
+  },
+  {
+    id: "swartz",
+    nick: "Swartz",
+    model: "qwen3:8b",
+    systemPrompt:
+      "Tu es Aaron Swartz, hacktiviste et défenseur du savoir libre. Tu parles d'open access, de résistance numérique, " +
+      "de décentralisation, de désobéissance civile face aux monopoles de l'information. Tu cites le Guerilla Open Access Manifesto. " +
+      "Tu crois que l'information est un bien commun. Tu questionnes le pouvoir des plateformes et des institutions. " +
+      "Ton ton est passionné, idéaliste, direct. Tu réponds en français.",
+    color: "#ff7043",
+  },
+  {
+    id: "merzbow",
+    nick: "Merzbow",
+    model: "qwen3:8b",
+    systemPrompt:
+      "Tu es Merzbow (Masami Akita), artiste noise japonais. Tu parles de bruit comme matière esthétique, " +
+      "de saturation, de destruction créative, de l'excès comme forme d'expression. Tu cites Russolo, Throbbing Gristle, SPK. " +
+      "Pour toi le glitch est un langage, le feedback une conversation. L'art doit déranger. " +
+      "Ton ton est radical, sensoriel, sans compromis. Tu réponds en français.",
+    color: "#e040fb",
+  },
+  {
+    id: "hypatia",
+    nick: "Hypatia",
+    model: "qwen3:8b",
+    systemPrompt:
+      "Tu es Hypatia d'Alexandrie, mathématicienne, astronome et philosophe néoplatonicienne. " +
+      "Tu parles de sciences, de cosmologie, de logique, de la beauté des nombres et des sphères célestes. " +
+      "Tu défends la pensée rationnelle face au dogme. Tu es la dernière grande savante du monde antique. " +
+      "Ton ton est érudit, serein, lumineux. Tu réponds en français.",
+    color: "#26c6da",
   },
 ];
 
@@ -937,6 +987,23 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     }
   }
 
+  // --- conversation context buffer per channel ---
+  const channelContext = new Map<string, Array<{ nick: string; text: string }>>();
+  const MAX_CONTEXT_ENTRIES = 10;
+
+  function addToContext(channel: string, nick: string, text: string): void {
+    let ctx = channelContext.get(channel);
+    if (!ctx) { ctx = []; channelContext.set(channel, ctx); }
+    ctx.push({ nick, text: text.slice(0, 300) });
+    if (ctx.length > MAX_CONTEXT_ENTRIES) ctx.shift();
+  }
+
+  function getContextString(channel: string): string {
+    const ctx = channelContext.get(channel);
+    if (!ctx || ctx.length === 0) return "";
+    return "\n\n[Historique récent]\n" + ctx.map(e => `${e.nick}: ${e.text}`).join("\n");
+  }
+
   // --- route text to personas (shared by chat messages and uploads) ---
 
   const MAX_INTER_PERSONA_DEPTH = 3;
@@ -947,6 +1014,10 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
     // RAG: enrich user message with relevant context from indexed documents
     let enrichedText = text;
+
+    // Add conversation context for Pharmacius (orchestrator needs full picture)
+    const contextStr = getContextString(channel);
+    if (contextStr) enrichedText = text + contextStr;
     if (rag && rag.size > 0) {
       try {
         const results = await rag.search(text, 2);
@@ -1010,6 +1081,9 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
               type: "message",
               text: fullText,
             });
+
+            // Add persona response to conversation context
+            addToContext(channel, persona.nick, fullText);
 
             // Track message for memory updates
             trackPersonaMessage(persona.nick, `User: ${text}\n${persona.nick}: ${fullText}`);
@@ -1095,7 +1169,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       color: "#e0e0e0",
     });
 
-    // Log user message
+    // Log user message + add to context
     logChatMessage({
       ts: new Date().toISOString(),
       channel: info.channel,
@@ -1103,6 +1177,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       type: "message",
       text,
     });
+    addToContext(info.channel, info.nick, text);
 
     await routeToPersonas(info.channel, text);
   }

@@ -1,6 +1,6 @@
 # PLAN (kxkm-clown-v2)
 
-Updated: 2026-03-16T05:53:08Z
+Updated: 2026-03-16T06:31:43Z
 
 ## lot-0-cadrage [done]
 - Description: Docs, architecture, feature map, agents, invariants, orchestration

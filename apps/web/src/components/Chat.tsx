@@ -15,6 +15,8 @@ interface ChatMsg {
   color?: string;
   channel?: string;
   users?: string[];
+  audioData?: string;
+  audioMime?: string;
   timestamp: number;
 }
 
@@ -57,6 +59,25 @@ const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, channel
         </div>
       );
 
+    case "audio": {
+      const color = msg.nick ? getNickColor(msg.nick) : undefined;
+      return (
+        <div key={msg.id} className="chat-msg chat-msg-audio" style={color ? { color } : undefined}>
+          <span className="chat-nick" style={color ? { color } : undefined}>
+            {"<"}{msg.nick || "???"}{">"}{" "}
+          </span>
+          <span className="chat-audio-indicator">&#9835;</span>
+          <button className="chat-audio-play" onClick={() => {
+            if (msg.audioData && msg.audioMime) {
+              const a = new Audio(`data:${msg.audioMime};base64,${msg.audioData}`);
+              a.volume = 0.7;
+              a.play().catch(() => {});
+            }
+          }}>&#9654;</button>
+        </div>
+      );
+    }
+
     case "message":
     default: {
       const color = msg.nick ? getNickColor(msg.nick) : undefined;
@@ -88,6 +109,20 @@ export default function Chat() {
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
   const savedInputRef = useRef("");
+
+  // STT recording state
+  const [recording, setRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // TTS toggle state (persisted in localStorage)
+  const [ttsEnabled, setTtsEnabled] = useState(() => {
+    try {
+      const stored = localStorage.getItem("kxkm_tts_enabled");
+      return stored === null ? true : stored === "true";
+    } catch { return true; }
+  });
 
   const handleMessage = useCallback((data: unknown) => {
     const msg = data as Record<string, unknown>;
@@ -122,15 +157,32 @@ export default function Chat() {
         return;
 
       case "audio": {
-        // Auto-play persona audio response
         if (typeof msg.data === "string" && typeof msg.mimeType === "string") {
-          try {
-            const audio = new Audio(`data:${msg.mimeType};base64,${msg.data}`);
-            audio.volume = 0.7;
-            audio.play().catch(() => {}); // browsers may block autoplay
-          } catch { /* ignore playback errors */ }
+          // Add to messages as a playable audio message
+          const chatMsg: ChatMsg = {
+            id: ++msgIdCounter,
+            type: "audio",
+            nick: typeof msg.nick === "string" ? msg.nick : undefined,
+            text: "\u266A message vocal",
+            audioData: msg.data as string,
+            audioMime: msg.mimeType as string,
+            timestamp: Date.now(),
+          };
+          setMessages((prev) => {
+            const next = [...prev, chatMsg];
+            return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
+          });
+
+          // Auto-play if TTS enabled
+          if (ttsEnabled) {
+            try {
+              const audio = new Audio(`data:${msg.mimeType};base64,${msg.data}`);
+              audio.volume = 0.7;
+              audio.play().catch(() => {});
+            } catch { /* ignore playback errors */ }
+          }
         }
-        return; // don't add to message list
+        return;
       }
 
       default: {
@@ -158,7 +210,7 @@ export default function Chat() {
         }
       }
     }
-  }, []);
+  }, [ttsEnabled]);
 
   const ws = useWebSocket({
     url: WS_URL,
@@ -188,6 +240,66 @@ export default function Chat() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  // Persist TTS preference
+  useEffect(() => {
+    try { localStorage.setItem("kxkm_tts_enabled", String(ttsEnabled)); } catch {}
+  }, [ttsEnabled]);
+
+  // Recording helpers
+  function toggleRecording() {
+    if (recording) {
+      // Stop recording
+      mediaRecorderRef.current?.stop();
+      setRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setRecordingDuration(0);
+    } else {
+      // Start recording
+      navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/wav";
+        const recorder = new MediaRecorder(stream, { mimeType });
+        const chunks: Blob[] = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        recorder.onstop = () => {
+          stream.getTracks().forEach((t) => t.stop());
+          const blob = new Blob(chunks, { type: mimeType });
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = (reader.result as string).split(",")[1];
+            if (ws.connected) {
+              ws.send({
+                type: "upload",
+                filename: `recording-${Date.now()}.webm`,
+                mimeType,
+                size: blob.size,
+                data: base64,
+              });
+            }
+          };
+          reader.readAsDataURL(blob);
+        };
+
+        mediaRecorderRef.current = recorder;
+        recorder.start();
+        setRecording(true);
+        setRecordingDuration(0);
+        const start = Date.now();
+        recordingTimerRef.current = setInterval(() => {
+          setRecordingDuration(Math.floor((Date.now() - start) / 1000));
+        }, 500);
+      }).catch(() => {
+        // Microphone permission denied or unavailable
+      });
+    }
+  }
 
   function handleSend() {
     const trimmed = input.trim();
@@ -292,8 +404,17 @@ export default function Chat() {
     <div className="chat-container">
       <div className="chat-header">
         <span className="chat-channel">{channel}</span>
-        <span className={`chat-status ${ws.connected ? "chat-status-on" : "chat-status-off"}`}>
-          {ws.connected ? "connecte" : "deconnecte"}
+        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span className={`chat-status ${ws.connected ? "chat-status-on" : "chat-status-off"}`}>
+            {ws.connected ? "connecte" : "deconnecte"}
+          </span>
+          <button
+            className="chat-tts-toggle"
+            onClick={() => setTtsEnabled((v) => !v)}
+            title={ttsEnabled ? "TTS active — cliquer pour couper" : "TTS coupe — cliquer pour activer"}
+          >
+            {ttsEnabled ? "\uD83D\uDD0A" : "\uD83D\uDD07"}
+          </button>
         </span>
       </div>
 
@@ -355,6 +476,17 @@ export default function Chat() {
             disabled={!ws.connected}
           />
         </label>
+        <button
+          className={`btn btn-secondary chat-record-btn${recording ? " recording" : ""}`}
+          onClick={toggleRecording}
+          disabled={!ws.connected}
+          title={recording ? "Arreter l'enregistrement" : "Enregistrer un message vocal"}
+        >
+          MIC
+        </button>
+        {recording && (
+          <span className="chat-record-duration">{recordingDuration}s</span>
+        )}
         <button
           className="btn btn-primary"
           onClick={handleSend}

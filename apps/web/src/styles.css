@@ -755,6 +755,59 @@ code {
   border-left: 2px solid var(--border);
 }
 
+/* Recording button */
+.chat-record-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg, var(--ink));
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+}
+.chat-record-btn.recording {
+  color: #ff4444;
+  border-color: #ff4444;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.chat-record-duration {
+  font-size: 0.8em;
+  color: #ff4444;
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+}
+
+/* TTS toggle */
+.chat-tts-toggle {
+  cursor: pointer;
+  margin-left: 4px;
+  opacity: 0.7;
+  background: none;
+  border: none;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+.chat-tts-toggle:hover { opacity: 1; }
+
+/* Audio message */
+.chat-msg-audio { opacity: 0.9; }
+.chat-audio-indicator { margin-right: 4px; }
+.chat-audio-play {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 1px 6px;
+  font-size: 0.8em;
+  margin-left: 4px;
+  font-family: inherit;
+}
+.chat-audio-play:hover { background: rgba(47, 34, 24, 0.06); }
+
 /* ── Node Editor ── */
 .node-editor-container {
   display: flex;

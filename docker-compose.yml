@@ -59,12 +59,12 @@ services:
     build: .
     restart: unless-stopped
     profiles: [v2]
-    extra_hosts: *extra-hosts
+    network_mode: host
     command: ["node", "apps/api/dist/server.js"]
-    ports:
-      - "${API_PORT:-4180}:4180"
     environment:
-      <<: *common-env
+      OLLAMA_URL: "http://localhost:11434"
+      DATABASE_URL: "postgres://kxkm:kxkm@localhost:5432/kxkm_clown"
+      NODE_ENV: production
       V2_API_PORT: "4180"
       WEB_DIST_PATH: "/app/apps/web/dist"
       ADMIN_BOOTSTRAP_TOKEN: "${ADMIN_BOOTSTRAP_TOKEN:-}"

@@ -6,6 +6,16 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 4174,
+    proxy: {
+      "/api": {
+        target: "http://localhost:4180",
+        changeOrigin: true,
+      },
+      "/ws": {
+        target: "ws://localhost:4180",
+        ws: true,
+      },
+    },
   },
   test: {
     environment: "jsdom",

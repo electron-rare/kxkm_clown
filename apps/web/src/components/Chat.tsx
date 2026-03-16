@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useWebSocket } from "../hooks/useWebSocket";
 
-const WS_URL = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:3333";
+const WS_URL = import.meta.env.VITE_WS_URL || (() => {
+  if (typeof window === "undefined") return "ws://127.0.0.1:4180/ws";
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/ws`;
+})();
 
 interface ChatMsg {
   id: number;

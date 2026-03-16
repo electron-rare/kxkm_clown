@@ -47,6 +47,10 @@ RUN apk add --no-cache tini bash
 # Copy the assembled dist produced by scripts/build.js
 COPY --from=build /app/dist ./
 
+# Copy V2 app builds (api + web)
+COPY --from=build /app/apps/api/dist ./apps/api/dist/
+COPY --from=build /app/apps/web/dist ./apps/web/dist/
+
 # Re-install production deps inside dist/
 RUN npm ci --omit=dev --ignore-scripts 2>/dev/null || npm install --omit=dev --ignore-scripts
 

@@ -248,7 +248,24 @@ Livré (suite) :
 - Model registry file-based : data/node-engine/registry/{tag}-{timestamp}.json
 - Worker : sft_training node type, DPO via params.dpo flag
 
+Livré (suite lot 13) :
+- Intégration Ollama : scripts/ollama-import-adapter.sh + scripts/ollama-import.js
+- Worker deploy_api : import réel LoRA adapter → modèle Ollama
+- Dashboard training React : TrainingDashboard.tsx (#/training)
+- GPU passthrough Docker : deploy.resources.reservations.devices (nvidia)
+- Dockerfile : bash + scripts Python copiés dans l'image
+
+## Lot 14 — Bascule chat V2 `[en cours]`
+
+Objectif : faire du frontend React V2 l'interface chat principale.
+- [ ] WebSocket chat V2 (ws-chat.ts) connecté à Ollama avec streaming
+- [ ] API V2 sert le build Vite statique (SPA fallback)
+- [ ] Frontend auto-détecte le WebSocket URL
+- [ ] Vite dev proxy configuré
+- [ ] Docker : V2 web dist copié dans l'image
+- [ ] Port principal 3333 → V2
+- [ ] Test end-to-end sur kxkm-ai
+
 Reste à faire (futur) :
-- [ ] GPU passthrough Docker (worker hors container, accès GPU natif)
-- [ ] Intégration Ollama : importer adapter fine-tuné comme modèle Ollama
-- [ ] Dashboard training dans le frontend React (progression, métriques, historique)
+- [ ] Historique persistant des conversations V2
+- [ ] Migration sessions V1 → V2

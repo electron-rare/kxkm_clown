@@ -52,7 +52,8 @@ services:
       start_period: 10s
 
   # -------------------------------------------------------------------------
-  # V2 — API server (Express, TypeScript)
+  # V2 — API server (Express, TypeScript) — main chat interface
+  # Serves both the REST/WebSocket API and the React web build.
   # -------------------------------------------------------------------------
   api:
     build: .
@@ -65,6 +66,7 @@ services:
     environment:
       <<: *common-env
       V2_API_PORT: "4180"
+      WEB_DIST_PATH: "/app/apps/web/dist"
       ADMIN_BOOTSTRAP_TOKEN: "${ADMIN_BOOTSTRAP_TOKEN:-}"
       ADMIN_ALLOWED_SUBNETS: "${ADMIN_ALLOWED_SUBNETS:-}"
     depends_on:

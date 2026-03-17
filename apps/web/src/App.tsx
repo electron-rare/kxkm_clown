@@ -16,6 +16,7 @@ import NodeEditor from "./components/NodeEditor";
 import TrainingDashboard from "./components/TrainingDashboard";
 import Analytics from "./components/Analytics";
 import Collectif from "./components/Collectif";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 function parseHash(): { page: string; id: string } {
   const hash = window.location.hash.replace(/^#\/?/, "");
@@ -188,7 +189,9 @@ export default function App() {
         <Nav currentPage={route.page} session={session} onNavigate={navigate} />
         <main className="app-main">
           {error && <div className="banner">{error}</div>}
-          {renderPage()}
+          <ErrorBoundary>
+            {renderPage()}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

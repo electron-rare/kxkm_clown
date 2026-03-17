@@ -495,7 +495,7 @@ export default function Chat() {
       </div>
 
       <div className="chat-body">
-        <div className="chat-messages" ref={messagesContainerRef}>
+        <div className="chat-messages" ref={messagesContainerRef} role="log" aria-live="polite">
           {messages.map((msg) => (
             <ChatMessage key={msg.id} msg={msg} getNickColor={getNickColor} channel={channel} />
           ))}

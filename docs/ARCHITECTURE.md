@@ -546,3 +546,97 @@ flowchart TD
 | GET     | `/api/v2/chat/history`             | Liste fichiers de chat logs        |
 | GET     | `/api/v2/chat/history/:date`       | Messages d'un jour (pagine)        |
 | POST    | `/api/v2/admin/retention-sweep`    | Nettoyage runs anciens             |
+
+---
+
+## 13. Context Store & Memoire persistante
+
+Flux de compaction automatique du contexte conversationnel par canal.
+
+```mermaid
+flowchart TD
+    Msg["Message entrant (append)"]
+    Msg --> JSONL["channel.jsonl (append line)"]
+    JSONL --> SizeCheck{"Taille > 1 MB\net > 500 entries?"}
+    SizeCheck -- non --> Done["Fin"]
+    SizeCheck -- oui --> Split["Split 80/20"]
+
+    Split --> Old["80% anciennes entries"]
+    Split --> Recent["20% recentes entries"]
+
+    Old --> Summarize["LLM summarization\n(qwen3.5:9b via Ollama)"]
+
+    subgraph Summary["Compaction"]
+        Summarize --> Merge["Fusionner avec\nsummary existant"]
+        Merge --> Save["channel.summary.json"]
+    end
+
+    Recent --> Rewrite["Reecrire channel.jsonl\n(entries recentes seules)"]
+
+    Save --> Done2["Compaction terminee"]
+    Rewrite --> Done2
+```
+
+### Injection contexte dans le prompt
+
+```mermaid
+flowchart LR
+    Load["getContext(channel)"]
+    Load --> ReadSummary["Lire channel.summary.json"]
+    Load --> ReadRecent["Lire channel.jsonl (tail)"]
+
+    ReadSummary --> Combine["Combiner:\nResume + Echanges recents"]
+    ReadRecent --> Combine
+
+    Combine --> Cap["Tronquer a maxContextChars\n(default 16K)"]
+    Cap --> Inject["Injecter dans systemPrompt"]
+```
+
+---
+
+## 14. Deploiement Docker
+
+```mermaid
+flowchart TD
+    subgraph Docker["Docker Compose"]
+        API["api:4180\n(Express + WS + RAG)"]
+        Worker["worker\n(poll Postgres)"]
+        Postgres["postgres:5432\n(persistence)"]
+        V1["v1:3333\n(reference, optionnel)"]
+    end
+
+    subgraph Host["Host (kxkm-ai)"]
+        Ollama["Ollama:11434\n(natif, RTX 4090)"]
+        Venv["Python venv\n(PyTorch, faster-whisper,\npiper-tts, Unsloth)"]
+    end
+
+    API --> Postgres
+    Worker --> Postgres
+    API --> Ollama
+    Worker --> Ollama
+    API --> Venv
+
+    Browser["Client Browser"] --> API
+    Browser --> V1
+```
+
+---
+
+## 15. Inter-persona dialogue
+
+```mermaid
+sequenceDiagram
+    participant U as Utilisateur
+    participant WS as ws-chat
+    participant P1 as Persona A
+    participant P2 as Persona B (@mention)
+
+    U->>WS: "Hey @Schaeffer, que penses-tu?"
+    WS->>P1: route vers Schaeffer
+    P1-->>WS: reponse (mentionne @Radigue)
+    WS->>WS: detecter @mention dans reponse
+    WS->>P2: route vers Radigue (depth 2)
+    P2-->>WS: reponse (depth 2)
+    WS->>WS: depth >= 3? stop
+    WS-->>U: broadcast toutes les reponses
+```

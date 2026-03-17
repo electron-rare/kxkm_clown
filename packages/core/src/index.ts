@@ -71,7 +71,10 @@ export function createIsoTimestamp(date = new Date()): string {
 }
 
 export function createId(prefix: string): string {
-  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+  const bytes = globalThis.crypto?.getRandomValues
+    ? globalThis.crypto.getRandomValues(new Uint8Array(8))
+    : require("node:crypto").randomBytes(8);
+  return `${prefix}_${Buffer.from(bytes).toString("hex")}`;
 }
 
 export function isUserRole(value: string): value is UserRole {

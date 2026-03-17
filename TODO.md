@@ -135,3 +135,61 @@
 - [x] Docker — `Dockerfile` (multi-stage Node 22 alpine) + `docker-compose.yml` (5 services) + `.dockerignore`
 - [ ] Documentation utilisateur
 - [ ] Performance profiling
+
+## P11 Lot 17 — Deep Audit & Refactoring
+
+### Phase A — Analyse & documentation
+
+- [x] Script TUI deep-audit.js (security, perf, complexity, deps) — `ops/v2/deep-audit.js`
+- [x] Veille OSS enrichie 2026-03-17 (10 nouvelles catégories) — `docs/OSS_WATCH_2026-03-16.md`
+- [x] Diagrammes Mermaid (Context Store, Docker, Inter-persona) — `docs/ARCHITECTURE.md`
+- [x] AGENTS.md refondu (matrice 10 agents, Mermaid routing, pipeline) — `docs/AGENTS.md`
+- [x] PLAN.md consolidé avec lots 17-19
+- [x] TODO.md consolidé avec backlog Phase 6+
+- [ ] Deep analyse code agents (api, web, packages, mascarade, v1+worker) — en cours
+
+### Phase B — Refactoring code
+
+- [ ] **P1** ws-chat.ts: extraction modules (1449 LOC → ~4×350 LOC)
+  - [ ] Extraire `ws-multimodal.ts` (vision, STT, TTS, PDF handlers)
+  - [ ] Extraire `ws-persona-router.ts` (pickResponders, inter-persona, memory)
+  - [ ] Extraire `ws-commands.ts` (slash commands, /web, /imagine)
+  - [ ] Garder `ws-chat.ts` core (WebSocket lifecycle, broadcast, rate limit)
+- [ ] **P1** app.ts: extraction routes (1292 LOC → routes/ + middleware/)
+  - [ ] Extraire `routes/personas.ts`
+  - [ ] Extraire `routes/node-engine.ts`
+  - [ ] Extraire `routes/chat.ts`
+  - [ ] Extraire `middleware/auth.ts`
+- [ ] **P2** writeFileSync → appendFile async dans ws-chat.ts (3 occurrences)
+- [ ] **P2** console.log → logger structuré (apps/api, apps/worker)
+- [ ] **P2** React.memo sur Chat, ChatHistory, VoiceChat, NodeEditor
+- [ ] **P2** Lazy load: React.lazy + Suspense pour routes lourdes
+
+### Phase C — Infrastructure
+
+- [ ] SearXNG dans docker-compose (service searxng:8080, remplacer DuckDuckGo)
+- [ ] MinerU/Docling dans docker-compose (remplacer pdf-parse)
+- [ ] Spike BGE-M3 embeddings (upgrade nomic-embed-text)
+- [ ] Déployer deep-audit.js sur kxkm-ai (cron quotidien)
+- [ ] Créer utilisateur Discord **Pharmacius** (bot orchestrateur, bridge chat Discord ↔ KXKM)
+
+### Phase D — Nouveaux node types
+
+- [ ] `music_generation` node (ACE-Step 1.5, <4GB VRAM)
+- [ ] `voice_clone` node (XTTS-v2, zero-shot 6s reference)
+- [ ] `document_extraction` node (MinerU/Docling)
+
+## P12 Lot 18 — Voice & MCP (futur)
+
+- [ ] XTTS-v2 voice cloning par persona
+- [ ] LLMRTC WebRTC streaming (TypeScript, VAD, barge-in)
+- [ ] MCP SDK integration (personas = MCP servers)
+- [ ] PCL + OpenCharacter pipeline fine-tune
+- [ ] Chatterbox TTS evaluation
+
+## P13 Lot 19 — Music & Creative (futur)
+
+- [ ] ACE-Step 1.5 production
+- [ ] `/compose` command (prompt → musique)
+- [ ] Flux 2 dans ComfyUI
+- [ ] A2A Protocol evaluation

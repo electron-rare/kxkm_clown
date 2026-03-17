@@ -339,3 +339,54 @@ Reste à faire (futur) :
 - [ ] MCP (Model Context Protocol) pour intégration outils
 - [ ] WebRTC voice (streaming temps réel au lieu d'upload)
 - [ ] Fine-tune personas dédié (OpenCharacter/Ditto methodology)
+
+## Lot 17 — Deep Audit & Refactoring `[en cours]`
+
+Objectif : audit complet du code, optimisations chirurgicales, documentation enrichie.
+
+### Phase A — Analyse & documentation `[en cours]`
+
+- [x] Deep audit TUI script (ops/v2/deep-audit.js) — security, perf, complexity, deps
+- [x] Veille OSS enrichie (10 nouvelles categories: voice cloning, music gen, PDF, RAG, WebRTC, MCP, persona fine-tune)
+- [x] Diagrammes Mermaid ajoutés (Context Store, Docker deploy, Inter-persona dialogue)
+- [x] AGENTS.md refondu (matrice 10 agents, Mermaid skill routing, pipeline intervention)
+- [ ] Consolidation PLAN.md et TODO.md avec etat reel
+- [ ] Deep analyse code par agents (5 agents paralleles: api, web, packages, mascarade, v1+worker)
+
+### Phase B — Refactoring code `[planifié]`
+
+- [ ] ws-chat.ts: extraction modules (1449 LOC → 4 modules <400 LOC)
+- [ ] app.ts: extraction routes + middleware + handlers (1292 LOC → 3 modules)
+- [ ] writeFileSync → async dans ws-chat.ts (3 occurrences P2)
+- [ ] console.log → structured logging (apps/api, apps/worker)
+- [ ] React.memo + lazy load sur composants lourds (Chat, ChatHistory, VoiceChat, NodeEditor)
+
+### Phase C — Infrastructure `[planifié]`
+
+- [ ] Ajouter SearXNG au docker-compose (remplacer DuckDuckGo scraping)
+- [ ] Ajouter MinerU/Docling (remplacer pdf-parse)
+- [ ] Spike BGE-M3 embeddings (upgrade RAG)
+- [ ] Deployer deep-audit.js sur kxkm-ai
+
+### Phase D — Nouveaux node types `[planifié]`
+
+- [ ] Node type `music_generation` (ACE-Step 1.5, <4GB VRAM)
+- [ ] Node type `voice_clone` (XTTS-v2, zero-shot 6s reference)
+- [ ] Node type `document_extraction` (MinerU/Docling)
+
+## Lot 18 — Voice & MCP `[futur]`
+
+Objectif : voix temps réel et intégration outils standardisée.
+
+- [ ] XTTS-v2 voice cloning par persona (remplacer Piper pour voix uniques)
+- [ ] LLMRTC WebRTC streaming (TypeScript SDK, VAD, barge-in)
+- [ ] MCP SDK integration (personas comme MCP servers, tool-calling)
+- [ ] PCL + OpenCharacter (pipeline fine-tune persona avancé)
+- [ ] Chatterbox TTS evaluation (remplacement Piper qualité)
+
+## Lot 19 — Music & Creative `[futur]`
+
+- [ ] ACE-Step 1.5 production (génération musicale)
+- [ ] `/compose` command (prompt → musique via Node Engine)
+- [ ] Flux 2 dans ComfyUI (upgrade image gen)
+- [ ] A2A Protocol evaluation (interop agents externes)

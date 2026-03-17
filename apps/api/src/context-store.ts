@@ -76,6 +76,23 @@ export class ContextStore {
     return path.join(this.options.dataDir, `${safe}.summary.json`);
   }
 
+  private parseJson<T>(raw: string): T | null {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  private async readSummary(channel: string): Promise<ContextSummary | null> {
+    try {
+      const raw = await fs.readFile(this.summaryFile(channel), "utf-8");
+      return this.parseJson<ContextSummary>(raw);
+    } catch {
+      return null;
+    }
+  }
+
   async init(): Promise<void> {
     if (this.initialized) return;
     await fs.mkdir(this.options.dataDir, { recursive: true });
@@ -109,14 +126,9 @@ export class ContextStore {
 
     // 1. Load compacted summary
     let summary = "";
-    try {
-      const raw = await fs.readFile(this.summaryFile(channel), "utf-8");
-      const data: ContextSummary = JSON.parse(raw);
-      if (data.summaryText) {
-        summary = `[Résumé des conversations précédentes]\n${data.summaryText}`;
-      }
-    } catch {
-      // No summary yet
+    const summaryData = await this.readSummary(channel);
+    if (summaryData?.summaryText) {
+      summary = `[Résumé des conversations précédentes]\n${summaryData.summaryText}`;
     }
 
     // 2. Load recent raw entries
@@ -197,13 +209,9 @@ export class ContextStore {
       .join("\n")
       .slice(0, 30000); // cap for LLM context
 
-    // Load existing summary
-    let existingSummary = "";
-    try {
-      const raw = await fs.readFile(this.summaryFile(channel), "utf-8");
-      const data: ContextSummary = JSON.parse(raw);
-      existingSummary = data.summaryText || "";
-    } catch { /* no previous summary */ }
+    // Load existing summary once to avoid redundant reads/parses.
+    const previousSummary = await this.readSummary(channel);
+    const existingSummary = previousSummary?.summaryText || "";
 
     // Ask LLM to summarize
     const prompt = existingSummary
@@ -236,18 +244,10 @@ export class ContextStore {
     const summaryData: ContextSummary = {
       channel,
       summaryText: summaryText.slice(0, this.options.maxSummaryChars),
-      entriesCompacted: entries.length + (existingSummary ? 1 : 0),
+      entriesCompacted: (previousSummary?.entriesCompacted || 0) + entries.length,
       lastCompactedAt: new Date().toISOString(),
-      totalCompactions: 1, // increment from existing
+      totalCompactions: (previousSummary?.totalCompactions || 0) + 1,
     };
-
-    // Update total compactions
-    try {
-      const raw = await fs.readFile(this.summaryFile(channel), "utf-8");
-      const prev: ContextSummary = JSON.parse(raw);
-      summaryData.totalCompactions = (prev.totalCompactions || 0) + 1;
-      summaryData.entriesCompacted = (prev.entriesCompacted || 0) + entries.length;
-    } catch { /* first compaction */ }
 
     await fs.writeFile(this.summaryFile(channel), JSON.stringify(summaryData, null, 2), "utf-8");
 

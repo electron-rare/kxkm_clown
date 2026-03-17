@@ -1,5 +1,6 @@
 import http from "node:http";
 import fs from "node:fs";
+import { promises as fsp } from "node:fs";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -498,18 +499,20 @@ async function synthesizeTTS(
       error?: string;
     };
 
-    if (result.status === "completed" && fs.existsSync(outputPath)) {
-      const audioBuffer = fs.readFileSync(outputPath);
-      const base64 = audioBuffer.toString("base64");
+    if (result.status === "completed") {
+      try {
+        const audioBuffer = await fsp.readFile(outputPath);
+        const base64 = audioBuffer.toString("base64");
 
-      // Broadcast audio to channel
-      broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
+        // Broadcast audio to channel
+        broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
+      } catch { /* file missing — ignore */ }
     }
   } catch (err) {
     // TTS failure is non-critical, just log
     console.error(`[tts] Synthesis failed for ${nick}: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
-    try { fs.unlinkSync(outputPath); } catch { /* ignore cleanup errors */ }
+    try { await fsp.unlink(outputPath); } catch { /* ignore cleanup errors */ }
   }
 }
 
@@ -892,8 +895,8 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
             error?: string;
           };
 
-          if (result.status === "completed" && fs.existsSync(outputPath)) {
-            const audioBuffer = fs.readFileSync(outputPath);
+          if (result.status === "completed") {
+            const audioBuffer = await fsp.readFile(outputPath);
             const base64 = audioBuffer.toString("base64");
 
             broadcast(info.channel, {
@@ -911,7 +914,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
               type: "system",
               text: `[Musique generee: "${musicPrompt}"]`,
             });
-            fs.unlinkSync(outputPath);
+            fsp.unlink(outputPath).catch(() => {});
           } else {
             send(ws, { type: "system", text: `Composition echouee: ${result.error || "unknown"}` });
           }
@@ -1237,7 +1240,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       const tmpFile = path.join("/tmp", `kxkm-audio-${Date.now()}.${ext}`);
 
       try {
-        fs.writeFileSync(tmpFile, buffer);
+        await fsp.writeFile(tmpFile, buffer);
         const scriptPath = path.resolve(
           process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts"),
           "transcribe_audio.py",
@@ -1267,36 +1270,38 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       } catch (err) {
         analysis = `[Audio: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
       } finally {
-        try { fs.unlinkSync(tmpFile); } catch { /* ignore cleanup errors */ }
+        try { await fsp.unlink(tmpFile); } catch { /* ignore cleanup errors */ }
       }
     } else if (mimeType === "application/pdf") {
       const tmpFile = path.join("/tmp", `kxkm-pdf-${Date.now()}.pdf`);
       try {
-        fs.writeFileSync(tmpFile, buffer);
+        await fsp.writeFile(tmpFile, buffer);
         await acquireFileProcessor();
-        const pythonBin = process.env.PYTHON_BIN || "python3";
-        const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_pdf_docling.py");
-        const { stdout, stderr } = await execFileAsync(pythonBin, [scriptPath, "--input", tmpFile], { timeout: 60_000 });
-        releaseFileProcessor();
-        if (stderr) console.log(`[upload] pdf: ${stderr.slice(-200)}`);
-        const result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
-        if (result.text) {
-          analysis = `[PDF: ${filename}, ${result.pages || "?"} page(s)]\n${result.text}`;
-        } else {
-          analysis = `[PDF: ${filename} — extraction échouée: ${result.error || "unknown"}]`;
+        try {
+          const pythonBin = process.env.PYTHON_BIN || "python3";
+          const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_pdf_docling.py");
+          const { stdout, stderr } = await execFileAsync(pythonBin, [scriptPath, "--input", tmpFile], { timeout: 60_000 });
+          if (stderr) console.log(`[upload] pdf: ${stderr.slice(-200)}`);
+          const result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
+          if (result.text) {
+            analysis = `[PDF: ${filename}, ${result.pages || "?"} page(s)]\n${result.text}`;
+          } else {
+            analysis = `[PDF: ${filename} — extraction échouée: ${result.error || "unknown"}]`;
+          }
+        } finally {
+          releaseFileProcessor();
         }
       } catch (err) {
-        releaseFileProcessor();
         analysis = `[PDF: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
       } finally {
-        try { fs.unlinkSync(tmpFile); } catch {}
+        try { await fsp.unlink(tmpFile); } catch {}
       }
     } else if (isOfficeDocument(filename, mimeType)) {
       // Word, Excel, PowerPoint, LibreOffice, RTF, EPUB
       const ext = filename.split(".").pop() || "";
       const tmpFile = path.join("/tmp", `kxkm-doc-${Date.now()}.${ext}`);
       try {
-        fs.writeFileSync(tmpFile, buffer);
+        await fsp.writeFile(tmpFile, buffer);
         const pythonBin = process.env.PYTHON_BIN || "python3";
         const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_document.py");
         await acquireFileProcessor();
@@ -1318,7 +1323,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       } catch (err) {
         analysis = `[Document: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
       } finally {
-        try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+        try { await fsp.unlink(tmpFile); } catch { /* ignore */ }
       }
     } else {
       analysis = `[Fichier: ${filename}, type: ${mimeType}, ${(size / 1024).toFixed(0)} KB]`;

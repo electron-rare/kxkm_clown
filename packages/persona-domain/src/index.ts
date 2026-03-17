@@ -621,10 +621,15 @@ export function parsePharmaciusResponse(raw: string, personaId: string): Persona
  */
 export function applyPatches(persona: PersonaRecord, patches: PersonaPatch[]): PersonaRecord {
   const result = { ...persona } as Record<string, unknown> & PersonaRecord;
+  const allowedFields = new Set<string>(["name", "model", "summary", "editable", "enabled"]);
 
   for (const patch of patches) {
-    if (patch.field in persona) {
-      result[patch.field] = patch.after;
+    if (allowedFields.has(patch.field) && patch.field in persona) {
+      // Type guard: only apply if value type matches existing field type
+      const existing = (persona as unknown as Record<string, unknown>)[patch.field];
+      if (existing === undefined || typeof patch.after === typeof existing) {
+        result[patch.field] = patch.after;
+      }
     }
   }
 

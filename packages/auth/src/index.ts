@@ -58,8 +58,13 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   if (!salt || !storedHex) return false;
   const storedKey = Buffer.from(storedHex, "hex");
   const derived = await scryptAsync(password, salt, SCRYPT_KEYLEN);
-  if (storedKey.length !== derived.length) return false;
-  return timingSafeEqual(storedKey, derived);
+  // Pad to equal length to prevent timing leak on corrupted stored hashes
+  const maxLen = Math.max(storedKey.length, derived.length);
+  const a = Buffer.alloc(maxLen);
+  const b = Buffer.alloc(maxLen);
+  storedKey.copy(a);
+  derived.copy(b);
+  return storedKey.length === derived.length && timingSafeEqual(a, b);
 }
 
 /* ------------------------------------------------------------------ */

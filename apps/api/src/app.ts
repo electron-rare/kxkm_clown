@@ -866,8 +866,17 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
     const voiceSamplesDir = path.resolve(process.cwd(), "data", "voice-samples");
     await mkdir(voiceSamplesDir, { recursive: true });
 
-    const sampleName = persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    const sampleName = path.basename(persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")).slice(0, 64);
+    if (!sampleName || sampleName === "." || sampleName === "..") {
+      res.status(400).json({ ok: false, error: "invalid_persona_name" });
+      return;
+    }
     const samplePath = path.join(voiceSamplesDir, `${sampleName}.wav`);
+    // Boundary check: ensure resolved path stays within voiceSamplesDir
+    if (!path.resolve(samplePath).startsWith(voiceSamplesDir)) {
+      res.status(400).json({ ok: false, error: "path_traversal_blocked" });
+      return;
+    }
 
     await writeFile(samplePath, buffer);
 
@@ -882,8 +891,13 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
       return;
     }
 
-    const sampleName = persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
-    const samplePath = path.resolve(process.cwd(), "data", "voice-samples", `${sampleName}.wav`);
+    const voiceSamplesDir2 = path.resolve(process.cwd(), "data", "voice-samples");
+    const sampleName = path.basename(persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")).slice(0, 64);
+    const samplePath = path.join(voiceSamplesDir2, `${sampleName}.wav`);
+    if (!sampleName || !path.resolve(samplePath).startsWith(voiceSamplesDir2)) {
+      res.status(400).json({ ok: false, error: "invalid_persona_name" });
+      return;
+    }
 
     try {
       const { unlink } = await import("node:fs/promises");
@@ -902,12 +916,17 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
       return;
     }
 
-    const sampleName = persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
-    const samplePath = path.resolve(process.cwd(), "data", "voice-samples", `${sampleName}.wav`);
+    const voiceSamplesDir3 = path.resolve(process.cwd(), "data", "voice-samples");
+    const sampleName2 = path.basename(persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")).slice(0, 64);
+    const samplePath2 = path.join(voiceSamplesDir3, `${sampleName2}.wav`);
+    if (!sampleName2 || !path.resolve(samplePath2).startsWith(voiceSamplesDir3)) {
+      res.json({ ok: true, data: { hasVoiceSample: false } });
+      return;
+    }
 
     try {
-      await stat(samplePath);
-      res.json({ ok: true, data: { hasVoiceSample: true, samplePath: `data/voice-samples/${sampleName}.wav` } });
+      await stat(samplePath2);
+      res.json({ ok: true, data: { hasVoiceSample: true, samplePath: `data/voice-samples/${sampleName2}.wav` } });
     } catch {
       res.json({ ok: true, data: { hasVoiceSample: false } });
     }
@@ -1019,7 +1038,7 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
   // Analytics — aggregate chat log stats
   // -----------------------------------------------------------------------
 
-  app.get("/api/v2/analytics", async (_req, res) => {
+  app.get("/api/v2/analytics", requirePermission("ops:read"), async (_req: SessionRequest, res) => {
     const logDir = path.join(process.cwd(), process.env.KXKM_LOCAL_DATA_DIR || "data", "chat-logs");
     const stats = {
       totalMessages: 0,

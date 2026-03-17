@@ -5,17 +5,25 @@
 export const COMFYUI_URL = process.env.COMFYUI_URL || "http://localhost:8188";
 
 export async function generateImage(prompt: string): Promise<{ imageBase64: string; seed: number } | null> {
-  // Simple txt2img workflow for ComfyUI (SDXL)
   const seed = Math.floor(Math.random() * 2 ** 32);
+  const checkpoint = process.env.COMFYUI_CHECKPOINT || "sdxl_lightning_4step.safetensors";
+  const isFlux = checkpoint.toLowerCase().includes("flux");
+
+  // Adapt workflow for SDXL vs Flux 2
+  const steps = isFlux ? 20 : 4;
+  const cfg = isFlux ? 3.5 : 1.5;
+  const sampler = isFlux ? "euler" : "dpmpp_sde";
+  const scheduler = isFlux ? "normal" : "karras";
+
   const workflow = {
     "3": {
       class_type: "KSampler",
       inputs: {
         seed,
-        steps: 4,
-        cfg: 1.5,
-        sampler_name: "dpmpp_sde",
-        scheduler: "karras",
+        steps,
+        cfg,
+        sampler_name: sampler,
+        scheduler,
         denoise: 1,
         model: ["4", 0],
         positive: ["6", 0],
@@ -25,7 +33,7 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
     },
     "4": {
       class_type: "CheckpointLoaderSimple",
-      inputs: { ckpt_name: process.env.COMFYUI_CHECKPOINT || "sdxl_lightning_4step.safetensors" },
+      inputs: { ckpt_name: checkpoint },
     },
     "5": {
       class_type: "EmptyLatentImage",

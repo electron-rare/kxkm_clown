@@ -71,6 +71,12 @@ function buildDefaultOptions(): ContextStoreOptions {
     maxTotalSizeMB = 900;
     maxContextChars = 18000;
     maxSummaryChars = 24000;
+  } else {
+    maxEntriesBeforeCompact = 900;
+    maxFileSizeMB = 180;
+    maxTotalSizeMB = 1400;
+    maxContextChars = 26000;
+    maxSummaryChars = 32000;
   }
 
   return {

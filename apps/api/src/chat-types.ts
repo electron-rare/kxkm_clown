@@ -66,6 +66,7 @@ export type OutboundMessage =
   | { type: "persona"; nick: string; color: string }
   | { type: "audio"; nick: string; data: string; mimeType: string }
   | { type: "image"; nick: string; text: string; imageData: string; imageMime: string }
+  | { type: "music"; nick: string; text: string; audioData: string; audioMime: string }
   | { type: "channelInfo"; channel: string };
 
 // Chat log entry

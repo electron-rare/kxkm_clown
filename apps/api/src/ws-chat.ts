@@ -276,15 +276,35 @@ async function synthesizeTTS(
   const truncated = text.slice(0, 1000); // limit TTS to ~1000 chars
   const outputPath = `/tmp/kxkm-tts-${Date.now()}.wav`;
   const pythonBin = process.env.PYTHON_BIN || "/home/kxkm/venv/bin/python3";
-  const scriptPath = path.resolve(
-    process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts"),
-    "tts_synthesize.py",
-  );
+  const scriptsDir = process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts");
+
+  // Check for voice sample (XTTS-v2 cloning)
+  const samplePath = path.resolve(process.cwd(), "data", "voice-samples", `${nick.toLowerCase()}.wav`);
+  let useXtts = false;
+  try {
+    await fs.promises.access(samplePath);
+    useXtts = true;
+  } catch { /* no voice sample — use Piper fallback */ }
 
   try {
-    const { stdout } = await execFileAsync(pythonBin, [
-      scriptPath, "--text", truncated, "--voice", nick, "--output", outputPath,
-    ], { timeout: 30_000 });
+    let args: string[];
+    if (useXtts) {
+      args = [
+        path.resolve(scriptsDir, "xtts_clone.py"),
+        "--text", truncated,
+        "--speaker-wav", samplePath,
+        "--output", outputPath,
+      ];
+    } else {
+      args = [
+        path.resolve(scriptsDir, "tts_synthesize.py"),
+        "--text", truncated,
+        "--voice", nick,
+        "--output", outputPath,
+      ];
+    }
+
+    const { stdout } = await execFileAsync(pythonBin, args, { timeout: 60_000 });
 
     const result = JSON.parse(stdout.trim().split("\n").pop() || "{}") as {
       status?: string;
@@ -539,6 +559,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
             "/personas        — liste les personas actives",
             "/web <recherche> — recherche sur le web",
             "/imagine <desc>  — genere une image via ComfyUI",
+            "/compose <desc>  — genere de la musique via ACE-Step",
             `Mentionne un persona avec @Nom pour lui parler directement.`,
           ].join("\n"),
         });
@@ -650,6 +671,69 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
           .map(([ch, count]) => `  ${ch} (${count} connecte${count > 1 ? "s" : ""})`)
           .join("\n");
         send(ws, { type: "system", text: `Canaux actifs:\n${list || "  (aucun)"}` });
+        break;
+      }
+
+      case "/compose": {
+        const musicPrompt = text.slice(9).trim();
+        if (!musicPrompt) {
+          send(ws, { type: "system", text: "Usage: /compose <description musicale>" });
+          break;
+        }
+
+        broadcast(info.channel, {
+          type: "system",
+          text: `${info.nick} compose: "${musicPrompt}"...`,
+        });
+
+        try {
+          const outputPath = `/tmp/kxkm-music-${Date.now()}.wav`;
+          const pythonBin = process.env.PYTHON_BIN || "python3";
+          const scriptPath = path.resolve(
+            process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts"),
+            "compose_music.py",
+          );
+
+          const { stdout, stderr } = await execFileAsync(pythonBin, [
+            scriptPath, "--prompt", musicPrompt, "--duration", "30", "--output", outputPath,
+          ], { timeout: 300_000, maxBuffer: 50 * 1024 * 1024 });
+
+          if (stderr) console.log(`[compose] ${stderr.slice(-200)}`);
+
+          const result = JSON.parse(stdout.trim().split("\n").pop() || "{}") as {
+            status?: string;
+            error?: string;
+          };
+
+          if (result.status === "completed" && fs.existsSync(outputPath)) {
+            const audioBuffer = fs.readFileSync(outputPath);
+            const base64 = audioBuffer.toString("base64");
+
+            broadcast(info.channel, {
+              type: "music",
+              nick: info.nick,
+              text: `[Musique: "${musicPrompt}"]`,
+              audioData: base64,
+              audioMime: "audio/wav",
+            } as any);
+
+            logChatMessage({
+              ts: new Date().toISOString(),
+              channel: info.channel,
+              nick: info.nick,
+              type: "system",
+              text: `[Musique generee: "${musicPrompt}"]`,
+            });
+            fs.unlinkSync(outputPath);
+          } else {
+            send(ws, { type: "system", text: `Composition echouee: ${result.error || "unknown"}` });
+          }
+        } catch (err) {
+          send(ws, {
+            type: "system",
+            text: `Erreur composition: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
         break;
       }
 

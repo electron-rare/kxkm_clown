@@ -841,6 +841,78 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
     res.json(asApiData(persona));
   });
 
+  // Voice sample upload for XTTS-v2 cloning
+  app.post("/api/admin/personas/:id/voice-sample", requirePermission("persona:write"), async (req: SessionRequest, res) => {
+    const personaId = readRouteParam(req.params.id);
+    const persona = await personaRepo.findById(personaId);
+    if (!persona) {
+      res.status(404).json({ ok: false, error: "persona_not_found" });
+      return;
+    }
+
+    const audioB64 = req.body?.audio as string | undefined;
+    if (!audioB64 || typeof audioB64 !== "string") {
+      res.status(400).json({ ok: false, error: "audio_required (base64 field 'audio')" });
+      return;
+    }
+
+    // Decode and validate size (max 10 MB)
+    const buffer = Buffer.from(audioB64, "base64");
+    if (buffer.length > 10 * 1024 * 1024) {
+      res.status(400).json({ ok: false, error: "file_too_large (max 10 MB)" });
+      return;
+    }
+
+    const voiceSamplesDir = path.resolve(process.cwd(), "data", "voice-samples");
+    await mkdir(voiceSamplesDir, { recursive: true });
+
+    const sampleName = persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    const samplePath = path.join(voiceSamplesDir, `${sampleName}.wav`);
+
+    await writeFile(samplePath, buffer);
+
+    res.json({ ok: true, data: { personaId, samplePath: `data/voice-samples/${sampleName}.wav`, size: buffer.length } });
+  });
+
+  app.delete("/api/admin/personas/:id/voice-sample", requirePermission("persona:write"), async (req: SessionRequest, res) => {
+    const personaId = readRouteParam(req.params.id);
+    const persona = await personaRepo.findById(personaId);
+    if (!persona) {
+      res.status(404).json({ ok: false, error: "persona_not_found" });
+      return;
+    }
+
+    const sampleName = persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    const samplePath = path.resolve(process.cwd(), "data", "voice-samples", `${sampleName}.wav`);
+
+    try {
+      const { unlink } = await import("node:fs/promises");
+      await unlink(samplePath);
+      res.json({ ok: true, data: { deleted: true } });
+    } catch {
+      res.status(404).json({ ok: false, error: "sample_not_found" });
+    }
+  });
+
+  app.get("/api/admin/personas/:id/voice-sample", requirePermission("persona:read"), async (req, res) => {
+    const personaId = readRouteParam(req.params.id);
+    const persona = await personaRepo.findById(personaId);
+    if (!persona) {
+      res.status(404).json({ ok: false, error: "persona_not_found" });
+      return;
+    }
+
+    const sampleName = persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    const samplePath = path.resolve(process.cwd(), "data", "voice-samples", `${sampleName}.wav`);
+
+    try {
+      await stat(samplePath);
+      res.json({ ok: true, data: { hasVoiceSample: true, samplePath: `data/voice-samples/${sampleName}.wav` } });
+    } catch {
+      res.json({ ok: true, data: { hasVoiceSample: false } });
+    }
+  });
+
   app.get("/api/admin/node-engine/overview", requirePermission("node_engine:read"), async (_req, res) => {
     const allRuns = await runRepo.list();
     const allGraphs = await graphRepo.list();

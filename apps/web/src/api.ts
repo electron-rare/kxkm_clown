@@ -198,6 +198,29 @@ export const api = {
     });
   },
 
+  // Voice Samples (XTTS-v2 cloning)
+  getVoiceSampleStatus(id: string): Promise<{ hasVoiceSample: boolean; samplePath?: string }> {
+    return apiFetch<{ hasVoiceSample: boolean; samplePath?: string }>(`/api/admin/personas/${id}/voice-sample`);
+  },
+
+  async uploadVoiceSample(id: string, file: File): Promise<{ personaId: string; samplePath: string; size: number }> {
+    const buffer = await file.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    return apiFetch<{ personaId: string; samplePath: string; size: number }>(
+      `/api/admin/personas/${id}/voice-sample`,
+      {
+        method: "POST",
+        body: JSON.stringify({ audio: base64 }),
+      },
+    );
+  },
+
+  deleteVoiceSample(id: string): Promise<{ deleted: boolean }> {
+    return apiFetch<{ deleted: boolean }>(`/api/admin/personas/${id}/voice-sample`, {
+      method: "DELETE",
+    });
+  },
+
   // Node Engine
   getOverview(): Promise<OverviewData> {
     return apiFetch<OverviewData>("/api/admin/node-engine/overview");

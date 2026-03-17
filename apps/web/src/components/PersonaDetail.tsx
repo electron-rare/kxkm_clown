@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type PersonaData, type PersonaFeedbackRecord } from "../api";
 
 interface PersonaDetailProps {
@@ -23,9 +23,14 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
   const [editSummary, setEditSummary] = useState("");
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [hasVoiceSample, setHasVoiceSample] = useState(false);
+  const [voiceUploading, setVoiceUploading] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState("");
+  const voiceFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadPersona();
+    loadVoiceStatus();
   }, [personaId]);
 
   async function loadPersona() {
@@ -63,6 +68,43 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
       setError(err instanceof Error ? err.message : "save_failed");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function loadVoiceStatus() {
+    try {
+      const status = await api.getVoiceSampleStatus(personaId);
+      setHasVoiceSample(status.hasVoiceSample);
+    } catch { /* ignore */ }
+  }
+
+  async function handleVoiceUpload() {
+    const file = voiceFileRef.current?.files?.[0];
+    if (!file) return;
+    setVoiceUploading(true);
+    setVoiceStatus("");
+    try {
+      await api.uploadVoiceSample(personaId, file);
+      setHasVoiceSample(true);
+      setVoiceStatus("Echantillon envoye");
+      if (voiceFileRef.current) voiceFileRef.current.value = "";
+    } catch (err) {
+      setVoiceStatus(err instanceof Error ? err.message : "upload_failed");
+    } finally {
+      setVoiceUploading(false);
+    }
+  }
+
+  async function handleVoiceDelete() {
+    setVoiceUploading(true);
+    try {
+      await api.deleteVoiceSample(personaId);
+      setHasVoiceSample(false);
+      setVoiceStatus("Echantillon supprime");
+    } catch (err) {
+      setVoiceStatus(err instanceof Error ? err.message : "delete_failed");
+    } finally {
+      setVoiceUploading(false);
     }
   }
 
@@ -169,6 +211,48 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
               </button>
             </div>
           )}
+        </section>
+
+        <section className="panel">
+          <p className="eyebrow">Echantillon vocal (XTTS-v2)</p>
+          <div className="detail-row">
+            <span className="detail-label">Statut</span>
+            <span className={hasVoiceSample ? "persona-status-on" : "persona-status-off"}>
+              {hasVoiceSample ? "Voix clonee (XTTS)" : "Voix generique (Piper)"}
+            </span>
+          </div>
+          <div style={{ marginTop: "0.5rem" }}>
+            <input
+              ref={voiceFileRef}
+              type="file"
+              accept="audio/wav,audio/x-wav,audio/mp3,audio/mpeg"
+              style={{ marginBottom: "0.5rem", display: "block" }}
+            />
+            <div className="form-actions">
+              <button
+                className="btn btn-primary"
+                onClick={handleVoiceUpload}
+                disabled={voiceUploading}
+              >
+                {voiceUploading ? "Envoi..." : "Envoyer echantillon"}
+              </button>
+              {hasVoiceSample && (
+                <button
+                  className="btn btn-danger"
+                  onClick={handleVoiceDelete}
+                  disabled={voiceUploading}
+                >
+                  Supprimer
+                </button>
+              )}
+            </div>
+            {voiceStatus && (
+              <p className="muted" style={{ marginTop: "0.25rem" }}>{voiceStatus}</p>
+            )}
+            <p className="muted" style={{ marginTop: "0.5rem", fontSize: "0.85em" }}>
+              WAV ou MP3, ~6 secondes de parole claire. Utilise pour cloner la voix via XTTS-v2.
+            </p>
+          </div>
         </section>
 
         <section className="panel">

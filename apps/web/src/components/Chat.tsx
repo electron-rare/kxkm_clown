@@ -12,7 +12,7 @@ const WS_URL = import.meta.env.VITE_WS_URL || (() => {
 
 interface ChatMsg {
   id: number;
-  type: "system" | "message" | "join" | "part" | "persona" | "channelInfo" | "userlist" | "command" | "uploadCapability" | "audio" | "image";
+  type: "system" | "message" | "join" | "part" | "persona" | "channelInfo" | "userlist" | "command" | "uploadCapability" | "audio" | "image" | "music";
   nick?: string;
   text?: string;
   color?: string;
@@ -103,6 +103,25 @@ const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, channel
       );
     }
 
+    case "music": {
+      const color = msg.nick ? getNickColor(msg.nick) : undefined;
+      return (
+        <div key={msg.id} className="chat-msg chat-msg-music" style={color ? { color } : undefined}>
+          <span className="chat-nick" style={color ? { color } : undefined}>
+            {"<"}{msg.nick || "???"}{">"}{" "}
+          </span>
+          <span className="chat-text">{msg.text}</span>
+          {msg.audioData && msg.audioMime && (
+            <audio
+              controls
+              src={`data:${msg.audioMime};base64,${msg.audioData}`}
+              style={{ display: "block", marginTop: "4px", maxWidth: "400px" }}
+            />
+          )}
+        </div>
+      );
+    }
+
     case "message":
     default: {
       const color = msg.nick ? getNickColor(msg.nick) : undefined;
@@ -179,6 +198,23 @@ export default function Chat() {
           text: typeof msg.text === "string" ? msg.text : undefined,
           imageData: typeof msg.imageData === "string" ? msg.imageData : undefined,
           imageMime: typeof msg.imageMime === "string" ? msg.imageMime : undefined,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => {
+          const next = [...prev, chatMsg];
+          return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
+        });
+        return;
+      }
+
+      case "music": {
+        const chatMsg: ChatMsg = {
+          id: ++msgIdCounter,
+          type: "music",
+          nick: typeof msg.nick === "string" ? msg.nick : undefined,
+          text: typeof msg.text === "string" ? msg.text : undefined,
+          audioData: typeof msg.audioData === "string" ? msg.audioData : undefined,
+          audioMime: typeof msg.audioMime === "string" ? msg.audioMime : undefined,
           timestamp: Date.now(),
         };
         setMessages((prev) => {
@@ -380,7 +416,7 @@ export default function Chat() {
 
       // Slash command completion
       if (text.startsWith("/") && !text.includes(" ")) {
-        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/status", "/model", "/persona", "/reload", "/export"];
+        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/reload", "/export"];
         const prefix = tabPrefix || text;
         const matches = slashCommands.filter((c) => c.startsWith(prefix.toLowerCase()));
         if (matches.length === 0) return;

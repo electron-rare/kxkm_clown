@@ -116,6 +116,11 @@ export class ContextStore {
     this.maybeCompact(channel).catch((err) => {
       console.error(`[context] Compaction error for ${channel}:`, err);
     });
+
+    // Enforce per-channel and global storage limits in background.
+    this.maybeEnforceLimits(channel).catch((err) => {
+      console.error(`[context] Limit enforcement error for ${channel}:`, err);
+    });
   }
 
   // --- Read ---
@@ -256,6 +261,64 @@ export class ContextStore {
     await fs.writeFile(this.channelFile(channel), newContent, "utf-8");
 
     console.log(`[context] Compacted ${channel}: ${toSummarize.length} entries → summary, kept ${toKeep.length} recent`);
+  }
+
+  private async maybeEnforceLimits(preferredChannel: string): Promise<void> {
+    await this.init();
+
+    const files = await fs.readdir(this.options.dataDir);
+    const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+    if (jsonlFiles.length === 0) return;
+
+    const fileStats = await Promise.all(
+      jsonlFiles.map(async (file) => {
+        const filePath = path.join(this.options.dataDir, file);
+        const stat = await fs.stat(filePath);
+        return { file, filePath, sizeMB: stat.size / (1024 * 1024), mtimeMs: stat.mtimeMs };
+      }),
+    );
+
+    const preferredSafe = preferredChannel.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const preferredFile = `${preferredSafe}.jsonl`;
+    const preferred = fileStats.find((f) => f.file === preferredFile);
+
+    // Per-channel cap: force one compaction pass when a channel grows too much.
+    if (preferred && preferred.sizeMB > this.options.maxFileSizeMB && !this.compactionInProgress.has(preferredChannel)) {
+      const content = await fs.readFile(preferred.filePath, "utf-8");
+      const lines = content.trim().split("\n").filter(Boolean);
+      if (lines.length > 1) {
+        this.compactionInProgress.add(preferredChannel);
+        try {
+          await this.compact(preferredChannel, lines);
+        } finally {
+          this.compactionInProgress.delete(preferredChannel);
+        }
+      }
+    }
+
+    // Global cap: trim oldest channels first, preserving the preferred channel when possible.
+    let totalSizeMB = fileStats.reduce((sum, f) => sum + f.sizeMB, 0);
+    if (totalSizeMB <= this.options.maxTotalSizeMB) return;
+
+    const candidates = fileStats
+      .filter((f) => f.file !== preferredFile)
+      .sort((a, b) => a.mtimeMs - b.mtimeMs);
+
+    for (const candidate of candidates) {
+      if (totalSizeMB <= this.options.maxTotalSizeMB) break;
+
+      const content = await fs.readFile(candidate.filePath, "utf-8");
+      const lines = content.trim().split("\n").filter(Boolean);
+      if (lines.length <= 1) continue;
+
+      const keepFrom = Math.floor(lines.length * 0.5);
+      const trimmed = lines.slice(keepFrom).join("\n") + "\n";
+      await fs.writeFile(candidate.filePath, trimmed, "utf-8");
+
+      const newStat = await fs.stat(candidate.filePath);
+      const newSizeMB = newStat.size / (1024 * 1024);
+      totalSizeMB = totalSizeMB - candidate.sizeMB + newSizeMB;
+    }
   }
 
   // --- Maintenance ---

@@ -245,11 +245,19 @@
 - [x] **P2** Discord Pharmacius#8988 en ligne — token + channel configure, bridge actif
 - [x] **P2** Storage tests — 50 tests, 173 total, 0 fail
 
-### A enchainer (lot 21+)
+### Fait (lot 18+21)
 
-- [ ] **P1** Fix UX Minitel — affinage CSS post-deploy (tester sur mobile reel)
-- [ ] **P2** Tests sandbox.ts + training.ts (node-engine, couverture 0%)
-- [ ] **P2** WebRTC voice Discord ↔ KXKM (salon vocal 688705584379592712)
-- [ ] **P2** Lot 16 UI Minitel complet — sons bips, curseur bloc, scanlines CRT, /ulla page
-- [ ] **P3** BGE-M3 spike embeddings (bench sur kxkm-ai avec RTX 4090)
-- [ ] **P3** ACE-Step 1.5 music generation node type
+- [x] **P1** XTTS-v2 voice cloning — install kxkm-ai (1.87GB GPU), `tts_clone_voice.py`, int\u00e9gr\u00e9 ws-multimodal.ts
+- [x] **P1** MCP Server — `scripts/mcp-server.js` (stdio, 4 tools: chat, personas, web_search, status)
+- [x] **P2** Discord voice bot — `scripts/discord-voice.js` (@discordjs/voice STT→personas→TTS)
+- [x] **P2** Page 3615 ULLA — `UllaPage.tsx` (easter egg rose anim\u00e9)
+- [x] **P2** Tests sandbox+training — 37 tests (209 total, 0 fail)
+- [x] **P3** BGE-M3 bench — nomic-embed-text gagne (11ms, 0.675 > 67ms, 0.628)
+
+### A enchainer (lot 19+)
+
+- [ ] **P1** ACE-Step 1.5 music generation — node type + `/compose` command
+- [ ] **P2** Tester voice cloning avec samples personas (enregistrer 6s par persona)
+- [ ] **P2** Configurer MCP dans Claude Desktop (mascarade \u2194 kxkm)
+- [ ] **P3** Flux 2 dans ComfyUI (upgrade SDXL)
+- [ ] **P3** A2A Protocol evaluation

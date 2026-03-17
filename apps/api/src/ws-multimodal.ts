@@ -70,9 +70,9 @@ export async function synthesizeTTS(
     let args: string[];
     if (useXtts) {
       args = [
-        path.resolve(scriptsDir, "xtts_clone.py"),
+        path.resolve(scriptsDir, "tts_clone_voice.py"),
         "--text", truncated,
-        "--speaker-wav", samplePath,
+        "--reference", samplePath,
         "--output", outputPath,
       ];
     } else {

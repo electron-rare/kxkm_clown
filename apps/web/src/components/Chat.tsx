@@ -148,6 +148,7 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [personaColors, setPersonaColors] = useState<PersonaColor>({});
   const [showConnect, setShowConnect] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState({ personas: true, users: true });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
@@ -501,17 +502,47 @@ export default function Chat() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="chat-users">
-          <div className="chat-users-header">Utilisateurs ({users.length})</div>
-          {users.map((u) => (
-            <div
-              key={u}
-              className="chat-user"
-              style={personaColors[u] ? { color: personaColors[u] } : undefined}
-            >
-              {u}
+        <div className="chat-sidebar">
+          <div className="chat-sidebar-section">
+            <div className="chat-sidebar-title" onClick={() => setSidebarCollapsed(p => ({ ...p, personas: !p.personas }))}>
+              {sidebarCollapsed.personas ? "+" : "-"} Personas
             </div>
-          ))}
+            {!sidebarCollapsed.personas && (
+              <div className="chat-sidebar-personas">
+                {Object.entries(
+                  users.filter(u => personaColors[u]).reduce((acc, u) => {
+                    // Group by first letter as simple grouping
+                    const key = personaColors[u] ? "active" : "idle";
+                    (acc[key] = acc[key] || []).push(u);
+                    return acc;
+                  }, {} as Record<string, string[]>)
+                ).map(([, group]) =>
+                  group.map(u => (
+                    <div
+                      key={u}
+                      className="chat-sidebar-persona"
+                      style={{ color: personaColors[u] }}
+                      onClick={() => {
+                        const input = document.querySelector<HTMLInputElement>(".chat-input input");
+                        if (input) { input.value = `@${u} `; input.focus(); }
+                      }}
+                      title={`@${u}`}
+                    >
+                      ● {u}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+          <div className="chat-sidebar-section">
+            <div className="chat-sidebar-title" onClick={() => setSidebarCollapsed(p => ({ ...p, users: !p.users }))}>
+              {sidebarCollapsed.users ? "+" : "-"} Connectes ({users.filter(u => !personaColors[u]).length})
+            </div>
+            {!sidebarCollapsed.users && users.filter(u => !personaColors[u]).map((u) => (
+              <div key={u} className="chat-user">{u}</div>
+            ))}
+          </div>
         </div>
       </div>
 

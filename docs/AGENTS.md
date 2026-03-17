@@ -136,3 +136,42 @@ stateDiagram-v2
     Log --> [*]: cycle termine
     Backlog_P2 --> [*]: ajoute au TODO
 ```
+
+## Affectations en cours (2026-03-17)
+
+### Mission globale
+- Deep analyse continue du code, optimisation chirurgicale, et synchronisation documentaire apres chaque lot.
+- Priorite execution: P1 fiabilite, puis dette perf/complexite, puis features lot 18-19.
+
+### Assignations agents -> sous-agents -> competences
+
+| Agent | Sous-agent | Competences principales | Taches assignees immediates |
+|---|---|---|---|
+| Coordinateur | Planner/Docs | triage, synchronisation, runbook | Maintenir PLAN/TODO, chainer les lots, tracer actions |
+| Backend API | WS/HTTP surgeon | websocket, express, validation input | Extraire `ws-chat.ts` en modules, reduire logs, limiter hot paths |
+| Node Engine | DAG runtime | graph validation, queue, state machine | Ajouter nodes `music_generation`, `voice_clone`, `document_extraction` |
+| Ops/TUI | Audit operator | TUI scripts, logs, rotation, cron | Rendre `deep-audit` zero faux positif critique, pipeline logs + purge |
+| Veille OSS | Scout | benchmark OSS, licences, interop | Evaluer Open WebUI, LibreChat, LangGraph, SearXNG, Docling |
+
+### Workflow d'enchainement
+1. Executer audit + tests
+2. Corriger de maniere chirurgicale
+3. Re-executer audit + tests
+4. Mettre a jour docs de pilotage
+5. Alimenter TODO suivant avec ordre d'execution
+
+### Regles d'operation
+- Interroger le user uniquement en cas de blocage reel (acces, choix irreversibles, secrets).
+- Privilegier TUI et scripts avec logs lisibles, puis purge des logs obsoletes.
+- Conserver la V1 comme reference comportementale, V2 comme cible active.
+
+### Etat de cycle (2026-03-17 10:30)
+- Audit/tests: vert (`deep-audit`, `check:v2`, `test:v2`).
+- Correctifs deployables: garde TTS + cleanup sessions memory-mode.
+- Logs: purge des fichiers vides et conservation des artefacts utiles.
+- Veille OSS: shortlist d'integration prioritaire = `SearXNG` + `Docling`.
+
+### Micro-mission suivante
+1. Backend API: extraction du bloc `upload/analyse` de `ws-chat.ts` vers module dedie.
+2. Ops/TUI: ajouter score de dette technique pondere dans `deep-audit` JSON.
+3. Coordinateur: synchroniser PLAN/TODO apres chaque sous-lot (max 1h).

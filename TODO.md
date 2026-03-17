@@ -193,3 +193,54 @@
 - [ ] `/compose` command (prompt → musique)
 - [ ] Flux 2 dans ComfyUI
 - [ ] A2A Protocol evaluation
+
+## P14 Lot 20 — Deep Analyse Continue (2026-03-17)
+
+### Fait
+- [x] Executer deep audit et tests V2 complets
+- [x] Optimiser `apps/api/src/context-store.ts` (parsing robuste, compactage plus coherent)
+- [x] Corriger `ops/v2/deep-audit.js` pour reduire les faux positifs (secrets tests, JSON.parse proche try)
+- [x] Valider compilation et non-regression (`check:v2`, `test:v2`)
+- [x] Corriger garde de concurrence TTS dans `apps/api/src/ws-chat.ts` (`ttsActive`)
+- [x] Ajouter nettoyage opportuniste des sessions expirees en mode memory dans `apps/api/src/app.ts`
+- [x] Purger les logs vides/obsoletes dans `ops/v2/logs`
+- [x] Mettre a jour la veille OSS web (SearXNG, Docling, LibreChat, Open WebUI, Flowise, Dify, LangGraph)
+
+### Fait (cycle 2)
+
+- [x] **P1** Extraire `ws-chat.ts` en 4 modules — ws-chat.ts (803), ws-ollama.ts (287), ws-multimodal.ts (187), ws-persona-router.ts (94)
+- [x] **P1** Refonte UI Minitel globale — MinitelFrame wraps tout (login + app), barre fonctionnelle (Sommaire/Chat/Retour/Personas/Fin), menu overlay, Login Minitel, PersonaList arborescente par modele
+- [x] **P0** 6 corrections securite (semaphore PDF, path traversal voice, analytics auth, crypto ID, timing auth, patch type guard)
+- [x] **P0** ErrorBoundary React + accessibilite role=log
+- [x] **P2** 5x sync I/O → async dans ws-chat.ts
+- [x] Veille OSS enrichie +10 categories (voice, music, PDF, WebRTC, MCP, persona fine-tune)
+- [x] 3 Mermaid ajoutes a ARCHITECTURE.md (Context Store, Docker, Inter-persona)
+- [x] AGENTS.md refondu (10 agents, Mermaid, pipeline)
+- [x] Script TUI deep-audit.js + dead code supprime
+
+### Fait (cycle 3)
+
+- [x] **P1** Extraire `app.ts` en 4 fichiers routes/ — app.ts (664), session.ts (207), personas.ts (329), node-engine.ts (161), chat-history.ts (274)
+- [x] **P2** SearXNG dans docker-compose (service searxng:8080, port aligne web-search.ts)
+- [x] **P1** Refonte UX Minitel globale — animation modem a l'ouverture, ecran pseudo (pas d'auth), easter egg 3615 ULLA, barre fonctionnelle, menu sommaire overlay
+- [x] **P1** PersonaList vue arborescente par modele (tree view collapsible)
+
+### Fait (cycle 4)
+
+- [x] **P1** Mesures perf API/WS — middleware latence/requests/memory + endpoint `/api/v2/perf` + TUI `ops/v2/perf-monitor.js`
+- [x] **P1** Passe responsive complète — 4 breakpoints (480/768/1200/1600px), barres sticky mobile, tree multi-colonnes desktop
+- [x] **P2** Purge logs automatique — deja integree dans `deep-audit.js` (7 jours)
+- [x] **P2** Script bench embeddings — `scripts/bench-embeddings.js` (nomic-embed-text vs BGE-M3, latence + similarity)
+- [x] **P2** SearXNG docker-compose — service searxng:8080, web-search.ts port aligne
+
+### Fait (cycle 5)
+
+- [x] **P2** Docling pipeline PDF — deja integre (extract_pdf_docling.py + Dockerfile + ws-upload-handler)
+- [x] **P2** Discord bot Pharmacius — `scripts/discord-pharmacius.js` (bridge WS ↔ Discord Gateway, sans deps) + docker-compose profile discord + .env.example
+- [x] **P2** Tests storage package — en cours (agent)
+
+### A enchainer
+
+- [ ] **P2** Deploy sur kxkm-ai (git push + docker compose up)
+- [ ] **P2** Configurer Discord bot token en production
+- [ ] **P3** Tests sandbox.ts + training.ts (node-engine, couverture 0%)

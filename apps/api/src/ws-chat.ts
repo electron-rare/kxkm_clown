@@ -21,46 +21,25 @@ import type {
   PersonaMemory,
 } from "./chat-types.js";
 
+// --- Extracted modules ---
+import { streamOllamaChat, streamOllamaChatWithTools } from "./ws-ollama.js";
+import {
+  acquireFileProcessor,
+  releaseFileProcessor,
+  synthesizeTTS,
+  isTTSAvailable,
+  acquireTTS,
+  releaseTTS,
+  isOfficeDocument,
+  analyzeImage,
+} from "./ws-multimodal.js";
+import {
+  loadPersonaMemory,
+  updatePersonaMemory,
+  pickResponders,
+} from "./ws-persona-router.js";
+
 const execFileAsync = promisify(execFile);
-
-// PDF extraction now handled by scripts/extract_pdf_docling.py (Docling / PyMuPDF fallback)
-
-// TTS concurrency semaphore (P2-02)
-let ttsActive = 0;
-const MAX_TTS_CONCURRENT = 2;
-
-// File processing concurrency semaphore (P2-10)
-let fileProcessActive = 0;
-const MAX_FILE_PROCESSORS = 2;
-
-async function acquireFileProcessor(): Promise<void> {
-  while (fileProcessActive >= MAX_FILE_PROCESSORS) {
-    await new Promise(r => setTimeout(r, 100));
-  }
-  fileProcessActive++;
-}
-function releaseFileProcessor(): void { fileProcessActive--; }
-
-// Simple semaphore for Ollama concurrency
-const MAX_OLLAMA_CONCURRENT = Number(process.env.MAX_OLLAMA_CONCURRENT) || 3;
-let ollamaActive = 0;
-const ollamaQueue: Array<() => void> = [];
-
-async function acquireOllama(): Promise<void> {
-  if (ollamaActive < MAX_OLLAMA_CONCURRENT) {
-    ollamaActive++;
-    return;
-  }
-  return new Promise<void>(resolve => {
-    ollamaQueue.push(() => { ollamaActive++; resolve(); });
-  });
-}
-
-function releaseOllama(): void {
-  ollamaActive--;
-  const next = ollamaQueue.shift();
-  if (next) next();
-}
 
 // ---------------------------------------------------------------------------
 // Chat logging (JSONL)
@@ -95,78 +74,6 @@ function logChatMessage(entry: ChatLogEntry): void {
 }
 
 // ---------------------------------------------------------------------------
-// Persona memory (persistent, file-based)
-// ---------------------------------------------------------------------------
-
-const PERSONA_MEMORY_DIR = path.resolve(process.cwd(), "data/persona-memory");
-
-async function loadPersonaMemory(nick: string): Promise<PersonaMemory> {
-  const memPath = path.join(PERSONA_MEMORY_DIR, `${nick}.json`);
-  try {
-    const data = await fs.promises.readFile(memPath, "utf-8");
-    return JSON.parse(data) as PersonaMemory;
-  } catch { /* missing or corrupted file — start fresh */ }
-  return { nick, facts: [], summary: "", lastUpdated: "" };
-}
-
-async function savePersonaMemory(memory: PersonaMemory): Promise<void> {
-  await fs.promises.mkdir(PERSONA_MEMORY_DIR, { recursive: true });
-  memory.lastUpdated = new Date().toISOString();
-  await fs.promises.writeFile(
-    path.join(PERSONA_MEMORY_DIR, `${memory.nick}.json`),
-    JSON.stringify(memory, null, 2),
-  );
-}
-
-async function updatePersonaMemory(
-  persona: ChatPersona,
-  recentMessages: string[],
-  ollamaUrl: string,
-): Promise<void> {
-  const memory = await loadPersonaMemory(persona.nick);
-
-  const prompt =
-    `Tu es ${persona.nick}. Voici les derniers échanges:\n${recentMessages.join("\n")}\n\n` +
-    `Extrais 2-3 faits importants à retenir sur l'utilisateur ou le sujet. ` +
-    `Réponds en JSON: {"facts": ["fait1", "fait2"], "summary": "résumé en une phrase"}`;
-
-  try {
-    const response = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: persona.model,
-        messages: [{ role: "user", content: prompt }],
-        stream: false,
-        format: "json",
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    const data = (await response.json()) as { message?: { content?: string } };
-    const extracted = JSON.parse(data.message?.content || "{}") as {
-      facts?: string[];
-      summary?: string;
-    };
-
-    if (extracted.facts && Array.isArray(extracted.facts)) {
-      const allFacts = [...new Set([...memory.facts, ...extracted.facts])].slice(-20);
-      memory.facts = allFacts;
-    }
-    if (extracted.summary) {
-      memory.summary = extracted.summary;
-    }
-
-    await savePersonaMemory(memory);
-  } catch (err) {
-    console.error(
-      `[ws-chat] Memory update failed for ${persona.nick}:`,
-      err instanceof Error ? err.message : String(err),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -187,410 +94,6 @@ function send(ws: WebSocket, msg: OutboundMessage): void {
     try {
       ws.send(JSON.stringify(msg));
     } catch { /* connection closed between check and send */ }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Ollama streaming chat
-// ---------------------------------------------------------------------------
-
-async function streamOllamaChat(
-  ollamaUrl: string,
-  persona: ChatPersona,
-  userMessage: string,
-  onChunk: (text: string) => void,
-  onDone: (fullText: string) => void,
-  onError: (err: Error) => void,
-): Promise<void> {
-  await acquireOllama();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
-
-  try {
-    const response = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: persona.model,
-        messages: [
-          { role: "system", content: persona.systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        stream: true,
-      }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama returned ${response.status}: ${response.statusText}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body from Ollama");
-    }
-
-    const decoder = new TextDecoder();
-    let fullText = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      // Ollama streams newline-delimited JSON
-      const lines = chunk.split("\n").filter(Boolean);
-
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
-          if (parsed.message?.content) {
-            fullText += parsed.message.content;
-            onChunk(parsed.message.content);
-          }
-        } catch {
-          // Partial JSON — skip
-        }
-      }
-    }
-
-    onDone(fullText);
-  } catch (err) {
-    onError(err instanceof Error ? err : new Error(String(err)));
-  } finally {
-    clearTimeout(timeout);
-    releaseOllama();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Tool-calling support for personas (MCP-style via Ollama tool_calls)
-// ---------------------------------------------------------------------------
-
-interface OllamaToolCall {
-  function: { name: string; arguments: Record<string, unknown> };
-}
-
-/**
- * Execute a single tool call and return its textual result.
- */
-async function executeToolCall(
-  toolName: string,
-  args: Record<string, unknown>,
-  rag: { size: number; search(q: string, k: number): Promise<{ text: string }[]> } | undefined,
-): Promise<string> {
-  switch (toolName) {
-    case "web_search": {
-      const query = String(args.query || "");
-      return await searchWeb(query);
-    }
-    case "image_generate": {
-      const prompt = String(args.prompt || "");
-      const result = await generateImage(prompt);
-      return result ? `[Image générée: seed ${result.seed}]` : "[Erreur génération image]";
-    }
-    case "rag_search": {
-      const query = String(args.query || "");
-      if (!rag || rag.size === 0) return "(Pas de documents indexés)";
-      const results = await rag.search(query, 3);
-      return results.map(r => r.text).join("\n---\n") || "(Aucun résultat)";
-    }
-    default:
-      return `(Outil inconnu: ${toolName})`;
-  }
-}
-
-/**
- * Stream Ollama chat with optional tool-calling support.
- * When tools are provided:
- *   1. First do a non-streaming call to see if Ollama wants to use tools
- *   2. If tool_calls present, execute them and re-call with tool results
- *   3. Stream the final response normally
- * Max 1 round of tool calls to avoid infinite loops.
- */
-async function streamOllamaChatWithTools(
-  ollamaUrl: string,
-  persona: ChatPersona,
-  userMessage: string,
-  tools: ToolDefinition[],
-  rag: { size: number; search(q: string, k: number): Promise<{ text: string }[]> } | undefined,
-  onChunk: (text: string) => void,
-  onDone: (fullText: string) => void,
-  onError: (err: Error) => void,
-): Promise<void> {
-  await acquireOllama();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
-
-  try {
-    const messages: Array<{ role: string; content: string; tool_calls?: OllamaToolCall[] }> = [
-      { role: "system", content: persona.systemPrompt },
-      { role: "user", content: userMessage },
-    ];
-
-    // Step 1: Non-streaming call with tools to check for tool_calls
-    const probeResp = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: persona.model,
-        messages,
-        tools: tools.map(t => t),
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
-
-    if (!probeResp.ok) {
-      throw new Error(`Ollama returned ${probeResp.status}: ${probeResp.statusText}`);
-    }
-
-    const probeData = await probeResp.json() as {
-      message?: {
-        role?: string;
-        content?: string;
-        tool_calls?: OllamaToolCall[];
-      };
-    };
-
-    const toolCalls = probeData.message?.tool_calls;
-
-    // If no tool calls, use the response directly
-    if (!toolCalls || toolCalls.length === 0) {
-      const content = probeData.message?.content || "";
-      if (content) {
-        onChunk(content);
-      }
-      onDone(content);
-      return;
-    }
-
-    // Step 2: Execute tool calls (max 1 round)
-    // Add assistant message with tool_calls to conversation
-    messages.push({
-      role: "assistant",
-      content: probeData.message?.content || "",
-      tool_calls: toolCalls,
-    });
-
-    for (const tc of toolCalls) {
-      const name = tc.function.name;
-      const args = tc.function.arguments;
-      console.log(`[mcp-tools] ${persona.nick} calling ${name}(${JSON.stringify(args)})`);
-
-      let result: string;
-      try {
-        result = await executeToolCall(name, args, rag);
-      } catch (err) {
-        result = `(Erreur outil ${name}: ${err instanceof Error ? err.message : String(err)})`;
-      }
-
-      // Add tool result to conversation
-      messages.push({
-        role: "tool",
-        content: result,
-      });
-    }
-
-    // Step 3: Stream the final response with tool context
-    releaseOllama();
-    // Re-acquire for the streaming call
-    await acquireOllama();
-
-    const streamResp = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: persona.model,
-        messages,
-        stream: true,
-      }),
-      signal: controller.signal,
-    });
-
-    if (!streamResp.ok) {
-      throw new Error(`Ollama returned ${streamResp.status}: ${streamResp.statusText}`);
-    }
-
-    const reader = streamResp.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body from Ollama");
-    }
-
-    const decoder = new TextDecoder();
-    let fullText = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n").filter(Boolean);
-
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
-          if (parsed.message?.content) {
-            fullText += parsed.message.content;
-            onChunk(parsed.message.content);
-          }
-        } catch {
-          // Partial JSON — skip
-        }
-      }
-    }
-
-    onDone(fullText);
-  } catch (err) {
-    onError(err instanceof Error ? err : new Error(String(err)));
-  } finally {
-    clearTimeout(timeout);
-    releaseOllama();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// TTS synthesis (Piper TTS via Python script)
-// ---------------------------------------------------------------------------
-
-async function synthesizeTTS(
-  nick: string,
-  text: string,
-  channel: string,
-  broadcastFn: (channel: string, msg: OutboundMessage) => void,
-): Promise<void> {
-  if (!text || text.length < 10) return; // skip very short texts
-
-  const truncated = text.slice(0, 1000); // limit TTS to ~1000 chars
-  const outputPath = `/tmp/kxkm-tts-${Date.now()}.wav`;
-  const pythonBin = process.env.PYTHON_BIN || "/home/kxkm/venv/bin/python3";
-  const scriptsDir = process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts");
-
-  // Check for voice sample (XTTS-v2 cloning)
-  const samplePath = path.resolve(process.cwd(), "data", "voice-samples", `${nick.toLowerCase()}.wav`);
-  let useXtts = false;
-  try {
-    await fs.promises.access(samplePath);
-    useXtts = true;
-  } catch { /* no voice sample — use Piper fallback */ }
-
-  try {
-    let args: string[];
-    if (useXtts) {
-      args = [
-        path.resolve(scriptsDir, "xtts_clone.py"),
-        "--text", truncated,
-        "--speaker-wav", samplePath,
-        "--output", outputPath,
-      ];
-    } else {
-      args = [
-        path.resolve(scriptsDir, "tts_synthesize.py"),
-        "--text", truncated,
-        "--voice", nick,
-        "--output", outputPath,
-      ];
-    }
-
-    const { stdout } = await execFileAsync(pythonBin, args, { timeout: 60_000 });
-
-    const result = JSON.parse(stdout.trim().split("\n").pop() || "{}") as {
-      status?: string;
-      error?: string;
-    };
-
-    if (result.status === "completed") {
-      try {
-        const audioBuffer = await fsp.readFile(outputPath);
-        const base64 = audioBuffer.toString("base64");
-
-        // Broadcast audio to channel
-        broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
-      } catch { /* file missing — ignore */ }
-    }
-  } catch (err) {
-    // TTS failure is non-critical, just log
-    console.error(`[tts] Synthesis failed for ${nick}: ${err instanceof Error ? err.message : String(err)}`);
-  } finally {
-    try { await fsp.unlink(outputPath); } catch { /* ignore cleanup errors */ }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Image analysis via Ollama vision
-// ---------------------------------------------------------------------------
-
-const OFFICE_EXTENSIONS = new Set([
-  "doc", "docx", "xls", "xlsx", "ppt", "pptx",
-  "odt", "ods", "odp", "rtf", "epub",
-]);
-
-const OFFICE_MIMES = new Set([
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/vnd.oasis.opendocument.text",
-  "application/vnd.oasis.opendocument.spreadsheet",
-  "application/vnd.oasis.opendocument.presentation",
-  "application/rtf",
-  "application/epub+zip",
-]);
-
-function isOfficeDocument(filename: string, mimeType: string): boolean {
-  const ext = filename.split(".").pop()?.toLowerCase() || "";
-  return OFFICE_EXTENSIONS.has(ext) || OFFICE_MIMES.has(mimeType);
-}
-
-// ---------------------------------------------------------------------------
-
-async function analyzeImage(
-  buffer: Buffer,
-  mimeType: string,
-  filename: string,
-  ollamaUrl: string,
-): Promise<string> {
-  const base64 = buffer.toString("base64");
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
-
-  try {
-    const visionModel = process.env.VISION_MODEL || "qwen3.5:9b";
-    const response = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: visionModel,
-        messages: [
-          {
-            role: "user",
-            content:
-              "Analyse cette image en détail. Décris ce que tu vois, le contexte, " +
-              "et tout élément notable. Réponds en français.",
-            images: [base64],
-          },
-        ],
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      return `[Image: ${filename} — analyse échouée: ${response.status}]`;
-    }
-
-    const result = (await response.json()) as {
-      message?: { content?: string };
-    };
-    const caption = result.message?.content || "Pas de description disponible";
-    return `[Image: ${filename}]\n${caption}`;
-  } catch (err) {
-    return `[Image: ${filename} — erreur d'analyse: ${err instanceof Error ? err.message : String(err)}]`;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
@@ -710,23 +213,6 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   function broadcastUserlist(channel: string): void {
     const msg: OutboundMessage = { type: "userlist", users: channelUsers(channel) };
     broadcast(channel, msg);
-  }
-
-  // --- pick personas for #general ---
-
-  function pickResponders(text: string, pool: ChatPersona[] = personas): ChatPersona[] {
-    // Check for direct @mention — only mentioned personas respond
-    const mentioned = pool.filter((p) =>
-      text.toLowerCase().includes(`@${p.nick.toLowerCase()}`),
-    );
-    if (mentioned.length > 0) return mentioned;
-
-    // Default: only Pharmacius responds (or first persona if Pharmacius not found)
-    const defaultPersona = pool.find((p) => p.nick.toLowerCase() === "pharmacius");
-    if (defaultPersona) return [defaultPersona];
-
-    // Fallback: first persona in pool
-    return pool.length > 0 ? [pool[0]] : [];
   }
 
   // --- handle slash commands ---
@@ -1098,13 +584,15 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
             }
 
             // TTS synthesis (async, non-blocking, with concurrency limit)
-            if (process.env.TTS_ENABLED === "1" && ttsActive < MAX_TTS_CONCURRENT) {
-              ttsActive++;
+            if (process.env.TTS_ENABLED === "1" && isTTSAvailable()) {
+              acquireTTS();
               synthesizeTTS(persona.nick, fullText, channel, broadcast)
                 .catch((err) => {
                   console.error(`[tts] Error for ${persona.nick}: ${err}`);
                 })
-                .finally(() => { ttsActive--; });
+                .finally(() => {
+                  releaseTTS();
+                });
             }
 
             // Inter-persona dialogue: check if persona mentioned another persona
@@ -1179,162 +667,24 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     await routeToPersonas(info.channel, text);
   }
 
-  // --- handle file upload ---
+  // --- handle file upload (delegated to ws-upload-handler) ---
 
-  async function handleUpload(ws: WebSocket, info: ClientInfo, parsed: InboundUpload): Promise<void> {
-    const filename = typeof parsed.filename === "string" ? parsed.filename : "unknown";
-    const mimeType = typeof parsed.mimeType === "string" ? parsed.mimeType : "";
-    const dataB64 = typeof parsed.data === "string" ? parsed.data : "";
-    const size = typeof parsed.size === "number" ? parsed.size : 0;
-
-    // Per-client upload rate limiting (50 MB/min)
-    const now = Date.now();
-    if (now - info.lastUploadReset > 60_000) {
-      info.uploadBytesWindow = 0;
-      info.lastUploadReset = now;
-    }
-    if (info.uploadBytesWindow + size > 50 * 1024 * 1024) {
-      send(ws, { type: "system", text: "Upload rejeté — limite de débit dépassée (50 MB/min)" });
-      return;
-    }
-    info.uploadBytesWindow += size;
-
-    if (!dataB64 || size > 12 * 1024 * 1024) {
-      send(ws, { type: "system", text: "Upload rejeté (vide ou > 12 MB)." });
-      return;
-    }
-
-    const buffer = Buffer.from(dataB64, "base64");
-
-    // Broadcast upload notification
-    broadcast(info.channel, {
-      type: "system",
-      text: `${info.nick} a envoyé: ${filename} (${(size / 1024).toFixed(1)} KB)`,
-    });
-
-    // Log upload event
-    logChatMessage({
-      ts: new Date().toISOString(),
-      channel: info.channel,
-      nick: info.nick,
-      type: "message",
-      text: `[upload: ${filename}, ${(size / 1024).toFixed(1)} KB]`,
-    });
-
-    // Analyze file based on MIME type
-    let analysis = "";
-
-    if (
-      mimeType.startsWith("text/") ||
-      mimeType === "application/json" ||
-      filename.endsWith(".csv") ||
-      filename.endsWith(".jsonl")
-    ) {
-      const text = buffer.slice(0, 12000).toString("utf-8");
-      analysis = `[Fichier texte: ${filename}]\n${text}`;
-    } else if (mimeType.startsWith("image/")) {
-      analysis = await analyzeImage(buffer, mimeType, filename, ollamaUrl);
-    } else if (mimeType.startsWith("audio/")) {
-      // Transcribe audio via Whisper (faster-whisper or openai-whisper)
-      const ext = filename.split(".").pop() || "wav";
-      const tmpFile = path.join("/tmp", `kxkm-audio-${Date.now()}.${ext}`);
-
-      try {
-        await fsp.writeFile(tmpFile, buffer);
-        const scriptPath = path.resolve(
-          process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts"),
-          "transcribe_audio.py",
-        );
-        const pythonBin = process.env.PYTHON_BIN || "python3";
-
-        await acquireFileProcessor();
-        try {
-          const { stdout, stderr } = await execFileAsync(pythonBin, [
-            scriptPath, "--input", tmpFile, "--language", "fr",
-          ], { timeout: 120_000 });
-
-          if (stderr) console.log(`[ws-chat][audio] ${stderr.trim().slice(-200)}`);
-
-          // stdout may contain multiple lines; the JSON result is on the last line
-          const lastLine = stdout.trim().split("\n").pop() || "{}";
-          const result = JSON.parse(lastLine) as { status?: string; transcript?: string; error?: string };
-
-          if (result.transcript) {
-            analysis = `[Audio: ${filename}]\nTranscription: ${result.transcript}`;
-          } else {
-            analysis = `[Audio: ${filename} — transcription échouée: ${result.error || "unknown"}]`;
-          }
-        } finally {
-          releaseFileProcessor();
-        }
-      } catch (err) {
-        analysis = `[Audio: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
-      } finally {
-        try { await fsp.unlink(tmpFile); } catch { /* ignore cleanup errors */ }
-      }
-    } else if (mimeType === "application/pdf") {
-      const tmpFile = path.join("/tmp", `kxkm-pdf-${Date.now()}.pdf`);
-      try {
-        await fsp.writeFile(tmpFile, buffer);
-        await acquireFileProcessor();
-        try {
-          const pythonBin = process.env.PYTHON_BIN || "python3";
-          const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_pdf_docling.py");
-          const { stdout, stderr } = await execFileAsync(pythonBin, [scriptPath, "--input", tmpFile], { timeout: 60_000 });
-          if (stderr) console.log(`[upload] pdf: ${stderr.slice(-200)}`);
-          const result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
-          if (result.text) {
-            analysis = `[PDF: ${filename}, ${result.pages || "?"} page(s)]\n${result.text}`;
-          } else {
-            analysis = `[PDF: ${filename} — extraction échouée: ${result.error || "unknown"}]`;
-          }
-        } finally {
-          releaseFileProcessor();
-        }
-      } catch (err) {
-        analysis = `[PDF: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
-      } finally {
-        try { await fsp.unlink(tmpFile); } catch {}
-      }
-    } else if (isOfficeDocument(filename, mimeType)) {
-      // Word, Excel, PowerPoint, LibreOffice, RTF, EPUB
-      const ext = filename.split(".").pop() || "";
-      const tmpFile = path.join("/tmp", `kxkm-doc-${Date.now()}.${ext}`);
-      try {
-        await fsp.writeFile(tmpFile, buffer);
-        const pythonBin = process.env.PYTHON_BIN || "python3";
-        const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_document.py");
-        await acquireFileProcessor();
-        try {
-          const { stdout, stderr } = await execFileAsync(pythonBin, [
-            scriptPath, "--input", tmpFile,
-          ], { timeout: 60_000 });
-          if (stderr) console.log(`[upload] doc extract: ${stderr.slice(-200)}`);
-          const jsonLine = stdout.trim().split("\n").pop() || "{}";
-          const result = JSON.parse(jsonLine);
-          if (result.text) {
-            analysis = `[Document ${ext.toUpperCase()}: ${filename}]\n${result.text}`;
-          } else {
-            analysis = `[Document: ${filename} — extraction échouée: ${result.error || "unknown"}]`;
-          }
-        } finally {
-          releaseFileProcessor();
-        }
-      } catch (err) {
-        analysis = `[Document: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
-      } finally {
-        try { await fsp.unlink(tmpFile); } catch { /* ignore */ }
-      }
-    } else {
-      analysis = `[Fichier: ${filename}, type: ${mimeType}, ${(size / 1024).toFixed(0)} KB]`;
-    }
-
-    if (analysis) {
-      const contextMessage =
-        `[L'utilisateur ${info.nick} a partagé un fichier: ${filename}]\n${analysis}\n\nAnalyse ce fichier et donne ton avis.`;
-
-      await routeToPersonas(info.channel, contextMessage);
-    }
+  async function handleUploadMessage(ws: WebSocket, info: ClientInfo, parsed: InboundUpload): Promise<void> {
+    const { handleUpload } = await import("./ws-upload-handler.js");
+    await handleUpload(
+      ws,
+      info,
+      parsed,
+      ollamaUrl,
+      broadcast,
+      logChatMessage,
+      routeToPersonas,
+      acquireFileProcessor,
+      releaseFileProcessor,
+      isOfficeDocument,
+      analyzeImage,
+      send,
+    );
   }
 
   // --- connection handler ---
@@ -1409,7 +759,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       if (typeof message.type !== "string") return;
 
       if (message.type === "upload") {
-        await handleUpload(ws, info, message as InboundUpload);
+        await handleUploadMessage(ws, info, message as InboundUpload);
         return;
       }
 

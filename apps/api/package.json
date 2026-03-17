@@ -20,6 +20,6 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json --pretty false",
     "check": "tsc -p tsconfig.json --noEmit --pretty false",
-    "test": "node --test dist/app.test.js"
+    "test": "node --test dist/*.test.js"
   }
 }

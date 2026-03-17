@@ -14,6 +14,7 @@ const PACKAGES = [
   "chat-domain",
   "persona-domain",
   "node-engine",
+  "storage",
   "tui",
 ];
 

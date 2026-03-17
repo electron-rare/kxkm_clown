@@ -390,3 +390,30 @@ Objectif : voix temps réel et intégration outils standardisée.
 - [ ] `/compose` command (prompt → musique via Node Engine)
 - [ ] Flux 2 dans ComfyUI (upgrade image gen)
 - [ ] A2A Protocol evaluation (interop agents externes)
+
+## Lot 20 — Deep Analyse Continue & Execution Chainee `[en cours]`
+
+Objectif: industrialiser la boucle analyse -> correction -> test -> documentation -> prochain lot.
+
+Livres au cycle 2026-03-17:
+- Deep audit execute et relance apres correctifs.
+- Correctifs chirurgicaux sur le store de contexte V2.
+- Reduction des faux positifs audit (security/perf) pour signal exploitable.
+- Verification complete: check:v2 et test:v2 au vert.
+- Correctif anti-derive de compteur TTS (`ttsActive`) dans `ws-chat.ts`.
+- Nettoyage opportuniste des sessions expirees en mode in-memory dans `app.ts`.
+- Purge des logs vides/obsoletes dans `ops/v2/logs`.
+- Veille OSS web actualisee (LibreChat/OpenWebUI/Flowise/Dify/LangGraph/SearXNG/Docling).
+- Durcissement `context-store.ts` complete (budget contexte, fallback compactage, serialisation enforcement).
+- Tests API et unitaires context-store ajoutes et valides (`apps/api/src/context-store.test.ts`).
+- Script d'orchestration lot 20 ajoute et execute (`ops/v2/run-deep-cycle.sh`).
+- Scoring de dette technique ajoute a `ops/v2/deep-audit.js` (score/100 + niveau).
+- Derniere mesure dette: **78/100 (high)**, principalement due a la dette perf/complexite.
+- Refonte UI Minitel racine livree sur `public/*` avec rendu desktop/mobile.
+- **Extraction modulaire du bloc upload/analyse de `ws-chat.ts` livree dans `ws-upload-handler.ts`**
+
+Backlog immediat (ordre impose):
+1. Poursuivre extraction modulaire de `ws-chat.ts` (router, commandes, core).
+2. Refactor `app.ts` en routes + middleware.
+3. Ajouter mesures perf API/WS (latence, debit, memoire) et reporter dans les logs Lot 20.
+4. Ajouter SearXNG et Docling au compose pour le pipeline multimodal.

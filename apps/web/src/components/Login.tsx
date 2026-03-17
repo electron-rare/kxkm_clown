@@ -1,56 +1,94 @@
 import { useState } from "react";
-import type { UserRole } from "../api";
 
 interface LoginProps {
-  onLogin: (username: string, role: UserRole) => Promise<void>;
-  error: string;
+  onLogin: (username: string) => void;
+  error?: string;
 }
 
 export default function Login({ onLogin, error }: LoginProps) {
-  const [username, setUsername] = useState("operator");
-  const [role, setRole] = useState<UserRole>("admin");
-  const [loading, setLoading] = useState(false);
+  const [username, setUsername] = useState("");
+  const [ullaMode, setUllaMode] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    try {
-      await onLogin(username, role);
-    } finally {
-      setLoading(false);
+    const nick = username.trim();
+    if (!nick) return;
+    if (nick.toLowerCase() === "ulla" || nick.toLowerCase() === "/ulla") {
+      setUllaMode(true);
+      setTimeout(() => setUllaMode(false), 4000);
+      return;
     }
+    onLogin(nick);
+  }
+
+  if (ullaMode) {
+    return (
+      <div className="minitel-login">
+        <div className="minitel-login-header" style={{ color: "#ff69b4" }}>
+          {">>> 3615 ULLA <<<"}
+        </div>
+        <div className="minitel-login-art" style={{ color: "#ff69b4" }}>
+          {`
+  ╔══════════════════════════╗
+  ║                          ║
+  ║    Bonjour, je suis      ║
+  ║         ULLA             ║
+  ║                          ║
+  ║  Je suis disponible      ║
+  ║  24h/24 pour discuter    ║
+  ║  de sujets... varies.    ║
+  ║                          ║
+  ║  Mais ici c'est KXKM,   ║
+  ║  pas le Minitel rose.    ║
+  ║                          ║
+  ║  Tapez un vrai pseudo    ║
+  ║  pour continuer ;)       ║
+  ║                          ║
+  ╚══════════════════════════╝`}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="login-container">
-      <div className="login-card panel">
-        <p className="eyebrow">Authentification</p>
-        <h2>Ouvrir une session</h2>
-        <form onSubmit={handleSubmit} className="login-form">
-          <label>
-            <span>Nom d'utilisateur</span>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="username"
-              required
-            />
-          </label>
-          <label>
-            <span>Role</span>
-            <select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
-              <option value="admin">admin</option>
-              <option value="editor">editor</option>
-              <option value="operator">operator</option>
-              <option value="viewer">viewer</option>
-            </select>
-          </label>
-          <button type="submit" className="btn btn-primary" disabled={loading || !username.trim()}>
-            {loading ? "Connexion..." : "Se connecter"}
-          </button>
-        </form>
-        {error && <div className="banner">{error}</div>}
+    <div className="minitel-login">
+      <div className="minitel-login-art">
+        {`
+  ╔══════════════════════════╗
+  ║    3615  K X K M         ║
+  ║                          ║
+  ║  Systeme de chat IA      ║
+  ║  multimodal local        ║
+  ║                          ║
+  ║  "Le medium est le       ║
+  ║   message."              ║
+  ╚══════════════════════════╝`}
+      </div>
+      <form onSubmit={handleSubmit} className="minitel-login-form">
+        <div className="minitel-field">
+          <label>Votre pseudo _</label>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="entrez votre pseudo"
+            required
+            className="minitel-input"
+            autoFocus
+            maxLength={24}
+          />
+        </div>
+        <button
+          type="submit"
+          className="minitel-login-btn"
+          disabled={!username.trim()}
+        >
+          {">>> Entrer <<<"}
+        </button>
+      </form>
+      {error && <div className="minitel-login-error">ERREUR: {error}</div>}
+      <div className="minitel-login-footer">
+        Tarification: GRATUIT (c'est local)
       </div>
     </div>
   );

@@ -1997,3 +1997,26 @@ jobs:
 4. **Avec monorepo mature :** `Turborepo` + GitHub Actions pipeline
 
 *Recherche effectuée le 2026-03-16.*
+
+## Addendum 2026-03-17 — Deep veille OSS actionnable
+
+### Projets analyses (web)
+
+| Projet | Positionnement | Ce qui est reutilisable pour KXKM | Priorite |
+|---|---|---|---|
+| Open WebUI | plateforme self-hosted Ollama/OpenAI avec RBAC et RAG | patterns d'integration Ollama, RAG docs + web search, options de deploiement | Haute |
+| LibreChat | chat multi-providers avec agents, MCP, multi-user auth | patterns MCP/tooling, resumable streams, UX de switch provider | Haute |
+| LangGraph | orchestration d'agents stateful longue duree | modelisation workflow agentique et sous-graphes pour Node Engine | Moyenne |
+| SearXNG | metasearch self-hosted privacy-first | remplacement DuckDuckGo lite pour `/web` en mode souverain | Haute |
+| Docling | extraction documentaire multi-format + MCP server | remplacement progressif de `pdf-parse`, pipeline document richer | Haute |
+
+### Decisions proposees
+1. Integrer `SearXNG` dans docker compose V2 et basculer `/web` dessus par defaut.
+2. Ajouter une option Docling dans pipeline document pour PDF/Docx/HTML.
+3. S'inspirer de LibreChat pour la reprise de stream et la robustesse multi-session.
+4. Evaluer LangGraph comme reference conceptuelle, sans couplage direct au runtime actuel.
+
+### Risques et garde-fous
+- Licences: verifier contraintes de redistribution pour chaque composant non MIT.
+- Complexite ops: activer chaque brique derriere feature flags.
+- Stabilite: pas d'integration en masse sans smoke tests dedies.

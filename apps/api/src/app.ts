@@ -43,6 +43,10 @@ import {
   createPersonaFeedbackRepo,
   createPersonaProposalRepo,
 } from "@kxkm/storage";
+import { createSessionRoutes } from "./routes/session.js";
+import { createPersonaRoutes } from "./routes/personas.js";
+import { createNodeEngineRoutes } from "./routes/node-engine.js";
+import { createChatHistoryRoutes } from "./routes/chat-history.js";
 
 const COOKIE_NAME = "kxkm_v2_session";
 
@@ -84,14 +88,29 @@ async function writeJson(filePath: string, data: unknown): Promise<void> {
 
 function createInMemorySessionRepo() {
   const sessions = new Map<string, AuthSession>();
+  let lastCleanupAt = 0;
+
+  function maybeCleanupExpired(now: number): void {
+    // Throttle cleanup to avoid O(n) scans on every request.
+    if (now - lastCleanupAt < 60_000) return;
+    lastCleanupAt = now;
+    for (const [id, session] of sessions) {
+      if (new Date(session.expiresAt).getTime() < now) {
+        sessions.delete(id);
+      }
+    }
+  }
+
   return {
     async create(input: { username: string; role: UserRole; expiresAt?: string }): Promise<AuthSession> {
+      maybeCleanupExpired(Date.now());
       const id = generateSessionToken();
       const session = createSessionRecord({ username: input.username, role: input.role }, id);
       sessions.set(id, session);
       return session;
     },
     async findById(id: string): Promise<AuthSession | null> {
+      maybeCleanupExpired(Date.now());
       return sessions.get(id) || null;
     },
     async deleteById(id: string): Promise<void> {
@@ -595,716 +614,101 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
   }
 
   // -----------------------------------------------------------------------
-  // Routes
+  // Performance instrumentation middleware
   // -----------------------------------------------------------------------
 
-  app.get("/api/v2/health", (_req, res) => {
-    res.json(asApiData({
-      app: "@kxkm/api",
-      storage: storageMode, // BUG-06 fix: don't leak DATABASE_URL
-      roles: ["admin", "editor", "operator", "viewer"] satisfies UserRole[],
-    }));
+  const perfStats = {
+    requestCount: 0,
+    totalLatencyMs: 0,
+    maxLatencyMs: 0,
+    statusCodes: new Map<number, number>(),
+    startedAt: Date.now(),
+  };
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const start = performance.now();
+    res.on("finish", () => {
+      const latency = performance.now() - start;
+      perfStats.requestCount++;
+      perfStats.totalLatencyMs += latency;
+      if (latency > perfStats.maxLatencyMs) perfStats.maxLatencyMs = latency;
+      const code = res.statusCode;
+      perfStats.statusCodes.set(code, (perfStats.statusCodes.get(code) || 0) + 1);
+    });
+    next();
   });
 
-  // Public status strip — no auth required
-  app.get("/api/v2/status", async (_req, res) => {
-    try {
-      const [personas, graphs, runs] = await Promise.all([
-        personaRepo.list(),
-        graphRepo.list(),
-        runRepo.list(),
-      ]);
-      const activePersonas = personas.filter((p) => (p as unknown as { enabled?: boolean }).enabled !== false);
-      const runningRuns = runs.filter((r) => r.status === "running");
-      const queuedRuns = runs.filter((r) => r.status === "queued");
-
-      res.json(asApiData({
-        name: "KXKM_Clown",
-        version: "2.0.0",
-        storage: storageMode,
-        personas: { total: personas.length, active: activePersonas.length },
-        nodeEngine: {
-          graphs: graphs.length,
-          runs: runs.length,
-          running: runningRuns.length,
-          queued: queuedRuns.length,
+  app.get("/api/v2/perf", ((_req: Request, res: Response) => {
+    const uptimeMs = Date.now() - perfStats.startedAt;
+    const avgLatency = perfStats.requestCount > 0
+      ? perfStats.totalLatencyMs / perfStats.requestCount
+      : 0;
+    const mem = process.memoryUsage();
+    res.json({
+      ok: true,
+      data: {
+        uptime_ms: uptimeMs,
+        uptime_human: `${Math.floor(uptimeMs / 3600000)}h${Math.floor((uptimeMs % 3600000) / 60000)}m`,
+        requests: perfStats.requestCount,
+        avg_latency_ms: Math.round(avgLatency * 100) / 100,
+        max_latency_ms: Math.round(perfStats.maxLatencyMs * 100) / 100,
+        status_codes: Object.fromEntries(perfStats.statusCodes),
+        memory: {
+          rss_mb: Math.round(mem.rss / 1048576),
+          heap_used_mb: Math.round(mem.heapUsed / 1048576),
+          heap_total_mb: Math.round(mem.heapTotal / 1048576),
+          external_mb: Math.round(mem.external / 1048576),
         },
-      }));
-    } catch (err) {
-      res.status(500).json({ ok: false, error: "status_error" });
-    }
-  });
-
-  app.post("/api/session/login", async (req, res) => {
-    try {
-      const input = validateLoginInput(req.body);
-
-      // SEC-04 fix: Never trust client-supplied role — assign viewer by default.
-      // Admin role requires ADMIN_TOKEN env var match.
-      let role: UserRole = "viewer";
-      const adminToken = process.env.ADMIN_TOKEN;
-      const tokenMatches = Boolean(adminToken && req.body?.token === adminToken);
-      if (input.role === "admin" && tokenMatches) {
-        role = "admin";
-      } else if (input.role === "operator" || input.role === "editor") {
-        // Allow non-admin elevated roles only if admin token is provided
-        if (tokenMatches) {
-          role = input.role as UserRole;
-        }
-      }
-
-      const session = await sessionRepo.create({ username: input.username, role });
-      setSessionCookie(res, session.id);
-      res.json(asApiData(session));
-    } catch {
-      res.status(400).json({ ok: false, error: "invalid_login_payload" });
-    }
-  });
-
-  app.get("/api/session", (req: SessionRequest, res) => {
-    if (!req.session) {
-      res.status(401).json({ ok: false, error: "session_required" });
-      return;
-    }
-    res.json(asApiData(req.session));
-  });
-
-  app.post("/api/session/logout", async (req: SessionRequest, res) => {
-    if (req.session) {
-      await sessionRepo.deleteById(req.session.id);
-    }
-    clearSessionCookie(res);
-    res.json(asApiData({ loggedOut: true }));
-  });
-
-  app.get("/api/chat/channels", requireSession, (_req, res) => {
-    res.json(asApiData(buildChatChannels(modelRegistry.map((model) => model.id))));
-  });
-
-  app.get("/api/personas", requireSession, async (_req, res) => {
-    const list = await personaRepo.list();
-    res.json(asApiData(list));
-  });
-
-  app.get("/api/personas/:id", requireSession, async (req, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const persona = await personaRepo.findById(personaId);
-    if (!persona) {
-      res.status(404).json({ ok: false, error: "persona_not_found" });
-      return;
-    }
-    res.json(asApiData(persona));
-  });
-
-  app.post("/api/admin/personas", requirePermission("persona:write"), async (req: SessionRequest, res) => {
-    const name = String(req.body?.name || "").trim();
-    if (!name) {
-      res.status(400).json({ ok: false, error: "name_required" });
-      return;
-    }
-    const persona: PersonaRecord = {
-      id: createId("persona"),
-      name,
-      model: String(req.body?.model || "qwen3:8b"),
-      summary: String(req.body?.summary || ""),
-      editable: true,
-      enabled: req.body?.enabled !== undefined ? Boolean(req.body.enabled) : true,
-    };
-    await personaRepo.upsert(persona);
-
-    await feedbackRepo.create(
-      createFeedback(persona.id, "admin_edit", `Persona creee par ${req.session?.username || "unknown"}`),
-    );
-
-    res.status(201).json(asApiData(persona));
-  });
-
-  app.put("/api/admin/personas/:id", requirePermission("persona:write"), async (req: SessionRequest, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const persona = await personaRepo.findById(personaId);
-    if (!persona) {
-      res.status(404).json({ ok: false, error: "persona_not_found" });
-      return;
-    }
-
-    persona.name = String(req.body?.name || persona.name);
-    persona.model = String(req.body?.model || persona.model);
-    persona.summary = String(req.body?.summary || persona.summary);
-    if (req.body?.enabled !== undefined) {
-      (persona as unknown as Record<string, unknown>).enabled = Boolean(req.body.enabled);
-    }
-
-    await personaRepo.upsert(persona);
-
-    await feedbackRepo.create(
-      createFeedback(persona.id, "admin_edit", `Persona editee par ${req.session?.username || "unknown"}`),
-    );
-
-    res.json(asApiData(persona));
-  });
-
-  app.post("/api/admin/personas/:id/toggle", requirePermission("persona:write"), async (req: SessionRequest, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const persona = await personaRepo.findById(personaId);
-    if (!persona) {
-      res.status(404).json({ ok: false, error: "persona_not_found" });
-      return;
-    }
-
-    const enabled = req.body?.enabled !== undefined ? Boolean(req.body.enabled) : !(persona as unknown as { enabled?: boolean }).enabled;
-    (persona as unknown as Record<string, unknown>).enabled = enabled;
-    await personaRepo.upsert(persona);
-
-    await feedbackRepo.create(
-      createFeedback(persona.id, "admin_edit", `Persona ${enabled ? "activee" : "desactivee"} par ${req.session?.username || "unknown"}`),
-    );
-
-    res.json(asApiData(persona));
-  });
-
-  app.get("/api/admin/personas/:id/source", requirePermission("persona:read"), async (req, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const persona = await personaRepo.findById(personaId);
-    const source = await sourceRepo.findByPersonaId(personaId);
-    res.json(asApiData(source || defaultPersonaSource(personaId, persona?.name || personaId)));
-  });
-
-  app.put("/api/admin/personas/:id/source", requirePermission("persona:write"), async (req, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const source: PersonaSourceRecord = {
-      personaId,
-      subjectName: String(req.body?.subjectName || personaId),
-      summary: String(req.body?.summary || ""),
-      references: Array.isArray(req.body?.references) ? req.body.references.map(String) : [],
-    };
-    const saved = await sourceRepo.upsert(source);
-    res.json(asApiData(saved));
-  });
-
-  app.get("/api/admin/personas/:id/feedback", requirePermission("persona:read"), async (req, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const list = await feedbackRepo.listByPersonaId(personaId);
-    res.json(asApiData(list));
-  });
-
-  app.get("/api/admin/personas/:id/proposals", requirePermission("persona:read"), async (req, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const list = await proposalRepo.listByPersonaId(personaId);
-    res.json(asApiData(list));
-  });
-
-  app.post("/api/admin/personas/:id/reinforce", requirePermission("persona:write"), async (req: SessionRequest, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const persona = await personaRepo.findById(personaId);
-    if (!persona) {
-      res.status(404).json({ ok: false, error: "persona_not_found" });
-      return;
-    }
-
-    const existingFeedback = await feedbackRepo.listByPersonaId(persona.id);
-    const suffix = existingFeedback.length ? " affinee par feedback" : " calibree par source";
-    const after = {
-      name: String(req.body?.name || persona.name),
-      model: String(req.body?.model || persona.model),
-      summary: String(req.body?.summary || `${persona.summary}${suffix}`),
-    };
-    const apply = Boolean(req.body?.apply);
-    const proposal = createProposal(persona, after, "reinforce_v2", apply);
-
-    if (apply) {
-      persona.name = after.name;
-      persona.model = after.model;
-      persona.summary = after.summary;
-      await personaRepo.upsert(persona);
-    }
-
-    const saved = await proposalRepo.create(proposal);
-    res.json(asApiData(saved));
-  });
-
-  app.post("/api/admin/personas/:id/revert", requirePermission("persona:write"), async (req, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const persona = await personaRepo.findById(personaId);
-    const personaProposals = await proposalRepo.listByPersonaId(personaId);
-    const lastApplied = [...personaProposals].reverse().find((proposal) => proposal.applied);
-
-    if (!persona || !lastApplied) {
-      res.status(404).json({ ok: false, error: "proposal_not_found" });
-      return;
-    }
-
-    persona.name = lastApplied.before.name;
-    persona.model = lastApplied.before.model;
-    persona.summary = lastApplied.before.summary;
-    await personaRepo.upsert(persona);
-
-    res.json(asApiData(persona));
-  });
-
-  // Voice sample upload for XTTS-v2 cloning
-  app.post("/api/admin/personas/:id/voice-sample", requirePermission("persona:write"), async (req: SessionRequest, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const persona = await personaRepo.findById(personaId);
-    if (!persona) {
-      res.status(404).json({ ok: false, error: "persona_not_found" });
-      return;
-    }
-
-    const audioB64 = req.body?.audio as string | undefined;
-    if (!audioB64 || typeof audioB64 !== "string") {
-      res.status(400).json({ ok: false, error: "audio_required (base64 field 'audio')" });
-      return;
-    }
-
-    // Decode and validate size (max 10 MB)
-    const buffer = Buffer.from(audioB64, "base64");
-    if (buffer.length > 10 * 1024 * 1024) {
-      res.status(400).json({ ok: false, error: "file_too_large (max 10 MB)" });
-      return;
-    }
-
-    const voiceSamplesDir = path.resolve(process.cwd(), "data", "voice-samples");
-    await mkdir(voiceSamplesDir, { recursive: true });
-
-    const sampleName = path.basename(persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")).slice(0, 64);
-    if (!sampleName || sampleName === "." || sampleName === "..") {
-      res.status(400).json({ ok: false, error: "invalid_persona_name" });
-      return;
-    }
-    const samplePath = path.join(voiceSamplesDir, `${sampleName}.wav`);
-    // Boundary check: ensure resolved path stays within voiceSamplesDir
-    if (!path.resolve(samplePath).startsWith(voiceSamplesDir)) {
-      res.status(400).json({ ok: false, error: "path_traversal_blocked" });
-      return;
-    }
-
-    await writeFile(samplePath, buffer);
-
-    res.json({ ok: true, data: { personaId, samplePath: `data/voice-samples/${sampleName}.wav`, size: buffer.length } });
-  });
-
-  app.delete("/api/admin/personas/:id/voice-sample", requirePermission("persona:write"), async (req: SessionRequest, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const persona = await personaRepo.findById(personaId);
-    if (!persona) {
-      res.status(404).json({ ok: false, error: "persona_not_found" });
-      return;
-    }
-
-    const voiceSamplesDir2 = path.resolve(process.cwd(), "data", "voice-samples");
-    const sampleName = path.basename(persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")).slice(0, 64);
-    const samplePath = path.join(voiceSamplesDir2, `${sampleName}.wav`);
-    if (!sampleName || !path.resolve(samplePath).startsWith(voiceSamplesDir2)) {
-      res.status(400).json({ ok: false, error: "invalid_persona_name" });
-      return;
-    }
-
-    try {
-      const { unlink } = await import("node:fs/promises");
-      await unlink(samplePath);
-      res.json({ ok: true, data: { deleted: true } });
-    } catch {
-      res.status(404).json({ ok: false, error: "sample_not_found" });
-    }
-  });
-
-  app.get("/api/admin/personas/:id/voice-sample", requirePermission("persona:read"), async (req, res) => {
-    const personaId = readRouteParam(req.params.id);
-    const persona = await personaRepo.findById(personaId);
-    if (!persona) {
-      res.status(404).json({ ok: false, error: "persona_not_found" });
-      return;
-    }
-
-    const voiceSamplesDir3 = path.resolve(process.cwd(), "data", "voice-samples");
-    const sampleName2 = path.basename(persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")).slice(0, 64);
-    const samplePath2 = path.join(voiceSamplesDir3, `${sampleName2}.wav`);
-    if (!sampleName2 || !path.resolve(samplePath2).startsWith(voiceSamplesDir3)) {
-      res.json({ ok: true, data: { hasVoiceSample: false } });
-      return;
-    }
-
-    try {
-      await stat(samplePath2);
-      res.json({ ok: true, data: { hasVoiceSample: true, samplePath: `data/voice-samples/${sampleName2}.wav` } });
-    } catch {
-      res.json({ ok: true, data: { hasVoiceSample: false } });
-    }
-  });
-
-  app.get("/api/admin/node-engine/overview", requirePermission("node_engine:read"), async (_req, res) => {
-    const allRuns = await runRepo.list();
-    const allGraphs = await graphRepo.list();
-    const overview = createNodeEngineOverview({
-      graphs: allGraphs.length,
-      models: modelRegistry.length,
-      queuedRuns: allRuns.filter((run) => run.status === "queued").length,
-      runningRuns: allRuns.filter((run) => run.status === "running").length,
+      },
     });
-    res.json(asApiData(overview));
-  });
-
-  app.get("/api/admin/node-engine/graphs", requirePermission("node_engine:read"), async (_req, res) => {
-    const list = await graphRepo.list();
-    res.json(asApiData(list));
-  });
-
-  app.post("/api/admin/node-engine/graphs", requirePermission("node_engine:operate"), async (req, res) => {
-    const graph = createNodeGraph(
-      String(req.body?.name || "graph"),
-      String(req.body?.description || ""),
-    );
-    const created = await graphRepo.create(graph);
-    res.status(201).json(asApiData(created));
-  });
-
-  app.put("/api/admin/node-engine/graphs/:id", requirePermission("node_engine:operate"), async (req, res) => {
-    const graphId = readRouteParam(req.params.id);
-    const graph = await graphRepo.findById(graphId);
-    if (!graph) {
-      res.status(404).json({ ok: false, error: "graph_not_found" });
-      return;
-    }
-    const updated = await graphRepo.update(graphId, {
-      name: String(req.body?.name || graph.name),
-      description: String(req.body?.description || graph.description),
-    });
-    res.json(asApiData(updated));
-  });
-
-  app.post("/api/admin/node-engine/graphs/:id/run", requirePermission("node_engine:operate"), async (req, res) => {
-    const graphId = readRouteParam(req.params.id);
-    const graph = await graphRepo.findById(graphId);
-    if (!graph) {
-      res.status(404).json({ ok: false, error: "graph_not_found" });
-      return;
-    }
-
-    const run = createNodeRun(graphId, "queued");
-    const created = await runRepo.create(run);
-    if (!req.body?.hold) {
-      enqueueRunTransition(created.id, runRepo);
-    }
-    res.status(201).json(asApiData(created));
-  });
-
-  app.get("/api/admin/node-engine/runs/:id", requirePermission("node_engine:read"), async (req, res) => {
-    const runId = readRouteParam(req.params.id);
-    const run = await runRepo.findById(runId);
-    if (!run) {
-      res.status(404).json({ ok: false, error: "run_not_found" });
-      return;
-    }
-    res.json(asApiData(run));
-  });
-
-  app.post("/api/admin/node-engine/runs/:id/cancel", requirePermission("node_engine:operate"), async (req, res) => {
-    const runId = readRouteParam(req.params.id);
-    const run = await runRepo.findById(runId);
-    if (!run) {
-      res.status(404).json({ ok: false, error: "run_not_found" });
-      return;
-    }
-    await runRepo.updateStatus(runId, "cancelled");
-    res.json(asApiData({ ...run, status: "cancelled" }));
-  });
-
-  app.post("/api/v2/node-engine/runs/:id/cancel", requirePermission("node_engine:operate"), async (req, res) => {
-    const runId = readRouteParam(req.params.id);
-    const run = await runRepo.findById(runId);
-    if (!run) {
-      res.status(404).json({ ok: false, error: "run_not_found" });
-      return;
-    }
-    await runRepo.requestCancel(runId);
-    res.json({ ok: true });
-  });
-
-  app.get("/api/admin/node-engine/artifacts/:runId", requirePermission("node_engine:read"), (req, res) => {
-    const runId = readRouteParam(req.params.runId);
-    res.json(asApiData({
-      runId,
-      artifacts: [
-        { id: createId("artifact"), label: "overview.json", storage: "filesystem" },
-      ],
-    }));
-  });
-
-  app.get("/api/admin/node-engine/models", requirePermission("node_engine:read"), (_req, res) => {
-    res.json(asApiData(modelRegistry));
-  });
+  }) as express.RequestHandler);
 
   // -----------------------------------------------------------------------
-  // Analytics — aggregate chat log stats
+  // Routes (extracted to routes/ modules)
   // -----------------------------------------------------------------------
 
-  app.get("/api/v2/analytics", requirePermission("ops:read"), async (_req: SessionRequest, res) => {
-    const logDir = path.join(process.cwd(), process.env.KXKM_LOCAL_DATA_DIR || "data", "chat-logs");
-    const stats = {
-      totalMessages: 0,
-      totalDays: 0,
-      personaMessages: {} as Record<string, number>,
-      userMessages: 0,
-      systemMessages: 0,
-      uploadsCount: 0,
-      messagesPerDay: [] as Array<{ date: string; count: number }>,
-      topPersonas: [] as Array<{ nick: string; count: number }>,
-    };
+  app.use(createSessionRoutes({
+    sessionRepo,
+    personaRepo,
+    graphRepo,
+    runRepo,
+    modelRegistry,
+    storageMode,
+    requireSession,
+    requirePermission,
+    setSessionCookie,
+    clearSessionCookie,
+  }));
 
-    try {
-      await mkdir(logDir, { recursive: true });
-      const files = await readdir(logDir);
-      stats.totalDays = files.filter((f) => f.endsWith(".jsonl")).length;
+  app.use(createPersonaRoutes({
+    personaRepo,
+    sourceRepo,
+    feedbackRepo,
+    proposalRepo,
+    requireSession,
+    requirePermission,
+    readRouteParam,
+  }));
 
-      for (const file of files.sort().reverse().slice(0, 30)) {
-        if (!file.endsWith(".jsonl")) continue;
-        const date = file.replace("v2-", "").replace(".jsonl", "");
-        const content = await readFile(path.join(logDir, file), "utf-8");
-        let dayCount = 0;
+  app.use(createNodeEngineRoutes({
+    graphRepo,
+    runRepo,
+    modelRegistry,
+    requirePermission,
+    readRouteParam,
+    enqueueRunTransition,
+  }));
 
-        for (const line of content.split("\n")) {
-          if (!line.trim()) continue;
-          try {
-            const entry = JSON.parse(line);
-            stats.totalMessages++;
-            dayCount++;
-
-            if (entry.type === "message" && entry.nick) {
-              if (entry.nick.startsWith("user_")) {
-                stats.userMessages++;
-              } else {
-                stats.personaMessages[entry.nick] = (stats.personaMessages[entry.nick] || 0) + 1;
-              }
-            }
-            if (entry.type === "upload") stats.uploadsCount++;
-          } catch {}
-        }
-        stats.messagesPerDay.push({ date, count: dayCount });
-      }
-
-      stats.topPersonas = Object.entries(stats.personaMessages)
-        .map(([nick, count]) => ({ nick, count }))
-        .sort((a, b) => b.count - a.count);
-    } catch {}
-
-    res.json({ ok: true, data: stats });
-  });
-
-  // -----------------------------------------------------------------------
-  // Retention sweep — delete old completed/failed/cancelled runs
-  // -----------------------------------------------------------------------
-
-  app.post("/api/v2/admin/retention-sweep", requirePermission("node_engine:operate"), async (req, res) => {
-    const maxAgeDays = Number(req.body?.maxAgeDays) || 30;
-    const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000).toISOString();
-    const deleted = await runRepo.deleteOlderThan(cutoff);
-    res.json({ ok: true, deleted });
-  });
-
-  // -----------------------------------------------------------------------
-  // Export conversation as HTML
-  // -----------------------------------------------------------------------
-
-  app.get("/api/v2/export/html", requireSession, async (req: SessionRequest, res) => {
-    try {
-      const channel = readRouteParam(req.query?.channel as string || "general");
-      const personas = await personaRepo.list();
-      const personaMap = new Map(personas.map((p) => {
-        const rec = p as unknown as { id: string; nick?: string; name?: string };
-        return [rec.id, rec.nick || rec.name || rec.id] as const;
-      }));
-
-      // Build simple HTML export (session data placeholder — real impl would read from storage)
-      const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <title>KXKM_Clown — Export #${escapeForHtml(channel)}</title>
-  <style>
-    body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
-    .msg { margin: 4px 0; } .nick { font-weight: bold; } .ts { color: #666; font-size: 0.85em; }
-    h1 { color: #16213e; background: #0f3460; padding: 8px 16px; border-radius: 4px; }
-  </style>
-</head>
-<body>
-  <h1>#${escapeForHtml(channel)} — exported ${new Date().toISOString()}</h1>
-  <p>Channel: <strong>#${escapeForHtml(channel)}</strong> | Personas: ${personas.length} | Storage: ${storageMode}</p>
-  <p><em>Full message history requires session storage integration.</em></p>
-</body>
-</html>`;
-
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="kxkm-export-${channel}.html"`);
-      res.send(html);
-    } catch {
-      res.status(500).json({ ok: false, error: "export_error" });
-    }
-  });
-
-  // -----------------------------------------------------------------------
-  // Export DPO training pairs as JSONL
-  // -----------------------------------------------------------------------
-
-  app.get("/api/v2/export/dpo", requirePermission("persona:read"), async (req: SessionRequest, res) => {
-    try {
-      const filterPersonaId = req.query?.persona_id ? readRouteParam(req.query.persona_id as string) : null;
-
-      let personas = await personaRepo.list();
-      if (filterPersonaId) {
-        personas = personas.filter((p) => p.id === filterPersonaId);
-        if (personas.length === 0) {
-          res.status(404).json({ ok: false, error: "persona_not_found" });
-          return;
-        }
-      }
-
-      const allPairs: Array<{ prompt: string; chosen: string; rejected: string; persona_id: string }> = [];
-
-      for (const persona of personas) {
-        const feedback = await feedbackRepo.listByPersonaId(persona.id);
-        const pairs = extractDPOPairs(feedback, persona);
-        for (const pair of pairs) {
-          allPairs.push({
-            prompt: pair.prompt,
-            chosen: pair.chosen,
-            rejected: pair.rejected,
-            persona_id: pair.personaId,
-          });
-        }
-      }
-
-      res.setHeader("Content-Type", "application/x-ndjson");
-      res.setHeader("Content-Disposition", `attachment; filename="dpo-pairs-${new Date().toISOString().slice(0, 10)}.jsonl"`);
-      const lines = allPairs.map((pair) => JSON.stringify(pair));
-      res.send(lines.join("\n") + (lines.length ? "\n" : ""));
-    } catch {
-      res.status(500).json({ ok: false, error: "dpo_export_error" });
-    }
-  });
-
-  // -----------------------------------------------------------------------
-  // Chat history — browse past chat log files
-  // -----------------------------------------------------------------------
-
-  const chatLogDir = path.resolve(process.cwd(), process.env.KXKM_LOCAL_DATA_DIR || "data", "chat-logs");
-
-  app.get("/api/v2/chat/history", requireSession, async (_req, res) => {
-    try {
-      await mkdir(chatLogDir, { recursive: true });
-      const entries = await readdir(chatLogDir);
-      const jsonlFiles = entries.filter((f) => f.startsWith("v2-") && f.endsWith(".jsonl"));
-
-      const files: Array<{ date: string; lines: number; size: number }> = [];
-
-      for (const filename of jsonlFiles) {
-        const dateMatch = filename.match(/^v2-(\d{4}-\d{2}-\d{2})\.jsonl$/);
-        if (!dateMatch) continue;
-        const filePath = path.join(chatLogDir, filename);
-        const fileStat = await stat(filePath);
-        const content = await readFile(filePath, "utf8");
-        const lineCount = content.trim() ? content.trim().split("\n").length : 0;
-        files.push({ date: dateMatch[1], lines: lineCount, size: fileStat.size });
-      }
-
-      files.sort((a, b) => b.date.localeCompare(a.date));
-      res.json(asApiData({ files }));
-    } catch (err) {
-      const e = err as NodeJS.ErrnoException;
-      if (e.code === "ENOENT") {
-        res.json(asApiData({ files: [] }));
-        return;
-      }
-      res.status(500).json({ ok: false, error: "chat_history_error" });
-    }
-  });
-
-  app.get("/api/v2/chat/search", requireSession, async (req, res) => {
-    const query = String(req.query.q || "").toLowerCase();
-    if (!query || query.length < 2) {
-      return res.json({ results: [], query: "" });
-    }
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-
-    const results: Array<{ date: string; ts: string; nick: string; text: string; type: string }> = [];
-
-    try {
-      await mkdir(chatLogDir, { recursive: true });
-      const files = await readdir(chatLogDir);
-      // Sort files descending (newest first)
-      files.sort().reverse();
-
-      for (const file of files) {
-        if (!file.endsWith(".jsonl")) continue;
-        if (results.length >= limit) break;
-
-        const dateMatch = file.match(/^v2-(\d{4}-\d{2}-\d{2})\.jsonl$/);
-        if (!dateMatch) continue;
-        const date = dateMatch[1];
-        const content = await readFile(path.join(chatLogDir, file), "utf-8");
-
-        for (const line of content.split("\n")) {
-          if (!line.trim()) continue;
-          try {
-            const entry = JSON.parse(line);
-            const text = String(entry.text || "").toLowerCase();
-            const nick = String(entry.nick || "").toLowerCase();
-            if (text.includes(query) || nick.includes(query)) {
-              results.push({
-                date,
-                ts: entry.ts || "",
-                nick: entry.nick || "",
-                text: entry.text || "",
-                type: entry.type || "message",
-              });
-              if (results.length >= limit) break;
-            }
-          } catch {}
-        }
-      }
-    } catch {}
-
-    res.json({ results, query, total: results.length });
-  });
-
-  app.get("/api/v2/chat/history/:date", requireSession, async (req, res) => {
-    try {
-      const date = readRouteParam(req.params.date);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        res.status(400).json({ ok: false, error: "invalid_date_format" });
-        return;
-      }
-
-      const filePath = path.join(chatLogDir, `v2-${date}.jsonl`);
-      let content: string;
-      try {
-        content = await readFile(filePath, "utf8");
-      } catch (err) {
-        const e = err as NodeJS.ErrnoException;
-        if (e.code === "ENOENT") {
-          res.status(404).json({ ok: false, error: "log_not_found" });
-          return;
-        }
-        throw err;
-      }
-
-      const allLines = content.trim().split("\n").filter(Boolean);
-      const limit = Math.min(Math.max(Number(req.query?.limit) || 200, 1), 1000);
-      const offset = Math.max(Number(req.query?.offset) || 0, 0);
-
-      const sliced = allLines.slice(offset, offset + limit);
-      const messages = sliced.map((line) => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return { text: line, type: "raw" };
-        }
-      });
-
-      res.json(asApiData({ messages, total: allLines.length, limit, offset }));
-    } catch {
-      res.status(500).json({ ok: false, error: "chat_history_error" });
-    }
-  });
+  app.use(createChatHistoryRoutes({
+    personaRepo,
+    feedbackRepo,
+    runRepo,
+    storageMode,
+    requireSession,
+    requirePermission,
+    readRouteParam,
+    escapeForHtml,
+  }));
 
   return { app, personaRepo };
 }

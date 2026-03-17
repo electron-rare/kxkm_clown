@@ -5,6 +5,23 @@ interface PersonaListProps {
   onSelect: (id: string) => void;
 }
 
+// Group personas by model for tree view
+function groupByModel(personas: PersonaData[]): Map<string, PersonaData[]> {
+  const groups = new Map<string, PersonaData[]>();
+  for (const p of personas) {
+    const model = p.model || "inconnu";
+    if (!groups.has(model)) groups.set(model, []);
+    groups.get(model)!.push(p);
+  }
+  // Sort groups by model name, sort personas by name within groups
+  const sorted = new Map(
+    [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => [k, v.sort((a, b) => a.name.localeCompare(b.name))])
+  );
+  return sorted;
+}
+
 export default function PersonaList({ onSelect }: PersonaListProps) {
   const [personas, setPersonas] = useState<PersonaData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,6 +33,7 @@ export default function PersonaList({ onSelect }: PersonaListProps) {
   const [newModel, setNewModel] = useState("qwen3:8b");
   const [newSummary, setNewSummary] = useState("");
   const [newEnabled, setNewEnabled] = useState(true);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadPersonas();
@@ -75,120 +93,143 @@ export default function PersonaList({ onSelect }: PersonaListProps) {
     }
   }
 
-  if (loading) return <div className="muted">Chargement des personas...</div>;
-  if (error) return <div className="banner">{error}</div>;
+  function toggleCollapse(model: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(model)) next.delete(model);
+      else next.add(model);
+      return next;
+    });
+  }
+
+  if (loading) return <div className="minitel-loading">Chargement des personas...</div>;
+
+  const groups = groupByModel(personas);
+  const enabledCount = personas.filter((p) => p.enabled !== false).length;
 
   return (
-    <div>
-      <div className="page-header">
-        <h2>Personas</h2>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button className="btn btn-primary" onClick={() => setShowCreate((v) => !v)}>
-            {showCreate ? "Annuler" : "+ Nouvelle Persona"}
-          </button>
-          <button className="btn btn-secondary" onClick={loadPersonas}>Rafraichir</button>
-        </div>
+    <div className="minitel-tree-view">
+      <div className="minitel-tree-header">
+        {">>> PERSONAS <<<"}
+        <span className="minitel-tree-stats">
+          {enabledCount}/{personas.length} actives
+        </span>
+      </div>
+
+      {error && <div className="minitel-error">ERREUR: {error}</div>}
+
+      <div className="minitel-tree-actions">
+        <button className="minitel-tree-btn" onClick={() => setShowCreate((v) => !v)}>
+          {showCreate ? "Annuler" : "+ Nouvelle"}
+        </button>
+        <button className="minitel-tree-btn" onClick={loadPersonas}>Rafraichir</button>
       </div>
 
       {showCreate && (
-        <form
-          onSubmit={handleCreate}
-          className="card"
-          style={{
-            marginBottom: "1rem",
-            padding: "1rem",
-            background: "#111",
-            border: "1px solid #0f0",
-          }}
-        >
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label style={{ display: "block", color: "#0f0", marginBottom: "0.25rem" }}>
-              Nom <span style={{ color: "#f44" }}>*</span>
-            </label>
+        <form onSubmit={handleCreate} className="minitel-create-form">
+          <div className="minitel-field">
+            <label>Nom _</label>
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               required
-              placeholder="Nom de la persona"
-              style={{ width: "100%", background: "#000", color: "#0f0", border: "1px solid #0f0", padding: "0.4rem" }}
+              placeholder="nom de la persona"
+              className="minitel-input"
+              autoFocus
             />
           </div>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label style={{ display: "block", color: "#0f0", marginBottom: "0.25rem" }}>Modele</label>
+          <div className="minitel-field">
+            <label>Modele _</label>
             <select
               value={newModel}
               onChange={(e) => setNewModel(e.target.value)}
-              style={{ width: "100%", background: "#000", color: "#0f0", border: "1px solid #0f0", padding: "0.4rem" }}
+              className="minitel-input"
             >
               <option value="qwen3:8b">qwen3:8b</option>
+              <option value="qwen3.5:9b">qwen3.5:9b</option>
               <option value="qwen3:4b">qwen3:4b</option>
               <option value="mistral:7b">mistral:7b</option>
+              <option value="gemma3:4b">gemma3:4b</option>
             </select>
           </div>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label style={{ display: "block", color: "#0f0", marginBottom: "0.25rem" }}>System Prompt</label>
+          <div className="minitel-field">
+            <label>Prompt _</label>
             <textarea
               value={newSummary}
               onChange={(e) => setNewSummary(e.target.value)}
-              placeholder="Description / system prompt de la persona"
-              rows={3}
-              style={{ width: "100%", background: "#000", color: "#0f0", border: "1px solid #0f0", padding: "0.4rem", resize: "vertical" }}
+              placeholder="system prompt"
+              rows={2}
+              className="minitel-input"
             />
           </div>
-          <div style={{ marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <label className="minitel-checkbox">
             <input
               type="checkbox"
-              id="new-persona-enabled"
               checked={newEnabled}
               onChange={(e) => setNewEnabled(e.target.checked)}
             />
-            <label htmlFor="new-persona-enabled" style={{ color: "#0f0" }}>Active</label>
-          </div>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={creating || !newName.trim()}
-          >
-            {creating ? "Creation..." : "Creer la Persona"}
+            Active
+          </label>
+          <button type="submit" className="minitel-login-btn" disabled={creating || !newName.trim()}>
+            {creating ? "Creation..." : ">>> Creer <<<"}
           </button>
         </form>
       )}
-      <div className="card-grid">
-        {personas.map((persona) => {
-          const isEnabled = persona.enabled !== false;
+
+      {/* Tree view grouped by model */}
+      <div className="minitel-tree">
+        {[...groups.entries()].map(([model, group]) => {
+          const isCollapsed = collapsed.has(model);
+          const activeInGroup = group.filter((p) => p.enabled !== false).length;
           return (
-            <div
-              key={persona.id}
-              className={`card persona-card${!isEnabled ? " persona-card-disabled" : ""}`}
-              onClick={() => onSelect(persona.id)}
-            >
-              <div className="card-header">
-                <span
-                  className={`status-dot ${isEnabled ? "status-dot-on" : "status-dot-off"}`}
-                  title={isEnabled ? "Active" : "Desactivee"}
-                />
-                <strong>{persona.name}</strong>
-                <button
-                  className={`btn persona-toggle-btn ${isEnabled ? "btn-secondary" : "btn-danger"}`}
-                  onClick={(e) => handleToggle(e, persona)}
-                  disabled={toggling === persona.id}
-                  title={isEnabled ? "Desactiver" : "Activer"}
-                >
-                  {toggling === persona.id
-                    ? "..."
-                    : isEnabled
-                      ? "ON"
-                      : "OFF"}
-                </button>
+            <div key={model} className="minitel-tree-branch">
+              <div
+                className="minitel-tree-model"
+                onClick={() => toggleCollapse(model)}
+              >
+                <span className="minitel-tree-toggle">{isCollapsed ? "+" : "-"}</span>
+                <span className="minitel-tree-model-name">{model}</span>
+                <span className="minitel-tree-model-count">
+                  ({activeInGroup}/{group.length})
+                </span>
               </div>
-              <span className="model-tag">{persona.model}</span>
-              <p className="card-desc">{persona.summary}</p>
+              {!isCollapsed && (
+                <div className="minitel-tree-leaves">
+                  {group.map((persona) => {
+                    const isEnabled = persona.enabled !== false;
+                    return (
+                      <div
+                        key={persona.id}
+                        className={`minitel-tree-leaf${!isEnabled ? " minitel-tree-leaf-off" : ""}`}
+                        onClick={() => onSelect(persona.id)}
+                      >
+                        <span className="minitel-tree-pipe">├─</span>
+                        <span className={`minitel-tree-dot ${isEnabled ? "dot-on" : "dot-off"}`}>
+                          {isEnabled ? "●" : "○"}
+                        </span>
+                        <span className="minitel-tree-name">{persona.name}</span>
+                        <button
+                          className="minitel-tree-toggle-btn"
+                          onClick={(e) => handleToggle(e, persona)}
+                          disabled={toggling === persona.id}
+                          title={isEnabled ? "Desactiver" : "Activer"}
+                        >
+                          {toggling === persona.id ? "..." : isEnabled ? "ON" : "OFF"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
-      {personas.length === 0 && <p className="muted">Aucune persona configuree.</p>}
+
+      {personas.length === 0 && (
+        <div className="minitel-loading">Aucune persona configuree.</div>
+      )}
     </div>
   );
 }

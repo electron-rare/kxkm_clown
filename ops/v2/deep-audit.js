@@ -338,6 +338,45 @@ function formatSeverity(s) {
   return c.dim("P2");
 }
 
+function countSeverity(findings) {
+  return findings.reduce((acc, finding) => {
+    const sev = finding.severity || "P2";
+    acc[sev] = (acc[sev] || 0) + 1;
+    return acc;
+  }, { P0: 0, P1: 0, P2: 0 });
+}
+
+function computeDebtScore({ security, performance, metrics, tsErrors, deps }) {
+  const sec = countSeverity(security);
+  const perf = countSeverity(performance);
+  const mediumFiles = metrics.filter((m) => m.flag === "medium").length;
+  const largeFiles = metrics.filter((m) => m.flag === "large").length;
+
+  // Weighted score in [0, 100], higher means more debt.
+  const weighted =
+    sec.P0 * 18 + sec.P1 * 8 + sec.P2 * 3 +
+    perf.P0 * 10 + perf.P1 * 6 + perf.P2 * 2 +
+    tsErrors * 5 +
+    largeFiles * 3 + mediumFiles * 1 +
+    Math.min(20, deps.length);
+
+  const score = Math.min(100, weighted);
+  const level = score >= 70 ? "high" : score >= 35 ? "medium" : "low";
+
+  return {
+    score,
+    level,
+    components: {
+      security: sec,
+      performance: perf,
+      tsErrors,
+      largeFiles,
+      mediumFiles,
+      deps: deps.length,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -418,6 +457,16 @@ async function run() {
     log(`TypeScript: ${tsErrors} errors`);
   }
 
+  // --- Technical debt score ---
+  const debt = computeDebtScore({
+    security: secFindings,
+    performance: perfFindings,
+    metrics,
+    tsErrors,
+    deps,
+  });
+  results.debt = debt;
+
   // --- Summary ---
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
@@ -431,6 +480,7 @@ async function run() {
       `${c.bold("Complexity")}: ${largeFiles} files >500 LOC, ${metrics.length} files >200 LOC`,
       `${c.bold("TypeScript")}:  ${tsErrors === 0 ? c.green("0 errors") : c.red(`${tsErrors} errors`)}`,
       `${c.bold("Deps")}:        ${deps.length} outdated packages`,
+      `${c.bold("Debt Score")}:  ${debt.score}/100 (${debt.level})`,
       ``,
       `${c.dim(`Completed in ${elapsed}s — log: ${path.relative(ROOT_DIR, logFile())}`)}`,
     ].join("\n");

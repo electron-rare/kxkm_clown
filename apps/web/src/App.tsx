@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { api, type SessionData, type UserRole } from "./api";
-import Header from "./components/Header";
 import Login from "./components/Login";
-import Nav from "./components/Nav";
+import MinitelFrame from "./components/MinitelFrame";
+import MinitelConnect from "./components/MinitelConnect";
 import PersonaList from "./components/PersonaList";
 import PersonaDetail from "./components/PersonaDetail";
 import NodeEngineOverview from "./components/NodeEngineOverview";
@@ -34,9 +34,14 @@ function setHash(page: string, id?: string) {
 
 export default function App() {
   const [session, setSession] = useState<SessionData | null>(null);
+  const [nick, setNick] = useState<string | null>(() => {
+    // Restore nick from sessionStorage if available
+    return typeof sessionStorage !== "undefined" ? sessionStorage.getItem("kxkm-nick") : null;
+  });
   const [error, setError] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
   const [route, setRoute] = useState(parseHash);
+  const [showConnect, setShowConnect] = useState(true);
 
   // Listen for hash changes
   useEffect(() => {
@@ -47,7 +52,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // Check existing session on mount
+  // Check existing session on mount (for admin features)
   useEffect(() => {
     api
       .getSession()
@@ -60,6 +65,14 @@ export default function App() {
     setHash(page, id);
   }, []);
 
+  // Simple nick entry (no auth required for basic chat)
+  function handleNickEntry(username: string) {
+    setNick(username);
+    sessionStorage.setItem("kxkm-nick", username);
+    navigate("chat");
+  }
+
+  // Admin login (for admin-only features)
   async function handleLogin(username: string, role: UserRole) {
     try {
       const s = await api.login(username, role);
@@ -78,27 +91,28 @@ export default function App() {
       // ignore
     }
     setSession(null);
+    setNick(null);
+    sessionStorage.removeItem("kxkm-nick");
+    setShowConnect(true);
     setError("");
     navigate("login");
   }
 
-  if (checkingSession) {
+  // 1. Modem connection animation (first visit)
+  if (showConnect && !nick) {
     return (
-      <div className="shell">
-        <div className="muted" style={{ padding: 40, textAlign: "center" }}>
-          Verification de session...
-        </div>
-      </div>
+      <MinitelFrame connected={false}>
+        <MinitelConnect onComplete={() => setShowConnect(false)} />
+      </MinitelFrame>
     );
   }
 
-  // Not logged in: show login
-  if (!session) {
+  // 2. Nick entry (no auth, just a pseudo)
+  if (!nick) {
     return (
-      <div className="shell">
-        <Header session={null} onLogout={handleLogout} onNavigate={navigate} />
-        <Login onLogin={handleLogin} error={error} />
-      </div>
+      <MinitelFrame connected={false}>
+        <Login onLogin={handleNickEntry} error={error} />
+      </MinitelFrame>
     );
   }
 
@@ -183,18 +197,18 @@ export default function App() {
   }
 
   return (
-    <div className="shell">
-      <Header session={session} onLogout={handleLogout} onNavigate={navigate} />
-      <div className="app-layout">
-        <Nav currentPage={route.page} session={session} onNavigate={navigate} />
-        <main className="app-main">
-          {error && <div className="banner">{error}</div>}
-          <ErrorBoundary>
-            {renderPage()}
-          </ErrorBoundary>
-        </main>
-      </div>
-    </div>
+    <MinitelFrame
+      connected={true}
+      currentPage={route.page}
+      session={session ? session : nick ? { username: nick, role: "viewer" } : null}
+      onNavigate={navigate}
+      onLogout={handleLogout}
+    >
+      {error && <div className="minitel-error">ERREUR: {error}</div>}
+      <ErrorBoundary>
+        {renderPage()}
+      </ErrorBoundary>
+    </MinitelFrame>
   );
 }
 

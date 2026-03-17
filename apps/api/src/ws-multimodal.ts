@@ -1,0 +1,187 @@
+import fs from "node:fs";
+import { promises as fsp } from "node:fs";
+import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import type { OutboundMessage } from "./chat-types.js";
+
+const execFileAsync = promisify(execFile);
+
+// ---------------------------------------------------------------------------
+// File processing concurrency semaphore (P2-10)
+// ---------------------------------------------------------------------------
+
+let fileProcessActive = 0;
+const MAX_FILE_PROCESSORS = 2;
+
+export async function acquireFileProcessor(): Promise<void> {
+  while (fileProcessActive >= MAX_FILE_PROCESSORS) {
+    await new Promise(r => setTimeout(r, 100));
+  }
+  fileProcessActive++;
+}
+export function releaseFileProcessor(): void { fileProcessActive--; }
+
+// ---------------------------------------------------------------------------
+// TTS concurrency semaphore (P2-02)
+// ---------------------------------------------------------------------------
+
+let ttsActive = 0;
+const MAX_TTS_CONCURRENT = 2;
+
+export function isTTSAvailable(): boolean {
+  return ttsActive < MAX_TTS_CONCURRENT;
+}
+
+export function acquireTTS(): void {
+  ttsActive++;
+}
+
+export function releaseTTS(): void {
+  if (ttsActive > 0) ttsActive--;
+}
+
+// ---------------------------------------------------------------------------
+// TTS synthesis (Piper TTS via Python script)
+// ---------------------------------------------------------------------------
+
+export async function synthesizeTTS(
+  nick: string,
+  text: string,
+  channel: string,
+  broadcastFn: (channel: string, msg: OutboundMessage) => void,
+): Promise<void> {
+  if (!text || text.length < 10) return; // skip very short texts
+
+  const truncated = text.slice(0, 1000); // limit TTS to ~1000 chars
+  const outputPath = `/tmp/kxkm-tts-${Date.now()}.wav`;
+  const pythonBin = process.env.PYTHON_BIN || "/home/kxkm/venv/bin/python3";
+  const scriptsDir = process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts");
+
+  // Check for voice sample (XTTS-v2 cloning)
+  const samplePath = path.resolve(process.cwd(), "data", "voice-samples", `${nick.toLowerCase()}.wav`);
+  let useXtts = false;
+  try {
+    await fs.promises.access(samplePath);
+    useXtts = true;
+  } catch { /* no voice sample — use Piper fallback */ }
+
+  try {
+    let args: string[];
+    if (useXtts) {
+      args = [
+        path.resolve(scriptsDir, "xtts_clone.py"),
+        "--text", truncated,
+        "--speaker-wav", samplePath,
+        "--output", outputPath,
+      ];
+    } else {
+      args = [
+        path.resolve(scriptsDir, "tts_synthesize.py"),
+        "--text", truncated,
+        "--voice", nick,
+        "--output", outputPath,
+      ];
+    }
+
+    const { stdout } = await execFileAsync(pythonBin, args, { timeout: 60_000 });
+
+    const result = JSON.parse(stdout.trim().split("\n").pop() || "{}") as {
+      status?: string;
+      error?: string;
+    };
+
+    if (result.status === "completed") {
+      try {
+        const audioBuffer = await fsp.readFile(outputPath);
+        const base64 = audioBuffer.toString("base64");
+
+        // Broadcast audio to channel
+        broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
+      } catch { /* file missing — ignore */ }
+    }
+  } catch (err) {
+    // TTS failure is non-critical, just log
+    console.error(`[tts] Synthesis failed for ${nick}: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    try { await fsp.unlink(outputPath); } catch { /* ignore cleanup errors */ }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Image analysis via Ollama vision
+// ---------------------------------------------------------------------------
+
+const OFFICE_EXTENSIONS = new Set([
+  "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+  "odt", "ods", "odp", "rtf", "epub",
+]);
+
+const OFFICE_MIMES = new Set([
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.oasis.opendocument.presentation",
+  "application/rtf",
+  "application/epub+zip",
+]);
+
+export function isOfficeDocument(filename: string, mimeType: string): boolean {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  return OFFICE_EXTENSIONS.has(ext) || OFFICE_MIMES.has(mimeType);
+}
+
+// ---------------------------------------------------------------------------
+
+export async function analyzeImage(
+  buffer: Buffer,
+  mimeType: string,
+  filename: string,
+  ollamaUrl: string,
+): Promise<string> {
+  const base64 = buffer.toString("base64");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
+
+  try {
+    const visionModel = process.env.VISION_MODEL || "qwen3.5:9b";
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: visionModel,
+        messages: [
+          {
+            role: "user",
+            content:
+              "Analyse cette image en détail. Décris ce que tu vois, le contexte, " +
+              "et tout élément notable. Réponds en français.",
+            images: [base64],
+          },
+        ],
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      return `[Image: ${filename} — analyse échouée: ${response.status}]`;
+    }
+
+    const result = (await response.json()) as {
+      message?: { content?: string };
+    };
+    const caption = result.message?.content || "Pas de description disponible";
+    return `[Image: ${filename}]\n${caption}`;
+  } catch (err) {
+    return `[Image: ${filename} — erreur d'analyse: ${err instanceof Error ? err.message : String(err)}]`;
+  } finally {
+    clearTimeout(timeout);
+  }
+}

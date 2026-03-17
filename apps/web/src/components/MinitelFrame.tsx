@@ -1,31 +1,83 @@
-import React from "react";
+import React, { useState } from "react";
 
 interface MinitelFrameProps {
   children: React.ReactNode;
   channel?: string;
   connected?: boolean;
+  currentPage?: string;
+  session?: { username: string; role: string } | null;
+  onNavigate?: (page: string) => void;
+  onLogout?: () => void;
 }
 
-export default function MinitelFrame({ children, channel, connected }: MinitelFrameProps) {
+// Navigation items mapped to F-key style buttons
+interface NavButton {
+  label: string;
+  page: string;
+  roles?: string[];  // restrict to these roles (empty = all)
+}
+
+const NAV_BUTTONS: NavButton[] = [
+  { label: "Sommaire", page: "dashboard" },
+  { label: "Canaux", page: "channels" },
+  { label: "Chat", page: "chat" },
+  { label: "Vocal", page: "voice" },
+  { label: "Collectif", page: "collectif" },
+  { label: "Personas", page: "personas" },
+  { label: "Historique", page: "history" },
+  { label: "Moteur", page: "node-engine", roles: ["admin", "operator"] },
+  { label: "Training", page: "training", roles: ["admin", "operator"] },
+  { label: "Stats", page: "analytics", roles: ["admin"] },
+];
+
+export default function MinitelFrame({
+  children,
+  channel,
+  connected,
+  currentPage,
+  session,
+  onNavigate,
+  onLogout,
+}: MinitelFrameProps) {
+  const [navOpen, setNavOpen] = useState(false);
+
+  const visibleButtons = NAV_BUTTONS.filter(
+    (btn) => !btn.roles || (session && btn.roles.includes(session.role))
+  );
+
+  function handleNav(page: string) {
+    onNavigate?.(page);
+    setNavOpen(false);
+  }
+
   return (
     <div className="minitel-terminal">
-      {/* Physical Minitel body */}
       <div className="minitel-body">
-        {/* Screen area with CRT effect */}
         <div className="minitel-screen-bezel">
           <div className="minitel-screen">
-            {/* Scanline overlay */}
+            {/* Scanline + CRT overlays */}
             <div className="minitel-scanlines" />
-            {/* Vignette overlay */}
             <div className="minitel-vignette" />
-            {/* Flicker overlay */}
             <div className="minitel-flicker" />
 
             {/* Service bar top */}
             <div className="minitel-service-top">
-              <span>3615 KXKM</span>
-              <span>{channel || "#general"}</span>
-              <span>{connected ? "CONNECTE" : "DECONNECTE"}</span>
+              <span
+                className="minitel-brand-link"
+                onClick={() => handleNav("dashboard")}
+                title="Sommaire"
+              >
+                3615 KXKM
+              </span>
+              <span>{channel || currentPage || "#general"}</span>
+              <span className={connected ? "minitel-status-on" : "minitel-status-off"}>
+                {connected !== false ? "CONNECTE" : "DECONNECTE"}
+              </span>
+              {session && (
+                <span className="minitel-user">
+                  {session.username} [{session.role}]
+                </span>
+              )}
             </div>
 
             {/* Content area */}
@@ -33,13 +85,79 @@ export default function MinitelFrame({ children, channel, connected }: MinitelFr
               {children}
             </div>
 
-            {/* Service bar bottom */}
+            {/* Navigation drawer (overlays content when open) */}
+            {navOpen && (
+              <div className="minitel-nav-drawer" onClick={() => setNavOpen(false)}>
+                <div className="minitel-nav-panel" onClick={(e) => e.stopPropagation()}>
+                  <div className="minitel-nav-title">{">>> SOMMAIRE <<<"}</div>
+                  {visibleButtons.map((btn) => (
+                    <button
+                      key={btn.page}
+                      className={`minitel-nav-btn${currentPage === btn.page ? " minitel-nav-active" : ""}`}
+                      onClick={() => handleNav(btn.page)}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                  {session && onLogout && (
+                    <button
+                      className="minitel-nav-btn minitel-nav-fin"
+                      onClick={onLogout}
+                    >
+                      Fin
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Service bar bottom — functional navigation */}
             <div className="minitel-service-bottom">
-              <span className="minitel-fkey">Sommaire</span>
-              <span className="minitel-fkey">Suite</span>
-              <span className="minitel-fkey">Retour</span>
-              <span className="minitel-fkey">Annul</span>
-              <span className="minitel-fkey minitel-fkey-envoi">Envoi</span>
+              <button
+                className={`minitel-fkey${currentPage === "dashboard" ? " minitel-fkey-active" : ""}`}
+                onClick={() => setNavOpen(!navOpen)}
+                title="F1 — Menu sommaire"
+              >
+                Sommaire
+              </button>
+              <button
+                className={`minitel-fkey${currentPage === "chat" ? " minitel-fkey-active" : ""}`}
+                onClick={() => handleNav("chat")}
+                title="F2 — Chat"
+              >
+                Chat
+              </button>
+              <button
+                className="minitel-fkey"
+                onClick={() => window.history.back()}
+                title="F3 — Page precedente"
+              >
+                Retour
+              </button>
+              <button
+                className={`minitel-fkey${currentPage === "personas" ? " minitel-fkey-active" : ""}`}
+                onClick={() => handleNav("personas")}
+                title="F4 — Personas"
+              >
+                Personas
+              </button>
+              {session && onLogout ? (
+                <button
+                  className="minitel-fkey minitel-fkey-envoi"
+                  onClick={onLogout}
+                  title="Fin — Deconnexion"
+                >
+                  Fin
+                </button>
+              ) : (
+                <button
+                  className="minitel-fkey minitel-fkey-envoi"
+                  onClick={() => handleNav("dashboard")}
+                  title="Connexion"
+                >
+                  Connexion
+                </button>
+              )}
             </div>
           </div>
         </div>

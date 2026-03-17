@@ -151,7 +151,48 @@ services:
     #           count: all
     #           capabilities: [gpu]
 
+  # -------------------------------------------------------------------------
+  # SearXNG — self-hosted privacy search engine
+  # Replaces DuckDuckGo Lite scraping with structured JSON API.
+  # Usage: set WEB_SEARCH_API_BASE=http://localhost:8080/search in .env
+  # -------------------------------------------------------------------------
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    profiles: [v2]
+    ports:
+      - "${SEARXNG_PORT:-8080}:8080"
+    volumes:
+      - searxng-data:/etc/searxng
+    environment:
+      SEARXNG_BASE_URL: "http://localhost:8080/"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # -------------------------------------------------------------------------
+  # Discord Pharmacius Bot — bridges KXKM chat ↔ Discord
+  # Usage: DISCORD_BOT_TOKEN=xxx DISCORD_CHANNEL_ID=yyy docker compose --profile discord up -d
+  # -------------------------------------------------------------------------
+  discord-bot:
+    build: .
+    restart: unless-stopped
+    profiles: [discord]
+    network_mode: host
+    command: ["node", "scripts/discord-pharmacius.js"]
+    environment:
+      DISCORD_BOT_TOKEN: "${DISCORD_BOT_TOKEN:-}"
+      DISCORD_CHANNEL_ID: "${DISCORD_CHANNEL_ID:-}"
+      KXKM_WS_URL: "ws://localhost:3333/ws"
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   app-data:
   pg-data:
   ollama-data:
+  searxng-data:

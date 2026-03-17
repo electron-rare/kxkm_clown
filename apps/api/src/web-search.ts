@@ -4,7 +4,7 @@
 
 export async function searchWeb(query: string): Promise<string> {
   // Try SearXNG first (self-hosted, no API key)
-  const searxngUrl = process.env.SEARXNG_URL || "http://localhost:8889";
+  const searxngUrl = process.env.SEARXNG_URL || "http://localhost:8080";
   try {
     const response = await fetch(`${searxngUrl}/search?q=${encodeURIComponent(query)}&format=json&engines=google,bing,duckduckgo`, {
       signal: AbortSignal.timeout(10_000),

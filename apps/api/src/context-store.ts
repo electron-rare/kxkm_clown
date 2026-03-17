@@ -100,6 +100,7 @@ const DEFAULT_OPTIONS: ContextStoreOptions = buildDefaultOptions();
 export class ContextStore {
   private options: ContextStoreOptions;
   private compactionInProgress = new Set<string>();
+  private limitEnforcementInProgress: Promise<void> | null = null;
   private initialized = false;
 
   constructor(opts: Partial<ContextStoreOptions> = {}) {
@@ -173,7 +174,10 @@ export class ContextStore {
     let summary = "";
     const summaryData = await this.readSummary(channel);
     if (summaryData?.summaryText) {
-      summary = `[Résumé des conversations précédentes]\n${summaryData.summaryText}`;
+      const header = "[Résumé des conversations précédentes]\n";
+      // Keep a small budget for recent exchanges when possible.
+      const summaryBudget = Math.max(0, limit - 256);
+      summary = (header + summaryData.summaryText).slice(0, summaryBudget);
     }
 
     // 2. Load recent raw entries
@@ -185,13 +189,15 @@ export class ContextStore {
       // Take last N entries that fit in maxChars
       const recentEntries: ContextEntry[] = [];
       let charCount = 0;
+      const recentBudget = Math.max(0, limit - summary.length);
       for (let i = lines.length - 1; i >= 0; i--) {
         try {
           const entry: ContextEntry = JSON.parse(lines[i]);
           const entryText = `${entry.nick}: ${entry.text}`;
-          if (charCount + entryText.length > limit - summary.length) break;
+          const separatorCost = recentEntries.length > 0 ? 1 : 0;
+          if (charCount + entryText.length + separatorCost > recentBudget) break;
           recentEntries.unshift(entry);
-          charCount += entryText.length;
+          charCount += entryText.length + separatorCost;
         } catch { continue; }
       }
 
@@ -249,6 +255,13 @@ export class ContextStore {
       try { entries.push(JSON.parse(line)); } catch { continue; }
     }
 
+    if (entries.length === 0) {
+      // Nothing valid to summarize; keep only recent lines to bound file growth.
+      const fallbackContent = toKeep.join("\n") + "\n";
+      await fs.writeFile(this.channelFile(channel), fallbackContent, "utf-8");
+      return;
+    }
+
     const textToSummarize = entries
       .map((e) => `${e.nick}: ${e.text}`)
       .join("\n")
@@ -304,6 +317,14 @@ export class ContextStore {
   }
 
   private async maybeEnforceLimits(preferredChannel: string): Promise<void> {
+    if (this.limitEnforcementInProgress) return;
+    this.limitEnforcementInProgress = this.enforceLimits(preferredChannel).finally(() => {
+      this.limitEnforcementInProgress = null;
+    });
+    await this.limitEnforcementInProgress;
+  }
+
+  private async enforceLimits(preferredChannel: string): Promise<void> {
     await this.init();
 
     const files = await fs.readdir(this.options.dataDir);
@@ -327,6 +348,8 @@ export class ContextStore {
     const effectiveMaxFileMB = Math.max(16, this.options.maxFileSizeMB * pressureFactor);
     const effectiveMaxTotalMB = Math.max(128, this.options.maxTotalSizeMB * pressureFactor);
 
+    let totalSizeMB = fileStats.reduce((sum, f) => sum + f.sizeMB, 0);
+
     // Per-channel cap: force one compaction pass when a channel grows too much.
     if (preferred && preferred.sizeMB > effectiveMaxFileMB && !this.compactionInProgress.has(preferredChannel)) {
       const content = await fs.readFile(preferred.filePath, "utf-8");
@@ -338,11 +361,15 @@ export class ContextStore {
         } finally {
           this.compactionInProgress.delete(preferredChannel);
         }
+
+        // Refresh total size after preferred channel compaction to avoid over-trimming others.
+        const refreshed = await fs.stat(preferred.filePath);
+        const refreshedMB = refreshed.size / (1024 * 1024);
+        totalSizeMB = totalSizeMB - preferred.sizeMB + refreshedMB;
       }
     }
 
     // Global cap: trim oldest channels first, preserving the preferred channel when possible.
-    let totalSizeMB = fileStats.reduce((sum, f) => sum + f.sizeMB, 0);
     if (totalSizeMB <= effectiveMaxTotalMB) return;
 
     const candidates = fileStats

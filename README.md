@@ -252,3 +252,28 @@ Un LLM local qui refuse le cloud centralise est un acte politique. L'esthetique 
 - Separation chat runtime / worker runtime / training runtime
 - Exploitation privee, pas d'exposition internet publique
 - Operations lisibles en TUI + logs, puis nettoyage controle
+
+## Mode operatoire agents + TUI
+
+Boucle d'execution recommandee pour avancer par lots sans derive:
+
+```bash
+# 1) Audit signal
+node ops/v2/deep-audit.js
+
+# 2) Validation technique
+npm run check:v2
+npm run test:v2
+
+# 3) Monitoring TUI
+node ops/v2/health-check.js --watch
+node ops/v2/queue-viewer.js --watch
+
+# 4) Hygiene logs
+node ops/v2/log-rotate.js --max-age-days 7
+```
+
+Principes:
+- Mode chirurgical: petites corrections, verification immediate, documentation synchronisee.
+- TUI-first pour l'operabilite: observer, corriger, reverifier, purger.
+- Respect manifeste: esthetique radicale, execution propre, local-first, souverainete outillage.

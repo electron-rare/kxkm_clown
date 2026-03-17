@@ -34,8 +34,12 @@ const WebSocket = require("ws");
 
 const DISCORD_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_CHANNEL = process.env.DISCORD_CHANNEL_ID;
+const DISCORD_CHANNEL_2 = process.env.DISCORD_CHANNEL_ID_2;
 const KXKM_WS_URL = process.env.KXKM_WS_URL || "ws://localhost:3333/ws";
 const PREFIX = process.env.DISCORD_PREFIX || "!";
+
+// All bridged text channels
+const BRIDGED_CHANNELS = new Set([DISCORD_CHANNEL, DISCORD_CHANNEL_2].filter(Boolean));
 
 if (!DISCORD_TOKEN || !DISCORD_CHANNEL) {
   console.error(`
@@ -179,16 +183,17 @@ function handleDiscordDispatch(event, data) {
       // Ignore bot's own messages
       if (data.author.id === botUserId) return;
       // Only process messages in the target channel
-      if (data.channel_id !== DISCORD_CHANNEL) return;
+      if (!BRIDGED_CHANNELS.has(data.channel_id)) return;
 
       handleDiscordMessage(data);
       break;
   }
 }
 
-async function sendToDiscord(content) {
+async function sendToDiscord(content, channelId) {
+  const targetChannel = channelId || DISCORD_CHANNEL;
   try {
-    await fetch(`${DISCORD_API}/channels/${DISCORD_CHANNEL}/messages`, {
+    await fetch(`${DISCORD_API}/channels/${targetChannel}/messages`, {
       method: "POST",
       headers: {
         Authorization: `Bot ${DISCORD_TOKEN}`,
@@ -208,6 +213,7 @@ async function sendToDiscord(content) {
 function handleDiscordMessage(data) {
   const text = data.content.trim();
   const nick = data.author.username;
+  const srcChannel = data.channel_id;
 
   // Commands
   if (text.startsWith(PREFIX)) {

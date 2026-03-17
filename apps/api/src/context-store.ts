@@ -10,6 +10,7 @@
  */
 
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -42,16 +43,49 @@ interface ContextStoreOptions {
   compactionModel: string;           // model for summarization (default: qwen3.5:9b)
 }
 
-const DEFAULT_OPTIONS: ContextStoreOptions = {
-  dataDir: path.join(process.cwd(), "data", "context"),
-  maxEntriesBeforeCompact: 500,
-  maxFileSizeMB: 100,
-  maxTotalSizeMB: 750,
-  maxContextChars: 16000,
-  maxSummaryChars: 20000,
-  ollamaUrl: "http://localhost:11434",
-  compactionModel: "qwen3.5:9b",
-};
+function buildDefaultOptions(): ContextStoreOptions {
+  const totalGB = os.totalmem() / (1024 ** 3);
+
+  // RAM-aware defaults to avoid over-consuming memory on smaller machines.
+  let maxEntriesBeforeCompact = 500;
+  let maxFileSizeMB = 100;
+  let maxTotalSizeMB = 750;
+  let maxContextChars = 16000;
+  let maxSummaryChars = 20000;
+
+  if (totalGB <= 8) {
+    maxEntriesBeforeCompact = 300;
+    maxFileSizeMB = 40;
+    maxTotalSizeMB = 256;
+    maxContextChars = 8000;
+    maxSummaryChars = 10000;
+  } else if (totalGB <= 16) {
+    maxEntriesBeforeCompact = 400;
+    maxFileSizeMB = 75;
+    maxTotalSizeMB = 512;
+    maxContextChars = 12000;
+    maxSummaryChars = 15000;
+  } else if (totalGB <= 32) {
+    maxEntriesBeforeCompact = 600;
+    maxFileSizeMB = 120;
+    maxTotalSizeMB = 900;
+    maxContextChars = 18000;
+    maxSummaryChars = 24000;
+  }
+
+  return {
+    dataDir: path.join(process.cwd(), "data", "context"),
+    maxEntriesBeforeCompact,
+    maxFileSizeMB,
+    maxTotalSizeMB,
+    maxContextChars,
+    maxSummaryChars,
+    ollamaUrl: "http://localhost:11434",
+    compactionModel: "qwen3.5:9b",
+  };
+}
+
+const DEFAULT_OPTIONS: ContextStoreOptions = buildDefaultOptions();
 
 // ---------------------------------------------------------------------------
 // Context Store
@@ -282,8 +316,13 @@ export class ContextStore {
     const preferredFile = `${preferredSafe}.jsonl`;
     const preferred = fileStats.find((f) => f.file === preferredFile);
 
+    const memPressureRatio = os.freemem() / Math.max(1, os.totalmem());
+    const pressureFactor = memPressureRatio < 0.08 ? 0.35 : memPressureRatio < 0.15 ? 0.6 : 1;
+    const effectiveMaxFileMB = Math.max(16, this.options.maxFileSizeMB * pressureFactor);
+    const effectiveMaxTotalMB = Math.max(128, this.options.maxTotalSizeMB * pressureFactor);
+
     // Per-channel cap: force one compaction pass when a channel grows too much.
-    if (preferred && preferred.sizeMB > this.options.maxFileSizeMB && !this.compactionInProgress.has(preferredChannel)) {
+    if (preferred && preferred.sizeMB > effectiveMaxFileMB && !this.compactionInProgress.has(preferredChannel)) {
       const content = await fs.readFile(preferred.filePath, "utf-8");
       const lines = content.trim().split("\n").filter(Boolean);
       if (lines.length > 1) {
@@ -298,14 +337,14 @@ export class ContextStore {
 
     // Global cap: trim oldest channels first, preserving the preferred channel when possible.
     let totalSizeMB = fileStats.reduce((sum, f) => sum + f.sizeMB, 0);
-    if (totalSizeMB <= this.options.maxTotalSizeMB) return;
+    if (totalSizeMB <= effectiveMaxTotalMB) return;
 
     const candidates = fileStats
       .filter((f) => f.file !== preferredFile)
       .sort((a, b) => a.mtimeMs - b.mtimeMs);
 
     for (const candidate of candidates) {
-      if (totalSizeMB <= this.options.maxTotalSizeMB) break;
+      if (totalSizeMB <= effectiveMaxTotalMB) break;
 
       const content = await fs.readFile(candidate.filePath, "utf-8");
       const lines = content.trim().split("\n").filter(Boolean);

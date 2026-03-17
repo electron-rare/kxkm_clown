@@ -47,29 +47,43 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 
 ### Chat multimodal
 
-- **Chat temps reel** — WebSocket `/ws`, streaming LLM, esthetique IRC
-- **Multi-personas** — Schaeffer, Batty, Radigue... chacun avec sa voix et son modele
-- **RAG local** — Embeddings Ollama (`nomic-embed-text`), contexte manifeste injecte automatiquement
-- **Vision** — Analyse d'images via `minicpm-v` (upload dans le chat)
+- **Interface Minitel** — Animation modem 3615 ULLA → login → chat (esthetique phosphore CRT)
+- **Chat temps reel** — WebSocket `/ws`, streaming LLM, 26 personas
+- **RAG local** — Embeddings Ollama (`nomic-embed-text`), contexte manifeste
+- **Vision** — Analyse d'images via `qwen3-vl:8b` (upload dans le chat)
 - **STT** — Transcription audio via `faster-whisper` (upload audio)
-- **TTS** — Synthese vocale via `piper-tts`, voix distincte par persona
-- **PDF** — Extraction texte automatique des PDF uploades
-- **Recherche web** — `/web <query>` via DuckDuckGo Lite ou API custom
-- **Memoire persona** — Faits et resume persistants, mis a jour toutes les 5 interactions
+- **TTS** — Piper-tts (fallback rapide) + XTTS-v2 (voice cloning per persona)
+- **PDF** — Extraction via Docling/PyMuPDF (tables, layout, OCR)
+- **Recherche web** — SearXNG self-hosted + DuckDuckGo fallback
+- **Generation musicale** — `/compose` via ACE-Step 1.5 / MusicGen
+- **Generation images** — `/imagine` via ComfyUI (SDXL Lightning + Flux 2)
+- **Memoire persona** — Faits et resume persistants, compaction LLM auto (750 MB)
+- **Inter-persona** — @mention directe, dialogue depth 3
+
+### Discord
+
+- **Pharmacius#8988** — Bot texte bridge 2 salons Discord ↔ KXKM
+- **Voice bot** — STT → personas → TTS en salon vocal Discord
+
+### MCP (Model Context Protocol)
+
+- **MCP Server** — stdio transport, 4 tools (kxkm_chat, kxkm_personas, kxkm_web_search, kxkm_status)
+- Compatible Claude Desktop, mascarade, tout client MCP
 
 ### Training & DPO
 
 - **Pipeline DPO** — Export paires chosen/rejected depuis feedback, format JSONL
-- **Training** — TRL + Unsloth, execution via Python venv, GPU passthrough
+- **Training** — TRL + Unsloth, execution via Python venv, GPU passthrough RTX 4090
 - **Autoresearch** — Boucle d'experimentation automatisee avec mutations et scoring
 - **Ollama import** — Import LoRA adapter dans Ollama comme nouveau modele
 - **Training dashboard** — Visualisation React Flow des graphes et runs
 
 ### Personas
 
+- 26 personas (musique, arts, sciences, philosophie, ecologie, tech, cinema)
 - Pipeline editorial: source → feedback → proposals → apply/revert
-- Pharmacius: orchestrateur editorial automatique
-- Activation/desactivation a chaud, overrides runtime
+- Pharmacius: orchestrateur editorial automatique (mistral:7b)
+- Vue arborescente par modele (refermee par defaut)
 
 ## Variables d'environnement
 
@@ -170,31 +184,58 @@ node ops/v2/log-rotate.js --dry-run  # Rotation logs
 ```text
 kxkm_clown/
 ├── apps/
-│   ├── api/        # Express REST + WebSocket + RAG + multimodal (TypeScript)
-│   ├── web/        # React/Vite frontend
-│   └── worker/     # Job processor (poll Postgres)
+│   ├── api/src/
+│   │   ├── server.ts           # Entry point (HTTP + WS + RAG)
+│   │   ├── app.ts              # Express app factory + middleware
+│   │   ├── ws-chat.ts          # WebSocket core (broadcast, rate limit, dispatch)
+│   │   ├── ws-ollama.ts        # Ollama streaming + tool-calling
+│   │   ├── ws-multimodal.ts    # TTS (Piper + XTTS-v2), STT, vision
+│   │   ├── ws-persona-router.ts # Persona memory + routing
+│   │   ├── ws-upload-handler.ts # File upload pipeline (PDF, audio, images)
+│   │   ├── routes/             # Express route modules
+│   │   │   ├── session.ts      # Auth, health, status, analytics
+│   │   │   ├── personas.ts     # Persona CRUD, feedback, proposals
+│   │   │   ├── node-engine.ts  # Graphs, runs, models
+│   │   │   └── chat-history.ts # Export, search, retention
+│   │   ├── rag.ts              # Local RAG (nomic-embed-text)
+│   │   ├── context-store.ts    # Conversation memory (750 MB, LLM compaction)
+│   │   ├── comfyui.ts          # Image generation (SDXL + Flux 2)
+│   │   ├── web-search.ts       # SearXNG + DuckDuckGo fallback
+│   │   └── mcp-tools.ts        # Tool definitions per persona
+│   ├── web/src/                # React/Vite frontend (Minitel UI)
+│   └── worker/                 # Node Engine job processor (GPU)
 ├── packages/
-│   ├── core/       # Types, IDs, permissions
-│   ├── auth/       # RBAC, crypto, sessions
-│   ├── chat-domain/    # Messages, channels
-│   ├── persona-domain/ # Personas, Pharmacius, DPO
-│   ├── node-engine/    # DAG, runs, queue, training
-│   ├── storage/    # Postgres repos + migrations
-│   ├── ui/         # Composants React partages
-│   └── tui/        # Helpers terminal ANSI
+│   ├── core/                   # Types, IDs, permissions
+│   ├── auth/                   # RBAC, crypto, sessions
+│   ├── chat-domain/            # Messages, channels, slash commands
+│   ├── persona-domain/         # Personas, Pharmacius, DPO, patches
+│   ├── node-engine/            # DAG, runs, queue, sandbox, training
+│   ├── storage/                # Postgres repos + migrations
+│   ├── ui/                     # Theme constants
+│   └── tui/                    # ANSI terminal helpers
 ├── scripts/
-│   ├── tts_synthesize.py      # Piper TTS
-│   ├── transcribe_audio.py    # faster-whisper STT
-│   ├── ollama-import.js       # Import adapter CLI
-│   └── ollama-import-adapter.sh
-├── public/         # Frontend V1 + admin HTML
-├── ops/v2/         # Orchestration, monitoring TUI
+│   ├── compose_music.py        # ACE-Step 1.5 / MusicGen
+│   ├── tts_clone_voice.py      # XTTS-v2 voice cloning
+│   ├── tts_synthesize.py       # Piper TTS
+│   ├── transcribe_audio.py     # faster-whisper STT
+│   ├── discord-pharmacius.js   # Discord text bridge (2 salons)
+│   ├── discord-voice.js        # Discord voice bot (STT→LLM→TTS)
+│   ├── mcp-server.js           # MCP Server (stdio, 4 tools)
+│   ├── bench-embeddings.js     # Benchmark nomic vs BGE-M3
+│   └── generate-voice-samples.js # XTTS reference samples generator
+├── ops/v2/
+│   ├── deep-audit.js           # Security/perf/complexity TUI
+│   ├── perf-monitor.js         # Latency/memory/status TUI
+│   ├── health-check.js         # Service health TUI
+│   ├── queue-viewer.js         # Node Engine queue TUI
+│   └── persona-manager.js      # Persona overview TUI
 ├── data/
-│   ├── manifeste.md           # Ame du projet
-│   ├── chat-logs/             # JSONL quotidien
-│   ├── persona-memory/        # Memoire persistante par persona
-│   └── node-engine/           # Graphes, runs, registry
-└── docs/           # Architecture, specs, runbooks
+│   ├── manifeste.md            # Ame du projet
+│   ├── chat-logs/              # JSONL quotidien
+│   ├── persona-memory/         # Memoire persistante par persona
+│   ├── voice-samples/          # XTTS reference WAV per persona
+│   └── node-engine/            # Graphes, runs, registry
+└── docs/                       # Architecture, specs, audit, OSS watch
 ```
 
 ## Etat V1 / V2

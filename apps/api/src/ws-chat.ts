@@ -8,9 +8,9 @@ import { WebSocketServer, WebSocket } from "ws";
 import { generateImage } from "./comfyui.js";
 import { searchWeb } from "./web-search.js";
 import { getToolsForPersona, type ToolDefinition } from "./mcp-tools.js";
+import { DEFAULT_PERSONAS, personaColor } from "./personas-default.js";
 
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
-import { DEFAULT_PERSONAS, personaColor } from "./personas-default.js";
 import type {
   ChatPersona,
   ClientInfo,

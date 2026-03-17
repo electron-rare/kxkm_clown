@@ -33,7 +33,8 @@ export default function PersonaList({ onSelect }: PersonaListProps) {
   const [newModel, setNewModel] = useState("qwen3:8b");
   const [newSummary, setNewSummary] = useState("");
   const [newEnabled, setNewEnabled] = useState(true);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // All collapsed by default — user opens what they need
+  const [collapsed, setCollapsed] = useState<Set<string> | "all">("all");
 
   useEffect(() => {
     loadPersonas();
@@ -95,6 +96,12 @@ export default function PersonaList({ onSelect }: PersonaListProps) {
 
   function toggleCollapse(model: string) {
     setCollapsed((prev) => {
+      if (prev === "all") {
+        // First click: open only this model
+        const allModels = new Set([...groupByModel(personas).keys()]);
+        allModels.delete(model);
+        return allModels;
+      }
       const next = new Set(prev);
       if (next.has(model)) next.delete(model);
       else next.add(model);
@@ -180,7 +187,7 @@ export default function PersonaList({ onSelect }: PersonaListProps) {
       {/* Tree view grouped by model */}
       <div className="minitel-tree">
         {[...groups.entries()].map(([model, group]) => {
-          const isCollapsed = collapsed.has(model);
+          const isCollapsed = collapsed === "all" || collapsed.has(model);
           const activeInGroup = group.filter((p) => p.enabled !== false).length;
           return (
             <div key={model} className="minitel-tree-branch">

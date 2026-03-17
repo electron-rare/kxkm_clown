@@ -2691,6 +2691,126 @@ code {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Connection animation phases ── */
+.minitel-connect-modem {
+  color: var(--minitel-green, #33ff33);
+}
+
+.minitel-connect-ulla {
+  color: var(--minitel-pink, #ff69b4);
+  text-shadow: 0 0 8px rgba(255, 105, 180, 0.5);
+}
+
+.minitel-connect-kxkm {
+  color: var(--minitel-green, #33ff33);
+}
+
+/* ── Login tabs ── */
+.minitel-login-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #444;
+}
+
+.minitel-tab {
+  flex: 1;
+  padding: 8px 16px;
+  background: #111;
+  border: 1px solid #333;
+  border-bottom: none;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 13px;
+  cursor: pointer;
+  opacity: 0.6;
+  letter-spacing: 1px;
+}
+
+.minitel-tab:hover { opacity: 0.8; }
+
+.minitel-tab-active {
+  opacity: 1;
+  background: #1a3a1a;
+  border-color: var(--minitel-green, #33ff33);
+}
+
+/* ── Navigation separator ── */
+.minitel-nav-sep {
+  border-top: 1px solid #333;
+  margin: 8px 0;
+}
+
+/* ── Fin button (red) ── */
+.minitel-fkey-fin {
+  background: #3a1a1a;
+  border-color: #aa3333;
+  color: #ff6b6b;
+}
+
+.minitel-fkey-fin:hover {
+  background: #4a2a2a;
+  border-color: #ff4444;
+}
+
+/* ── Sommaire button ── */
+.minitel-fkey-sommaire {
+  font-size: 16px;
+  padding: 2px 10px;
+}
+
+/* ── Top bar page name ── */
+.minitel-top-page {
+  opacity: 0.7;
+  font-size: 13px;
+}
+
+/* ── Dashboard Minitel ── */
+.minitel-dashboard {
+  padding: 16px;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+}
+
+.minitel-dash-title {
+  font-size: 18px;
+  letter-spacing: 3px;
+  text-align: center;
+  margin-bottom: 12px;
+  color: var(--minitel-pink, #ff69b4);
+}
+
+.minitel-dash-user {
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.7;
+  margin-bottom: 16px;
+}
+
+.minitel-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.minitel-dash-card {
+  padding: 12px;
+  background: #111;
+  border: 1px solid #333;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: center;
+  letter-spacing: 1px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.minitel-dash-card:hover {
+  background: #1a1a1a;
+  border-color: var(--minitel-green, #33ff33);
+}
+
 /* Large desktop (≥1200px) — wider Minitel, content exploits space */
 @media (min-width: 1200px) {
   .minitel-body {

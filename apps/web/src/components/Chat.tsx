@@ -481,11 +481,10 @@ export default function Chat() {
   }, [personaColors]);
 
   if (showConnect) {
-    return <MinitelConnect onComplete={() => setShowConnect(false)} skip={false} />;
+    return null; // Connection handled by App.tsx MinitelConnect
   }
 
   return (
-    <MinitelFrame channel={channel} connected={ws.connected}>
     <div className="chat-container">
       <div className="chat-header">
         <span className="chat-channel">{channel}</span>
@@ -561,6 +560,5 @@ export default function Chat() {
         </button>
       </div>
     </div>
-    </MinitelFrame>
   );
 }

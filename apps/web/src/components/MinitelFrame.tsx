@@ -10,24 +10,43 @@ interface MinitelFrameProps {
   onLogout?: () => void;
 }
 
-// Navigation items mapped to F-key style buttons
-interface NavButton {
+// Bottom bar buttons = project modes
+interface ModeButton {
   label: string;
   page: string;
-  roles?: string[];  // restrict to these roles (empty = all)
+  key: string;       // keyboard shortcut hint
+  roles?: string[];
 }
 
-const NAV_BUTTONS: NavButton[] = [
-  { label: "Sommaire", page: "dashboard" },
-  { label: "Canaux", page: "channels" },
+const MODE_BUTTONS: ModeButton[] = [
+  { label: "Chat", page: "chat", key: "F1" },
+  { label: "Vocal", page: "voice", key: "F2" },
+  { label: "Personas", page: "personas", key: "F3" },
+  { label: "Compose", page: "compose-mode", key: "F4" },
+  { label: "Images", page: "imagine-mode", key: "F5" },
+];
+
+// Sommaire = full navigation (overlay)
+interface NavItem {
+  label: string;
+  page: string;
+  roles?: string[];
+}
+
+const NAV_ITEMS: NavItem[] = [
   { label: "Chat", page: "chat" },
-  { label: "Vocal", page: "voice" },
+  { label: "Chat Vocal", page: "voice" },
+  { label: "Canaux", page: "channels" },
   { label: "Collectif", page: "collectif" },
   { label: "Personas", page: "personas" },
   { label: "Historique", page: "history" },
-  { label: "Moteur", page: "node-engine", roles: ["admin", "operator"] },
+  { label: "Composition musicale", page: "compose-mode" },
+  { label: "Generation images", page: "imagine-mode" },
+  { label: "Tableau de bord", page: "dashboard" },
+  { label: "Node Engine", page: "node-engine", roles: ["admin", "operator"] },
   { label: "Training", page: "training", roles: ["admin", "operator"] },
   { label: "Stats", page: "analytics", roles: ["admin"] },
+  { label: "3615 ULLA", page: "ulla" },
 ];
 
 export default function MinitelFrame({
@@ -41,8 +60,8 @@ export default function MinitelFrame({
 }: MinitelFrameProps) {
   const [navOpen, setNavOpen] = useState(false);
 
-  const visibleButtons = NAV_BUTTONS.filter(
-    (btn) => !btn.roles || (session && btn.roles.includes(session.role))
+  const visibleNav = NAV_ITEMS.filter(
+    (item) => !item.roles || (session && item.roles.includes(session.role))
   );
 
   function handleNav(page: string) {
@@ -55,7 +74,7 @@ export default function MinitelFrame({
       <div className="minitel-body">
         <div className="minitel-screen-bezel">
           <div className="minitel-screen">
-            {/* Scanline + CRT overlays */}
+            {/* CRT overlays */}
             <div className="minitel-scanlines" />
             <div className="minitel-vignette" />
             <div className="minitel-flicker" />
@@ -64,98 +83,86 @@ export default function MinitelFrame({
             <div className="minitel-service-top">
               <span
                 className="minitel-brand-link"
-                onClick={() => handleNav("dashboard")}
+                onClick={() => setNavOpen(!navOpen)}
                 title="Sommaire"
               >
                 3615 KXKM
               </span>
-              <span>{channel || currentPage || "#general"}</span>
-              <span className={connected ? "minitel-status-on" : "minitel-status-off"}>
-                {connected !== false ? "CONNECTE" : "DECONNECTE"}
+              <span className="minitel-top-page">
+                {channel || currentPage || ""}
               </span>
               {session && (
                 <span className="minitel-user">
-                  {session.username} [{session.role}]
+                  {session.username}
                 </span>
               )}
+              <span className={connected ? "minitel-status-on" : "minitel-status-off"}>
+                {connected !== false ? "●" : "○"}
+              </span>
             </div>
 
-            {/* Content area */}
+            {/* Content area — chat text goes here */}
             <div className="minitel-content">
               {children}
             </div>
 
-            {/* Navigation drawer (overlays content when open) */}
+            {/* Navigation overlay (sommaire) */}
             {navOpen && (
               <div className="minitel-nav-drawer" onClick={() => setNavOpen(false)}>
                 <div className="minitel-nav-panel" onClick={(e) => e.stopPropagation()}>
                   <div className="minitel-nav-title">{">>> SOMMAIRE <<<"}</div>
-                  {visibleButtons.map((btn) => (
+                  {visibleNav.map((item) => (
                     <button
-                      key={btn.page}
-                      className={`minitel-nav-btn${currentPage === btn.page ? " minitel-nav-active" : ""}`}
-                      onClick={() => handleNav(btn.page)}
+                      key={item.page}
+                      className={`minitel-nav-btn${currentPage === item.page ? " minitel-nav-active" : ""}`}
+                      onClick={() => handleNav(item.page)}
                     >
-                      {btn.label}
+                      {item.label}
                     </button>
                   ))}
+                  <div className="minitel-nav-sep" />
                   {session && onLogout && (
-                    <button
-                      className="minitel-nav-btn minitel-nav-fin"
-                      onClick={onLogout}
-                    >
-                      Fin
+                    <button className="minitel-nav-btn minitel-nav-fin" onClick={onLogout}>
+                      Fin de session
                     </button>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Service bar bottom — functional navigation */}
+            {/* Bottom bar — project mode buttons */}
             <div className="minitel-service-bottom">
               <button
-                className={`minitel-fkey${currentPage === "dashboard" ? " minitel-fkey-active" : ""}`}
+                className="minitel-fkey minitel-fkey-sommaire"
                 onClick={() => setNavOpen(!navOpen)}
-                title="F1 — Menu sommaire"
+                title="Sommaire — navigation complete"
               >
-                Sommaire
+                ☰
               </button>
-              <button
-                className={`minitel-fkey${currentPage === "chat" ? " minitel-fkey-active" : ""}`}
-                onClick={() => handleNav("chat")}
-                title="F2 — Chat"
-              >
-                Chat
-              </button>
-              <button
-                className="minitel-fkey"
-                onClick={() => window.history.back()}
-                title="F3 — Page precedente"
-              >
-                Retour
-              </button>
-              <button
-                className={`minitel-fkey${currentPage === "personas" ? " minitel-fkey-active" : ""}`}
-                onClick={() => handleNav("personas")}
-                title="F4 — Personas"
-              >
-                Personas
-              </button>
+              {MODE_BUTTONS.map((btn) => (
+                <button
+                  key={btn.page}
+                  className={`minitel-fkey${currentPage === btn.page ? " minitel-fkey-active" : ""}`}
+                  onClick={() => handleNav(btn.page)}
+                  title={`${btn.key} — ${btn.label}`}
+                >
+                  {btn.label}
+                </button>
+              ))}
               {session && onLogout ? (
                 <button
-                  className="minitel-fkey minitel-fkey-envoi"
+                  className="minitel-fkey minitel-fkey-fin"
                   onClick={onLogout}
-                  title="Fin — Deconnexion"
+                  title="Deconnexion"
                 >
                   Fin
                 </button>
               ) : (
                 <button
                   className="minitel-fkey minitel-fkey-envoi"
-                  onClick={() => handleNav("dashboard")}
-                  title="Connexion"
+                  onClick={() => handleNav("chat")}
                 >
-                  Connexion
+                  Envoi
                 </button>
               )}
             </div>
@@ -175,14 +182,12 @@ export default function MinitelFrame({
           </div>
         </div>
 
-        {/* Minitel label */}
         <div className="minitel-label">
           <span className="minitel-brand">MINITEL 1B</span>
           <span className="minitel-telecom">FRANCE TELECOM</span>
           <div className="minitel-power-led" />
         </div>
 
-        {/* Keyboard suggestion (decorative) */}
         <div className="minitel-keyboard-hint">
           <img src="/minitel-keyboard.svg" alt="" className="minitel-kb-img" />
         </div>

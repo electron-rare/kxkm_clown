@@ -33,91 +33,90 @@ function setHash(page: string, id?: string) {
   window.location.hash = hash;
 }
 
+// ---------------------------------------------------------------------------
+// App state phases:
+//   1. "connecting" — modem animation (3615 ULLA → 3615 KXKM)
+//   2. "login"      — pseudo + email + password
+//   3. "ready"      — main app (chat, personas, etc.)
+// ---------------------------------------------------------------------------
+
 export default function App() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [nick, setNick] = useState<string | null>(() => {
-    // Restore nick from sessionStorage if available
     return typeof sessionStorage !== "undefined" ? sessionStorage.getItem("kxkm-nick") : null;
   });
   const [error, setError] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
   const [route, setRoute] = useState(parseHash);
-  const [showConnect, setShowConnect] = useState(true);
 
-  // Listen for hash changes
+  // Phase: skip connection animation if already logged in
+  const [phase, setPhase] = useState<"connecting" | "login" | "ready">(
+    nick ? "ready" : "connecting"
+  );
+
   useEffect(() => {
-    function onHashChange() {
-      setRoute(parseHash());
-    }
+    function onHashChange() { setRoute(parseHash()); }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // Check existing session on mount (for admin features)
   useEffect(() => {
-    api
-      .getSession()
-      .then((s) => setSession(s))
+    api.getSession()
+      .then((s) => { setSession(s); if (s && nick) setPhase("ready"); })
       .catch(() => setSession(null))
       .finally(() => setCheckingSession(false));
-  }, []);
+  }, [nick]);
 
   const navigate = useCallback((page: string, id?: string) => {
     setHash(page, id);
   }, []);
 
-  // Simple nick entry (no auth required for basic chat)
-  function handleNickEntry(username: string) {
+  // Login handler: stores nick + optional credentials
+  function handleLogin(username: string, email?: string, password?: string) {
     setNick(username);
     sessionStorage.setItem("kxkm-nick", username);
+    if (email) sessionStorage.setItem("kxkm-email", email);
+
+    // Try API login for admin features (non-blocking)
+    if (password) {
+      api.login(username, "viewer" as UserRole)
+        .then((s) => setSession(s))
+        .catch(() => {}); // Non-blocking — chat works without session
+    }
+
+    setPhase("ready");
     navigate("chat");
   }
 
-  // Admin login (for admin-only features)
-  async function handleLogin(username: string, role: UserRole) {
-    try {
-      const s = await api.login(username, role);
-      setSession(s);
-      setError("");
-      navigate("dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "login_failed");
-    }
-  }
-
-  async function handleLogout() {
-    try {
-      await api.logout();
-    } catch {
-      // ignore
-    }
+  function handleLogout() {
+    api.logout().catch(() => {});
     setSession(null);
     setNick(null);
     sessionStorage.removeItem("kxkm-nick");
-    setShowConnect(true);
+    sessionStorage.removeItem("kxkm-email");
+    setPhase("connecting");
     setError("");
-    navigate("login");
   }
 
-  // 1. Modem connection animation (first visit)
-  if (showConnect && !nick) {
+  // Phase 1: Modem connection animation (ULLA → KXKM)
+  if (phase === "connecting") {
     return (
       <MinitelFrame connected={false}>
-        <MinitelConnect onComplete={() => setShowConnect(false)} />
+        <MinitelConnect onComplete={() => setPhase("login")} />
       </MinitelFrame>
     );
   }
 
-  // 2. Nick entry (no auth, just a pseudo)
-  if (!nick) {
+  // Phase 2: Login / register
+  if (phase === "login" || !nick) {
     return (
       <MinitelFrame connected={false}>
-        <Login onLogin={handleNickEntry} error={error} />
+        <Login onLogin={handleLogin} error={error} />
       </MinitelFrame>
     );
   }
 
-  // Render current page
+  // Phase 3: Main app
   function renderPage() {
     const { page, id } = route;
 
@@ -127,28 +126,14 @@ export default function App() {
 
       case "persona":
         if (!id) return <PersonaList onSelect={(pid) => navigate("persona", pid)} />;
-        return (
-          <PersonaDetail
-            personaId={id}
-            onBack={() => navigate("personas")}
-          />
-        );
+        return <PersonaDetail personaId={id} onBack={() => navigate("personas")} />;
 
       case "node-engine":
-        return (
-          <NodeEngineOverview
-            onSelectGraph={(gid) => navigate("graph", gid)}
-          />
-        );
+        return <NodeEngineOverview onSelectGraph={(gid) => navigate("graph", gid)} />;
 
       case "editor":
         if (!id) return <NodeEngineOverview onSelectGraph={(gid) => navigate("graph", gid)} />;
-        return (
-          <NodeEditor
-            graphId={id}
-            onBack={() => navigate("graph", id)}
-          />
-        );
+        return <NodeEditor graphId={id} onBack={() => navigate("graph", id)} />;
 
       case "graph":
         if (!id) return <NodeEngineOverview onSelectGraph={(gid) => navigate("graph", gid)} />;
@@ -163,21 +148,13 @@ export default function App() {
 
       case "run":
         if (!id) return <NodeEngineOverview onSelectGraph={(gid) => navigate("graph", gid)} />;
-        return (
-          <RunStatus
-            runId={id}
-            onBack={() => navigate("node-engine")}
-          />
-        );
+        return <RunStatus runId={id} onBack={() => navigate("node-engine")} />;
 
       case "training":
         return <TrainingDashboard />;
 
       case "channels":
         return <ChannelList />;
-
-      case "chat":
-        return <Chat />;
 
       case "voice":
         return <VoiceChat />;
@@ -197,6 +174,16 @@ export default function App() {
       case "dashboard":
         return <Dashboard session={session!} onNavigate={navigate} />;
 
+      // Mode shortcuts for Minitel buttons
+      case "compose-mode":
+        // TODO: dedicated compose UI, for now redirect to chat with hint
+        return <Chat />;
+
+      case "imagine-mode":
+        // TODO: dedicated image gen UI, for now redirect to chat
+        return <Chat />;
+
+      case "chat":
       default:
         return <Chat />;
     }
@@ -206,7 +193,7 @@ export default function App() {
     <MinitelFrame
       connected={true}
       currentPage={route.page}
-      session={session ? session : nick ? { username: nick, role: "viewer" } : null}
+      session={session ? session : { username: nick, role: "viewer" }}
       onNavigate={navigate}
       onLogout={handleLogout}
     >
@@ -218,7 +205,7 @@ export default function App() {
   );
 }
 
-// Dashboard component inline — shows overview cards
+// Dashboard component
 function Dashboard({
   session,
   onNavigate,
@@ -234,59 +221,41 @@ function Dashboard({
 
   useEffect(() => {
     api.listPersonas().then((p) => setPersonaCount(p.length)).catch(() => null);
-    if (session.role === "admin" || session.role === "operator") {
+    if (session?.role === "admin" || session?.role === "operator") {
       api.getOverview().then(setOverview).catch(() => null);
     }
-  }, [session.role]);
+  }, [session?.role]);
 
   return (
-    <div>
-      <h2>Tableau de bord</h2>
-      <p className="lead">
-        Bienvenue, <strong>{session.username}</strong>. Role: <span className="role-tag">{session.role}</span>
-      </p>
-
-      <div className="status-strip">
-        <div className="status-card clickable" onClick={() => onNavigate("personas")}>
-          <span>Personas</span>
-          <strong>{personaCount !== null ? personaCount : "..."}</strong>
-        </div>
-        <div className="status-card clickable" onClick={() => onNavigate("channels")}>
-          <span>Chat</span>
-          <strong>Canaux</strong>
-        </div>
+    <div className="minitel-dashboard">
+      <div className="minitel-dash-title">{">>> TABLEAU DE BORD <<<"}</div>
+      <div className="minitel-dash-user">
+        {session?.username || "anonyme"} [{session?.role || "viewer"}]
+      </div>
+      <div className="minitel-dash-grid">
+        <button className="minitel-dash-card" onClick={() => onNavigate("personas")}>
+          Personas: {personaCount !== null ? personaCount : "..."}
+        </button>
+        <button className="minitel-dash-card" onClick={() => onNavigate("channels")}>
+          Canaux
+        </button>
+        <button className="minitel-dash-card" onClick={() => onNavigate("chat")}>
+          Chat
+        </button>
+        <button className="minitel-dash-card" onClick={() => onNavigate("voice")}>
+          Vocal
+        </button>
         {overview && (
           <>
-            <div className="status-card clickable" onClick={() => onNavigate("node-engine")}>
-              <span>Graphes</span>
-              <strong>{overview.registry.graphs}</strong>
-            </div>
-            <div className="status-card">
-              <span>Workers</span>
-              <strong>{overview.queue.activeWorkers}/{overview.queue.desiredWorkers}</strong>
-            </div>
-            <div className="status-card">
-              <span>Runs en file</span>
-              <strong className={overview.queue.queuedRuns > 0 ? "status-queued" : ""}>
-                {overview.queue.queuedRuns}
-              </strong>
-            </div>
-            <div className="status-card">
-              <span>Runs en cours</span>
-              <strong className={overview.queue.runningRuns > 0 ? "status-running" : ""}>
-                {overview.queue.runningRuns}
-              </strong>
-            </div>
+            <button className="minitel-dash-card" onClick={() => onNavigate("node-engine")}>
+              Graphes: {overview.registry.graphs}
+            </button>
+            <button className="minitel-dash-card" onClick={() => onNavigate("training")}>
+              Workers: {overview.queue.activeWorkers}/{overview.queue.desiredWorkers}
+            </button>
           </>
         )}
       </div>
-
-      {!overview && (session.role === "admin" || session.role === "operator") && (
-        <p className="muted">Chargement des donnees Node Engine...</p>
-      )}
-      {session.role !== "admin" && session.role !== "operator" && (
-        <p className="muted">Node Engine visible uniquement pour admin/operator.</p>
-      )}
     </div>
   );
 }

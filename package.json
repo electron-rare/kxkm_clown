@@ -35,14 +35,18 @@
     "turbo:test": "turbo run test"
   },
   "dependencies": {
+    "@discordjs/opus": "^0.10.0",
+    "@discordjs/voice": "^0.19.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@xyflow/react": "^12.10.1",
+    "discord.js": "^14.25.1",
     "express": "^4.22.1",
     "ollama": "^0.6.3",
     "pdf-parse": "^1.1.4",
     "pg": "^8.20.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "sodium-native": "^5.1.0",
     "ws": "^8.19.0"
   },
   "devDependencies": {

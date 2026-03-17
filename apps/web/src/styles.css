@@ -2659,6 +2659,38 @@ code {
   }
 }
 
+/* ========================================================================
+   ULLA PAGE — Easter egg 3615 ULLA
+   ======================================================================== */
+
+.ulla-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 20px;
+  cursor: pointer;
+  background: radial-gradient(ellipse at 50% 30%, rgba(255, 105, 180, 0.08), transparent 70%);
+}
+
+.ulla-screen {
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 14px;
+  line-height: 1.4;
+  color: #ff69b4;
+  white-space: pre;
+  text-shadow: 0 0 6px rgba(255, 105, 180, 0.4);
+}
+
+.ulla-line {
+  animation: ulla-appear 0.15s ease-out;
+}
+
+@keyframes ulla-appear {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Large desktop (≥1200px) — wider Minitel, content exploits space */
 @media (min-width: 1200px) {
   .minitel-body {

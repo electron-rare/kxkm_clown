@@ -191,6 +191,28 @@ services:
       api:
         condition: service_healthy
 
+  # -------------------------------------------------------------------------
+  # Discord Voice Bot — STT → Personas → TTS in voice channels
+  # Usage: DISCORD_BOT_TOKEN=xxx DISCORD_VOICE_CHANNEL=yyy docker compose --profile discord-voice up -d
+  # -------------------------------------------------------------------------
+  discord-voice:
+    build: .
+    restart: unless-stopped
+    profiles: [discord-voice]
+    network_mode: host
+    command: ["node", "scripts/discord-voice.js"]
+    environment:
+      DISCORD_BOT_TOKEN: "${DISCORD_BOT_TOKEN:-}"
+      DISCORD_VOICE_CHANNEL: "${DISCORD_VOICE_CHANNEL_ID_2:-}"
+      KXKM_WS_URL: "ws://localhost:3333/ws"
+      PYTHON_BIN: "${PYTHON_BIN:-/home/kxkm/venv/bin/python3}"
+      SCRIPTS_DIR: "/app/scripts"
+    volumes:
+      - /home/kxkm/venv:/home/kxkm/venv:ro
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   app-data:
   pg-data:

@@ -16,6 +16,7 @@ import NodeEditor from "./components/NodeEditor";
 import TrainingDashboard from "./components/TrainingDashboard";
 import Analytics from "./components/Analytics";
 import Collectif from "./components/Collectif";
+import UllaPage from "./components/UllaPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 function parseHash(): { page: string; id: string } {
@@ -189,6 +190,9 @@ export default function App() {
 
       case "analytics":
         return <Analytics />;
+
+      case "ulla":
+        return <UllaPage onBack={() => navigate("chat")} />;
 
       case "dashboard":
         return <Dashboard session={session!} onNavigate={navigate} />;

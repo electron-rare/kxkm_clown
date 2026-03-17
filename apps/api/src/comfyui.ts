@@ -2,7 +2,7 @@
 // ComfyUI image generation
 // ---------------------------------------------------------------------------
 
-export const COMFYUI_URL = process.env.COMFYUI_URL || "http://localhost:8188";
+export const COMFYUI_URL = process.env.COMFYUI_URL || "https://stable2.kxkm.net";
 
 export async function generateImage(prompt: string): Promise<{ imageBase64: string; seed: number } | null> {
   const seed = Math.floor(Math.random() * 2 ** 32);

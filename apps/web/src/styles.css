@@ -2811,6 +2811,138 @@ code {
   border-color: var(--minitel-green, #33ff33);
 }
 
+/* ========================================================================
+   COMPOSE PAGE — Music generation
+   ======================================================================== */
+
+.compose-page,
+.imagine-page {
+  padding: 16px;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.compose-header {
+  font-size: 18px;
+  letter-spacing: 3px;
+  text-align: center;
+  color: var(--minitel-pink, #ff69b4);
+  margin-bottom: 4px;
+}
+
+.compose-subtitle {
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.6;
+  margin-bottom: 16px;
+}
+
+.compose-form {
+  max-width: 500px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compose-textarea {
+  resize: vertical;
+  min-height: 60px;
+  font-family: var(--minitel-font, "Courier New", monospace);
+}
+
+.compose-options {
+  display: flex;
+  gap: 12px;
+}
+
+.compose-options .minitel-field {
+  flex: 1;
+}
+
+.compose-generating {
+  text-align: center;
+  margin: 20px 0;
+  font-size: 15px;
+  color: var(--minitel-amber, #ffb000);
+}
+
+.compose-hint {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.compose-results {
+  margin-top: 20px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.compose-results-title {
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.7;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 8px;
+}
+
+.compose-result {
+  margin-bottom: 16px;
+  padding: 10px;
+  border: 1px solid #333;
+  background: #0a0a0a;
+}
+
+.compose-result-prompt {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 8px;
+}
+
+.compose-audio {
+  width: 100%;
+  height: 32px;
+  filter: hue-rotate(100deg) saturate(2);
+}
+
+/* ========================================================================
+   IMAGINE PAGE — Image generation
+   ======================================================================== */
+
+.imagine-results {
+  margin-top: 20px;
+}
+
+.imagine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.imagine-result {
+  border: 1px solid #333;
+  background: #0a0a0a;
+  overflow: hidden;
+}
+
+.imagine-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  image-rendering: auto;
+}
+
+.imagine-prompt {
+  padding: 6px 8px;
+  font-size: 11px;
+  opacity: 0.7;
+  border-top: 1px solid #222;
+}
+
 /* Large desktop (≥1200px) — wider Minitel, content exploits space */
 @media (min-width: 1200px) {
   .minitel-body {

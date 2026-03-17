@@ -17,6 +17,8 @@ import TrainingDashboard from "./components/TrainingDashboard";
 import Analytics from "./components/Analytics";
 import Collectif from "./components/Collectif";
 import UllaPage from "./components/UllaPage";
+import ComposePage from "./components/ComposePage";
+import ImaginePage from "./components/ImaginePage";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 function parseHash(): { page: string; id: string } {
@@ -174,14 +176,11 @@ export default function App() {
       case "dashboard":
         return <Dashboard session={session!} onNavigate={navigate} />;
 
-      // Mode shortcuts for Minitel buttons
       case "compose-mode":
-        // TODO: dedicated compose UI, for now redirect to chat with hint
-        return <Chat />;
+        return <ComposePage />;
 
       case "imagine-mode":
-        // TODO: dedicated image gen UI, for now redirect to chat
-        return <Chat />;
+        return <ImaginePage />;
 
       case "chat":
       default:

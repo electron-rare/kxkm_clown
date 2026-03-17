@@ -2753,6 +2753,15 @@ code {
   border-color: #ff4444;
 }
 
+/* ── F-key shortcut label ── */
+.minitel-fkey-shortcut {
+  font-size: 8px;
+  opacity: 0.5;
+  display: block;
+  line-height: 1;
+  margin-bottom: 1px;
+}
+
 /* ── Sommaire button ── */
 .minitel-fkey-sommaire {
   font-size: 16px;
@@ -2809,6 +2818,27 @@ code {
 .minitel-dash-card:hover {
   background: #1a1a1a;
   border-color: var(--minitel-green, #33ff33);
+}
+
+/* ── Typing indicator ── */
+.chat-typing {
+  padding: 2px 12px;
+  font-size: 12px;
+  color: var(--minitel-amber, #ffb000);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  letter-spacing: 1px;
+  background: rgba(255, 176, 0, 0.05);
+  border-top: 1px solid rgba(255, 176, 0, 0.2);
+}
+
+.chat-typing-dots {
+  animation: typing-dots 1.2s step-end infinite;
+}
+
+@keyframes typing-dots {
+  0% { content: "."; }
+  33% { content: ".."; }
+  66% { content: "..."; }
 }
 
 /* ========================================================================

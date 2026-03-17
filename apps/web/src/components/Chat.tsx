@@ -149,6 +149,8 @@ export default function Chat() {
   const [personaColors, setPersonaColors] = useState<PersonaColor>({});
   const [showConnect, setShowConnect] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState({ personas: true, users: true });
+  const [typingPersona, setTypingPersona] = useState<string | null>(null);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
@@ -246,6 +248,17 @@ export default function Chat() {
       }
 
       default: {
+        // Intercept typing indicators — show in dedicated bar, don't add to messages
+        if (type === "system" && typeof msg.text === "string") {
+          const typingMatch = msg.text.match(/^(.+) est en train d'ecrire/);
+          if (typingMatch) {
+            setTypingPersona(typingMatch[1]);
+            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+            typingTimerRef.current = setTimeout(() => setTypingPersona(null), 8000);
+            return; // Don't add to messages
+          }
+        }
+
         const chatMsg: ChatMsg = {
           id: ++msgIdCounter,
           type,
@@ -259,6 +272,11 @@ export default function Chat() {
           const next = [...prev, chatMsg];
           return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
         });
+
+        // Clear typing indicator when persona actually responds
+        if (type === "message" && chatMsg.nick) {
+          setTypingPersona(null);
+        }
 
         // Minitel receive beep for persona messages
         if (type === "message" && chatMsg.nick && personaColors[chatMsg.nick]) {
@@ -546,6 +564,12 @@ export default function Chat() {
         </div>
       </div>
 
+      {typingPersona && (
+        <div className="chat-typing">
+          {">>> "}{typingPersona}{" ecrit"}
+          <span className="chat-typing-dots">...</span>
+        </div>
+      )}
       <div className="chat-input">
         <input
           type="text"

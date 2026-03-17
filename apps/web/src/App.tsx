@@ -74,6 +74,21 @@ export default function App() {
     setHash(page, id);
   }, []);
 
+  // Global keyboard shortcuts: F1-F5 = Minitel modes
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const map: Record<string, string> = {
+        F1: "chat", F2: "voice", F3: "personas", F4: "compose-mode", F5: "imagine-mode",
+      };
+      const page = map[e.key];
+      if (page) { e.preventDefault(); navigate(page); }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [navigate]);
+
   // Login handler: stores nick + optional credentials
   function handleLogin(username: string, email?: string, password?: string) {
     setNick(username);

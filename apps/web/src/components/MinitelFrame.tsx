@@ -147,6 +147,7 @@ export default function MinitelFrame({
                   onClick={() => handleNav(btn.page)}
                   title={`${btn.key} — ${btn.label}`}
                 >
+                  <span className="minitel-fkey-shortcut">{btn.key}</span>
                   {btn.label}
                 </button>
               ))}

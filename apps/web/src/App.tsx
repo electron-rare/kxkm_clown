@@ -20,9 +20,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
 
 function parseHash(): { page: string; id: string } {
   const hash = window.location.hash.replace(/^#\/?/, "");
-  if (!hash) return { page: "dashboard", id: "" };
+  if (!hash) return { page: "chat", id: "" };
   const parts = hash.split("/");
-  const page = parts[0] || "dashboard";
+  const page = parts[0] || "chat";
   const id = parts.slice(1).join("/");
   return { page, id };
 }
@@ -191,8 +191,10 @@ export default function App() {
         return <Analytics />;
 
       case "dashboard":
-      default:
         return <Dashboard session={session!} onNavigate={navigate} />;
+
+      default:
+        return <Chat />;
     }
   }
 

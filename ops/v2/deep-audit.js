@@ -214,6 +214,14 @@ function checkPerformance() {
             continue;
           }
 
+          // Skip console.log guarded by DEBUG check
+          if (p.name === "console.log in production") {
+            const line = lines[lineNum - 1] || "";
+            if (/if\s*\(\s*DEBUG\s*\)/.test(line) || /&&\s*DEBUG/.test(line) || /DEBUG\s*&&/.test(line)) {
+              continue;
+            }
+          }
+
           findings.push({
             severity: p.severity,
             pattern: p.name,

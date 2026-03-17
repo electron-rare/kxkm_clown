@@ -29,11 +29,13 @@
     "v2:next": "python3 scripts/orchestrate_batches.py run-next --root ops/v2",
     "v2:all": "python3 scripts/orchestrate_batches.py run-all --root ops/v2",
     "v2:autoresearch": "node scripts/v2-autoresearch-loop.js --config ops/v2/autoresearch.example.json",
+    "v2:finetune": "bash scripts/finetune-persona.sh",
     "turbo:build": "turbo run build",
     "turbo:check": "turbo run check",
     "turbo:test": "turbo run test"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@xyflow/react": "^12.10.1",
     "express": "^4.22.1",
     "ollama": "^0.6.3",

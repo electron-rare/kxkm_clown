@@ -19,6 +19,7 @@ import Collectif from "./components/Collectif";
 import UllaPage from "./components/UllaPage";
 import ComposePage from "./components/ComposePage";
 import ImaginePage from "./components/ImaginePage";
+import AdminPage from "./components/AdminPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 function parseHash(): { page: string; id: string } {
@@ -172,6 +173,15 @@ export default function App() {
 
       case "ulla":
         return <UllaPage onBack={() => navigate("chat")} />;
+
+      case "admin":
+        return (
+          <AdminPage
+            session={session}
+            onLogin={(s) => setSession(s)}
+            onNavigate={navigate}
+          />
+        );
 
       case "dashboard":
         return <Dashboard session={session!} onNavigate={navigate} />;

@@ -3000,6 +3000,110 @@ code {
   border-top: 1px solid #222;
 }
 
+/* ========================================================================
+   ADMIN PAGE
+   ======================================================================== */
+
+.admin-page {
+  padding: 16px;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.admin-login-form {
+  max-width: 360px;
+  margin: 20px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-user {
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.7;
+  margin-bottom: 16px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.admin-card {
+  padding: 12px 8px;
+  background: #111;
+  border: 1px solid #333;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.admin-card:hover {
+  border-color: var(--minitel-green, #33ff33);
+  background: #1a1a1a;
+}
+
+.admin-card-title {
+  font-size: 11px;
+  opacity: 0.7;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.admin-card-value {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.admin-runs {
+  border: 1px solid #333;
+  padding: 10px;
+  margin-bottom: 16px;
+  background: #0a0a0a;
+}
+
+.admin-runs-title {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+.admin-runs-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.admin-count-active {
+  color: var(--minitel-amber, #ffb000);
+  font-weight: bold;
+}
+
+.admin-actions {
+  border-top: 1px solid #333;
+  padding-top: 12px;
+}
+
+.admin-actions-title {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+.admin-actions .minitel-nav-btn {
+  margin-bottom: 4px;
+}
+
 /* Large desktop (≥1200px) — wider Minitel, content exploits space */
 @media (min-width: 1200px) {
   .minitel-body {

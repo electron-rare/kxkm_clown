@@ -46,6 +46,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Node Engine", page: "node-engine", roles: ["admin", "operator"] },
   { label: "Training", page: "training", roles: ["admin", "operator"] },
   { label: "Stats", page: "analytics", roles: ["admin"] },
+  { label: "Administration", page: "admin" },
   { label: "3615 ULLA", page: "ulla" },
 ];
 

@@ -99,10 +99,31 @@ flowchart TD
 | --- | --- |
 | RAG local | Embeddings via Ollama (`nomic-embed-text`), cosine similarity, contexte manifeste injecte |
 | STT (Speech-to-Text) | `faster-whisper` (CTranslate2, int8) ou fallback `openai-whisper`, modeles tiny/base/small/medium/large |
-| TTS (Text-to-Speech) | `piper-tts` local, voix francaises par persona (siwis, upmc, gilles), synthese async non-bloquante |
-| Vision | `minicpm-v` via Ollama, analyse d'images uploadees, description en francais |
-| Extraction PDF | `pdf-parse`, extraction texte + nb pages, injection dans le chat |
+| TTS (Text-to-Speech) | `piper-tts` (fallback rapide) + XTTS-v2 (voice cloning zero-shot per persona, GPU) |
+| Vision | `qwen3-vl:8b` via Ollama, analyse d'images uploadees, description en francais |
+| Extraction PDF | Docling (tables, layout, OCR) + fallback PyMuPDF |
 | Texte/CSV/JSON | Lecture directe des fichiers texte, CSV, JSONL uploades |
+| Generation musicale | `/compose` — ACE-Step 1.5 (GPU, <4GB VRAM) + fallback MusicGen |
+| Generation images | `/imagine` — ComfyUI (SDXL Lightning + Flux 2 support) |
+| Recherche web | SearXNG self-hosted + DuckDuckGo fallback |
+
+## Discord
+
+| Fonctionnalite | Detail |
+| --- | --- |
+| Bot texte Pharmacius | Bridge 2 salons Discord ↔ KXKM chat (WebSocket + Discord Gateway, sans deps) |
+| Bot vocal | STT → personas → TTS en salon vocal Discord (@discordjs/voice) |
+| Commandes | `!help`, `!personas`, `!status`, `@PersonaName message` |
+
+## MCP (Model Context Protocol)
+
+| Fonctionnalite | Detail |
+| --- | --- |
+| MCP Server | stdio transport, protocole 2024-11-05, compatible Claude Desktop |
+| kxkm_chat | Envoyer un message aux personas |
+| kxkm_personas | Lister les personas actives |
+| kxkm_web_search | Recherche web via SearXNG |
+| kxkm_status | Statut systeme (health + perf) |
 
 ## Admin Dashboard
 

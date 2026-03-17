@@ -728,21 +728,29 @@ code {
 .chat-input {
   display: flex;
   gap: 0;
-  border-top: 2px solid var(--border);
+  border-top: 1px solid var(--minitel-green, #33ff33);
+  background: var(--minitel-black, #0a0a0a);
 }
 
 .chat-input input {
   flex: 1;
   padding: 10px 14px;
   border: none;
-  background: rgba(255, 255, 255, 0.6);
-  font-family: "Courier New", Courier, monospace;
-  font-size: 13px;
+  background: transparent;
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 14px;
+  color: var(--minitel-green, #33ff33);
   outline: none;
+  caret-color: var(--minitel-green, #33ff33);
+  caret-shape: block;
+}
+
+.chat-input input::placeholder {
+  color: rgba(51, 255, 51, 0.3);
 }
 
 .chat-input input:focus {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(51, 255, 51, 0.03);
 }
 
 .chat-input input:disabled {
@@ -752,7 +760,18 @@ code {
 
 .chat-input .btn {
   border: none;
-  border-left: 2px solid var(--border);
+  border-left: 1px solid var(--minitel-green, #33ff33);
+  background: #1a3a1a;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+.chat-input .btn:hover {
+  background: #2a5a2a;
 }
 
 /* Recording button */

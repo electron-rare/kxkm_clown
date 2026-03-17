@@ -239,8 +239,17 @@
 - [x] **P2** Discord bot Pharmacius — `scripts/discord-pharmacius.js` (bridge WS ↔ Discord Gateway, sans deps) + docker-compose profile discord + .env.example
 - [x] **P2** Tests storage package — en cours (agent)
 
-### A enchainer
+### Fait (cycle 6)
 
-- [ ] **P2** Deploy sur kxkm-ai (git push + docker compose up)
-- [ ] **P2** Configurer Discord bot token en production
-- [ ] **P3** Tests sandbox.ts + training.ts (node-engine, couverture 0%)
+- [x] **P2** Deploy sur kxkm-ai — API healthy, SearXNG running, worker running
+- [x] **P2** Discord Pharmacius#8988 en ligne — token + channel configure, bridge actif
+- [x] **P2** Storage tests — 50 tests, 173 total, 0 fail
+
+### A enchainer (lot 21+)
+
+- [ ] **P1** Fix UX Minitel — affinage CSS post-deploy (tester sur mobile reel)
+- [ ] **P2** Tests sandbox.ts + training.ts (node-engine, couverture 0%)
+- [ ] **P2** WebRTC voice Discord ↔ KXKM (salon vocal 688705584379592712)
+- [ ] **P2** Lot 16 UI Minitel complet — sons bips, curseur bloc, scanlines CRT, /ulla page
+- [ ] **P3** BGE-M3 spike embeddings (bench sur kxkm-ai avec RTX 4090)
+- [ ] **P3** ACE-Step 1.5 music generation node type

@@ -1,11 +1,14 @@
 import http from "node:http";
 import fs from "node:fs";
+import { promises as fsp } from "node:fs";
 import path from "node:path";
 import express from "express";
 import { createApp } from "./app.js";
 import { attachWebSocketChat } from "./ws-chat.js";
 import { LocalRAG } from "./rag.js";
 import { ContextStore } from "./context-store.js";
+
+const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
 const port = Number(process.env.V2_API_PORT || 4180);
 
@@ -58,13 +61,13 @@ async function main() {
         const basename = path.basename(filePath);
         if (indexed.has(basename)) continue;
         if (fs.existsSync(filePath)) {
-          const text = fs.readFileSync(filePath, "utf-8");
+          const text = await fsp.readFile(filePath, "utf-8");
           const count = await rag.addDocument(text, basename);
-          console.log(`[rag] Indexed ${filePath}: ${count} chunks`);
+          if (DEBUG) console.log(`[rag] Indexed ${filePath}: ${count} chunks`);
           indexed.add(basename);
         }
       }
-      console.log(`[rag] Ready: ${rag.size} total chunks`);
+      if (DEBUG) console.log(`[rag] Ready: ${rag.size} total chunks`);
     } catch (err) {
       console.error("[rag] Init failed:", err);
     }
@@ -80,7 +83,7 @@ async function main() {
     compactionModel: "qwen3:8b",
   });
   contextStore.init().then(() => {
-    console.log("[context] Persistent context store ready");
+    if (DEBUG) console.log("[context] Persistent context store ready");
   }).catch((err) => {
     console.error("[context] Init failed:", err);
   });
@@ -103,7 +106,7 @@ async function main() {
   });
 
   server.listen(port, () => {
-    console.log(JSON.stringify({
+    if (DEBUG) console.log(JSON.stringify({
       ok: true,
       app: "@kxkm/api",
       port,

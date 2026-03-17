@@ -52,10 +52,12 @@ export async function updatePersonaMemory(
     });
 
     const data = (await response.json()) as { message?: { content?: string } };
-    const extracted = JSON.parse(data.message?.content || "{}") as {
-      facts?: string[];
-      summary?: string;
-    };
+    let extracted: { facts?: string[]; summary?: string } = {};
+    try {
+      extracted = JSON.parse(data.message?.content || "{}");
+    } catch (parseErr) {
+      console.error("[persona-router] Failed to parse LLM JSON:", parseErr);
+    }
 
     if (extracted.facts && Array.isArray(extracted.facts)) {
       const allFacts = [...new Set([...memory.facts, ...extracted.facts])].slice(-20);

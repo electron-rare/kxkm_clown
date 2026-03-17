@@ -256,8 +256,11 @@
 
 ### A enchainer (lot 19+)
 
-- [ ] **P1** ACE-Step 1.5 music generation — node type + `/compose` command
-- [ ] **P2** Tester voice cloning avec samples personas (enregistrer 6s par persona)
-- [ ] **P2** Configurer MCP dans Claude Desktop (mascarade \u2194 kxkm)
+- [x] **P1** ACE-Step 1.5 installe + compose_music.py + `/compose` cable
+- [x] **P1** Refonte UX: modem -> ULLA -> login/inscription -> chat direct
+- [x] **P2** MCP configure dans Claude Desktop
+- [x] **P2** 20 anti-patterns perf corriges (agent)
+- [ ] **P2** Tester voice cloning avec samples personas (6s par persona)
 - [ ] **P3** Flux 2 dans ComfyUI (upgrade SDXL)
 - [ ] **P3** A2A Protocol evaluation
+- [ ] **P3** Express 5 migration

@@ -8,6 +8,8 @@ import { WebSocketServer, WebSocket } from "ws";
 import { generateImage } from "./comfyui.js";
 import { searchWeb } from "./web-search.js";
 import { getToolsForPersona, type ToolDefinition } from "./mcp-tools.js";
+
+const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 import { DEFAULT_PERSONAS, personaColor } from "./personas-default.js";
 import type {
   ChatPersona,
@@ -144,7 +146,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         }
       }
 
-      console.log(`[ws-chat] Refreshed personas: ${personas.map((p) => p.nick).join(", ")}`);
+      if (DEBUG) console.log(`[ws-chat] Refreshed personas: ${personas.map((p) => p.nick).join(", ")}`);
     } catch (err) {
       console.error("[ws-chat] Failed to refresh personas, keeping current list:", err instanceof Error ? err.message : String(err));
     } finally {
@@ -374,12 +376,14 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
             scriptPath, "--prompt", musicPrompt, "--duration", "30", "--output", outputPath,
           ], { timeout: 300_000, maxBuffer: 50 * 1024 * 1024 });
 
-          if (stderr) console.log(`[compose] ${stderr.slice(-200)}`);
+          if (stderr && DEBUG) console.log(`[compose] ${stderr.slice(-200)}`);
 
-          const result = JSON.parse(stdout.trim().split("\n").pop() || "{}") as {
-            status?: string;
-            error?: string;
-          };
+          let result: { status?: string; error?: string } = {};
+          try {
+            result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
+          } catch (parseErr) {
+            console.error("[compose] Failed to parse JSON output:", parseErr);
+          }
 
           if (result.status === "completed") {
             const audioBuffer = await fsp.readFile(outputPath);
@@ -798,6 +802,6 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     });
   });
 
-  console.log(`[ws-chat] WebSocket chat attached on /ws (Ollama: ${ollamaUrl})`);
+  if (DEBUG) console.log(`[ws-chat] WebSocket chat attached on /ws (Ollama: ${ollamaUrl})`);
   return wss;
 }

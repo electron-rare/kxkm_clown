@@ -62,7 +62,10 @@ const TRAINING_TIMEOUT_MS = Number(process.env.TRAINING_TIMEOUT_MS) || 60 * 60 *
 // Logging helpers
 // ---------------------------------------------------------------------------
 
+const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
+
 function log(msg: string): void {
+  if (!DEBUG) return;
   const ts = new Date().toISOString();
   console.log(`[${ts}] ${msg}`);
 }
@@ -149,7 +152,12 @@ async function executeNodeStub(
         if (stderr) log(`    [eval] stderr: ${stderr.slice(-500)}`);
 
         const jsonLine = stdout.trim().split("\n").pop() || "{}";
-        const evalResult = JSON.parse(jsonLine);
+        let evalResult: Record<string, unknown> = {};
+        try {
+          evalResult = JSON.parse(jsonLine);
+        } catch (parseErr) {
+          logError(`    [eval] Failed to parse JSON output`, parseErr);
+        }
         log(`    [eval] result: status=${evalResult.status} score=${evalResult.score}`);
 
         return {
@@ -223,8 +231,13 @@ async function executeNodeStub(
         if (stderr) log(`    [training] stderr: ${stderr.slice(-500)}`);
 
         const jsonLine = stdout.trim().split("\n").pop() || "{}";
-        const trainResult = JSON.parse(jsonLine);
-        log(`    [training] result: status=${trainResult.status} loss=${trainResult.metrics?.trainLoss}`);
+        let trainResult: Record<string, unknown> = {};
+        try {
+          trainResult = JSON.parse(jsonLine);
+        } catch (parseErr) {
+          logError(`    [training] Failed to parse JSON output`, parseErr);
+        }
+        log(`    [training] result: status=${trainResult.status} loss=${(trainResult.metrics as Record<string, unknown> | undefined)?.trainLoss}`);
 
         return {
           model: {

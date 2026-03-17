@@ -9,6 +9,8 @@
  *          data/context/{channel}.summary.json  (compacted summaries)
  */
 
+const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
+
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -242,7 +244,7 @@ export class ContextStore {
   }
 
   private async compact(channel: string, lines: string[]): Promise<void> {
-    console.log(`[context] Compacting ${channel}: ${lines.length} entries`);
+    if (DEBUG) console.log(`[context] Compacting ${channel}: ${lines.length} entries`);
 
     // Split: older 80% goes to summary, keep recent 20%
     const splitIdx = Math.floor(lines.length * 0.8);
@@ -313,7 +315,7 @@ export class ContextStore {
     const newContent = toKeep.join("\n") + "\n";
     await fs.writeFile(this.channelFile(channel), newContent, "utf-8");
 
-    console.log(`[context] Compacted ${channel}: ${toSummarize.length} entries → summary, kept ${toKeep.length} recent`);
+    if (DEBUG) console.log(`[context] Compacted ${channel}: ${toSummarize.length} entries → summary, kept ${toKeep.length} recent`);
   }
 
   private async maybeEnforceLimits(preferredChannel: string): Promise<void> {

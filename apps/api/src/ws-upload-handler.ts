@@ -8,6 +8,8 @@ import type { InboundUpload, ClientInfo, OutboundMessage } from "./chat-types.js
 
 const execFileAsync = promisify(execFile);
 
+const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
+
 export async function handleUpload(
   ws: WebSocket,
   info: ClientInfo,
@@ -90,7 +92,7 @@ export async function handleUpload(
         const { stdout, stderr } = await execFileAsync(pythonBin, [
           scriptPath, "--input", tmpFile, "--language", "fr",
         ], { timeout: 120_000 });
-        if (stderr) console.log(`[ws-chat][audio] ${stderr.trim().slice(-200)}`);
+        if (stderr && DEBUG) console.log(`[ws-chat][audio] ${stderr.trim().slice(-200)}`);
         const lastLine = stdout.trim().split("\n").pop() || "{}";
         const result = JSON.parse(lastLine);
         if (result.transcript) {
@@ -115,7 +117,7 @@ export async function handleUpload(
         const pythonBin = process.env.PYTHON_BIN || "python3";
         const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_pdf_docling.py");
         const { stdout, stderr } = await execFileAsync(pythonBin, [scriptPath, "--input", tmpFile], { timeout: 60_000 });
-        if (stderr) console.log(`[upload] pdf: ${stderr.slice(-200)}`);
+        if (stderr && DEBUG) console.log(`[upload] pdf: ${stderr.slice(-200)}`);
         const result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
         if (result.text) {
           analysis = `[PDF: ${filename}, ${result.pages || "?"} page(s)]\n${result.text}`;
@@ -142,7 +144,7 @@ export async function handleUpload(
         const { stdout, stderr } = await execFileAsync(pythonBin, [
           scriptPath, "--input", tmpFile,
         ], { timeout: 60_000 });
-        if (stderr) console.log(`[upload] doc extract: ${stderr.slice(-200)}`);
+        if (stderr && DEBUG) console.log(`[upload] doc extract: ${stderr.slice(-200)}`);
         const jsonLine = stdout.trim().split("\n").pop() || "{}";
         const result = JSON.parse(jsonLine);
         if (result.text) {

@@ -3,6 +3,8 @@ import { searchWeb } from "./web-search.js";
 import type { ToolDefinition } from "./mcp-tools.js";
 import type { ChatPersona } from "./chat-types.js";
 
+const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
+
 // ---------------------------------------------------------------------------
 // Simple semaphore for Ollama concurrency
 // ---------------------------------------------------------------------------
@@ -213,7 +215,7 @@ export async function streamOllamaChatWithTools(
     for (const tc of toolCalls) {
       const name = tc.function.name;
       const args = tc.function.arguments;
-      console.log(`[mcp-tools] ${persona.nick} calling ${name}(${JSON.stringify(args)})`);
+      if (DEBUG) console.log(`[mcp-tools] ${persona.nick} calling ${name}(${JSON.stringify(args)})`);
 
       let result: string;
       try {

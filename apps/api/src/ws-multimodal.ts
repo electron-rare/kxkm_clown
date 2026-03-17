@@ -86,10 +86,12 @@ export async function synthesizeTTS(
 
     const { stdout } = await execFileAsync(pythonBin, args, { timeout: 60_000 });
 
-    const result = JSON.parse(stdout.trim().split("\n").pop() || "{}") as {
-      status?: string;
-      error?: string;
-    };
+    let result: { status?: string; error?: string } = {};
+    try {
+      result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
+    } catch (parseErr) {
+      console.error("[multimodal] Failed to parse JSON output:", parseErr);
+    }
 
     if (result.status === "completed") {
       try {

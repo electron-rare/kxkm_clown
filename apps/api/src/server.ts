@@ -5,6 +5,7 @@ import path from "node:path";
 import express from "express";
 import { createApp } from "./app.js";
 import { attachWebSocketChat } from "./ws-chat.js";
+import { DEFAULT_PERSONAS } from "./personas-default.js";
 import { LocalRAG } from "./rag.js";
 import { ContextStore } from "./context-store.js";
 
@@ -94,14 +95,18 @@ async function main() {
     contextStore,
     loadPersonas: async () => {
       const list = await personaRepo.list();
-      return list.map((p) => ({
-        id: p.id,
-        nick: p.name,
-        model: p.model,
-        systemPrompt: p.summary,
-        color: "",
-        enabled: !(p as unknown as { disabled?: boolean }).disabled,
-      }));
+      return list.map((p) => {
+        const defaultDef = DEFAULT_PERSONAS.find((d) => d.id === p.id);
+        return {
+          id: p.id,
+          nick: p.name,
+          model: defaultDef?.model || p.model,
+          systemPrompt: defaultDef?.systemPrompt || p.summary,
+          color: defaultDef?.color || "",
+          enabled: !(p as unknown as { disabled?: boolean }).disabled,
+          maxTokens: defaultDef?.maxTokens,
+        };
+      });
     },
   });
 

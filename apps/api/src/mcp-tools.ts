@@ -64,7 +64,7 @@ export const TOOLS: Record<string, ToolDefinition> = {
 
 // Per-persona tool permissions
 const PERSONA_TOOLS: Record<string, string[]> = {
-  pharmacius: ["web_search", "rag_search", "image_generate"],
+  // Pharmacius is a router — no tools, delegates to specialists via @mentions
   sherlock: ["web_search", "rag_search"],
   picasso: ["image_generate", "rag_search"],
   // Default for other personas: rag_search only

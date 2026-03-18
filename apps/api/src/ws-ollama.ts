@@ -56,7 +56,7 @@ export async function streamOllamaChat(
           { role: "user", content: userMessage },
         ],
         stream: true,
-        options: { num_predict: 300 },
+        options: { num_predict: persona.maxTokens || 500 },
       }),
       signal: controller.signal,
     });
@@ -72,21 +72,25 @@ export async function streamOllamaChat(
 
     const decoder = new TextDecoder();
     let fullText = "";
+    let inThinking = false;
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      // Ollama streams newline-delimited JSON
       const lines = chunk.split("\n").filter(Boolean);
 
       for (const line of lines) {
         try {
           const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
           if (parsed.message?.content) {
-            fullText += parsed.message.content;
-            onChunk(parsed.message.content);
+            const c = parsed.message.content;
+            fullText += c;
+            // Suppress <think>...</think> from streaming to client
+            if (c.includes("<think>")) inThinking = true;
+            if (!inThinking) onChunk(c);
+            if (c.includes("</think>")) inThinking = false;
           }
         } catch {
           // Partial JSON — skip
@@ -94,13 +98,20 @@ export async function streamOllamaChat(
       }
     }
 
-    onDone(fullText);
+    // Strip <think>...</think> blocks (qwen3 reasoning tokens)
+    const cleaned = fullText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+    onDone(cleaned);
   } catch (err) {
     onError(err instanceof Error ? err : new Error(String(err)));
   } finally {
     clearTimeout(timeout);
     releaseOllama();
   }
+}
+
+/** Strip qwen3 thinking blocks from text */
+function stripThinking(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -177,6 +188,7 @@ export async function streamOllamaChatWithTools(
         messages,
         tools: tools.map(t => t),
         stream: false,
+        options: { num_predict: persona.maxTokens || 500 },
       }),
       signal: controller.signal,
     });
@@ -197,7 +209,7 @@ export async function streamOllamaChatWithTools(
 
     // If no tool calls, use the response directly
     if (!toolCalls || toolCalls.length === 0) {
-      const content = probeData.message?.content || "";
+      const content = stripThinking(probeData.message?.content || "");
       if (content) {
         onChunk(content);
       }
@@ -244,7 +256,7 @@ export async function streamOllamaChatWithTools(
         model: persona.model,
         messages,
         stream: true,
-        options: { num_predict: 300 },
+        options: { num_predict: persona.maxTokens || 500 },
       }),
       signal: controller.signal,
     });
@@ -281,7 +293,7 @@ export async function streamOllamaChatWithTools(
       }
     }
 
-    onDone(fullText);
+    onDone(stripThinking(fullText));
   } catch (err) {
     onError(err instanceof Error ? err : new Error(String(err)));
   } finally {

@@ -119,6 +119,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         model: p.model,
         systemPrompt: p.systemPrompt,
         color: p.color || personaColor(p.id, i),
+        maxTokens: p.maxTokens,
       }));
 
       if (DEBUG) console.log(`[ws-chat] Refreshed personas: ${personas.map((p) => p.nick).join(", ")}`);

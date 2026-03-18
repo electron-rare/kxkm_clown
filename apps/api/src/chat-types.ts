@@ -7,6 +7,7 @@ export interface ChatPersona {
   model: string;
   systemPrompt: string;
   color: string;
+  maxTokens?: number;
 }
 
 export interface ClientInfo {
@@ -25,6 +26,7 @@ export interface PersonaLoaderResult {
   systemPrompt: string;
   color: string;
   enabled: boolean;
+  maxTokens?: number;
 }
 
 export interface ChatOptions {

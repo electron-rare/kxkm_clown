@@ -14,7 +14,6 @@ interface AdminPageProps {
  */
 export default function AdminPage({ session, onLogin, onNavigate }: AdminPageProps) {
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [stats, setStats] = useState<{
@@ -84,16 +83,6 @@ export default function AdminPage({ session, onLogin, onNavigate }: AdminPagePro
               className="minitel-input"
               placeholder="admin"
               autoFocus
-            />
-          </div>
-          <div className="minitel-field">
-            <label>Token admin _</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="minitel-input"
-              placeholder="ADMIN_TOKEN"
             />
           </div>
           <button type="submit" className="minitel-login-btn" disabled={loading || !username.trim()}>

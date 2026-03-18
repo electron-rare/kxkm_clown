@@ -160,8 +160,17 @@ export default function Chat() {
   const historyIndexRef = useRef(-1);
   const savedInputRef = useRef("");
   const keyPressCountRef = useRef(0);
+  const ullaTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const sounds = useMinitelSounds();
+
+  // Clean up /ulla timeouts on unmount
+  useEffect(() => {
+    return () => {
+      ullaTimersRef.current.forEach((id) => clearTimeout(id));
+      ullaTimersRef.current = [];
+    };
+  }, []);
 
   const handleMessage = useCallback((data: unknown) => {
     const msg = data as Record<string, unknown>;
@@ -387,8 +396,10 @@ export default function Chat() {
         "\u2551  gratuit ici, c'est du LOCAL \uD83C\uDFF4\u200D\u2620\uFE0F  \u2551",
         "\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D",
       ];
+      ullaTimersRef.current.forEach((id) => clearTimeout(id));
+      ullaTimersRef.current = [];
       ullaMessages.forEach((line, i) => {
-        setTimeout(() => {
+        const timerId = setTimeout(() => {
           setMessages(prev => [...prev, {
             id: ++msgIdCounter,
             type: "system",
@@ -396,6 +407,7 @@ export default function Chat() {
             timestamp: Date.now(),
           }]);
         }, i * 200);
+        ullaTimersRef.current.push(timerId);
       });
       setInput("");
       return;

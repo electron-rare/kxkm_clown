@@ -103,6 +103,7 @@ export class ContextStore {
   private options: ContextStoreOptions;
   private compactionInProgress = new Set<string>();
   private limitEnforcementInProgress: Promise<void> | null = null;
+  private channelWriteLocks = new Map<string, Promise<void>>();
   private initialized = false;
 
   constructor(opts: Partial<ContextStoreOptions> = {}) {
@@ -146,24 +147,37 @@ export class ContextStore {
 
   async append(channel: string, nick: string, text: string, type: ContextEntry["type"] = "message"): Promise<void> {
     await this.init();
-    const entry: ContextEntry = {
-      ts: new Date().toISOString(),
-      nick,
-      text: text.slice(0, 2000), // cap per entry
-      type,
-    };
-    const line = JSON.stringify(entry) + "\n";
-    await fs.appendFile(this.channelFile(channel), line, "utf-8");
 
-    // Check if compaction needed (async, non-blocking)
-    this.maybeCompact(channel).catch((err) => {
-      console.error(`[context] Compaction error for ${channel}:`, err);
-    });
+    // Acquire per-channel write lock to prevent concurrent writes during compaction.
+    const prev = this.channelWriteLocks.get(channel) ?? Promise.resolve();
+    let release!: () => void;
+    const lock = new Promise<void>((resolve) => { release = resolve; });
+    this.channelWriteLocks.set(channel, prev.then(() => lock));
 
-    // Enforce per-channel and global storage limits in background.
-    this.maybeEnforceLimits(channel).catch((err) => {
-      console.error(`[context] Limit enforcement error for ${channel}:`, err);
-    });
+    try {
+      await prev;
+
+      const entry: ContextEntry = {
+        ts: new Date().toISOString(),
+        nick,
+        text: text.slice(0, 2000), // cap per entry
+        type,
+      };
+      const line = JSON.stringify(entry) + "\n";
+      await fs.appendFile(this.channelFile(channel), line, "utf-8");
+
+      // Check if compaction needed (runs under same lock)
+      await this.maybeCompact(channel).catch((err) => {
+        console.error(`[context] Compaction error for ${channel}:`, err);
+      });
+
+      // Enforce per-channel and global storage limits.
+      await this.maybeEnforceLimits(channel).catch((err) => {
+        console.error(`[context] Limit enforcement error for ${channel}:`, err);
+      });
+    } finally {
+      release();
+    }
   }
 
   // --- Read ---

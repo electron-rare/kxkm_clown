@@ -200,8 +200,8 @@ async function handleComposeCommand({
     text: `${info.nick} compose: "${musicPrompt}"...`,
   });
 
+  const outputPath = `/tmp/kxkm-music-${Date.now()}.wav`;
   try {
-    const outputPath = `/tmp/kxkm-music-${Date.now()}.wav`;
     const pythonBin = process.env.PYTHON_BIN || "python3";
     const scriptPath = path.resolve(
       process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts"),
@@ -250,7 +250,6 @@ async function handleComposeCommand({
         type: "system",
         text: `[Musique generee: "${musicPrompt}"]`,
       });
-      await fsp.unlink(outputPath).catch(() => undefined);
       return;
     }
 
@@ -260,6 +259,8 @@ async function handleComposeCommand({
       type: "system",
       text: `Erreur composition: ${err instanceof Error ? err.message : String(err)}`,
     });
+  } finally {
+    await fsp.unlink(outputPath).catch(() => undefined);
   }
 }
 

@@ -21,6 +21,16 @@ export default function ImaginePage() {
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsUrl = resolveWebSocketUrl();
 
+  // Close WebSocket on unmount
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, []);
+
   // Simulated progress (~3s for SDXL Lightning)
   useEffect(() => {
     if (generating) {

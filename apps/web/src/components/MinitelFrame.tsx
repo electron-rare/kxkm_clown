@@ -25,6 +25,8 @@ const MODE_BUTTONS: ModeButton[] = [
   { label: "Personas", page: "personas", key: "F3" },
   { label: "Compose", page: "compose-mode", key: "F4" },
   { label: "Images", page: "imagine-mode", key: "F5" },
+  { label: "Media", page: "media", key: "F6" },
+  { label: "Admin", page: "admin", key: "F7", roles: ["admin", "operator", "viewer"] },
 ];
 
 // Sommaire = full navigation (overlay)
@@ -143,7 +145,9 @@ export default function MinitelFrame({
               >
                 ☰
               </button>
-              {MODE_BUTTONS.map((btn) => (
+              {MODE_BUTTONS
+                .filter((btn) => !btn.roles || (session && btn.roles.includes(session.role)))
+                .map((btn) => (
                 <button
                   key={btn.page}
                   className={`minitel-fkey${currentPage === btn.page ? " minitel-fkey-active" : ""}`}

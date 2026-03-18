@@ -1033,11 +1033,11 @@ code {
       var(--minitel-body-color) 85%,
       var(--minitel-body-dark) 100%
     );
-  padding: 12px 14px 8px;
+  padding: 10px 12px 4px;
   position: relative;
   display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: 1fr auto auto;
+  grid-template-columns: 1fr 80px;
+  grid-template-rows: 1fr 32px 40px;
   gap: 0;
   overflow: hidden;
 }
@@ -1501,10 +1501,11 @@ code {
   grid-row: 2 / 3;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 4px 8px;
+  gap: 10px;
+  padding: 4px 4px 2px;
   border-top: 1px solid #b0a688;
-  margin-top: 12px;
+  margin-top: 4px;
+  overflow: hidden;
 }
 
 .minitel-brand {
@@ -1544,8 +1545,8 @@ code {
   grid-row: 3 / 4;
   overflow: hidden;
   border-radius: 0 0 8px 8px;
-  opacity: 0.7;
-  max-height: 120px;
+  opacity: 0.5;
+  max-height: 36px;
   transition: opacity 0.3s;
 }
 

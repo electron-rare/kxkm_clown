@@ -23,8 +23,8 @@ export default function MediaExplorer() {
       api.listImages().catch(() => []),
       api.listAudio().catch(() => []),
     ]);
-    setImages(imgs);
-    setAudio(auds);
+    setImages(Array.isArray(imgs) ? imgs : []);
+    setAudio(Array.isArray(auds) ? auds : []);
     setLoading(false);
   }
 

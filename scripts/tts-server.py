@@ -3,12 +3,17 @@
 KXKM TTS HTTP Server — Sidecar for Docker container.
 Runs on host, provides HTTP API for text-to-speech synthesis.
 
+Backends:
+  - Chatterbox (GPU, zero-shot voice cloning, high quality)
+  - Piper (CPU, fast, predefined voices, fallback)
+
 Usage:
-  python3 scripts/tts-server.py [--port 9100]
+  python3 scripts/tts-server.py [--port 9100] [--backend chatterbox|piper]
 
 Endpoints:
   POST /synthesize  { text, voice, persona }  → audio/wav
-  GET  /health      → { ok: true }
+  POST /compose     { prompt, duration }       → audio/wav
+  GET  /health      → { ok: true, backend: "..." }
 """
 import argparse
 import io
@@ -19,8 +24,10 @@ import wave
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
-# Lazy-load piper to fail fast on import errors
+# Lazy-loaded backends
 PiperVoice = None
+ChatterboxModel = None
+TTS_BACKEND = os.environ.get("TTS_BACKEND", "piper")  # "chatterbox" or "piper"
 
 VOICE_DIR = Path(os.environ.get("PIPER_VOICE_DIR", "data/piper-voices"))
 SAMPLES_DIR = Path(os.environ.get("KXKM_VOICE_SAMPLES_DIR", "data/voice-samples"))
@@ -43,11 +50,50 @@ def load_piper():
     return PiperVoice
 
 
+def load_chatterbox():
+    global ChatterboxModel
+    if ChatterboxModel is None:
+        try:
+            from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+            ChatterboxModel = ChatterboxMultilingualTTS.from_pretrained(device="cuda")
+            print("[tts-server] Chatterbox Multilingual loaded (GPU)", file=sys.stderr)
+        except Exception as e:
+            print(f"[tts-server] Chatterbox load failed: {e}, falling back to piper", file=sys.stderr)
+            return None
+    return ChatterboxModel
+
+
+def synthesize_chatterbox(text: str, persona: str) -> bytes:
+    model = load_chatterbox()
+    if model is None:
+        raise RuntimeError("Chatterbox not available")
+
+    import torchaudio
+    # Use voice sample as reference if available
+    ref_path = SAMPLES_DIR / f"{persona.lower()}.wav"
+    if not ref_path.exists():
+        ref_path = SAMPLES_DIR / "pharmacius.wav"  # fallback
+
+    wav = model.generate(text, audio_prompt_path=str(ref_path), language_id="fr")
+    buf = io.BytesIO()
+    torchaudio.save(buf, wav, model.sr, format="wav")
+    return buf.getvalue()
+
+
 def resolve_voice(persona: str) -> str:
     return VOICE_MAP.get(persona.lower(), VOICE_MAP["default"])
 
 
-def synthesize(text: str, voice_name: str) -> bytes:
+def synthesize(text: str, voice_name: str, persona: str = "default") -> bytes:
+    if TTS_BACKEND == "chatterbox":
+        try:
+            return synthesize_chatterbox(text, persona)
+        except Exception as e:
+            print(f"[tts] Chatterbox failed, falling back to piper: {e}", file=sys.stderr)
+    return synthesize_piper(text, voice_name)
+
+
+def synthesize_piper(text: str, voice_name: str) -> bytes:
     PV = load_piper()
     from piper.download_voices import download_voice
 
@@ -79,7 +125,7 @@ class TTSHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"ok": True}).encode())
+            self.wfile.write(json.dumps({"ok": True, "backend": TTS_BACKEND}).encode())
         else:
             self.send_error(404)
 
@@ -104,7 +150,7 @@ class TTSHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            audio = synthesize(text, voice_name)
+            audio = synthesize(text, voice_name, persona)
             self.send_response(200)
             self.send_header("Content-Type", "audio/wav")
             self.send_header("Content-Length", str(len(audio)))
@@ -178,17 +224,29 @@ class TTSHandler(BaseHTTPRequestHandler):
 
 
 def main():
+    global TTS_BACKEND
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=9100)
+    parser.add_argument("--backend", choices=["piper", "chatterbox"], default=TTS_BACKEND)
     args = parser.parse_args()
+    TTS_BACKEND = args.backend
 
-    # Pre-load piper
-    try:
-        load_piper()
-        print(f"[tts-server] Piper loaded, voices: {VOICE_DIR}", file=sys.stderr)
-    except Exception as e:
-        print(f"[tts-server] WARNING: Piper not available: {e}", file=sys.stderr)
+    # Pre-load TTS backend
+    if TTS_BACKEND == "chatterbox":
+        try:
+            load_chatterbox()
+        except Exception as e:
+            print(f"[tts-server] WARNING: Chatterbox failed: {e}, falling back to piper", file=sys.stderr)
+            TTS_BACKEND = "piper"
 
+    if TTS_BACKEND == "piper":
+        try:
+            load_piper()
+            print(f"[tts-server] Piper loaded, voices: {VOICE_DIR}", file=sys.stderr)
+        except Exception as e:
+            print(f"[tts-server] WARNING: Piper not available: {e}", file=sys.stderr)
+
+    print(f"[tts-server] Backend: {TTS_BACKEND}", file=sys.stderr)
     server = HTTPServer(("127.0.0.1", args.port), TTSHandler)
     print(f"[tts-server] Listening on http://127.0.0.1:{args.port}", file=sys.stderr)
     server.serve_forever()

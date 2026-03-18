@@ -2093,6 +2093,28 @@ code {
   text-transform: uppercase;
 }
 
+/* Audio level meter */
+.voice-level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-family: var(--minitel-font);
+  font-size: 14px;
+}
+
+.voice-level-bar {
+  color: var(--minitel-green);
+  letter-spacing: -1px;
+  text-shadow: var(--minitel-glow);
+}
+
+.voice-level-time {
+  color: var(--minitel-amber);
+  font-size: 12px;
+  min-width: 30px;
+}
+
 .voice-volume {
   display: flex;
   align-items: center;

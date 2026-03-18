@@ -18,6 +18,8 @@ import json
 import os
 import sys
 import time
+import wave
+from pathlib import Path
 
 # Available French voices for Piper (downloaded on first use)
 VOICE_MAP = {
@@ -45,18 +47,38 @@ def main():
     result = {"status": "failed", "error": None}
 
     try:
-        import piper
+        from piper import PiperVoice
+        from piper.download_voices import download_voice
 
         # Resolve voice from persona nick or direct voice name
         voice = VOICE_MAP.get(args.voice.lower(), args.voice)
+        voice_dir = Path(
+            os.environ.get(
+                "PIPER_VOICE_DIR",
+                os.path.join(os.getcwd(), "data", "piper-voices"),
+            )
+        )
+        voice_dir.mkdir(parents=True, exist_ok=True)
+        model_path = voice_dir / f"{voice}.onnx"
+        config_path = voice_dir / f"{voice}.onnx.json"
+
+        if not model_path.exists() or not config_path.exists():
+            download_voice(voice, Path(voice_dir))
 
         os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
 
-        # Synthesize
-        voice_obj = piper.PiperVoice.load(voice)
+        # Synthesize and persist a proper WAV container
+        voice_obj = PiperVoice.load(model_path, config_path=config_path, download_dir=voice_dir)
+        chunks = list(voice_obj.synthesize(args.text))
+        if not chunks:
+            raise RuntimeError("Piper returned no audio chunks")
 
-        with open(args.output, "wb") as f:
-            voice_obj.synthesize(args.text, f)
+        with wave.open(args.output, "wb") as wav_file:
+            wav_file.setframerate(chunks[0].sample_rate)
+            wav_file.setsampwidth(chunks[0].sample_width)
+            wav_file.setnchannels(chunks[0].sample_channels)
+            for chunk in chunks:
+                wav_file.writeframes(chunk.audio_int16_bytes)
 
         duration = time.time() - start
         file_size = os.path.getsize(args.output)
@@ -64,6 +86,7 @@ def main():
         result = {
             "status": "completed",
             "voice": voice,
+            "voiceDir": str(voice_dir),
             "outputFile": args.output,
             "duration": round(duration, 2),
             "fileSize": file_size,

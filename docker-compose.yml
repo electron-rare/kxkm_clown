@@ -71,6 +71,10 @@ services:
       WEB_DIST_PATH: "/app/apps/web/dist"
       ADMIN_BOOTSTRAP_TOKEN: "${ADMIN_BOOTSTRAP_TOKEN:-}"
       ADMIN_ALLOWED_SUBNETS: "${ADMIN_ALLOWED_SUBNETS:-}"
+      TTS_ENABLED: "1"
+      PYTHON_BIN: "/home/kxkm/venv/bin/python3"
+      COQUI_TOS_AGREED: "1"
+      VISION_MODEL: "qwen3-vl:8b"
     depends_on:
       postgres:
         condition: service_healthy
@@ -163,7 +167,7 @@ services:
     ports:
       - "${SEARXNG_PORT:-8080}:8080"
     volumes:
-      - searxng-data:/etc/searxng
+      - ./ops/v2/searxng:/etc/searxng:ro
     environment:
       SEARXNG_BASE_URL: "http://localhost:8080/"
     healthcheck:
@@ -217,4 +221,3 @@ volumes:
   app-data:
   pg-data:
   ollama-data:
-  searxng-data:

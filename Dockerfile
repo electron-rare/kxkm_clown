@@ -12,11 +12,13 @@ WORKDIR /app
 # System deps: python3 for TTS/ML, ffmpeg for audio
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tini ca-certificates python3 python3-pip ffmpeg \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --break-system-packages \
-       piper-tts pathvalidate \
-       transformers accelerate torch --index-url https://download.pytorch.org/whl/cpu \
-    2>/dev/null || true
+    && rm -rf /var/lib/apt/lists/*
+
+# ML deps: transformers + torch (CPU) for /compose, piper-tts for TTS
+RUN pip3 install --break-system-packages \
+    piper-tts pathvalidate \
+    transformers accelerate \
+    torch --index-url https://download.pytorch.org/whl/cpu
 
 # Copy package manifests + install production deps
 COPY package.json package-lock.json ./

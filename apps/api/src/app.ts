@@ -1,16 +1,14 @@
-import net from "node:net";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import express, { type Request, type Response, type NextFunction } from "express";
+import express, { type Request, type Response } from "express";
 import {
   asApiData,
   createId,
   isUserRole,
   type AuthSession,
-  type Permission,
   type UserRole,
 } from "@kxkm/core";
-import { createSessionRecord, hasPermission, extractSessionId, generateSessionToken, validateLoginInput } from "@kxkm/auth";
+import { createSessionRecord, generateSessionToken, validateLoginInput } from "@kxkm/auth";
 import { buildChatChannels } from "@kxkm/chat-domain";
 import {
   PERSONA_SEED_CATALOG,
@@ -31,22 +29,20 @@ import {
   type NodeGraphRecord,
   type NodeRunRecord,
 } from "@kxkm/node-engine";
-import {
-  loadDatabaseConfig,
-  createPostgresPool,
-  runMigrations,
-  createSessionRepo,
-  createPersonaRepo,
-  createNodeGraphRepo,
-  createNodeRunRepo,
-  createPersonaSourceRepo,
-  createPersonaFeedbackRepo,
-  createPersonaProposalRepo,
-} from "@kxkm/storage";
 import { createSessionRoutes } from "./routes/session.js";
 import { createPersonaRoutes } from "./routes/personas.js";
 import { createNodeEngineRoutes } from "./routes/node-engine.js";
 import { createChatHistoryRoutes } from "./routes/chat-history.js";
+import mediaRoutes from "./routes/media.js";
+import { bootstrapRepositories } from "./app-bootstrap.js";
+import {
+  type SessionRequest,
+  createSessionMiddleware,
+  createRequireSession,
+  createRequirePermission,
+  createAdminSubnetMiddleware,
+  createPerfTracker,
+} from "./app-middleware.js";
 
 const COOKIE_NAME = "kxkm_v2_session";
 
@@ -58,10 +54,6 @@ function localStoreFiles() {
     personaFeedback: path.join(storeDir, "persona-feedback.json"),
     personaProposals: path.join(storeDir, "persona-proposals.json"),
   };
-}
-
-interface SessionRequest extends Request {
-  session?: AuthSession;
 }
 
 async function readJson<T>(filePath: string, fallback: T): Promise<T> {
@@ -446,68 +438,6 @@ function enqueueRunTransition(runId: string, runRepo: RunRepo): void {
 }
 
 // ---------------------------------------------------------------------------
-// Subnet helpers (mirrors V1 network-policy.js, simplified for single subnet)
-// ---------------------------------------------------------------------------
-
-interface ParsedSubnet {
-  version: number;
-  mask: bigint;
-  network: bigint;
-}
-
-function normalizeIp(value: string): string {
-  let ip = value.trim();
-  const zoneIndex = ip.indexOf("%");
-  if (zoneIndex >= 0) ip = ip.slice(0, zoneIndex);
-  if (ip.startsWith("::ffff:") && net.isIP(ip.slice(7)) === 4) {
-    return ip.slice(7);
-  }
-  return ip;
-}
-
-function ipv4ToBigInt(ip: string): bigint {
-  return ip.split(".").reduce((r, o) => (r << 8n) + BigInt(Number.parseInt(o, 10)), 0n);
-}
-
-function ipv6ToBigInt(ip: string): bigint {
-  const parts = ip.split("::");
-  const head = parts[0] ? parts[0].split(":").filter(Boolean) : [];
-  const tail = parts[1] ? parts[1].split(":").filter(Boolean) : [];
-  const missing = 8 - (head.length + tail.length);
-  const groups = [...head, ...Array.from({ length: missing }, () => "0"), ...tail];
-  return groups.reduce((r, g) => (r << 16n) + BigInt(Number.parseInt(g || "0", 16)), 0n);
-}
-
-function parseSubnet(entry: string): ParsedSubnet | null {
-  const raw = entry.trim();
-  if (!raw) return null;
-  const [addressPart, prefixPart] = raw.split("/");
-  const address = normalizeIp(addressPart);
-  const version = net.isIP(address);
-  if (!version) return null;
-
-  const totalBits = version === 4 ? 32 : 128;
-  const prefix = prefixPart === undefined ? totalBits : Number.parseInt(prefixPart, 10);
-  if (!Number.isInteger(prefix) || prefix < 0 || prefix > totalBits) return null;
-
-  const bits = BigInt(totalBits);
-  const hostBits = BigInt(totalBits - prefix);
-  const allOnes = (1n << bits) - 1n;
-  const mask = prefix === 0 ? 0n : (allOnes << hostBits) & allOnes;
-  const value = version === 4 ? ipv4ToBigInt(address) : ipv6ToBigInt(address);
-
-  return { version, mask, network: value & mask };
-}
-
-function isIpInSubnet(ip: string, subnet: ParsedSubnet): boolean {
-  const normalized = normalizeIp(ip);
-  const version = net.isIP(normalized);
-  if (!version || version !== subnet.version) return false;
-  const value = version === 4 ? ipv4ToBigInt(normalized) : ipv6ToBigInt(normalized);
-  return (value & subnet.mask) === subnet.network;
-}
-
-// ---------------------------------------------------------------------------
 // App factory
 // ---------------------------------------------------------------------------
 
@@ -521,147 +451,39 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
   let proposalRepo: ProposalRepo;
   let storageMode: "postgres" | "memory";
 
-  const isProduction = (process.env.NODE_ENV || "").toLowerCase() === "production";
-  if (!process.env.DATABASE_URL && isProduction) {
-    throw new Error("DATABASE_URL is required when NODE_ENV=production");
-  }
-
-  if (process.env.DATABASE_URL) {
-    const dbConfig = loadDatabaseConfig();
-    const pool = createPostgresPool(dbConfig);
-    await runMigrations(pool);
-
-    sessionRepo = createSessionRepo(pool);
-    personaRepo = createPersonaRepo(pool);
-    graphRepo = createNodeGraphRepo(pool);
-    runRepo = createNodeRunRepo(pool);
-    sourceRepo = createPersonaSourceRepo(pool);
-    feedbackRepo = createPersonaFeedbackRepo(pool);
-    proposalRepo = createPersonaProposalRepo(pool);
-
-    // Seed personas from catalog
-    await personaRepo.seedCatalog(PERSONA_SEED_CATALOG.map(clonePersona));
-
-    storageMode = "postgres";
-  } else {
-    console.warn("[kxkm/api] DATABASE_URL not set — using local persona storage + in-memory runtime stores");
-
-    sessionRepo = createInMemorySessionRepo();
-    personaRepo = createInMemoryPersonaRepo();
-    graphRepo = createInMemoryNodeGraphRepo();
-    runRepo = createInMemoryNodeRunRepo();
-    sourceRepo = createInMemoryPersonaSourceRepo();
-    feedbackRepo = createInMemoryPersonaFeedbackRepo();
-    proposalRepo = createInMemoryPersonaProposalRepo();
-
-    storageMode = "memory";
-  }
+  ({
+    sessionRepo,
+    personaRepo,
+    graphRepo,
+    runRepo,
+    sourceRepo,
+    feedbackRepo,
+    proposalRepo,
+    storageMode,
+  } = await bootstrapRepositories({
+    createSessionRepo: createInMemorySessionRepo,
+    createPersonaRepo: createInMemoryPersonaRepo,
+    createGraphRepo: createInMemoryNodeGraphRepo,
+    createRunRepo: createInMemoryNodeRunRepo,
+    createSourceRepo: createInMemoryPersonaSourceRepo,
+    createFeedbackRepo: createInMemoryPersonaFeedbackRepo,
+    createProposalRepo: createInMemoryPersonaProposalRepo,
+  }));
 
   const app = express();
   app.use(express.json());
+  app.use(createSessionMiddleware(sessionRepo));
 
-  // Session middleware
-  app.use((req: SessionRequest, _res: Response, next: NextFunction) => {
-    const sessionId = extractSessionId(req as unknown as { cookies?: Record<string, string>; headers?: Record<string, string> });
-    if (!sessionId) {
-      next();
-      return;
-    }
-    sessionRepo.findById(sessionId).then((session) => {
-      if (session) req.session = session;
-      next();
-    }).catch(next);
-  });
+  const requireSession = createRequireSession();
+  const requirePermission = createRequirePermission;
+  const subnetMiddleware = createAdminSubnetMiddleware(process.env.ADMIN_SUBNET);
+  const perfTracker = createPerfTracker();
 
-  function requireSession(req: SessionRequest, res: Response, next: NextFunction): void {
-    if (!req.session) {
-      res.status(401).json({ ok: false, error: "session_required" });
-      return;
-    }
-    next();
+  if (subnetMiddleware) {
+    app.use("/api/v2/admin", subnetMiddleware);
   }
-
-  function requirePermission(permission: Permission) {
-    return (req: SessionRequest, res: Response, next: NextFunction) => {
-      if (!req.session) {
-        res.status(401).json({ ok: false, error: "session_required" });
-        return;
-      }
-      if (!hasPermission(req.session.role, permission)) {
-        res.status(403).json({ ok: false, error: "permission_denied" });
-        return;
-      }
-      next();
-    };
-  }
-
-  // -----------------------------------------------------------------------
-  // Subnet gate — restrict /api/v2/admin/* when ADMIN_SUBNET is set
-  // -----------------------------------------------------------------------
-
-  if (process.env.ADMIN_SUBNET) {
-    const subnet = parseSubnet(process.env.ADMIN_SUBNET);
-    if (subnet) {
-      app.use("/api/v2/admin", (req: Request, res: Response, next: NextFunction) => {
-        const ip = normalizeIp(req.ip || req.socket?.remoteAddress || "");
-        if (!isIpInSubnet(ip, subnet)) {
-          res.status(403).json({ ok: false, error: "subnet_denied" });
-          return;
-        }
-        next();
-      });
-    }
-  }
-
-  // -----------------------------------------------------------------------
-  // Performance instrumentation middleware
-  // -----------------------------------------------------------------------
-
-  const perfStats = {
-    requestCount: 0,
-    totalLatencyMs: 0,
-    maxLatencyMs: 0,
-    statusCodes: new Map<number, number>(),
-    startedAt: Date.now(),
-  };
-
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const start = performance.now();
-    res.on("finish", () => {
-      const latency = performance.now() - start;
-      perfStats.requestCount++;
-      perfStats.totalLatencyMs += latency;
-      if (latency > perfStats.maxLatencyMs) perfStats.maxLatencyMs = latency;
-      const code = res.statusCode;
-      perfStats.statusCodes.set(code, (perfStats.statusCodes.get(code) || 0) + 1);
-    });
-    next();
-  });
-
-  app.get("/api/v2/perf", ((_req: Request, res: Response) => {
-    const uptimeMs = Date.now() - perfStats.startedAt;
-    const avgLatency = perfStats.requestCount > 0
-      ? perfStats.totalLatencyMs / perfStats.requestCount
-      : 0;
-    const mem = process.memoryUsage();
-    res.json({
-      ok: true,
-      data: {
-        uptime_ms: uptimeMs,
-        uptime_human: `${Math.floor(uptimeMs / 3600000)}h${Math.floor((uptimeMs % 3600000) / 60000)}m`,
-        requests: perfStats.requestCount,
-        avg_latency_ms: Math.round(avgLatency * 100) / 100,
-        max_latency_ms: Math.round(perfStats.maxLatencyMs * 100) / 100,
-        status_codes: Object.fromEntries(perfStats.statusCodes),
-        memory: {
-          rss_mb: Math.round(mem.rss / 1048576),
-          heap_used_mb: Math.round(mem.heapUsed / 1048576),
-          heap_total_mb: Math.round(mem.heapTotal / 1048576),
-          external_mb: Math.round(mem.external / 1048576),
-        },
-      },
-    });
-  }) as express.RequestHandler);
+  app.use(perfTracker.middleware);
+  app.get("/api/v2/perf", perfTracker.route);
 
   // -----------------------------------------------------------------------
   // Routes (extracted to routes/ modules)
@@ -698,6 +520,8 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
     readRouteParam,
     enqueueRunTransition,
   }));
+
+  app.use("/api/v2/media", mediaRoutes);
 
   app.use(createChatHistoryRoutes({
     personaRepo,

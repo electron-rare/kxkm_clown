@@ -4,26 +4,18 @@ import userEvent from "@testing-library/user-event";
 import Login from "./Login";
 
 describe("Login", () => {
-  it("renders the login form", () => {
+  it("renders the login form with pseudo field only", () => {
     render(<Login onLogin={vi.fn()} error="" />);
-    expect(screen.getByText("Ouvrir une session")).toBeInTheDocument();
-    expect(screen.getByText("Se connecter")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("username")).toBeInTheDocument();
-  });
-
-  it("renders role select with all options", () => {
-    render(<Login onLogin={vi.fn()} error="" />);
-    const select = screen.getByRole("combobox");
-    expect(select).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "admin" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "editor" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "operator" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "viewer" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("votre pseudo")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: ">>> Connexion <<<" })).toBeInTheDocument();
+    // No password or email fields
+    expect(screen.queryByPlaceholderText("mot de passe")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("votre@email.com")).not.toBeInTheDocument();
   });
 
   it("displays error when provided", () => {
     render(<Login onLogin={vi.fn()} error="Invalid credentials" />);
-    expect(screen.getByText("Invalid credentials")).toBeInTheDocument();
+    expect(screen.getByText(/ERREUR: Invalid credentials/)).toBeInTheDocument();
   });
 
   it("does not display error when empty", () => {
@@ -31,34 +23,32 @@ describe("Login", () => {
     expect(screen.queryByText(/Invalid/)).not.toBeInTheDocument();
   });
 
-  it("calls onLogin with username and role on submit", async () => {
+  it("calls onLogin with username on submit", async () => {
+    const user = userEvent.setup();
     const onLogin = vi.fn().mockResolvedValue(undefined);
     render(<Login onLogin={onLogin} error="" />);
 
-    const input = screen.getByPlaceholderText("username");
-    await userEvent.clear(input);
-    await userEvent.type(input, "bob");
+    await user.type(screen.getByPlaceholderText("votre pseudo"), "bob");
+    await user.click(screen.getByRole("button", { name: ">>> Connexion <<<" }));
 
-    await userEvent.selectOptions(screen.getByRole("combobox"), "editor");
-    await userEvent.click(screen.getByText("Se connecter"));
-
-    expect(onLogin).toHaveBeenCalledWith("bob", "editor");
+    expect(onLogin).toHaveBeenCalledWith("bob");
   });
 
   it("shows loading state during submit", async () => {
-    let resolveLogin: () => void;
+    const user = userEvent.setup();
+    let resolveLogin!: () => void;
     const loginPromise = new Promise<void>((resolve) => {
       resolveLogin = resolve;
     });
     const onLogin = vi.fn().mockReturnValue(loginPromise);
 
     render(<Login onLogin={onLogin} error="" />);
-    await userEvent.click(screen.getByText("Se connecter"));
+    await user.type(screen.getByPlaceholderText("votre pseudo"), "bob");
+    await user.click(screen.getByRole("button", { name: ">>> Connexion <<<" }));
 
-    expect(screen.getByText("Connexion...")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connexion..." })).toBeInTheDocument();
 
     resolveLogin!();
-    // Wait for state update
-    await screen.findByText("Se connecter");
+    await screen.findByRole("button", { name: ">>> Connexion <<<" });
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type ChatChannel } from "../api";
+import { VideotexPageHeader } from "./VideotexMosaic";
 
 export default function ChannelList() {
   const [channels, setChannels] = useState<ChatChannel[]>([]);
@@ -28,8 +29,8 @@ export default function ChannelList() {
 
   return (
     <div>
+      <VideotexPageHeader title="CANAUX DE CHAT" color="green" />
       <div className="page-header">
-        <h2>Canaux de chat</h2>
         <button className="btn btn-secondary" onClick={loadChannels}>Rafraichir</button>
       </div>
       <div className="card-grid">

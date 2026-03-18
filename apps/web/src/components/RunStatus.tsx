@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { getRunStatusClass } from "@kxkm/ui";
 import { api, type NodeRunRecord } from "../api";
+import { VideotexSeparator } from "./VideotexMosaic";
 
 type RunStatusValue = NodeRunRecord["status"];
 
@@ -83,6 +85,7 @@ export default function RunStatus({ runId, onBack }: RunStatusProps) {
 
       {error && <div className="banner">{error}</div>}
 
+      <VideotexSeparator color="amber" />
       <div className="panel">
         <p className="eyebrow">Statut du run</p>
 
@@ -97,7 +100,7 @@ export default function RunStatus({ runId, onBack }: RunStatusProps) {
           </div>
           <div className="detail-row">
             <span className="detail-label">Statut</span>
-            <span className={`status-badge status-${run.status}`}>{run.status}</span>
+            <span className={`status-badge ${getRunStatusClass(run.status)}`}>{run.status}</span>
           </div>
 
           <div className="run-progress">

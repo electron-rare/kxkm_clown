@@ -313,7 +313,32 @@ export const api = {
   getAnalytics(): Promise<AnalyticsData> {
     return apiFetch<AnalyticsData>("/api/v2/analytics");
   },
+
+  // Media explorer
+  listImages(): Promise<MediaMeta[]> {
+    return apiFetch<MediaMeta[]>("/api/v2/media/images");
+  },
+
+  listAudio(): Promise<MediaMeta[]> {
+    return apiFetch<MediaMeta[]>("/api/v2/media/audio");
+  },
+
+  mediaUrl(type: "images" | "audio", filename: string): string {
+    const base = import.meta.env.VITE_API_BASE_URL || "";
+    return `${base}/api/v2/media/${type}/${encodeURIComponent(filename)}`;
+  },
 };
+
+export interface MediaMeta {
+  id: string;
+  type: "image" | "audio";
+  prompt: string;
+  nick: string;
+  channel: string;
+  createdAt: string;
+  mime: string;
+  filename: string;
+}
 
 export interface AnalyticsData {
   totalMessages: number;

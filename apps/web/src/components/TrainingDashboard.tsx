@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { getRunStatusClass } from "@kxkm/ui";
 import { api, type NodeRunRecord } from "../api";
+import { VideotexPageHeader, VideotexSeparator } from "./VideotexMosaic";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:4180";
 
@@ -13,16 +15,6 @@ function isTrainingRun(run: NodeRunRecord): boolean {
 
 function truncateId(id: string, len = 8): string {
   return id.length > len ? id.slice(0, len) + "..." : id;
-}
-
-function statusClass(status: string): string {
-  switch (status) {
-    case "completed": return "status-completed";
-    case "failed": return "status-failed";
-    case "running": return "status-running";
-    case "queued": return "status-queued";
-    default: return "status-muted";
-  }
 }
 
 function formatDuration(start: string, end?: string): string {
@@ -92,8 +84,8 @@ export default function TrainingDashboard() {
 
   return (
     <div>
+      <VideotexPageHeader title="TRAINING" subtitle="Fine-tuning & DPO" color="pink" />
       <div className="page-header">
-        <h2>Training</h2>
         <button className="btn btn-secondary" onClick={loadData}>Rafraichir</button>
       </div>
 
@@ -107,23 +99,23 @@ export default function TrainingDashboard() {
         </div>
         <div className="status-card">
           <span>Completed</span>
-          <strong className="status-completed">{completedRuns.length}</strong>
+          <strong className={getRunStatusClass("completed")}>{completedRuns.length}</strong>
         </div>
         <div className="status-card">
           <span>Failed</span>
-          <strong className={failedRuns.length > 0 ? "status-failed" : ""}>
+          <strong className={failedRuns.length > 0 ? getRunStatusClass("failed") : ""}>
             {failedRuns.length}
           </strong>
         </div>
         <div className="status-card">
           <span>Running</span>
-          <strong className={runningRuns.length > 0 ? "status-running" : ""}>
+          <strong className={runningRuns.length > 0 ? getRunStatusClass("running") : ""}>
             {runningRuns.length}
           </strong>
         </div>
         <div className="status-card">
           <span>Queued</span>
-          <strong className={queuedRuns.length > 0 ? "status-queued" : ""}>
+          <strong className={queuedRuns.length > 0 ? getRunStatusClass("queued") : ""}>
             {queuedRuns.length}
           </strong>
         </div>
@@ -140,13 +132,14 @@ export default function TrainingDashboard() {
       </div>
 
       {/* Section 2: Training Runs Table */}
+      <VideotexSeparator color="green" />
       <section className="panel" style={{ marginTop: 16 }}>
         <p className="eyebrow">Historique des runs</p>
         {runs.length === 0 ? (
           <p className="muted">Aucun run de training trouve.</p>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table className="run-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "monospace", fontSize: "0.85em" }}>
+            <table className="run-table" style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-mono)", fontSize: "0.85em" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border, #333)", textAlign: "left" }}>
                   <th style={{ padding: "6px 8px" }}>Run ID</th>
@@ -166,7 +159,7 @@ export default function TrainingDashboard() {
                         {truncateId(run.id)}
                       </td>
                       <td style={{ padding: "4px 8px" }}>
-                        <span className={statusClass(run.status)}>{run.status}</span>
+                        <span className={getRunStatusClass(run.status)}>{run.status}</span>
                       </td>
                       <td style={{ padding: "4px 8px" }} title={run.graphId}>
                         {truncateId(run.graphId, 16)}

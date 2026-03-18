@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { getPersonaColor } from "@kxkm/ui";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useMinitelSounds } from "../hooks/useMinitelSounds";
-import MinitelConnect from "./MinitelConnect";
-import MinitelFrame from "./MinitelFrame";
+import { resolveWebSocketUrl } from "../lib/websocket-url";
 
-const WS_URL = import.meta.env.VITE_WS_URL || (() => {
-  if (typeof window === "undefined") return "ws://127.0.0.1:4180/ws";
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/ws`;
-})();
+function buildWsUrl(): string {
+  const base = resolveWebSocketUrl();
+  const nick = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("kxkm-nick") : null;
+  if (!nick) return base;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}nick=${encodeURIComponent(nick)}`;
+}
 
 interface ChatMsg {
   id: number;
@@ -147,7 +149,7 @@ export default function Chat() {
   const [channel, setChannel] = useState("#general");
   const [input, setInput] = useState("");
   const [personaColors, setPersonaColors] = useState<PersonaColor>({});
-  const [showConnect, setShowConnect] = useState(true);
+  // showConnect removed — connection animation handled by App.tsx
   const [sidebarCollapsed, setSidebarCollapsed] = useState({ personas: true, users: true });
   const [typingPersona, setTypingPersona] = useState<string | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -169,11 +171,11 @@ export default function Chat() {
 
     switch (type) {
       case "persona":
-        if (typeof msg.nick === "string" && typeof msg.color === "string") {
-          const color = msg.color as string;
-          if (/^#[0-9a-fA-F]{3,8}$|^[a-z]{3,20}$/i.test(color)) {
-            setPersonaColors((prev) => ({ ...prev, [msg.nick as string]: color }));
-          }
+        if (typeof msg.nick === "string") {
+          const color = typeof msg.color === "string" && /^#[0-9a-fA-F]{3,8}$|^[a-z]{3,20}$/i.test(msg.color)
+            ? msg.color
+            : getPersonaColor(msg.nick);
+          setPersonaColors((prev) => ({ ...prev, [msg.nick as string]: color }));
         }
         return;
 
@@ -295,8 +297,10 @@ export default function Chat() {
     }
   }, [sounds, personaColors]);
 
+  const [wsUrl] = useState(buildWsUrl);
+
   const ws = useWebSocket({
-    url: WS_URL,
+    url: wsUrl,
     onMessage: handleMessage,
     enabled: true,
   });
@@ -498,10 +502,6 @@ export default function Chat() {
   const getNickColor = useCallback((nick: string): string | undefined => {
     return personaColors[nick];
   }, [personaColors]);
-
-  if (showConnect) {
-    return null; // Connection handled by App.tsx MinitelConnect
-  }
 
   return (
     <div className="chat-container">

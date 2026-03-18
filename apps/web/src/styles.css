@@ -1,30 +1,33 @@
 /* KXKM_Clown V2 — IRC-inspired warm earth tones
-   Theme tokens from @kxkm/ui SHELL_THEME + STATUS_COLORS */
+   Tokens are published by @kxkm/ui and mirrored here with safe fallbacks. */
 :root {
   color-scheme: light;
-  --bg: #f6f0df;
-  --panel: rgba(255, 249, 237, 0.95);
-  --ink: #20170f;
-  --muted: #6f5d4f;
-  --accent: #c84c0c;
-  --border: #2f2218;
-  --border-light: rgba(47, 34, 24, 0.2);
+  --bg: var(--kxkm-shell-background, #f6f0df);
+  --panel: var(--kxkm-shell-panel, rgba(255, 249, 237, 0.95));
+  --ink: var(--kxkm-shell-ink, #20170f);
+  --muted: var(--kxkm-shell-muted, #6f5d4f);
+  --accent: var(--kxkm-shell-accent, #c84c0c);
+  --border: var(--kxkm-shell-border, #2f2218);
+  --border-light: var(--kxkm-shell-border-light, rgba(47, 34, 24, 0.2));
 
   /* STATUS_COLORS */
-  --status-info: #2c6e49;
-  --status-warn: #c77d00;
-  --status-danger: #b00020;
+  --status-info: var(--kxkm-status-info, #2c6e49);
+  --status-warn: var(--kxkm-status-warn, #c77d00);
+  --status-danger: var(--kxkm-status-danger, #b00020);
 
   /* Run statuses */
-  --status-running: #2c6e49;
-  --status-queued: #c77d00;
-  --status-completed: #2c6e49;
-  --status-failed: #b00020;
-  --status-cancelled: #6f5d4f;
+  --status-running: var(--kxkm-status-running, #2c6e49);
+  --status-queued: var(--kxkm-status-queued, #c77d00);
+  --status-completed: var(--kxkm-status-completed, #2c6e49);
+  --status-failed: var(--kxkm-status-failed, #b00020);
+  --status-cancelled: var(--kxkm-status-cancelled, #6f5d4f);
+  --status-muted: var(--muted);
 
-  /* Spacing */
-  --gap: 16px;
-  --radius: 0;
+  /* Typography + spacing */
+  --font-mono: var(--kxkm-font-mono, "Courier New", Courier, monospace);
+  --font-display: var(--kxkm-font-display, "Courier New", Courier, monospace);
+  --gap: var(--kxkm-gap, 16px);
+  --radius: var(--kxkm-radius, 0);
 }
 
 * {
@@ -37,7 +40,7 @@ body {
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), transparent 35%),
     linear-gradient(180deg, #d5b892 0%, var(--bg) 100%);
   color: var(--ink);
-  font-family: "Courier New", Courier, monospace;
+  font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -52,107 +55,9 @@ a {
 }
 
 code {
-  font-family: "Courier New", Courier, monospace;
-  background: rgba(47, 34, 24, 0.08);
+  font-family: var(--font-mono);
+  background: rgba(51, 255, 51, 0.06);
   padding: 2px 6px;
-}
-
-/* ── Shell layout ── */
-.shell {
-  min-height: 100vh;
-}
-
-/* ── Header ── */
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--gap);
-  padding: 16px 24px;
-  border-bottom: 2px solid var(--border);
-  background: var(--panel);
-}
-
-.header-brand {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.header-brand .eyebrow {
-  margin: 0;
-}
-
-.header-subtitle {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.header-session {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.session-badge {
-  font-size: 13px;
-}
-
-.role-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-/* ── App layout (nav + main) ── */
-.app-layout {
-  display: flex;
-  min-height: calc(100vh - 60px);
-}
-
-.app-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 200px;
-  flex-shrink: 0;
-  padding: 16px 0;
-  border-right: 2px solid var(--border);
-  background: var(--panel);
-}
-
-.nav-item {
-  display: block;
-  width: 100%;
-  padding: 10px 20px;
-  text-align: left;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--ink);
-  font-size: 13px;
-  letter-spacing: 0.04em;
-}
-
-.nav-item:hover {
-  background: rgba(47, 34, 24, 0.06);
-}
-
-.nav-active {
-  background: rgba(200, 76, 12, 0.1);
-  border-right: 3px solid var(--accent);
-  font-weight: bold;
-  color: var(--accent);
-}
-
-.app-main {
-  flex: 1;
-  padding: 24px;
-  min-width: 0;
 }
 
 /* ── Eyebrow / Lead / Muted ── */
@@ -215,7 +120,7 @@ code {
 }
 
 .btn-secondary:hover {
-  background: rgba(47, 34, 24, 0.06);
+  background: rgba(51, 255, 51, 0.08);
 }
 
 .btn-danger {
@@ -234,13 +139,13 @@ code {
   border: 2px solid var(--border);
   background: var(--panel);
   padding: 18px;
-  box-shadow: 6px 6px 0 rgba(37, 26, 18, 0.1);
+  box-shadow: 6px 6px 0 rgba(51, 255, 51, 0.05);
   margin-bottom: var(--gap);
 }
 
 .banner {
   border: 2px solid var(--status-danger);
-  background: rgba(176, 0, 32, 0.06);
+  background: rgba(255, 51, 51, 0.08);
   padding: 10px 14px;
   margin-bottom: var(--gap);
   color: var(--status-danger);
@@ -257,12 +162,12 @@ code {
   background: var(--panel);
   padding: 16px;
   cursor: pointer;
-  box-shadow: 4px 4px 0 rgba(37, 26, 18, 0.08);
+  box-shadow: 4px 4px 0 rgba(51, 255, 51, 0.04);
   transition: box-shadow 0.15s, transform 0.15s;
 }
 
 .card:hover {
-  box-shadow: 6px 6px 0 rgba(37, 26, 18, 0.15);
+  box-shadow: 6px 6px 0 rgba(51, 255, 51, 0.08);
   transform: translate(-1px, -1px);
 }
 
@@ -348,7 +253,7 @@ code {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: "Courier New", Courier, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.5;
   color: var(--ink);
@@ -364,8 +269,9 @@ code {
 .edit-form select {
   padding: 10px 12px;
   border: 2px solid var(--border);
-  background: rgba(255, 255, 255, 0.6);
-  font-family: "Courier New", Courier, monospace;
+  background: rgba(10, 10, 10, 0.8);
+  color: var(--ink);
+  font-family: var(--font-mono);
 }
 
 /* ── Status strip ── */
@@ -380,7 +286,7 @@ code {
   border: 2px solid var(--border);
   background: var(--panel);
   padding: 14px;
-  box-shadow: 4px 4px 0 rgba(37, 26, 18, 0.08);
+  box-shadow: 4px 4px 0 rgba(51, 255, 51, 0.04);
 }
 
 .status-card span {
@@ -435,6 +341,11 @@ code {
   border-color: var(--status-cancelled);
 }
 
+.status-muted {
+  color: var(--status-muted);
+  border-color: var(--status-muted);
+}
+
 /* ── Detail layout ── */
 .detail-grid {
   display: grid;
@@ -459,33 +370,12 @@ code {
 }
 
 /* ── Forms ── */
-.login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: calc(100vh - 100px);
-  padding: 24px;
-}
-
-.login-card {
-  width: 100%;
-  max-width: 400px;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.login-form label,
 .edit-form label {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.login-form label span,
 .edit-form label span {
   font-size: 12px;
   text-transform: uppercase;
@@ -493,14 +383,13 @@ code {
   color: var(--muted);
 }
 
-.login-form input,
-.login-form select,
 .edit-form input,
 .edit-form textarea,
 .inline-form input {
   padding: 10px 12px;
   border: 2px solid var(--border);
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(10, 10, 10, 0.8);
+  color: var(--ink);
 }
 
 .edit-form {
@@ -565,7 +454,7 @@ code {
 }
 
 .run-item:hover {
-  background: rgba(47, 34, 24, 0.04);
+  background: rgba(51, 255, 51, 0.06);
 }
 
 .node-list li {
@@ -592,24 +481,24 @@ code {
   letter-spacing: 0.06em;
   border: 1px solid var(--border-light);
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(51, 255, 51, 0.03);
 }
 
 .step-active {
-  background: rgba(200, 76, 12, 0.12);
+  background: rgba(255, 105, 180, 0.12);
   border-color: var(--accent);
   color: var(--accent);
   font-weight: bold;
 }
 
 .step-done {
-  background: rgba(44, 110, 73, 0.1);
+  background: rgba(51, 255, 51, 0.1);
   border-color: var(--status-running);
   color: var(--status-running);
 }
 
 .step-failed {
-  background: rgba(176, 0, 32, 0.08);
+  background: rgba(255, 51, 51, 0.1);
   border-color: var(--status-danger);
   color: var(--status-danger);
 }
@@ -618,10 +507,10 @@ code {
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 120px);
-  border: 2px solid var(--border);
-  background: var(--panel);
-  box-shadow: 6px 6px 0 rgba(37, 26, 18, 0.1);
+  flex: 1;
+  min-height: 0;
+  border: none;
+  background: transparent;
 }
 
 .chat-header {
@@ -630,7 +519,7 @@ code {
   align-items: center;
   padding: 8px 14px;
   border-bottom: 2px solid var(--border);
-  background: rgba(47, 34, 24, 0.04);
+  background: rgba(51, 255, 51, 0.03);
 }
 
 .chat-channel {
@@ -666,7 +555,7 @@ code {
   flex: 1;
   overflow-y: auto;
   padding: 10px 14px;
-  font-family: "Courier New", Courier, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -704,7 +593,7 @@ code {
   border-left: 2px solid var(--border);
   overflow-y: auto;
   padding: 8px 0;
-  background: rgba(47, 34, 24, 0.02);
+  background: rgba(51, 255, 51, 0.02);
 }
 
 .chat-users-header {
@@ -825,49 +714,14 @@ code {
   margin-left: 4px;
   font-family: inherit;
 }
-.chat-audio-play:hover { background: rgba(47, 34, 24, 0.06); }
-
-/* ── Minitel Connect Animation ── */
-.minitel-connect {
-  position: fixed;
-  inset: 0;
-  background: #0a0a0a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-.minitel-connect-screen {
-  font-family: "Courier New", monospace;
-  color: #33ff33;
-  font-size: 16px;
-  text-shadow: 0 0 8px rgba(51, 255, 51, 0.3);
-  max-width: 400px;
-  padding: 20px;
-}
-.minitel-connect-line {
-  margin-bottom: 4px;
-  animation: type-in 0.1s ease-out;
-}
-@keyframes type-in {
-  from { opacity: 0; transform: translateX(-4px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-.minitel-cursor {
-  animation: cursor-blink 0.8s step-end infinite;
-  color: #33ff33;
-}
-@keyframes cursor-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
+.chat-audio-play:hover { background: rgba(51, 255, 51, 0.08); }
 
 /* ── Node Editor ── */
 .node-editor-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 100px);
-  margin: -24px;
+  flex: 1;
+  min-height: 0;
 }
 
 .node-editor-toolbar {
@@ -970,7 +824,7 @@ code {
 }
 
 .node-editor-add-btn:hover {
-  background: rgba(47, 34, 24, 0.06);
+  background: rgba(51, 255, 51, 0.08);
 }
 
 .node-editor-add-io {
@@ -981,11 +835,11 @@ code {
 
 /* ── Custom Engine Node ── */
 .engine-node {
-  border: 2px solid #666;
+  border: 2px solid var(--minitel-dim);
   background: var(--panel);
-  font-family: "Courier New", Courier, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
-  box-shadow: 3px 3px 0 rgba(37, 26, 18, 0.1);
+  box-shadow: 3px 3px 0 rgba(51, 255, 51, 0.04);
   min-width: 160px;
 }
 
@@ -1108,33 +962,6 @@ code {
 }
 
 @media (max-width: 720px) {
-  .app-layout {
-    flex-direction: column;
-  }
-
-  .app-nav {
-    width: 100%;
-    flex-direction: row;
-    border-right: none;
-    border-bottom: 2px solid var(--border);
-    overflow-x: auto;
-    padding: 0;
-  }
-
-  .nav-item {
-    white-space: nowrap;
-    padding: 10px 16px;
-  }
-
-  .nav-active {
-    border-right: none;
-    border-bottom: 3px solid var(--accent);
-  }
-
-  .app-main {
-    padding: 16px;
-  }
-
   .card-grid {
     grid-template-columns: 1fr;
   }
@@ -1152,7 +979,8 @@ code {
   }
 
   .chat-container {
-    height: calc(100vh - 160px);
+    flex: 1;
+    min-height: 0;
   }
 }
 
@@ -1180,21 +1008,24 @@ code {
 }
 
 /* ── Terminal wrapper — centers on page ── */
+/* ── Terminal wrapper — fullscreen physical Minitel ── */
 .minitel-terminal {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: stretch;
   min-height: 100vh;
-  padding: 20px 10px;
+  height: 100vh;
+  padding: 0;
   background:
     radial-gradient(ellipse at 50% 30%, rgba(60, 50, 40, 0.15), transparent 70%),
     linear-gradient(180deg, #2a2420 0%, #1a1614 100%);
+  overflow: hidden;
 }
 
-/* ── Physical Minitel body ── */
+/* ── Physical Minitel body — fills viewport ── */
 .minitel-body {
   width: 100%;
-  max-width: 720px;
+  height: 100vh;
   background:
     linear-gradient(180deg,
       var(--minitel-body-highlight) 0%,
@@ -1202,18 +1033,13 @@ code {
       var(--minitel-body-color) 85%,
       var(--minitel-body-dark) 100%
     );
-  border-radius: 16px 16px 12px 12px;
-  padding: 20px 20px 16px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.6),
-    0 2px 4px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.1);
+  padding: 12px 14px 8px;
   position: relative;
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: 1fr auto auto;
   gap: 0;
+  overflow: hidden;
 }
 
 /* ── Screen bezel ── */
@@ -1223,23 +1049,27 @@ code {
   background:
     linear-gradient(145deg, #222 0%, var(--minitel-bezel) 50%, #111 100%);
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px;
   box-shadow:
     inset 0 2px 8px rgba(0, 0, 0, 0.8),
     inset 0 -1px 4px rgba(0, 0, 0, 0.4),
     0 1px 0 rgba(255, 255, 255, 0.1);
   border: 1px solid #111;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-/* ── CRT Screen ── */
+/* ── CRT Screen — fills available space ── */
 .minitel-screen {
   background: var(--minitel-black);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 420px;
+  flex: 1;
+  min-height: 0;
   /* CRT curvature illusion */
   box-shadow:
     inset 0 0 80px rgba(0, 0, 0, 0.5),
@@ -1458,7 +1288,8 @@ code {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  min-height: 100%;
+  flex: 1;
+  min-height: 0;
   color: var(--minitel-green);
   font-family: var(--minitel-font);
 }
@@ -1577,6 +1408,28 @@ code {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
+
+  /* ── Variable remap: old IRC tokens → Minitel phosphore ── */
+  --bg: var(--minitel-black);
+  --panel: rgba(20, 20, 20, 0.95);
+  --ink: var(--minitel-green);
+  --muted: var(--minitel-dim);
+  --accent: var(--minitel-pink);
+  --border: var(--minitel-dim);
+  --border-light: rgba(85, 85, 85, 0.4);
+  --status-info: var(--minitel-green);
+  --status-warn: var(--minitel-amber);
+  --status-danger: var(--minitel-red);
+  --status-running: var(--minitel-green);
+  --status-queued: var(--minitel-amber);
+  --status-completed: var(--minitel-green);
+  --status-failed: var(--minitel-red);
+  --status-cancelled: var(--minitel-dim);
+  --status-muted: var(--minitel-dim);
+  --font-mono: var(--minitel-font);
+  --font-display: var(--minitel-font);
+  color: var(--minitel-green);
 }
 
 /* ── Speaker grille (right side of body) ── */
@@ -1716,7 +1569,8 @@ code {
   box-shadow: none;
   font-family: var(--minitel-font);
   color: var(--minitel-green);
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .minitel-terminal .chat-header {
@@ -1907,13 +1761,12 @@ code {
 
 /* ── Minitel Connect Animation ── */
 .minitel-connect {
-  position: fixed;
-  inset: 0;
+  flex: 1;
+  min-height: 0;
   background: var(--minitel-black);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
 }
 .minitel-connect-screen {
   font-family: var(--minitel-font);
@@ -1940,21 +1793,116 @@ code {
   50% { opacity: 0; }
 }
 
-/* ── Responsive: mobile fills viewport ── */
-@media (max-width: 720px) {
-  .minitel-terminal {
-    padding: 0;
-    min-height: 100vh;
-    align-items: stretch;
-  }
+/* ========================================================================
+   VIDEOTEX Mosaïques — Blocs semi-graphiques 2×3
+   Réplique les caractères mosaïques du standard CCETT (1980)
+   ======================================================================== */
 
+/* ── Color variants ── */
+.vtx-green  { color: var(--minitel-green); }
+.vtx-pink   { color: var(--minitel-pink); }
+.vtx-amber  { color: var(--minitel-amber); }
+.vtx-cyan   { color: var(--minitel-cyan); }
+
+/* ── Separator: horizontal mosaic line ── */
+.vtx-separator {
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+  padding: 4px 0;
+  opacity: 0.6;
+  letter-spacing: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ── Page header: boxed title with double-line border ── */
+.vtx-page-header {
+  font-family: var(--minitel-font);
+  font-size: 16px;
+  line-height: 1.3;
+  margin-bottom: 12px;
+  user-select: none;
+}
+
+.vtx-line {
+  white-space: pre;
+  text-shadow: var(--minitel-glow);
+}
+
+.vtx-dim {
+  opacity: 0.6;
+}
+
+/* ── Border: mosaic box ── */
+.vtx-border {
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.vtx-border-top,
+.vtx-border-bottom {
+  white-space: pre;
+  overflow: hidden;
+  opacity: 0.5;
+  user-select: none;
+}
+
+.vtx-border-content {
+  padding: 8px 12px;
+  border-left: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  opacity: 0.15;
+}
+
+.vtx-border-content > * {
+  opacity: 1;
+}
+
+/* ── Banner: inline mosaic alert ── */
+.vtx-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.vtx-banner-deco {
+  font-size: 18px;
+  opacity: 0.6;
+  user-select: none;
+}
+
+.vtx-banner-text {
+  flex: 1;
+}
+
+/* ── Decorative blocks ── */
+.vtx-blocks {
+  font-family: var(--minitel-font);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--minitel-green);
+  opacity: 0.15;
+  overflow: hidden;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ── Responsive: tablet ── */
+@media (max-width: 720px) {
   .minitel-body {
-    max-width: 100%;
-    border-radius: 0;
-    padding: 8px 8px 12px;
-    box-shadow: none;
+    padding: 8px 8px 6px;
     grid-template-columns: 1fr;
-    min-height: 100vh;
   }
 
   .minitel-speaker {
@@ -1965,12 +1913,8 @@ code {
     grid-column: 1 / -1;
   }
 
-  .minitel-screen {
-    min-height: calc(100vh - 180px);
-  }
-
   .minitel-keyboard-hint {
-    display: none;
+    max-height: 60px;
   }
 
   .minitel-terminal .chat-users {
@@ -1997,10 +1941,11 @@ code {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
   background: var(--minitel-black, #0a0a0a);
   color: var(--minitel-green, #33ff33);
-  font-family: "Courier New", monospace;
+  font-family: var(--font-mono);
 }
 
 .voice-chat-header {
@@ -2453,9 +2398,10 @@ code {
     text-align: center;
   }
 
-  /* Chat — plein écran */
+  /* Chat — flex fill */
   .chat-container {
-    height: calc(100vh - 120px);
+    flex: 1;
+    min-height: 0;
   }
 
   .chat-users {
@@ -2490,18 +2436,9 @@ code {
 
 /* Mobile (≤480px) — mode portrait Minitel */
 @media (max-width: 480px) {
-  /* Minitel body fullscreen */
-  .minitel-terminal {
-    padding: 0;
-    min-height: 100dvh;
-  }
-
   .minitel-body {
-    border-radius: 0;
     padding: 0;
-    box-shadow: none;
     grid-template-columns: 1fr;
-    min-height: 100dvh;
   }
 
   .minitel-speaker,
@@ -2514,12 +2451,11 @@ code {
     grid-column: 1 / -1;
     border-radius: 0;
     border: none;
-    padding: 0;
+    padding: 2px;
   }
 
   .minitel-screen {
     border-radius: 0;
-    min-height: 100dvh;
   }
 
   /* Service bars — sticky */
@@ -2617,7 +2553,8 @@ code {
 
   /* Chat fullscreen */
   .chat-container {
-    height: calc(100dvh - 80px);
+    flex: 1;
+    min-height: 0;
   }
 
   .chat-input-row {
@@ -2949,20 +2886,54 @@ code {
   flex: 1;
 }
 
-.compose-generating {
-  text-align: center;
-  margin: 20px 0;
-  font-size: 15px;
-  color: var(--minitel-amber, #ffb000);
+/* ── Progress bar VIDEOTEX ── */
+.vtx-progress {
+  margin: 16px auto;
+  max-width: 500px;
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
 }
 
-.compose-hint {
-  font-size: 11px;
-  opacity: 0.6;
+.vtx-progress.vtx-amber {
+  color: var(--minitel-amber);
 }
 
+.vtx-progress-label {
+  font-size: 13px;
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+}
+
+.vtx-progress-bar {
+  border: 1px solid currentColor;
+  height: 20px;
+  background: rgba(10, 10, 10, 0.8);
+  overflow: hidden;
+  position: relative;
+}
+
+.vtx-progress-fill {
+  height: 100%;
+  background: currentColor;
+  opacity: 0.3;
+  color: currentColor;
+  font-size: 10px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: width 0.2s linear;
+}
+
+.vtx-progress-pct {
+  font-size: 12px;
+  text-align: right;
+  margin-top: 2px;
+  opacity: 0.7;
+}
+
+/* ── Track list (Compose results) ── */
 .compose-results {
-  margin-top: 20px;
+  margin-top: 16px;
   max-width: 500px;
   margin-left: auto;
   margin-right: auto;
@@ -2973,27 +2944,63 @@ code {
   font-size: 14px;
   opacity: 0.7;
   margin-bottom: 12px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--minitel-dim);
   padding-bottom: 8px;
 }
 
-.compose-result {
-  margin-bottom: 16px;
-  padding: 10px;
-  border: 1px solid #333;
-  background: #0a0a0a;
-}
-
-.compose-result-prompt {
-  font-size: 12px;
-  opacity: 0.7;
+.vtx-track {
+  border: 1px solid var(--minitel-dim);
   margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
 }
 
-.compose-audio {
+.vtx-track:hover {
+  border-color: var(--minitel-green);
+}
+
+.vtx-track-active {
+  border-color: var(--minitel-pink);
+}
+
+.vtx-track-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.vtx-track-icon {
+  font-size: 16px;
+  color: var(--minitel-pink);
+  flex-shrink: 0;
+}
+
+.vtx-track-title {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vtx-track-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid var(--minitel-green);
+  color: var(--minitel-green);
+  flex-shrink: 0;
+}
+
+.vtx-player {
+  padding: 6px 10px 10px;
+  border-top: 1px solid var(--minitel-dim);
+}
+
+.vtx-audio {
   width: 100%;
-  height: 32px;
-  filter: hue-rotate(100deg) saturate(2);
+  height: 36px;
+  filter: hue-rotate(100deg) saturate(2) brightness(0.8);
 }
 
 /* ========================================================================
@@ -3001,26 +3008,31 @@ code {
    ======================================================================== */
 
 .imagine-results {
-  margin-top: 20px;
+  margin-top: 16px;
 }
 
 .imagine-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .imagine-result {
-  border: 1px solid #333;
+  border: 1px solid var(--minitel-dim);
   background: #0a0a0a;
   overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.imagine-result:hover {
+  border-color: var(--minitel-amber);
 }
 
 .imagine-img {
   width: 100%;
   height: auto;
   display: block;
-  image-rendering: auto;
 }
 
 .imagine-prompt {
@@ -3028,6 +3040,256 @@ code {
   font-size: 11px;
   opacity: 0.7;
   border-top: 1px solid #222;
+}
+
+/* ── Image viewer overlay ── */
+.vtx-viewer {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.vtx-viewer-frame {
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.vtx-viewer-img {
+  max-width: 100%;
+  max-height: 70vh;
+  border: 2px solid var(--minitel-amber);
+  box-shadow: 0 0 40px rgba(255, 176, 0, 0.15);
+}
+
+.vtx-viewer-caption {
+  margin-top: 10px;
+  font-family: var(--minitel-font);
+  font-size: 13px;
+  color: var(--minitel-amber);
+  text-align: center;
+  max-width: 600px;
+}
+
+.vtx-viewer-nav {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.vtx-viewer-btn {
+  background: none;
+  border: 1px solid var(--minitel-amber);
+  color: var(--minitel-amber);
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  padding: 6px 16px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+.vtx-viewer-btn:hover {
+  background: rgba(255, 176, 0, 0.1);
+}
+
+.vtx-viewer-close {
+  border-color: var(--minitel-red);
+  color: var(--minitel-red);
+}
+
+.vtx-viewer-close:hover {
+  background: rgba(255, 51, 51, 0.1);
+}
+
+/* ========================================================================
+   MEDIA EXPLORER — Mediatheque images & audio
+   ======================================================================== */
+
+.media-explorer {
+  padding: 16px;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Tabs */
+.media-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+}
+
+.media-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--minitel-dim);
+  color: var(--minitel-dim);
+  font-family: var(--minitel-font);
+  font-size: 13px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+.media-tab:hover {
+  border-color: var(--minitel-green);
+  color: var(--minitel-green);
+}
+
+.media-tab-active {
+  background: rgba(51, 255, 51, 0.08);
+  border-color: var(--minitel-green);
+  color: var(--minitel-green);
+}
+
+.media-tab-refresh {
+  flex: 0;
+  padding: 8px 16px;
+  color: var(--minitel-amber);
+  border-color: var(--minitel-amber);
+}
+
+.media-tab-refresh:hover {
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.media-empty {
+  text-align: center;
+  padding: 40px 20px;
+  opacity: 0.5;
+  font-size: 14px;
+}
+
+/* Image grid */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.media-card {
+  border: 1px solid var(--minitel-dim);
+  background: rgba(10, 10, 10, 0.6);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.media-card:hover {
+  border-color: var(--minitel-cyan);
+}
+
+.media-thumb {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.media-card-info {
+  padding: 6px 8px;
+}
+
+.media-card-prompt {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-card-meta {
+  font-size: 10px;
+  color: var(--minitel-dim);
+  margin-top: 2px;
+}
+
+/* Image viewer additions */
+.vtx-viewer-meta {
+  margin-top: 4px;
+  font-family: var(--minitel-font);
+  font-size: 11px;
+  color: var(--minitel-dim);
+}
+
+/* Audio playlist */
+.media-playlist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.media-track {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--minitel-dim);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.media-track:hover {
+  border-color: var(--minitel-pink);
+}
+
+.media-track-playing {
+  border-color: var(--minitel-pink);
+  background: rgba(255, 105, 180, 0.06);
+}
+
+.media-track-icon {
+  font-size: 18px;
+  color: var(--minitel-pink);
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.media-track-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.media-track-prompt {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-track-meta {
+  font-size: 10px;
+  color: var(--minitel-dim);
+  margin-top: 2px;
+}
+
+/* Sticky player bar */
+.media-player-bar {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--minitel-pink);
+  background: rgba(10, 10, 10, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.media-player-title {
+  font-size: 12px;
+  color: var(--minitel-pink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ========================================================================
@@ -3134,12 +3396,8 @@ code {
   margin-bottom: 4px;
 }
 
-/* Large desktop (≥1200px) — wider Minitel, content exploits space */
+/* Large desktop (≥1200px) — larger text, exploits space */
 @media (min-width: 1200px) {
-  .minitel-body {
-    max-width: 960px;
-  }
-
   .minitel-screen {
     font-size: 16px;
   }
@@ -3159,7 +3417,6 @@ code {
     padding: 3px 12px;
   }
 
-  /* Login — more breathing room */
   .minitel-login-art {
     font-size: 15px;
   }
@@ -3173,16 +3430,10 @@ code {
     padding: 10px 20px;
   }
 
-  /* Chat — taller messages area */
-  .chat-container {
-    height: calc(100vh - 100px);
-  }
-
   .chat-messages {
     font-size: 15px;
   }
 
-  /* Tree view — two columns */
   .minitel-tree {
     column-count: 2;
     column-gap: 24px;
@@ -3192,7 +3443,6 @@ code {
     break-inside: avoid;
   }
 
-  /* Navigation drawer — centered smaller panel */
   .minitel-nav-panel {
     min-width: 400px;
     max-width: 500px;
@@ -3202,21 +3452,20 @@ code {
     font-size: 16px;
     padding: 10px 20px;
   }
+
+  .minitel-speaker {
+    width: 100px;
+  }
+
+  .minitel-brand {
+    font-size: 22px;
+  }
 }
 
-/* Ultra-wide (≥1600px) — Minitel CRT proportions with border */
+/* Ultra-wide (≥1600px) — generous spacing */
 @media (min-width: 1600px) {
-  .minitel-terminal {
-    padding: 40px 20px;
-  }
-
   .minitel-body {
-    max-width: 1100px;
-    padding: 24px 24px 20px;
-  }
-
-  .minitel-screen {
-    min-height: 80vh;
+    padding: 16px 20px 12px;
   }
 
   .minitel-service-top {
@@ -3229,7 +3478,6 @@ code {
     padding: 4px 16px;
   }
 
-  /* Chat — generous spacing */
   .chat-messages {
     font-size: 16px;
     line-height: 1.6;
@@ -3239,7 +3487,6 @@ code {
     padding: 2px 8px;
   }
 
-  /* Voice — larger mic */
   .voice-mic-btn {
     width: 140px;
     height: 140px;
@@ -3250,18 +3497,16 @@ code {
     font-size: 28px;
   }
 
-  /* Tree view — three columns on ultra-wide */
   .minitel-tree {
     column-count: 3;
     column-gap: 32px;
   }
 
-  /* Login — centered with extra padding */
   .minitel-login {
     padding: 40px;
   }
 
-  .minitel-login-art {
-    font-size: 16px;
+  .minitel-speaker {
+    width: 120px;
   }
 }

@@ -56,6 +56,7 @@ export async function streamOllamaChat(
           { role: "user", content: userMessage },
         ],
         stream: true,
+        options: { num_predict: 300 },
       }),
       signal: controller.signal,
     });
@@ -243,6 +244,7 @@ export async function streamOllamaChatWithTools(
         model: persona.model,
         messages,
         stream: true,
+        options: { num_predict: 300 },
       }),
       signal: controller.signal,
     });

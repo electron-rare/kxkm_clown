@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { VideotexBlocks } from "./VideotexMosaic";
 
 interface MinitelFrameProps {
   children: React.ReactNode;
@@ -42,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Historique", page: "history" },
   { label: "Composition musicale", page: "compose-mode" },
   { label: "Generation images", page: "imagine-mode" },
+  { label: "Mediatheque", page: "media" },
   { label: "Tableau de bord", page: "dashboard" },
   { label: "Node Engine", page: "node-engine", roles: ["admin", "operator"] },
   { label: "Training", page: "training", roles: ["admin", "operator"] },
@@ -111,6 +113,7 @@ export default function MinitelFrame({
             {navOpen && (
               <div className="minitel-nav-drawer" onClick={() => setNavOpen(false)}>
                 <div className="minitel-nav-panel" onClick={(e) => e.stopPropagation()}>
+                  <VideotexBlocks pattern="gradient" width={30} />
                   <div className="minitel-nav-title">{">>> SOMMAIRE <<<"}</div>
                   {visibleNav.map((item) => (
                     <button

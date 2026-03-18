@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { getRunStatusClass } from "@kxkm/ui";
 import { api, type OverviewData, type NodeGraphRecord } from "../api";
+import { VideotexPageHeader, VideotexSeparator } from "./VideotexMosaic";
 
 interface NodeEngineOverviewProps {
   onSelectGraph: (id: string) => void;
@@ -55,8 +57,8 @@ export default function NodeEngineOverview({ onSelectGraph }: NodeEngineOverview
 
   return (
     <div>
+      <VideotexPageHeader title="NODE ENGINE" subtitle="Graphes de traitement" color="cyan" />
       <div className="page-header">
-        <h2>Node Engine</h2>
         <button className="btn btn-secondary" onClick={loadAll}>Rafraichir</button>
       </div>
 
@@ -70,13 +72,13 @@ export default function NodeEngineOverview({ onSelectGraph }: NodeEngineOverview
           </div>
           <div className="status-card">
             <span>En file</span>
-            <strong className={overview.queue.queuedRuns > 0 ? "status-queued" : ""}>
+            <strong className={overview.queue.queuedRuns > 0 ? getRunStatusClass("queued") : ""}>
               {overview.queue.queuedRuns}
             </strong>
           </div>
           <div className="status-card">
             <span>En cours</span>
-            <strong className={overview.queue.runningRuns > 0 ? "status-running" : ""}>
+            <strong className={overview.queue.runningRuns > 0 ? getRunStatusClass("running") : ""}>
               {overview.queue.runningRuns}
             </strong>
           </div>
@@ -114,6 +116,7 @@ export default function NodeEngineOverview({ onSelectGraph }: NodeEngineOverview
         </div>
       </section>
 
+      <VideotexSeparator color="cyan" />
       <section>
         <p className="eyebrow">Graphes disponibles</p>
         <div className="card-grid">

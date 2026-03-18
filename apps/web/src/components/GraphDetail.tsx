@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { getRunStatusClass } from "@kxkm/ui";
 import { api, type NodeGraphRecord, type NodeRunRecord } from "../api";
+import { VideotexSeparator } from "./VideotexMosaic";
 
 interface GraphDetailProps {
   graphId: string;
@@ -59,6 +61,7 @@ export default function GraphDetail({ graphId, onBack, onSelectRun, onOpenEditor
 
       {error && <div className="banner">{error}</div>}
 
+      <VideotexSeparator color="cyan" />
       <div className="detail-grid">
         <section className="panel">
           <p className="eyebrow">Informations</p>
@@ -122,13 +125,13 @@ export default function GraphDetail({ graphId, onBack, onSelectRun, onOpenEditor
           {runs.length > 0 ? (
             <ul className="run-list">
               {runs.map((run) => (
-                <li
+                  <li
                   key={run.id}
                   className="run-item"
                   onClick={() => onSelectRun(run.id)}
                 >
                   <code>{run.id.slice(0, 12)}...</code>
-                  <span className={`status-badge status-${run.status}`}>
+                  <span className={`status-badge ${getRunStatusClass(run.status)}`}>
                     {run.status}
                   </span>
                 </li>

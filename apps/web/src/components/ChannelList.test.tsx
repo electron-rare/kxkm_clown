@@ -63,6 +63,6 @@ describe("ChannelList", () => {
     vi.mocked(api.getChannels).mockResolvedValue(mockChannels);
     render(<ChannelList />);
 
-    expect(await screen.findByText("Canaux de chat")).toBeInTheDocument();
+    expect(await screen.findByText(/CANAUX DE CHAT/)).toBeInTheDocument();
   });
 });

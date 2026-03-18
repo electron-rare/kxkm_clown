@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { api, type SessionData, type UserRole } from "./api";
 import Login from "./components/Login";
 import MinitelFrame from "./components/MinitelFrame";
@@ -20,21 +20,11 @@ import UllaPage from "./components/UllaPage";
 import ComposePage from "./components/ComposePage";
 import ImaginePage from "./components/ImaginePage";
 import AdminPage from "./components/AdminPage";
+import MediaExplorer from "./components/MediaExplorer";
 import ErrorBoundary from "./components/ErrorBoundary";
-
-function parseHash(): { page: string; id: string } {
-  const hash = window.location.hash.replace(/^#\/?/, "");
-  if (!hash) return { page: "chat", id: "" };
-  const parts = hash.split("/");
-  const page = parts[0] || "chat";
-  const id = parts.slice(1).join("/");
-  return { page, id };
-}
-
-function setHash(page: string, id?: string) {
-  const hash = id ? `${page}/${id}` : page;
-  window.location.hash = hash;
-}
+import { useAppSession } from "./hooks/useAppSession";
+import { useHashRoute } from "./hooks/useHashRoute";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 
 // ---------------------------------------------------------------------------
 // App state phases:
@@ -44,63 +34,24 @@ function setHash(page: string, id?: string) {
 // ---------------------------------------------------------------------------
 
 export default function App() {
-  const [session, setSession] = useState<SessionData | null>(null);
-  const [nick, setNick] = useState<string | null>(() => {
-    return typeof sessionStorage !== "undefined" ? sessionStorage.getItem("kxkm-nick") : null;
-  });
+  const { session, setSession, nick, setNick, clearSessionState } = useAppSession();
   const [error, setError] = useState("");
-  const [checkingSession, setCheckingSession] = useState(true);
-  const [route, setRoute] = useState(parseHash);
+  const { route, navigate } = useHashRoute();
 
   // Phase: skip connection animation if already logged in
   const [phase, setPhase] = useState<"connecting" | "login" | "ready">(
     nick ? "ready" : "connecting"
   );
+  useKeyboardShortcuts(navigate);
 
-  useEffect(() => {
-    function onHashChange() { setRoute(parseHash()); }
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
-
-  useEffect(() => {
-    api.getSession()
-      .then((s) => { setSession(s); if (s && nick) setPhase("ready"); })
-      .catch(() => setSession(null))
-      .finally(() => setCheckingSession(false));
-  }, [nick]);
-
-  const navigate = useCallback((page: string, id?: string) => {
-    setHash(page, id);
-  }, []);
-
-  // Global keyboard shortcuts: F1-F5 = Minitel modes
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      const map: Record<string, string> = {
-        F1: "chat", F2: "voice", F3: "personas", F4: "compose-mode", F5: "imagine-mode",
-      };
-      const page = map[e.key];
-      if (page) { e.preventDefault(); navigate(page); }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navigate]);
-
-  // Login handler: stores nick + optional credentials
-  function handleLogin(username: string, email?: string, password?: string) {
+  // Login handler: stores nick (pseudo only)
+  function handleLogin(username: string) {
     setNick(username);
-    sessionStorage.setItem("kxkm-nick", username);
-    if (email) sessionStorage.setItem("kxkm-email", email);
 
     // Try API login for admin features (non-blocking)
-    if (password) {
-      api.login(username, "viewer" as UserRole)
-        .then((s) => setSession(s))
-        .catch(() => {}); // Non-blocking — chat works without session
-    }
+    api.login(username, "viewer" as UserRole)
+      .then((s) => setSession(s))
+      .catch(() => {}); // Non-blocking — chat works without session
 
     setPhase("ready");
     navigate("chat");
@@ -109,9 +60,7 @@ export default function App() {
   function handleLogout() {
     api.logout().catch(() => {});
     setSession(null);
-    setNick(null);
-    sessionStorage.removeItem("kxkm-nick");
-    sessionStorage.removeItem("kxkm-email");
+    clearSessionState();
     setPhase("connecting");
     setError("");
   }
@@ -206,6 +155,9 @@ export default function App() {
 
       case "imagine-mode":
         return <ImaginePage />;
+
+      case "media":
+        return <MediaExplorer />;
 
       case "chat":
       default:

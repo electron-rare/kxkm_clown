@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type PersonaData, type PersonaFeedbackRecord } from "../api";
+import { VideotexSeparator } from "./VideotexMosaic";
 
 interface PersonaDetailProps {
   personaId: string;
@@ -148,6 +149,7 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
 
       {error && <div className="banner">{error}</div>}
 
+      <VideotexSeparator color="pink" />
       <div className="detail-grid">
         <section className="panel">
           <p className="eyebrow">Details</p>
@@ -218,7 +220,7 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
           <div className="detail-row">
             <span className="detail-label">Statut</span>
             <span className={hasVoiceSample ? "persona-status-on" : "persona-status-off"}>
-              {hasVoiceSample ? "Voix clonee (XTTS)" : "Voix generique (Piper)"}
+              {hasVoiceSample ? "Echantillon present" : "Aucun echantillon"}
             </span>
           </div>
           <div style={{ marginTop: "0.5rem" }}>
@@ -250,7 +252,7 @@ export default function PersonaDetail({ personaId, onBack }: PersonaDetailProps)
               <p className="muted" style={{ marginTop: "0.25rem" }}>{voiceStatus}</p>
             )}
             <p className="muted" style={{ marginTop: "0.5rem", fontSize: "0.85em" }}>
-              WAV ou MP3, ~6 secondes de parole claire. Utilise pour cloner la voix via XTTS-v2.
+              WAV ou MP3, ~6 secondes de parole claire. Le clonage XTTS-v2 depend aussi du runtime Python local.
             </p>
           </div>
         </section>

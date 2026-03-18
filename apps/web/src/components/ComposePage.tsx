@@ -1,10 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMinitelSounds } from "../hooks/useMinitelSounds";
-
-/**
- * /compose mode — Music generation via ACE-Step 1.5
- * Minitel-style interface for composing music from text prompts.
- */
+import { resolveWebSocketUrl } from "../lib/websocket-url";
+import { VideotexPageHeader } from "./VideotexMosaic";
 
 interface ComposeResult {
   status: string;
@@ -12,7 +9,6 @@ interface ComposeResult {
   audioMime?: string;
   prompt?: string;
   error?: string;
-  duration?: number;
 }
 
 export default function ComposePage() {
@@ -20,15 +16,37 @@ export default function ComposePage() {
   const [style, setStyle] = useState("experimental");
   const [duration, setDuration] = useState(30);
   const [generating, setGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<ComposeResult[]>([]);
   const [error, setError] = useState("");
+  const [activeTrack, setActiveTrack] = useState<number | null>(null);
   const sounds = useMinitelSounds();
   const wsRef = useRef<WebSocket | null>(null);
+  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wsUrl = resolveWebSocketUrl();
+
+  // Simulated progress bar during generation
+  useEffect(() => {
+    if (generating) {
+      setProgress(0);
+      const estimatedMs = duration * 1000;
+      const step = 100 / (estimatedMs / 200);
+      progressRef.current = setInterval(() => {
+        setProgress(p => Math.min(p + step * (0.5 + Math.random()), 92));
+      }, 200);
+    } else {
+      if (progressRef.current) clearInterval(progressRef.current);
+      if (progress > 0) {
+        setProgress(100);
+        setTimeout(() => setProgress(0), 800);
+      }
+    }
+    return () => { if (progressRef.current) clearInterval(progressRef.current); };
+  }, [generating]);
 
   function getWs(): WebSocket | null {
     if (wsRef.current?.readyState === WebSocket.OPEN) return wsRef.current;
-    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${location.host}/ws`);
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onmessage = (evt) => {
@@ -60,19 +78,13 @@ export default function ComposePage() {
     if (!prompt.trim() || generating) return;
 
     const ws = getWs();
+    const cmd = `/compose ${prompt.trim()}, ${style} style, ${duration}s`;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      // Wait for connection then send
       ws?.addEventListener("open", () => {
-        ws.send(JSON.stringify({
-          type: "message",
-          text: `/compose ${prompt.trim()}, ${style} style, ${duration}s`,
-        }));
+        ws.send(JSON.stringify({ type: "command", text: cmd }));
       }, { once: true });
     } else {
-      ws.send(JSON.stringify({
-        type: "message",
-        text: `/compose ${prompt.trim()}, ${style} style, ${duration}s`,
-      }));
+      ws.send(JSON.stringify({ type: "command", text: cmd }));
     }
 
     setGenerating(true);
@@ -82,8 +94,7 @@ export default function ComposePage() {
 
   return (
     <div className="compose-page">
-      <div className="compose-header">{">>> COMPOSITION MUSICALE <<<"}</div>
-      <div className="compose-subtitle">ACE-Step 1.5 — Generation locale GPU</div>
+      <VideotexPageHeader title="COMPOSITION MUSICALE" subtitle="ACE-Step 1.5 — GPU local" color="pink" />
 
       <form onSubmit={handleCompose} className="compose-form">
         <div className="minitel-field">
@@ -101,11 +112,7 @@ export default function ComposePage() {
         <div className="compose-options">
           <div className="minitel-field">
             <label>Style _</label>
-            <select
-              value={style}
-              onChange={(e) => setStyle(e.target.value)}
-              className="minitel-input"
-            >
+            <select value={style} onChange={(e) => setStyle(e.target.value)} className="minitel-input">
               <option value="experimental">Experimental</option>
               <option value="ambient">Ambient</option>
               <option value="electronic">Electronic</option>
@@ -121,11 +128,7 @@ export default function ComposePage() {
 
           <div className="minitel-field">
             <label>Duree _</label>
-            <select
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-              className="minitel-input"
-            >
+            <select value={duration} onChange={(e) => setDuration(Number(e.target.value))} className="minitel-input">
               <option value={10}>10s</option>
               <option value={30}>30s</option>
               <option value={60}>60s</option>
@@ -134,37 +137,52 @@ export default function ComposePage() {
           </div>
         </div>
 
-        <button
-          type="submit"
-          className="minitel-login-btn"
-          disabled={generating || !prompt.trim()}
-        >
+        <button type="submit" className="minitel-login-btn" disabled={generating || !prompt.trim()}>
           {generating ? "Generation en cours..." : ">>> Composer <<<"}
         </button>
       </form>
 
       {error && <div className="minitel-login-error">{error}</div>}
 
+      {/* Progress bar */}
       {generating && (
-        <div className="compose-generating">
-          <span className="minitel-cursor">█</span> Generation en cours...
-          <br />
-          <span className="compose-hint">(peut prendre 10-60 secondes selon la duree)</span>
+        <div className="vtx-progress">
+          <div className="vtx-progress-label">
+            <span className="minitel-cursor">█</span> GENERATION EN COURS
+          </div>
+          <div className="vtx-progress-bar">
+            <div className="vtx-progress-fill" style={{ width: `${progress}%` }}>
+              {"█".repeat(Math.floor(progress / 2.5))}
+            </div>
+          </div>
+          <div className="vtx-progress-pct">{Math.floor(progress)}%</div>
         </div>
       )}
 
+      {/* Results with player */}
       {results.length > 0 && (
         <div className="compose-results">
           <div className="compose-results-title">{"--- Compositions ---"}</div>
           {results.map((r, i) => (
-            <div key={i} className="compose-result">
-              <div className="compose-result-prompt">{r.prompt || "Sans titre"}</div>
-              {r.audioData && r.audioMime && (
-                <audio
-                  controls
-                  src={`data:${r.audioMime};base64,${r.audioData}`}
-                  className="compose-audio"
-                />
+            <div
+              key={i}
+              className={`vtx-track${activeTrack === i ? " vtx-track-active" : ""}`}
+              onClick={() => setActiveTrack(activeTrack === i ? null : i)}
+            >
+              <div className="vtx-track-header">
+                <span className="vtx-track-icon">{activeTrack === i ? "▶" : "♫"}</span>
+                <span className="vtx-track-title">{r.prompt || "Sans titre"}</span>
+                <span className="vtx-track-badge">OK</span>
+              </div>
+              {activeTrack === i && r.audioData && r.audioMime && (
+                <div className="vtx-player">
+                  <audio
+                    controls
+                    autoPlay
+                    src={`data:${r.audioMime};base64,${r.audioData}`}
+                    className="vtx-audio"
+                  />
+                </div>
               )}
             </div>
           ))}

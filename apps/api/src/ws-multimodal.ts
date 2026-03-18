@@ -4,6 +4,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { OutboundMessage } from "./chat-types.js";
+import { resolvePreferredPythonBin, resolveVoiceSamplePath } from "./voice-samples.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -55,13 +56,16 @@ export async function synthesizeTTS(
 
   const truncated = text.slice(0, 1000); // limit TTS to ~1000 chars
   const outputPath = `/tmp/kxkm-tts-${Date.now()}.wav`;
-  const pythonBin = process.env.PYTHON_BIN || "/home/kxkm/venv/bin/python3";
+  const pythonBin = resolvePreferredPythonBin();
   const scriptsDir = process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts");
 
   // Check for voice sample (XTTS-v2 cloning)
-  const samplePath = path.resolve(process.cwd(), "data", "voice-samples", `${nick.toLowerCase()}.wav`);
+  const samplePath = resolveVoiceSamplePath(nick) ?? "";
   let useXtts = false;
   try {
+    if (samplePath.length === 0) {
+      throw new Error("invalid sample path");
+    }
     await fs.promises.access(samplePath);
     useXtts = true;
   } catch { /* no voice sample — use Piper fallback */ }
@@ -152,7 +156,7 @@ export async function analyzeImage(
   const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
 
   try {
-    const visionModel = process.env.VISION_MODEL || "qwen3.5:9b";
+    const visionModel = process.env.VISION_MODEL || "qwen3-vl:8b";
     const response = await fetch(`${ollamaUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -173,7 +177,9 @@ export async function analyzeImage(
     });
 
     if (!response.ok) {
-      return `[Image: ${filename} — analyse échouée: ${response.status}]`;
+      const body = await response.text().catch(() => "");
+      console.error(`[vision] ${visionModel} returned ${response.status}: ${body.slice(0, 200)}`);
+      return `[Image: ${filename} — analyse échouée: modèle ${visionModel} erreur ${response.status}]`;
     }
 
     const result = (await response.json()) as {

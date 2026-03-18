@@ -84,12 +84,16 @@ class TTSHandler(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self):
-        if self.path != "/synthesize":
+        if self.path not in ("/synthesize", "/compose"):
             self.send_error(404)
             return
 
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length)) if length else {}
+
+        if self.path == "/compose":
+            self._handle_compose(body)
+            return
 
         text = body.get("text", "")
         persona = body.get("persona", "default")
@@ -113,6 +117,61 @@ class TTSHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"error": str(e)}).encode())
             print(f"[tts] ERROR: {e}", file=sys.stderr)
+
+    def _handle_compose(self, body):
+        """Run compose_music.py on host with GPU access."""
+        import subprocess, tempfile
+
+        prompt = body.get("prompt", "")
+        duration = body.get("duration", 30)
+        if not prompt:
+            self.send_error(400, "Missing prompt")
+            return
+
+        output_path = tempfile.mktemp(suffix=".wav", prefix="kxkm-compose-")
+        script_path = os.path.join(os.path.dirname(__file__), "compose_music.py")
+
+        try:
+            result = subprocess.run(
+                [sys.executable, script_path, "--prompt", prompt, "--duration", str(duration), "--output", output_path],
+                capture_output=True, text=True, timeout=300,
+                env={**os.environ, "COQUI_TOS_AGREED": "1"},
+            )
+            # Parse JSON output from last line
+            last_line = (result.stdout.strip().split("\n") or ["{}"])[-1]
+            data = json.loads(last_line)
+
+            if data.get("status") == "completed" and os.path.exists(output_path):
+                with open(output_path, "rb") as f:
+                    audio = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Content-Length", str(len(audio)))
+                self.end_headers()
+                self.wfile.write(audio)
+                print(f"[compose] {prompt[:50]}: {len(audio)} bytes, {duration}s", file=sys.stderr)
+            else:
+                error = data.get("error", result.stderr[-200:] if result.stderr else "unknown")
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": error}).encode())
+                print(f"[compose] FAIL: {error}", file=sys.stderr)
+        except subprocess.TimeoutExpired:
+            self.send_response(504)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Timeout (5min)"}).encode())
+            print(f"[compose] TIMEOUT", file=sys.stderr)
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode())
+            print(f"[compose] ERROR: {e}", file=sys.stderr)
+        finally:
+            try: os.unlink(output_path)
+            except: pass
 
     def log_message(self, format, *args):
         pass  # Suppress default access logs

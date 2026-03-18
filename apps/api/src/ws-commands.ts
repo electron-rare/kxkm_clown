@@ -200,67 +200,47 @@ async function handleComposeCommand({
     text: `${info.nick} compose: "${musicPrompt}"...`,
   });
 
-  const outputPath = `/tmp/kxkm-music-${Date.now()}.wav`;
+  const ttsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
+
   try {
-    const pythonBin = process.env.PYTHON_BIN || "python3";
-    const scriptPath = path.resolve(
-      process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts"),
-      "compose_music.py",
-    );
+    const resp = await fetch(`${ttsUrl}/compose`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: musicPrompt, duration: 30 }),
+      signal: AbortSignal.timeout(300_000),
+    });
 
-    const { stdout, stderr } = await execFileAsync(pythonBin, [
-      scriptPath,
-      "--prompt",
-      musicPrompt,
-      "--duration",
-      "30",
-      "--output",
-      outputPath,
-    ], { timeout: 300_000, maxBuffer: 50 * 1024 * 1024 });
-
-    if (stderr && DEBUG) {
-      process.stdout.write(`[compose] ${stderr.slice(-200)}\n`);
-    }
-
-    let result: { status?: string; error?: string } = {};
-    try {
-      result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
-    } catch (parseErr) {
-      console.error("[compose] Failed to parse JSON output:", parseErr);
-    }
-
-    if (result.status === "completed") {
-      const audioBuffer = await fsp.readFile(outputPath);
-      const audioBase64 = audioBuffer.toString("base64");
-      broadcast(info.channel, {
-        type: "music",
-        nick: info.nick,
-        text: `[Musique: "${musicPrompt}"]`,
-        audioData: audioBase64,
-        audioMime: "audio/wav",
-      } as OutboundMessage);
-
-      // Persist to media store
-      saveAudio({ base64: audioBase64, prompt: musicPrompt, nick: info.nick, channel: info.channel }).catch(() => {});
-
-      logChatMessage({
-        ts: new Date().toISOString(),
-        channel: info.channel,
-        nick: info.nick,
-        type: "system",
-        text: `[Musique generee: "${musicPrompt}"]`,
-      });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` })) as { error?: string };
+      send(ws, { type: "system", text: `Composition echouee: ${body.error || "unknown"}` });
       return;
     }
 
-    send(ws, { type: "system", text: `Composition echouee: ${result.error || "unknown"}` });
+    const audioBuffer = Buffer.from(await resp.arrayBuffer());
+    const audioBase64 = audioBuffer.toString("base64");
+
+    broadcast(info.channel, {
+      type: "music",
+      nick: info.nick,
+      text: `[Musique: "${musicPrompt}"]`,
+      audioData: audioBase64,
+      audioMime: "audio/wav",
+    } as OutboundMessage);
+
+    saveAudio({ base64: audioBase64, prompt: musicPrompt, nick: info.nick, channel: info.channel }).catch(() => {});
+
+    logChatMessage({
+      ts: new Date().toISOString(),
+      channel: info.channel,
+      nick: info.nick,
+      type: "system",
+      text: `[Musique generee: "${musicPrompt}"]`,
+    });
   } catch (err) {
     send(ws, {
       type: "system",
       text: `Erreur composition: ${err instanceof Error ? err.message : String(err)}`,
     });
-  } finally {
-    await fsp.unlink(outputPath).catch(() => undefined);
   }
 }
 

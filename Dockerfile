@@ -13,7 +13,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tini ca-certificates python3 python3-pip ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
-    && pip3 install --break-system-packages piper-tts pathvalidate 2>/dev/null || true
+    && pip3 install --break-system-packages \
+       piper-tts pathvalidate \
+       transformers accelerate torch --index-url https://download.pytorch.org/whl/cpu \
+    2>/dev/null || true
 
 # Copy package manifests + install production deps
 COPY package.json package-lock.json ./

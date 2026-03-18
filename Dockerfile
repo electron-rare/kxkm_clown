@@ -41,8 +41,9 @@ FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
-# System deps: tini for PID 1, bash for training scripts, ca-certs for HTTPS
-RUN apk add --no-cache tini bash ca-certificates
+# System deps: tini for PID 1, bash for scripts, python3 for TTS/ML, ffmpeg for audio
+RUN apk add --no-cache tini bash ca-certificates python3 py3-pip ffmpeg \
+    && pip3 install --break-system-packages piper-tts pathvalidate 2>/dev/null || true
 
 # Copy the assembled dist produced by scripts/build.js
 COPY --from=build /app/dist ./
@@ -59,6 +60,8 @@ COPY --from=build /app/scripts/train_unsloth.py ./scripts/
 COPY --from=build /app/scripts/eval_model.py ./scripts/
 COPY --from=build /app/scripts/ollama-import-adapter.sh ./scripts/
 COPY --from=build /app/scripts/extract_pdf_docling.py ./scripts/
+COPY --from=build /app/scripts/tts_synthesize.py ./scripts/
+COPY --from=build /app/scripts/tts_clone_voice.py ./scripts/
 
 # Ensure data directories exist (they will be mounted as volumes in prod)
 RUN mkdir -p data/logs data/sessions data/training data/memory data/dpo \

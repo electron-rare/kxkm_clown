@@ -14,11 +14,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini ca-certificates python3 python3-pip ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# ML deps: transformers + torch (CPU) for /compose, piper-tts for TTS
-RUN pip3 install --break-system-packages \
-    piper-tts pathvalidate \
-    transformers accelerate \
-    torch --index-url https://download.pytorch.org/whl/cpu
+# TTS deps (lightweight)
+RUN pip3 install --break-system-packages --no-cache-dir \
+    piper-tts pathvalidate
+
+# ML deps for /compose (torch CPU ~800MB, cached in its own layer)
+RUN pip3 install --break-system-packages --no-cache-dir \
+    torch --index-url https://download.pytorch.org/whl/cpu \
+    && pip3 install --break-system-packages --no-cache-dir \
+    transformers accelerate
 
 # Copy package manifests + install production deps
 COPY package.json package-lock.json ./

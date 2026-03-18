@@ -56,7 +56,7 @@ export async function streamOllamaChat(
           { role: "user", content: userMessage },
         ],
         stream: true,
-        options: { num_predict: persona.maxTokens || 500 },
+        options: { num_predict: persona.maxTokens || 1024 },
       }),
       signal: controller.signal,
     });
@@ -188,7 +188,7 @@ export async function streamOllamaChatWithTools(
         messages,
         tools: tools.map(t => t),
         stream: false,
-        options: { num_predict: persona.maxTokens || 500 },
+        options: { num_predict: persona.maxTokens || 1024 },
       }),
       signal: controller.signal,
     });
@@ -256,7 +256,7 @@ export async function streamOllamaChatWithTools(
         model: persona.model,
         messages,
         stream: true,
-        options: { num_predict: persona.maxTokens || 500 },
+        options: { num_predict: persona.maxTokens || 1024 },
       }),
       signal: controller.signal,
     });

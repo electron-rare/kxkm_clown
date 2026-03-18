@@ -85,7 +85,7 @@ export const DEFAULT_PERSONAS: ChatPersona[] = [
       "Format: une phrase de réponse + '@NomDuSpecialiste peut approfondir.' " +
       "Tu réponds en français.",
     color: "#00e676",
-    maxTokens: 600,
+    maxTokens: 800,
   },
   {
     id: "turing",

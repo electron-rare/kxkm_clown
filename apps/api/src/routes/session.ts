@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { Router, type Request, type Response, type NextFunction } from "express";
@@ -109,7 +110,13 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
       // Admin role requires ADMIN_TOKEN env var match.
       let role: UserRole = "viewer";
       const adminToken = process.env.ADMIN_TOKEN;
-      const tokenMatches = Boolean(adminToken && req.body?.token === adminToken);
+      const supplied = String(req.body?.token ?? "");
+      const tokenMatches = Boolean(
+        adminToken &&
+        supplied.length > 0 &&
+        adminToken.length === supplied.length &&
+        crypto.timingSafeEqual(Buffer.from(adminToken), Buffer.from(supplied)),
+      );
       if (input.role === "admin" && tokenMatches) {
         role = "admin";
       } else if (input.role === "operator" || input.role === "editor") {

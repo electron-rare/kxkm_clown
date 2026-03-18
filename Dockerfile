@@ -22,7 +22,7 @@ RUN pip3 install --break-system-packages --no-cache-dir \
 RUN pip3 install --break-system-packages --no-cache-dir \
     torch --index-url https://download.pytorch.org/whl/cpu \
     && pip3 install --break-system-packages --no-cache-dir \
-    transformers accelerate
+    transformers accelerate scipy
 
 # Copy package manifests + install production deps
 COPY package.json package-lock.json ./

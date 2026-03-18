@@ -46,71 +46,37 @@ export function releaseTTS(): void {
 // TTS synthesis (Piper TTS via Python script)
 // ---------------------------------------------------------------------------
 
+const TTS_URL = process.env.TTS_URL || "http://127.0.0.1:9100";
+
 export async function synthesizeTTS(
   nick: string,
   text: string,
   channel: string,
   broadcastFn: (channel: string, msg: OutboundMessage) => void,
 ): Promise<void> {
-  if (!text || text.length < 10) return; // skip very short texts
+  if (!text || text.length < 10) return;
 
-  const truncated = text.slice(0, 1000); // limit TTS to ~1000 chars
-  const outputPath = `/tmp/kxkm-tts-${Date.now()}.wav`;
-  const pythonBin = resolvePreferredPythonBin();
-  const scriptsDir = process.env.SCRIPTS_DIR || path.join(process.cwd(), "scripts");
-
-  // Check for voice sample (XTTS-v2 cloning)
-  const samplePath = resolveVoiceSamplePath(nick) ?? "";
-  let useXtts = false;
-  try {
-    if (samplePath.length === 0) {
-      throw new Error("invalid sample path");
-    }
-    await fs.promises.access(samplePath);
-    useXtts = true;
-  } catch { /* no voice sample — use Piper fallback */ }
+  const truncated = text.slice(0, 1000);
 
   try {
-    let args: string[];
-    if (useXtts) {
-      args = [
-        path.resolve(scriptsDir, "tts_clone_voice.py"),
-        "--text", truncated,
-        "--reference", samplePath,
-        "--output", outputPath,
-      ];
-    } else {
-      args = [
-        path.resolve(scriptsDir, "tts_synthesize.py"),
-        "--text", truncated,
-        "--voice", nick,
-        "--output", outputPath,
-      ];
+    const resp = await fetch(`${TTS_URL}/synthesize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: truncated, persona: nick }),
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      console.error(`[tts] HTTP ${resp.status} for ${nick}: ${body.slice(0, 200)}`);
+      return;
     }
 
-    const { stdout } = await execFileAsync(pythonBin, args, { timeout: 60_000 });
-
-    let result: { status?: string; error?: string } = {};
-    try {
-      result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
-    } catch (parseErr) {
-      console.error("[multimodal] Failed to parse JSON output:", parseErr);
-    }
-
-    if (result.status === "completed") {
-      try {
-        const audioBuffer = await fsp.readFile(outputPath);
-        const base64 = audioBuffer.toString("base64");
-
-        // Broadcast audio to channel
-        broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
-      } catch { /* file missing — ignore */ }
-    }
+    const audioBuffer = Buffer.from(await resp.arrayBuffer());
+    const base64 = audioBuffer.toString("base64");
+    broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
   } catch (err) {
-    // TTS failure is non-critical, just log
     console.error(`[tts] Synthesis failed for ${nick}: ${err instanceof Error ? err.message : String(err)}`);
-  } finally {
-    try { await fsp.unlink(outputPath); } catch { /* ignore cleanup errors */ }
   }
 }
 

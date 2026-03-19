@@ -17,13 +17,17 @@ mock.module("./comfyui.js", {
   namedExports: { generateImage: mockGenerateImage },
 });
 
+// Mock error-tracker
+mock.module("./error-tracker.js", {
+  namedExports: { trackError: mock.fn() },
+});
+
 // Now import the module under test
 const {
-  acquireOllama,
-  releaseOllama,
   streamOllamaChat,
   executeToolCall,
   streamOllamaChatWithTools,
+  cleanPersonaResponse,
 } = await import("./ws-ollama.js");
 
 // ---------------------------------------------------------------------------
@@ -101,66 +105,6 @@ describe("ws-ollama", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-  });
-
-  // =========================================================================
-  // Semaphore tests
-  // =========================================================================
-
-  describe("acquireOllama / releaseOllama", () => {
-    it("resolves immediately when under the limit", async () => {
-      // Should resolve without blocking
-      await acquireOllama();
-      releaseOllama();
-    });
-
-    it("queues when limit is reached and unblocks on release", async () => {
-      // Acquire 3 slots (default MAX_OLLAMA_CONCURRENT = 3)
-      await acquireOllama();
-      await acquireOllama();
-      await acquireOllama();
-
-      let resolved = false;
-      const pending = acquireOllama().then(() => {
-        resolved = true;
-      });
-
-      // Should not have resolved yet
-      await new Promise((r) => setTimeout(r, 10));
-      assert.equal(resolved, false, "4th acquire should be queued");
-
-      // Release one slot
-      releaseOllama();
-      await pending;
-      assert.equal(resolved, true, "4th acquire should resolve after release");
-
-      // Cleanup: release remaining
-      releaseOllama();
-      releaseOllama();
-      releaseOllama();
-    });
-
-    it("unblocks in FIFO order", async () => {
-      await acquireOllama();
-      await acquireOllama();
-      await acquireOllama();
-
-      const order: number[] = [];
-      const p1 = acquireOllama().then(() => order.push(1));
-      const p2 = acquireOllama().then(() => order.push(2));
-
-      releaseOllama();
-      await p1;
-      releaseOllama();
-      await p2;
-
-      assert.deepEqual(order, [1, 2]);
-
-      // Cleanup
-      releaseOllama();
-      releaseOllama();
-      releaseOllama();
-    });
   });
 
   // =========================================================================
@@ -287,41 +231,35 @@ describe("ws-ollama", () => {
       assert.match(caughtError!.message, /Ollama returned 500/);
     });
 
-    it("releases semaphore on success", async () => {
-      fetchMock.mock.mockImplementation(async () => mockStreamResponse(["ok"]));
+  });
 
-      // Fill the semaphore, do a stream, check we can still acquire after
-      await streamOllamaChat(
-        "http://localhost:11434",
-        makePersona(),
-        "Hi",
-        () => {},
-        () => {},
-        () => {},
-      );
+  // =========================================================================
+  // cleanPersonaResponse tests
+  // =========================================================================
 
-      // If semaphore was released, this should resolve
-      await acquireOllama();
-      releaseOllama();
+  describe("cleanPersonaResponse", () => {
+    it("strips thinking blocks", () => {
+      assert.equal(cleanPersonaResponse("<think>reasoning</think>Answer", "Bot"), "Answer");
     });
 
-    it("releases semaphore on error", async () => {
-      fetchMock.mock.mockImplementation(async () => {
-        throw new Error("fail");
-      });
+    it("strips persona name prefix with bold", () => {
+      assert.equal(cleanPersonaResponse("**Pharmacius** : Bonjour!", "Pharmacius"), "Bonjour!");
+    });
 
-      await streamOllamaChat(
-        "http://localhost:11434",
-        makePersona(),
-        "Hi",
-        () => {},
-        () => {},
-        () => {},
-      );
+    it("strips persona name prefix without bold", () => {
+      assert.equal(cleanPersonaResponse("Pharmacius : Bonjour!", "Pharmacius"), "Bonjour!");
+    });
 
-      // Semaphore should still be functional
-      await acquireOllama();
-      releaseOllama();
+    it("strips persona name prefix with newline", () => {
+      assert.equal(cleanPersonaResponse("**Bot** :\nHello", "Bot"), "Hello");
+    });
+
+    it("returns text unchanged if no prefix", () => {
+      assert.equal(cleanPersonaResponse("Just a response", "Bot"), "Just a response");
+    });
+
+    it("trims whitespace", () => {
+      assert.equal(cleanPersonaResponse("  hello  ", "Bot"), "hello");
     });
   });
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { VideotexBlocks } from "./VideotexMosaic";
 
 interface MinitelFrameProps {
@@ -64,6 +64,20 @@ export default function MinitelFrame({
   onLogout,
 }: MinitelFrameProps) {
   const [navOpen, setNavOpen] = useState(false);
+  const [booted, setBooted] = useState(false);
+
+  // CRT off via ?crt=off URL param
+  const crtOff = typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("crt") === "off";
+
+  // Boot animation: trigger on mount
+  useEffect(() => {
+    if (!crtOff) {
+      // Small delay so the animation is visible after hydration
+      const t = setTimeout(() => setBooted(true), 50);
+      return () => clearTimeout(t);
+    }
+  }, [crtOff]);
 
   const visibleNav = NAV_ITEMS.filter(
     (item) => !item.roles || (session && item.roles.includes(session.role))
@@ -75,8 +89,8 @@ export default function MinitelFrame({
   }
 
   return (
-    <div className="minitel-terminal">
-      <div className="minitel-body">
+    <div className={`minitel-terminal${crtOff ? " crt-off" : ""}`}>
+      <div className={`minitel-body${!crtOff && booted ? " crt-boot" : ""}`}>
         <div className="minitel-screen-bezel">
           <div className="minitel-screen">
             {/* CRT overlays */}
@@ -137,11 +151,13 @@ export default function MinitelFrame({
             )}
 
             {/* Bottom bar — project mode buttons */}
-            <div className="minitel-service-bottom">
+            <div className="minitel-service-bottom" role="navigation" aria-label="Modes du projet">
               <button
                 className="minitel-fkey minitel-fkey-sommaire"
                 onClick={() => setNavOpen(!navOpen)}
                 title="Sommaire — navigation complete"
+                aria-label="Menu de navigation"
+                aria-expanded={navOpen}
               >
                 ☰
               </button>

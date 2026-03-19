@@ -4,11 +4,12 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { WebSocket } from "ws";
+import logger from "./logger.js";
+import { trackError } from "./error-tracker.js";
 import type { InboundUpload, ClientInfo, OutboundMessage } from "./chat-types.js";
+import { fileTypeFromBuffer } from "file-type";
 
 const execFileAsync = promisify(execFile);
-
-const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
 export async function handleUpload(
   ws: WebSocket,
@@ -48,6 +49,37 @@ export async function handleUpload(
 
   const buffer = Buffer.from(dataB64, "base64");
 
+  // SEC-03: MIME magic bytes validation
+  const SAFE_MIMES = new Set([
+    "text/plain", "text/markdown", "text/csv",
+    "application/json", "application/pdf",
+    "image/png", "image/jpeg", "image/webp", "image/gif",
+    "audio/wav", "audio/mpeg", "audio/ogg", "audio/mp4", "audio/flac",
+    "audio/x-wav", "audio/x-flac",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ]);
+  const detected = await fileTypeFromBuffer(buffer);
+  let actualMime = mimeType;
+  if (detected) {
+    if (!SAFE_MIMES.has(detected.mime)) {
+      send(ws, { type: "system", text: `Type de fichier non autorisé: ${detected.mime}` });
+      return;
+    }
+    // Trust magic bytes over declared MIME
+    actualMime = detected.mime;
+  } else {
+    // No magic bytes detected — likely a text file; verify by extension
+    const ext = filename.split(".").pop()?.toLowerCase() || "";
+    const textExts = new Set(["txt", "md", "csv", "json", "jsonl", "xml", "html", "yml", "yaml", "toml"]);
+    if (!textExts.has(ext)) {
+      send(ws, { type: "system", text: `Extension non reconnue sans signature binaire: .${ext}` });
+      return;
+    }
+    actualMime = mimeType || "text/plain";
+  }
+
   // Broadcast upload notification
   broadcast(info.channel, {
     type: "system",
@@ -67,16 +99,16 @@ export async function handleUpload(
   let analysis = "";
 
   if (
-    mimeType.startsWith("text/") ||
-    mimeType === "application/json" ||
+    actualMime.startsWith("text/") ||
+    actualMime === "application/json" ||
     filename.endsWith(".csv") ||
     filename.endsWith(".jsonl")
   ) {
     const text = buffer.slice(0, 12000).toString("utf-8");
     analysis = `[Fichier texte: ${filename}]\n${text}`;
-  } else if (mimeType.startsWith("image/")) {
-    analysis = await analyzeImage(buffer, mimeType, filename, ollamaUrl);
-  } else if (mimeType.startsWith("audio/")) {
+  } else if (actualMime.startsWith("image/")) {
+    analysis = await analyzeImage(buffer, actualMime, filename, ollamaUrl);
+  } else if (actualMime.startsWith("audio/")) {
     // Transcribe audio via Whisper (faster-whisper or openai-whisper)
     const ext = filename.split(".").pop() || "wav";
     const tmpFile = path.join("/tmp", `kxkm-audio-${Date.now()}.${ext}`);
@@ -92,7 +124,7 @@ export async function handleUpload(
         const { stdout, stderr } = await execFileAsync(pythonBin, [
           scriptPath, "--input", tmpFile, "--language", "fr",
         ], { timeout: 120_000 });
-        if (stderr && DEBUG) console.log(`[ws-chat][audio] ${stderr.trim().slice(-200)}`);
+        if (stderr) logger.debug(`[ws-chat][audio] ${stderr.trim().slice(-200)}`);
         const lastLine = stdout.trim().split("\n").pop() || "{}";
         const result = JSON.parse(lastLine);
         if (result.transcript) {
@@ -104,11 +136,12 @@ export async function handleUpload(
         releaseFileProcessor();
       }
     } catch (err) {
+      trackError("upload_audio", err, { filename });
       analysis = `[Audio: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
     } finally {
       try { await fsp.unlink(tmpFile); } catch { /* ignore cleanup errors */ }
     }
-  } else if (mimeType === "application/pdf") {
+  } else if (actualMime === "application/pdf") {
     const tmpFile = path.join("/tmp", `kxkm-pdf-${Date.now()}.pdf`);
     try {
       await fsp.writeFile(tmpFile, buffer);
@@ -117,7 +150,7 @@ export async function handleUpload(
         const pythonBin = process.env.PYTHON_BIN || "python3";
         const scriptPath = path.join(process.env.SCRIPTS_DIR || "scripts", "extract_pdf_docling.py");
         const { stdout, stderr } = await execFileAsync(pythonBin, [scriptPath, "--input", tmpFile], { timeout: 60_000 });
-        if (stderr && DEBUG) console.log(`[upload] pdf: ${stderr.slice(-200)}`);
+        if (stderr) logger.debug(`[upload] pdf: ${stderr.slice(-200)}`);
         const result = JSON.parse(stdout.trim().split("\n").pop() || "{}");
         if (result.text) {
           analysis = `[PDF: ${filename}, ${result.pages || "?"} page(s)]\n${result.text}`;
@@ -128,11 +161,12 @@ export async function handleUpload(
         releaseFileProcessor();
       }
     } catch (err) {
+      trackError("upload_pdf", err, { filename });
       analysis = `[PDF: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
     } finally {
       try { await fsp.unlink(tmpFile); } catch {}
     }
-  } else if (isOfficeDocument(filename, mimeType)) {
+  } else if (isOfficeDocument(filename, actualMime)) {
     const ext = filename.split(".").pop() || "";
     const tmpFile = path.join("/tmp", `kxkm-doc-${Date.now()}.${ext}`);
     try {
@@ -144,7 +178,7 @@ export async function handleUpload(
         const { stdout, stderr } = await execFileAsync(pythonBin, [
           scriptPath, "--input", tmpFile,
         ], { timeout: 60_000 });
-        if (stderr && DEBUG) console.log(`[upload] doc extract: ${stderr.slice(-200)}`);
+        if (stderr) logger.debug(`[upload] doc extract: ${stderr.slice(-200)}`);
         const jsonLine = stdout.trim().split("\n").pop() || "{}";
         const result = JSON.parse(jsonLine);
         if (result.text) {
@@ -156,12 +190,13 @@ export async function handleUpload(
         releaseFileProcessor();
       }
     } catch (err) {
+      trackError("upload_document", err, { filename });
       analysis = `[Document: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
     } finally {
       try { await fsp.unlink(tmpFile); } catch { /* ignore */ }
     }
   } else {
-    analysis = `[Fichier: ${filename}, type: ${mimeType}, ${(size / 1024).toFixed(0)} KB]`;
+    analysis = `[Fichier: ${filename}, type: ${actualMime}, ${(size / 1024).toFixed(0)} KB]`;
   }
 
   if (analysis) {

@@ -1,3 +1,5 @@
+import logger from "./logger.js";
+
 // ---------------------------------------------------------------------------
 // ComfyUI image generation
 // ---------------------------------------------------------------------------
@@ -100,7 +102,7 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
 
     return null;
   } catch (err) {
-    console.error("[comfyui] Error:", err instanceof Error ? err.message : String(err));
+    logger.error({ err: err instanceof Error ? err.message : String(err) }, "[comfyui] Error");
     return null;
   }
 }

@@ -26,6 +26,11 @@ def main():
     start = time.time()
     result = {"status": "failed", "error": None}
 
+    if os.environ.get("COQUI_TOS_AGREED") != "1":
+        result["error"] = "XTTS requires COQUI_TOS_AGREED=1 after reviewing the CPML terms"
+        print(json.dumps(result))
+        return
+
     try:
         from TTS.api import TTS
 
@@ -51,8 +56,8 @@ def main():
         }
         print(f"[xtts] Done in {duration:.1f}s -> {args.output}", file=sys.stderr)
 
-    except ImportError:
-        result["error"] = "coqui-tts not installed. pip install coqui-tts"
+    except ImportError as e:
+        result["error"] = f"XTTS import failed: {e}"
         print(f"[xtts] ERROR: {result['error']}", file=sys.stderr)
     except Exception as e:
         result["error"] = str(e)

@@ -1,30 +1,32 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { api, type SessionData, type UserRole } from "./api";
 import Login from "./components/Login";
 import MinitelFrame from "./components/MinitelFrame";
 import MinitelConnect from "./components/MinitelConnect";
-import PersonaList from "./components/PersonaList";
-import PersonaDetail from "./components/PersonaDetail";
-import NodeEngineOverview from "./components/NodeEngineOverview";
-import GraphDetail from "./components/GraphDetail";
-import RunStatus from "./components/RunStatus";
-import ChannelList from "./components/ChannelList";
 import Chat from "./components/Chat";
-import VoiceChat from "./components/VoiceChat";
-import ChatHistory from "./components/ChatHistory";
-import NodeEditor from "./components/NodeEditor";
-import TrainingDashboard from "./components/TrainingDashboard";
-import Analytics from "./components/Analytics";
-import Collectif from "./components/Collectif";
-import UllaPage from "./components/UllaPage";
-import ComposePage from "./components/ComposePage";
-import ImaginePage from "./components/ImaginePage";
-import AdminPage from "./components/AdminPage";
-import MediaExplorer from "./components/MediaExplorer";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useAppSession } from "./hooks/useAppSession";
 import { useHashRoute } from "./hooks/useHashRoute";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+
+// Lazy-load heavy routes (only shown on navigation)
+const PersonaList = lazy(() => import("./components/PersonaList"));
+const PersonaDetail = lazy(() => import("./components/PersonaDetail"));
+const NodeEngineOverview = lazy(() => import("./components/NodeEngineOverview"));
+const GraphDetail = lazy(() => import("./components/GraphDetail"));
+const RunStatus = lazy(() => import("./components/RunStatus"));
+const ChannelList = lazy(() => import("./components/ChannelList"));
+const VoiceChat = lazy(() => import("./components/VoiceChat"));
+const ChatHistory = lazy(() => import("./components/ChatHistory"));
+const NodeEditor = lazy(() => import("./components/NodeEditor"));
+const TrainingDashboard = lazy(() => import("./components/TrainingDashboard"));
+const Analytics = lazy(() => import("./components/Analytics"));
+const Collectif = lazy(() => import("./components/Collectif"));
+const UllaPage = lazy(() => import("./components/UllaPage"));
+const ComposePage = lazy(() => import("./components/ComposePage"));
+const ImaginePage = lazy(() => import("./components/ImaginePage"));
+const AdminPage = lazy(() => import("./components/AdminPage"));
+const MediaExplorer = lazy(() => import("./components/MediaExplorer"));
 
 // ---------------------------------------------------------------------------
 // App state phases:
@@ -175,7 +177,9 @@ export default function App() {
     >
       {error && <div className="minitel-error">ERREUR: {error}</div>}
       <ErrorBoundary>
-        {renderPage()}
+        <Suspense fallback={<div className="muted">Chargement...</div>}>
+          {renderPage()}
+        </Suspense>
       </ErrorBoundary>
     </MinitelFrame>
   );

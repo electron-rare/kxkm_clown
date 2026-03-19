@@ -13,6 +13,7 @@ import {
   type NodeGraphRecord,
   type NodeRunRecord,
 } from "@kxkm/node-engine";
+import { validate, createGraphSchema, updateGraphSchema, runGraphSchema } from "../schemas.js";
 
 interface SessionRequest extends Request {
   session?: AuthSession;
@@ -72,30 +73,29 @@ export function createNodeEngineRoutes(deps: NodeEngineRouteDeps): Router {
     res.json(asApiData(list));
   });
 
-  router.post("/api/admin/node-engine/graphs", requirePermission("node_engine:operate"), async (req, res) => {
-    const graph = createNodeGraph(
-      String(req.body?.name || "graph"),
-      String(req.body?.description || ""),
-    );
+  router.post("/api/admin/node-engine/graphs", requirePermission("node_engine:operate"), validate(createGraphSchema), async (req, res) => {
+    const body = req.body as { name: string; description?: string };
+    const graph = createNodeGraph(body.name, body.description || "");
     const created = await graphRepo.create(graph);
     res.status(201).json(asApiData(created));
   });
 
-  router.put("/api/admin/node-engine/graphs/:id", requirePermission("node_engine:operate"), async (req, res) => {
+  router.put("/api/admin/node-engine/graphs/:id", requirePermission("node_engine:operate"), validate(updateGraphSchema), async (req, res) => {
     const graphId = readRouteParam(req.params.id);
     const graph = await graphRepo.findById(graphId);
     if (!graph) {
       res.status(404).json({ ok: false, error: "graph_not_found" });
       return;
     }
+    const body = req.body as { name?: string; description?: string };
     const updated = await graphRepo.update(graphId, {
-      name: String(req.body?.name || graph.name),
-      description: String(req.body?.description || graph.description),
+      name: body.name || graph.name,
+      description: body.description || graph.description,
     });
     res.json(asApiData(updated));
   });
 
-  router.post("/api/admin/node-engine/graphs/:id/run", requirePermission("node_engine:operate"), async (req, res) => {
+  router.post("/api/admin/node-engine/graphs/:id/run", requirePermission("node_engine:operate"), validate(runGraphSchema), async (req, res) => {
     const graphId = readRouteParam(req.params.id);
     const graph = await graphRepo.findById(graphId);
     if (!graph) {
@@ -103,9 +103,10 @@ export function createNodeEngineRoutes(deps: NodeEngineRouteDeps): Router {
       return;
     }
 
+    const body = req.body as { hold?: boolean };
     const run = createNodeRun(graphId, "queued");
     const created = await runRepo.create(run);
-    if (!req.body?.hold) {
+    if (!body.hold) {
       enqueueRunTransition(created.id, runRepo);
     }
     res.status(201).json(asApiData(created));

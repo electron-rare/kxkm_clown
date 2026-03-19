@@ -28,23 +28,30 @@ describe("PersonaList", () => {
   });
 
   it("renders persona cards after loading", async () => {
+    const user = userEvent.setup();
     vi.mocked(api.listPersonas).mockResolvedValue(mockPersonas);
     render(<PersonaList onSelect={vi.fn()} />);
 
+    const gpt4Group = await screen.findByText("gpt-4");
+    await user.click(gpt4Group);
     expect(await screen.findByText("Clown Rouge")).toBeInTheDocument();
-    expect(screen.getByText("Clown Bleu")).toBeInTheDocument();
+    const claudeGroup = await screen.findByText("claude-3");
+    await user.click(claudeGroup);
+    expect(await screen.findByText("Clown Bleu")).toBeInTheDocument();
     expect(screen.getByText("gpt-4")).toBeInTheDocument();
     expect(screen.getByText("claude-3")).toBeInTheDocument();
-    expect(screen.getByText("Un clown joyeux")).toBeInTheDocument();
   });
 
   it("calls onSelect when a persona card is clicked", async () => {
+    const user = userEvent.setup();
     vi.mocked(api.listPersonas).mockResolvedValue(mockPersonas);
     const onSelect = vi.fn();
     render(<PersonaList onSelect={onSelect} />);
 
+    const group = await screen.findByText("gpt-4");
+    await user.click(group);
     const card = await screen.findByText("Clown Rouge");
-    await userEvent.click(card);
+    await user.click(card);
     expect(onSelect).toHaveBeenCalledWith("p1");
   });
 
@@ -59,6 +66,6 @@ describe("PersonaList", () => {
     vi.mocked(api.listPersonas).mockRejectedValue(new Error("Network error"));
     render(<PersonaList onSelect={vi.fn()} />);
 
-    expect(await screen.findByText("Network error")).toBeInTheDocument();
+    expect(await screen.findByText(/ERREUR: Network error/)).toBeInTheDocument();
   });
 });

@@ -16,6 +16,7 @@ const PACKAGES = [
   "node-engine",
   "storage",
   "tui",
+  "ui",
 ];
 
 function main() {
@@ -34,17 +35,30 @@ function main() {
   }
   console.log("[test:v2] Compilation OK");
 
-  // Step 2: Collect all compiled test files
+  // Step 2: Collect all compiled test files (supports split test suites)
+  const fs = require("fs");
   const testFiles = [];
   for (const pkg of PACKAGES) {
-    const testFile = path.join(ROOT_DIR, "packages", pkg, "dist", "index.test.js");
+    const distDir = path.join(ROOT_DIR, "packages", pkg, "dist");
     try {
-      require("fs").accessSync(testFile);
-      testFiles.push(testFile);
+      const files = fs.readdirSync(distDir);
+      const tests = files.filter((f) => f.endsWith(".test.js")).map((f) => path.join(distDir, f));
+      if (tests.length === 0) {
+        console.warn(`[test:v2] Warning: no compiled test files for ${pkg}`);
+      }
+      testFiles.push(...tests);
     } catch {
-      console.warn(`[test:v2] Warning: no compiled test file for ${pkg}`);
+      console.warn(`[test:v2] Warning: no dist dir for ${pkg}`);
     }
   }
+
+  // Also collect API test files
+  const apiDistDir = path.join(ROOT_DIR, "apps", "api", "dist");
+  try {
+    const files = fs.readdirSync(apiDistDir);
+    const apiTests = files.filter(f => f.endsWith(".test.js")).map(f => path.join(apiDistDir, f));
+    testFiles.push(...apiTests);
+  } catch {}
 
   if (testFiles.length === 0) {
     console.error("[test:v2] No test files found");
@@ -54,7 +68,7 @@ function main() {
   // Step 3: Run tests with node --test
   console.log(`[test:v2] Running ${testFiles.length} test files...`);
   try {
-    execFileSync(process.execPath, ["--test", ...testFiles], {
+    execFileSync(process.execPath, ["--experimental-test-module-mocks", "--test", ...testFiles], {
       cwd: ROOT_DIR,
       stdio: "inherit",
     });

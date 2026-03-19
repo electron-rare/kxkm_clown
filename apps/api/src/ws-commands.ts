@@ -9,8 +9,6 @@ import { saveImage, saveAudio } from "./media-store.js";
 import type { ChatPersona, ClientInfo, OutboundMessage, ChatLogEntry } from "./chat-types.js";
 
 const execFileAsync = promisify(execFile);
-const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
-
 interface CommandContext {
   ws: WebSocket;
   info: ClientInfo;
@@ -189,7 +187,11 @@ async function handleComposeCommand({
   send: (ws: WebSocket, msg: OutboundMessage) => void;
   logChatMessage: (entry: ChatLogEntry) => void;
 }): Promise<void> {
-  const musicPrompt = text.slice(9).trim();
+  const rawPrompt = text.slice(9).trim();
+  // Parse duration from prompt (e.g., "ambient drone, 60s" or "ambient drone, experimental style, 120s")
+  const durationMatch = rawPrompt.match(/(\d+)s\s*$/);
+  const duration = durationMatch ? Math.min(Math.max(parseInt(durationMatch[1], 10), 5), 120) : 30;
+  const musicPrompt = durationMatch ? rawPrompt.replace(/,?\s*\d+s\s*$/, '').trim() : rawPrompt;
   if (!musicPrompt) {
     send(ws, { type: "system", text: "Usage: /compose <description musicale>" });
     return;
@@ -197,32 +199,51 @@ async function handleComposeCommand({
 
   broadcast(info.channel, {
     type: "system",
-    text: `${info.nick} compose: "${musicPrompt}"...`,
+    text: `${info.nick} compose: "${musicPrompt}" (${duration}s)... generation en cours`,
   });
 
   const ttsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
+  const startTime = Date.now();
+
+  // Progress ticker — send updates every 5s while waiting
+  const progressInterval = setInterval(() => {
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    send(ws, { type: "system", text: `[compose] Generation en cours... ${elapsed}s` });
+  }, 5000);
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 300_000);
+
     const resp = await fetch(`${ttsUrl}/compose`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: musicPrompt, duration: 30 }),
-      signal: AbortSignal.timeout(300_000),
+      body: JSON.stringify({ prompt: musicPrompt, duration }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
+    clearInterval(progressInterval);
+
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
 
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` })) as { error?: string };
-      send(ws, { type: "system", text: `Composition echouee: ${body.error || "unknown"}` });
+      send(ws, { type: "system", text: `Composition echouee (${elapsed}s): ${body.error || "unknown"}` });
       return;
     }
 
     const audioBuffer = Buffer.from(await resp.arrayBuffer());
+    if (audioBuffer.length > 50 * 1024 * 1024) {
+      send(ws, { type: "system", text: "Audio trop volumineux (>50MB) — essaie une duree plus courte." });
+      return;
+    }
     const audioBase64 = audioBuffer.toString("base64");
 
     broadcast(info.channel, {
       type: "music",
       nick: info.nick,
-      text: `[Musique: "${musicPrompt}"]`,
+      text: `[Musique: "${musicPrompt}" — ${elapsed}s]`,
       audioData: audioBase64,
       audioMime: "audio/wav",
     } as OutboundMessage);
@@ -234,12 +255,18 @@ async function handleComposeCommand({
       channel: info.channel,
       nick: info.nick,
       type: "system",
-      text: `[Musique generee: "${musicPrompt}"]`,
+      text: `[Musique generee: "${musicPrompt}" (${elapsed}s)]`,
     });
   } catch (err) {
+    clearInterval(progressInterval);
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    const msg = err instanceof Error ? err.message : String(err);
+    const isTimeout = msg.includes("abort") || msg.includes("timeout");
     send(ws, {
       type: "system",
-      text: `Erreur composition: ${err instanceof Error ? err.message : String(err)}`,
+      text: isTimeout
+        ? `Composition timeout apres ${elapsed}s — la generation a pris trop de temps.`
+        : `Erreur composition (${elapsed}s): ${msg}`,
     });
   }
 }
@@ -267,11 +294,18 @@ async function handleImagineCommand({
 
   broadcast(info.channel, {
     type: "system",
-    text: `${info.nick} genere une image: "${imagePrompt}"...`,
+    text: `${info.nick} genere une image: "${imagePrompt}"... (generation ~10-30s)`,
   });
+
+  const startTime = Date.now();
+  const progressInterval = setInterval(() => {
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    send(ws, { type: "system", text: `[imagine] Generation en cours... ${elapsed}s` });
+  }, 5000);
 
   try {
     const result = await generateImage(imagePrompt);
+    clearInterval(progressInterval);
     if (!result) {
       send(ws, { type: "system", text: "Generation echouee — verifiez ComfyUI" });
       return;

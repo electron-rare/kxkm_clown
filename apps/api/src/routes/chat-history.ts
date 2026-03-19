@@ -12,6 +12,7 @@ import {
   type PersonaRecord,
   type PersonaSourceRecord,
 } from "@kxkm/persona-domain";
+import { validate, retentionSweepSchema } from "../schemas.js";
 
 interface SessionRequest extends Request {
   session?: AuthSession;
@@ -58,8 +59,9 @@ export function createChatHistoryRoutes(deps: ChatHistoryRouteDeps): Router {
   // Retention sweep — delete old completed/failed/cancelled runs
   // -----------------------------------------------------------------------
 
-  router.post("/api/v2/admin/retention-sweep", requirePermission("node_engine:operate"), async (req, res) => {
-    const maxAgeDays = Number(req.body?.maxAgeDays) || 30;
+  router.post("/api/v2/admin/retention-sweep", requirePermission("node_engine:operate"), validate(retentionSweepSchema), async (req, res) => {
+    const body = req.body as { maxAgeDays?: number };
+    const maxAgeDays = body.maxAgeDays || 30;
     const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000).toISOString();
     const deleted = await runRepo.deleteOlderThan(cutoff);
     res.json({ ok: true, deleted });

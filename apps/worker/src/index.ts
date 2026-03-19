@@ -392,6 +392,19 @@ function requestShutdown(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Global error handlers
+// ---------------------------------------------------------------------------
+
+process.on("unhandledRejection", (reason) => {
+  logError("Unhandled promise rejection", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  logError("Uncaught exception — shutting down", err);
+  process.exit(1);
+});
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -437,9 +450,18 @@ async function main(): Promise<void> {
     log(`Recovered ${recovered.length} stale run(s): ${recovered.map((r) => r.id).join(", ")}`);
   }
 
-  // 6. Graceful shutdown
-  process.on("SIGTERM", requestShutdown);
-  process.on("SIGINT", requestShutdown);
+  // 6. Graceful shutdown with forced exit timeout
+  const SHUTDOWN_TIMEOUT_MS = 30_000;
+  function handleShutdownSignal(signal: string) {
+    log(`${signal} received`);
+    requestShutdown();
+    setTimeout(() => {
+      logError(`Forced exit after ${SHUTDOWN_TIMEOUT_MS}ms timeout`);
+      process.exit(1);
+    }, SHUTDOWN_TIMEOUT_MS).unref();
+  }
+  process.on("SIGTERM", () => handleShutdownSignal("SIGTERM"));
+  process.on("SIGINT", () => handleShutdownSignal("SIGINT"));
 
   // 7. Poll loop
   log(`Entering poll loop (interval=${POLL_INTERVAL_MS}ms)`);

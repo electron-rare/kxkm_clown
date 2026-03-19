@@ -60,16 +60,17 @@ export type InboundMessage = InboundChatMessage | InboundCommand | InboundUpload
 
 // Outbound message types
 export type OutboundMessage =
-  | { type: "message"; nick: string; text: string; color: string }
-  | { type: "system"; text: string }
-  | { type: "join"; nick: string; channel: string; text: string }
-  | { type: "part"; nick: string; channel: string; text: string }
-  | { type: "userlist"; users: string[] }
-  | { type: "persona"; nick: string; color: string }
-  | { type: "audio"; nick: string; data: string; mimeType: string }
-  | { type: "image"; nick: string; text: string; imageData: string; imageMime: string }
-  | { type: "music"; nick: string; text: string; audioData: string; audioMime: string }
-  | { type: "channelInfo"; channel: string };
+  | { type: "message"; nick: string; text: string; color: string; seq?: number }
+  | { type: "system"; text: string; seq?: number }
+  | { type: "join"; nick: string; channel: string; text: string; seq?: number }
+  | { type: "part"; nick: string; channel: string; text: string; seq?: number }
+  | { type: "userlist"; users: string[]; seq?: number }
+  | { type: "persona"; nick: string; color: string; seq?: number }
+  | { type: "audio"; nick: string; data: string; mimeType: string; seq?: number }
+  | { type: "image"; nick: string; text: string; imageData: string; imageMime: string; seq?: number }
+  | { type: "music"; nick: string; text: string; audioData: string; audioMime: string; seq?: number }
+  | { type: "channelInfo"; channel: string; seq?: number }
+  | { type: "chunk"; nick: string; text: string; color: string; seq: number };
 
 // Chat log entry
 export interface ChatLogEntry {

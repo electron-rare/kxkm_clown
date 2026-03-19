@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import logger from "./logger.js";
 import type { ChatPersona, PersonaMemory } from "./chat-types.js";
 
 // ---------------------------------------------------------------------------
@@ -56,7 +57,7 @@ export async function updatePersonaMemory(
     try {
       extracted = JSON.parse(data.message?.content || "{}");
     } catch (parseErr) {
-      console.error("[persona-router] Failed to parse LLM JSON:", parseErr);
+      logger.error({ err: parseErr }, "[persona-router] Failed to parse LLM JSON");
     }
 
     if (extracted.facts && Array.isArray(extracted.facts)) {
@@ -69,10 +70,7 @@ export async function updatePersonaMemory(
 
     await savePersonaMemory(memory);
   } catch (err) {
-    console.error(
-      `[ws-chat] Memory update failed for ${persona.nick}:`,
-      err instanceof Error ? err.message : String(err),
-    );
+    logger.error({ err: err instanceof Error ? err.message : String(err), nick: persona.nick }, "[ws-chat] Memory update failed");
   }
 }
 
@@ -86,6 +84,20 @@ export function pickResponders(text: string, pool: ChatPersona[]): ChatPersona[]
     text.toLowerCase().includes(`@${p.nick.toLowerCase()}`),
   );
   if (mentioned.length > 0) return mentioned;
+
+  // Detect web search intent — add Sherlock directly
+  const lower = text.toLowerCase();
+  const webKeywords = ["cherche", "search", "recherche", "google", "trouve", "find", "web"];
+  const wantsWeb = webKeywords.some((kw) => lower.includes(kw));
+  if (wantsWeb) {
+    const sherlock = pool.find((p) => p.nick.toLowerCase() === "sherlock");
+    const pharmacius = pool.find((p) => p.nick.toLowerCase() === "pharmacius");
+    // Sherlock first (does the search), then Pharmacius synthesizes
+    const responders: ChatPersona[] = [];
+    if (sherlock) responders.push(sherlock);
+    if (pharmacius) responders.push(pharmacius);
+    return responders.length > 0 ? responders : pool.slice(0, 1);
+  }
 
   // Default: only Pharmacius responds (or first persona if Pharmacius not found)
   const defaultPersona = pool.find((p) => p.nick.toLowerCase() === "pharmacius");

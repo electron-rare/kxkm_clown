@@ -46,7 +46,7 @@ export default function MediaExplorer() {
     setPlayingIdx(idx);
   }
 
-  if (loading) return <div className="muted">Chargement des medias...</div>;
+  if (loading) return <div className="muted" role="status" aria-busy="true">Chargement des medias...</div>;
 
   return (
     <div className="media-explorer">

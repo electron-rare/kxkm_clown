@@ -49,7 +49,7 @@ export default function Login({ onLogin, error }: LoginProps) {
         </button>
       </form>
 
-      {error && <div className="minitel-login-error">ERREUR: {error}</div>}
+      {error && <div className="minitel-login-error" role="alert">ERREUR: {error}</div>}
 
       <div className="minitel-login-footer">
         Tarification: GRATUIT (c'est local, c'est libre)

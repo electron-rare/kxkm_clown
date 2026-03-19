@@ -14,6 +14,7 @@ interface AdminPageProps {
  */
 export default function AdminPage({ session, onLogin, onNavigate }: AdminPageProps) {
   const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [stats, setStats] = useState<{
@@ -57,7 +58,7 @@ export default function AdminPage({ session, onLogin, onNavigate }: AdminPagePro
     setLoading(true);
     setError("");
     try {
-      const s = await api.login(username.trim(), "admin" as UserRole);
+      const s = await api.login(username.trim(), "admin" as UserRole, password);
       onLogin(s);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentification echouee");
@@ -85,11 +86,21 @@ export default function AdminPage({ session, onLogin, onNavigate }: AdminPagePro
               autoFocus
             />
           </div>
+          <div className="minitel-field">
+            <label>Mot de passe _</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="minitel-input"
+              placeholder="********"
+            />
+          </div>
           <button type="submit" className="minitel-login-btn" disabled={loading || !username.trim()}>
             {loading ? "Authentification..." : ">>> Connexion admin <<<"}
           </button>
         </form>
-        {error && <div className="minitel-login-error">ERREUR: {error}</div>}
+        {error && <div className="minitel-login-error" role="alert">ERREUR: {error}</div>}
       </div>
     );
   }

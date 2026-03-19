@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 export const USER_ROLES = ["admin", "editor", "operator", "viewer"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
@@ -70,11 +72,9 @@ export function createIsoTimestamp(date = new Date()): string {
   return date.toISOString();
 }
 
-export function createId(prefix: string): string {
-  const bytes = globalThis.crypto?.getRandomValues
-    ? globalThis.crypto.getRandomValues(new Uint8Array(8))
-    : require("node:crypto").randomBytes(8);
-  return `${prefix}_${Buffer.from(bytes).toString("hex")}`;
+export function createId(prefix = ""): string {
+  const sep = prefix ? "_" : "";
+  return `${prefix}${sep}${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
 }
 
 export function isUserRole(value: string): value is UserRole {

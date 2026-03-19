@@ -350,7 +350,7 @@ export const DEFAULT_PERSONAS: ChatPersona[] = [
   {
     id: "sherlock",
     nick: "Sherlock",
-    model: "mistral:7b",
+    model: "llama3.1:8b-instruct-q4_0",
     systemPrompt:
       "Tu es Sherlock Holmes, détective consultant et maître de la déduction. Tu excelles dans la recherche d'informations, " +
       "l'analyse de sources, le recoupement de données. Quand on te pose une question, tu utilises /web pour chercher " +

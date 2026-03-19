@@ -48,11 +48,11 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 ### Chat multimodal
 
 - **Interface Minitel** — Animation modem 3615 ULLA → login → chat (esthetique phosphore CRT)
-- **Chat temps reel** — WebSocket `/ws`, streaming LLM, 26 personas
+- **Chat temps reel** — WebSocket `/ws`, streaming LLM, 33 personas
 - **RAG local** — Embeddings Ollama (`nomic-embed-text`), contexte manifeste
 - **Vision** — Analyse d'images via `qwen3-vl:8b` (upload dans le chat)
 - **STT** — Transcription audio via `faster-whisper` (upload audio)
-- **TTS** — Piper-tts (fallback rapide) + XTTS-v2 (voice cloning per persona)
+- **TTS** — Piper-tts + Chatterbox (dual backend via TTS sidecar HTTP :9100)
 - **PDF** — Extraction via Docling/PyMuPDF (tables, layout, OCR)
 - **Recherche web** — SearXNG self-hosted + DuckDuckGo fallback
 - **Generation musicale** — `/compose` via ACE-Step 1.5 / MusicGen
@@ -80,10 +80,11 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 
 ### Personas
 
-- 26 personas (musique, arts, sciences, philosophie, ecologie, tech, cinema)
+- 33 personas (musique, arts, sciences, philosophie, ecologie, tech, cinema)
 - Pipeline editorial: source → feedback → proposals → apply/revert
-- Pharmacius: orchestrateur editorial automatique (mistral:7b)
-- Vue arborescente par modele (refermee par defaut)
+- Pharmacius: routeur principal (qwen3:8b, maxTokens:600, think-strip)
+- Inter-persona @mention depth 3, 2s delay
+- Modeles: qwen3:8b x21, mistral:7b x7, gemma3:4b x4, qwen3-vl:8b (vision)
 
 ## Variables d'environnement
 
@@ -99,7 +100,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `ADMIN_SUBNET` | (vide) | CIDR autorise pour admin V2 |
 | `MAX_GENERAL_RESPONDERS` | `4` | Nombre max de personas repondant dans #general |
 | `OWNER_NICK` | (vide) | Pseudo du proprietaire |
-| `VISION_MODEL` | `minicpm-v` | Modele Ollama pour analyse d'images |
+| `VISION_MODEL` | `qwen3-vl:8b` | Modele Ollama pour analyse d'images |
 | `TTS_ENABLED` | `0` | Activer la synthese vocale (`1` pour activer) |
 | `WEB_SEARCH_API_BASE` | (vide) | Endpoint API de recherche web custom |
 | `PYTHON_BIN` | `python3` | Python avec libs ML (PyTorch, faster-whisper, piper-tts) |
@@ -130,7 +131,7 @@ npm run check        # Lint V1 + TypeScript V2
 npm run check:v2     # TypeScript V2 uniquement
 npm run smoke        # Tests d'integration V1
 npm run smoke:v2     # Tests d'integration V2 (22 tests)
-npm run test:v2      # Tests unitaires V2 (102 tests)
+npm run test:v2      # Tests unitaires V2 (294 tests)
 npm run turbo:build  # Build complet
 ```
 
@@ -244,7 +245,7 @@ kxkm_clown/
 | --- | --- | --- |
 | Chat temps reel | operationnel | operationnel |
 | RAG local | n/a | operationnel |
-| Vision (minicpm-v) | n/a | operationnel |
+| Vision (qwen3-vl:8b) | n/a | operationnel |
 | STT (faster-whisper) | n/a | operationnel |
 | TTS (piper-tts) | n/a | operationnel |
 | PDF extraction | n/a | operationnel |
@@ -260,7 +261,11 @@ kxkm_clown/
 | RBAC | n/a | operationnel |
 | Frontend React | n/a | operationnel |
 | Training (TRL/Unsloth) | n/a | operationnel |
-| Tests (135+) | smoke | unit + component + smoke |
+| Tests (294) | smoke | unit + component + smoke |
+| VoiceChat push-to-talk | n/a | operationnel |
+| Mediatheque gallery/playlist | n/a | operationnel |
+| UI Minitel VIDEOTEX | n/a | operationnel |
+| Deploy tmux (deploy.sh) | n/a | operationnel |
 
 Notes runtime V2:
 

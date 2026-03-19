@@ -1,33 +1,17 @@
+import pLimit from "p-limit";
 import { generateImage } from "./comfyui.js";
 import { searchWeb } from "./web-search.js";
+import { trackError } from "./error-tracker.js";
 import type { ToolDefinition } from "./mcp-tools.js";
 import type { ChatPersona } from "./chat-types.js";
 
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
 // ---------------------------------------------------------------------------
-// Simple semaphore for Ollama concurrency
+// Ollama concurrency limiter (replaces manual semaphore)
 // ---------------------------------------------------------------------------
 
-const MAX_OLLAMA_CONCURRENT = Number(process.env.MAX_OLLAMA_CONCURRENT) || 3;
-let ollamaActive = 0;
-const ollamaQueue: Array<() => void> = [];
-
-export async function acquireOllama(): Promise<void> {
-  if (ollamaActive < MAX_OLLAMA_CONCURRENT) {
-    ollamaActive++;
-    return;
-  }
-  return new Promise<void>(resolve => {
-    ollamaQueue.push(() => { ollamaActive++; resolve(); });
-  });
-}
-
-export function releaseOllama(): void {
-  ollamaActive--;
-  const next = ollamaQueue.shift();
-  if (next) next();
-}
+const ollamaLimit = pLimit(Number(process.env.MAX_OLLAMA_CONCURRENT) || 3);
 
 // ---------------------------------------------------------------------------
 // Ollama streaming chat
@@ -41,72 +25,73 @@ export async function streamOllamaChat(
   onDone: (fullText: string) => void,
   onError: (err: Error) => void,
 ): Promise<void> {
-  await acquireOllama();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
+  await ollamaLimit(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
 
-  try {
-    const response = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: persona.model,
-        messages: [
-          { role: "system", content: persona.systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        stream: true,
-        options: { num_predict: persona.maxTokens || 1024 },
-      }),
-      signal: controller.signal,
-    });
+    try {
+      const response = await fetch(`${ollamaUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: persona.model,
+          messages: [
+            { role: "system", content: persona.systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          stream: true,
+          options: { num_predict: persona.maxTokens || 1024 },
+        }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(`Ollama returned ${response.status}: ${response.statusText}`);
-    }
+      if (!response.ok) {
+        throw new Error(`Ollama returned ${response.status}: ${response.statusText}`);
+      }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body from Ollama");
-    }
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body from Ollama");
+      }
 
-    const decoder = new TextDecoder();
-    let fullText = "";
-    let inThinking = false;
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let inThinking = false;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n").filter(Boolean);
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n").filter(Boolean);
 
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
-          if (parsed.message?.content) {
-            const c = parsed.message.content;
-            fullText += c;
-            // Suppress <think>...</think> from streaming to client
-            if (c.includes("<think>")) inThinking = true;
-            if (!inThinking) onChunk(c);
-            if (c.includes("</think>")) inThinking = false;
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
+            if (parsed.message?.content) {
+              const c = parsed.message.content;
+              fullText += c;
+              // Suppress <think>...</think> from streaming to client
+              if (c.includes("<think>")) inThinking = true;
+              if (!inThinking) onChunk(c);
+              if (c.includes("</think>")) inThinking = false;
+            }
+          } catch {
+            // Partial JSON -- skip
           }
-        } catch {
-          // Partial JSON — skip
         }
       }
-    }
 
-    // Strip <think>...</think> blocks (qwen3 reasoning tokens)
-    const cleaned = fullText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
-    onDone(cleaned);
-  } catch (err) {
-    onError(err instanceof Error ? err : new Error(String(err)));
-  } finally {
-    clearTimeout(timeout);
-    releaseOllama();
-  }
+      // Strip <think>...</think> blocks (qwen3 reasoning tokens)
+      const cleaned = fullText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+      onDone(cleaned);
+    } catch (err) {
+      trackError("ollama", err, { persona: persona.nick, model: persona.model });
+      onError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
 }
 
 /** Strip qwen3 thinking blocks from text */
@@ -128,7 +113,7 @@ interface OllamaToolCall {
 export async function executeToolCall(
   toolName: string,
   args: Record<string, unknown>,
-  rag: { size: number; search(q: string, k: number): Promise<{ text: string }[]> } | undefined,
+  rag: { size: number; search(q: string, k?: number): Promise<{ text: string }[]> } | undefined,
 ): Promise<string> {
   switch (toolName) {
     case "web_search": {
@@ -143,7 +128,7 @@ export async function executeToolCall(
     case "rag_search": {
       const query = String(args.query || "");
       if (!rag || rag.size === 0) return "(Pas de documents indexés)";
-      const results = await rag.search(query, 3);
+      const results = await rag.search(query);
       return results.map(r => r.text).join("\n---\n") || "(Aucun résultat)";
     }
     default:
@@ -164,140 +149,135 @@ export async function streamOllamaChatWithTools(
   persona: ChatPersona,
   userMessage: string,
   tools: ToolDefinition[],
-  rag: { size: number; search(q: string, k: number): Promise<{ text: string }[]> } | undefined,
+  rag: { size: number; search(q: string, k?: number): Promise<{ text: string }[]> } | undefined,
   onChunk: (text: string) => void,
   onDone: (fullText: string) => void,
   onError: (err: Error) => void,
 ): Promise<void> {
-  await acquireOllama();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
+  await ollamaLimit(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
 
-  try {
-    const messages: Array<{ role: string; content: string; tool_calls?: OllamaToolCall[] }> = [
-      { role: "system", content: persona.systemPrompt },
-      { role: "user", content: userMessage },
-    ];
+    try {
+      const messages: Array<{ role: string; content: string; tool_calls?: OllamaToolCall[] }> = [
+        { role: "system", content: persona.systemPrompt },
+        { role: "user", content: userMessage },
+      ];
 
-    // Step 1: Non-streaming call with tools to check for tool_calls
-    const probeResp = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: persona.model,
-        messages,
-        tools: tools.map(t => t),
-        stream: false,
-        options: { num_predict: persona.maxTokens || 1024 },
-      }),
-      signal: controller.signal,
-    });
-
-    if (!probeResp.ok) {
-      throw new Error(`Ollama returned ${probeResp.status}: ${probeResp.statusText}`);
-    }
-
-    const probeData = await probeResp.json() as {
-      message?: {
-        role?: string;
-        content?: string;
-        tool_calls?: OllamaToolCall[];
-      };
-    };
-
-    const toolCalls = probeData.message?.tool_calls;
-
-    // If no tool calls, use the response directly
-    if (!toolCalls || toolCalls.length === 0) {
-      const content = stripThinking(probeData.message?.content || "");
-      if (content) {
-        onChunk(content);
-      }
-      onDone(content);
-      return;
-    }
-
-    // Step 2: Execute tool calls (max 1 round)
-    // Add assistant message with tool_calls to conversation
-    messages.push({
-      role: "assistant",
-      content: probeData.message?.content || "",
-      tool_calls: toolCalls,
-    });
-
-    for (const tc of toolCalls) {
-      const name = tc.function.name;
-      const args = tc.function.arguments;
-      if (DEBUG) console.log(`[mcp-tools] ${persona.nick} calling ${name}(${JSON.stringify(args)})`);
-
-      let result: string;
-      try {
-        result = await executeToolCall(name, args, rag);
-      } catch (err) {
-        result = `(Erreur outil ${name}: ${err instanceof Error ? err.message : String(err)})`;
-      }
-
-      // Add tool result to conversation
-      messages.push({
-        role: "tool",
-        content: result,
+      // Step 1: Non-streaming call with tools to check for tool_calls
+      const probeResp = await fetch(`${ollamaUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: persona.model,
+          messages,
+          tools: tools.map(t => t),
+          stream: false,
+          options: { num_predict: persona.maxTokens || 1024 },
+        }),
+        signal: controller.signal,
       });
-    }
 
-    // Step 3: Stream the final response with tool context
-    releaseOllama();
-    // Re-acquire for the streaming call
-    await acquireOllama();
+      if (!probeResp.ok) {
+        throw new Error(`Ollama returned ${probeResp.status}: ${probeResp.statusText}`);
+      }
 
-    const streamResp = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: persona.model,
-        messages,
-        stream: true,
-        options: { num_predict: persona.maxTokens || 1024 },
-      }),
-      signal: controller.signal,
-    });
+      const probeData = await probeResp.json() as {
+        message?: {
+          role?: string;
+          content?: string;
+          tool_calls?: OllamaToolCall[];
+        };
+      };
 
-    if (!streamResp.ok) {
-      throw new Error(`Ollama returned ${streamResp.status}: ${streamResp.statusText}`);
-    }
+      const toolCalls = probeData.message?.tool_calls;
 
-    const reader = streamResp.body?.getReader();
-    if (!reader) {
-      throw new Error("No response body from Ollama");
-    }
+      // If no tool calls, use the response directly
+      if (!toolCalls || toolCalls.length === 0) {
+        const content = stripThinking(probeData.message?.content || "");
+        if (content) {
+          onChunk(content);
+        }
+        onDone(content);
+        return;
+      }
 
-    const decoder = new TextDecoder();
-    let fullText = "";
+      // Step 2: Execute tool calls (max 1 round)
+      messages.push({
+        role: "assistant",
+        content: probeData.message?.content || "",
+        tool_calls: toolCalls,
+      });
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      for (const tc of toolCalls) {
+        const name = tc.function.name;
+        const args = tc.function.arguments;
+        if (DEBUG) console.log(`[mcp-tools] ${persona.nick} calling ${name}(${JSON.stringify(args)})`);
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n").filter(Boolean);
-
-      for (const line of lines) {
+        let result: string;
         try {
-          const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
-          if (parsed.message?.content) {
-            fullText += parsed.message.content;
-            onChunk(parsed.message.content);
+          result = await executeToolCall(name, args, rag);
+        } catch (err) {
+          result = `(Erreur outil ${name}: ${err instanceof Error ? err.message : String(err)})`;
+        }
+
+        messages.push({
+          role: "tool",
+          content: result,
+        });
+      }
+
+      // Step 3: Stream the final response with tool context
+      const streamResp = await fetch(`${ollamaUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: persona.model,
+          messages,
+          stream: true,
+          options: { num_predict: persona.maxTokens || 1024 },
+        }),
+        signal: controller.signal,
+      });
+
+      if (!streamResp.ok) {
+        throw new Error(`Ollama returned ${streamResp.status}: ${streamResp.statusText}`);
+      }
+
+      const reader = streamResp.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body from Ollama");
+      }
+
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n").filter(Boolean);
+
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
+            if (parsed.message?.content) {
+              fullText += parsed.message.content;
+              onChunk(parsed.message.content);
+            }
+          } catch {
+            // Partial JSON -- skip
           }
-        } catch {
-          // Partial JSON — skip
         }
       }
-    }
 
-    onDone(stripThinking(fullText));
-  } catch (err) {
-    onError(err instanceof Error ? err : new Error(String(err)));
-  } finally {
-    clearTimeout(timeout);
-    releaseOllama();
-  }
+      onDone(stripThinking(fullText));
+    } catch (err) {
+      trackError("ollama", err, { persona: persona.nick, model: persona.model, withTools: true });
+      onError(err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
 }

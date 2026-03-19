@@ -1,13 +1,14 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { rm } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import supertest from "supertest";
 import { createApp } from "./app.js";
 
 // Ensure no Postgres connection is attempted
 delete process.env.DATABASE_URL;
 process.env.ADMIN_TOKEN = "test-admin-token";
+process.env.NODE_ENV = "test";
 const TEST_LOCAL_DIR = path.join(process.cwd(), ".tmp-test-v2-local");
 process.env.KXKM_LOCAL_DATA_DIR = TEST_LOCAL_DIR;
 
@@ -228,6 +229,47 @@ describe("V2 API", () => {
 
       assert.equal(res.body.ok, true);
       assert.ok(Array.isArray(res.body.data));
+    });
+
+    it("uploads, reports and deletes a voice sample using the local data dir", async () => {
+      const audio = Buffer.from("RIFF-test-voice-sample").toString("base64");
+
+      const uploadRes = await request
+        .post("/api/admin/personas/schaeffer/voice-sample")
+        .set("Cookie", cookie)
+        .send({ audio })
+        .expect(200);
+
+      assert.equal(uploadRes.body.ok, true);
+      assert.equal(uploadRes.body.data.samplePath, path.join(".tmp-test-v2-local", "voice-samples", "schaeffer.wav"));
+
+      const persisted = await readFile(path.join(TEST_LOCAL_DIR, "voice-samples", "schaeffer.wav"));
+      assert.equal(persisted.toString("utf8"), "RIFF-test-voice-sample");
+
+      const statusRes = await request
+        .get("/api/admin/personas/schaeffer/voice-sample")
+        .set("Cookie", cookie)
+        .expect(200);
+
+      assert.equal(statusRes.body.ok, true);
+      assert.equal(statusRes.body.data.hasVoiceSample, true);
+      assert.equal(statusRes.body.data.samplePath, path.join(".tmp-test-v2-local", "voice-samples", "schaeffer.wav"));
+
+      const deleteRes = await request
+        .delete("/api/admin/personas/schaeffer/voice-sample")
+        .set("Cookie", cookie)
+        .expect(200);
+
+      assert.equal(deleteRes.body.ok, true);
+      assert.equal(deleteRes.body.data.deleted, true);
+
+      const missingStatusRes = await request
+        .get("/api/admin/personas/schaeffer/voice-sample")
+        .set("Cookie", cookie)
+        .expect(200);
+
+      assert.equal(missingStatusRes.body.ok, true);
+      assert.equal(missingStatusRes.body.data.hasVoiceSample, false);
     });
 
     it("persists local persona updates across app recreation", async () => {

@@ -7,7 +7,7 @@ const router = Router();
 router.get("/images", async (_req, res) => {
   try {
     const items = await listMedia("image");
-    res.json(items);
+    res.json({ ok: true, data: items });
   } catch (err) {
     res.status(500).json({ error: "Failed to list images" });
   }
@@ -17,7 +17,7 @@ router.get("/images", async (_req, res) => {
 router.get("/audio", async (_req, res) => {
   try {
     const items = await listMedia("audio");
-    res.json(items);
+    res.json({ ok: true, data: items });
   } catch (err) {
     res.status(500).json({ error: "Failed to list audio" });
   }

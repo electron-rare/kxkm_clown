@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 // ---------------------------------------------------------------------------
 // Training adapter configuration — pure module (no I/O, no child_process)
 // ---------------------------------------------------------------------------
@@ -23,6 +25,26 @@ export const DEFAULT_HYPERPARAMS: TrainingHyperparams = {
   warmupSteps: 10,
   maxSeqLength: 2048,
 };
+
+// ---------------------------------------------------------------------------
+// Zod bounds validation for hyperparameters (lot-60)
+// ---------------------------------------------------------------------------
+
+/** Coerce non-number values to undefined so they fall through to defaults. */
+const numOrUndef = z.preprocess(
+  (v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined),
+  z.number().optional(),
+);
+
+export const hyperparamsSchema = z.object({
+  learningRate: numOrUndef.pipe(z.number().min(1e-7).max(1).optional()),
+  epochs: numOrUndef.pipe(z.number().int().min(1).max(100).optional()),
+  batchSize: numOrUndef.pipe(z.number().int().min(1).max(256).optional()),
+  warmupSteps: numOrUndef.pipe(z.number().int().min(0).max(10000).optional()),
+  maxSeqLength: numOrUndef.pipe(z.number().int().min(32).max(8192).optional()),
+  loraRank: numOrUndef.pipe(z.number().int().min(1).max(256).optional()),
+  loraAlpha: numOrUndef.pipe(z.number().int().min(1).max(512).optional()),
+}).passthrough();
 
 export interface TrainingJobSpec {
   type: TrainingJobType;
@@ -157,20 +179,28 @@ export function validateJobSpec(spec: unknown): TrainingJobSpec {
     throw new Error("TrainingJobSpec.outputDir must be a non-empty string");
   }
 
-  // hyperparams — merge with defaults
+  // hyperparams — validate bounds with Zod, then merge with defaults
   const rawHp =
     raw.hyperparams && typeof raw.hyperparams === "object"
       ? (raw.hyperparams as Record<string, unknown>)
       : {};
 
+  const parsed = hyperparamsSchema.safeParse(rawHp);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid hyperparams: ${parsed.error.issues.map((i) => i.message).join(", ")}`,
+    );
+  }
+  const hp = parsed.data;
+
   const hyperparams: TrainingHyperparams = {
-    learningRate: validNumber(rawHp.learningRate, DEFAULT_HYPERPARAMS.learningRate),
-    epochs: validNumber(rawHp.epochs, DEFAULT_HYPERPARAMS.epochs),
-    batchSize: validNumber(rawHp.batchSize, DEFAULT_HYPERPARAMS.batchSize),
-    loraRank: validNumber(rawHp.loraRank, DEFAULT_HYPERPARAMS.loraRank),
-    loraAlpha: validNumber(rawHp.loraAlpha, DEFAULT_HYPERPARAMS.loraAlpha),
-    warmupSteps: validNumber(rawHp.warmupSteps, DEFAULT_HYPERPARAMS.warmupSteps),
-    maxSeqLength: validNumber(rawHp.maxSeqLength, DEFAULT_HYPERPARAMS.maxSeqLength),
+    learningRate: validNumber(hp.learningRate, DEFAULT_HYPERPARAMS.learningRate),
+    epochs: validNumber(hp.epochs, DEFAULT_HYPERPARAMS.epochs),
+    batchSize: validNumber(hp.batchSize, DEFAULT_HYPERPARAMS.batchSize),
+    loraRank: validNumber((hp as Record<string, unknown>).loraRank, DEFAULT_HYPERPARAMS.loraRank),
+    loraAlpha: validNumber((hp as Record<string, unknown>).loraAlpha, DEFAULT_HYPERPARAMS.loraAlpha),
+    warmupSteps: validNumber(hp.warmupSteps, DEFAULT_HYPERPARAMS.warmupSteps),
+    maxSeqLength: validNumber(hp.maxSeqLength, DEFAULT_HYPERPARAMS.maxSeqLength),
   };
 
   return {

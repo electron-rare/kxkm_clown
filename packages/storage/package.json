@@ -11,9 +11,10 @@
   },
   "dependencies": {
     "@kxkm/core": "*",
-    "@kxkm/persona-domain": "*",
     "@kxkm/node-engine": "*",
-    "pg": "^8.20.0"
+    "@kxkm/persona-domain": "*",
+    "pg": "^8.20.0",
+    "zod": "^4.3.6"
   },
   "scripts": {
     "status": "node ../../scripts/workspace-package.js storage status",

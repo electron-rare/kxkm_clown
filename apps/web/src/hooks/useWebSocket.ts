@@ -7,24 +7,33 @@ export interface UseWebSocketOptions {
   enabled?: boolean;
 }
 
+export type ConnectionStatus = "connected" | "reconnecting" | "disconnected";
+
 export interface UseWebSocketReturn {
   connected: boolean;
+  connectionStatus: ConnectionStatus;
+  reconnectAttempts: number;
   send: (data: unknown) => void;
   lastMessage: unknown | null;
   disconnect: () => void;
 }
 
-const MAX_RECONNECT_INTERVAL = 30_000;
+const INITIAL_DELAY = 1000;
+const MAX_DELAY = 30_000;
+const MAX_ATTEMPTS = 20;
 
 export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
-  const { url, onMessage, reconnectInterval = 3000, enabled = true } = options;
+  const { url, onMessage, reconnectInterval = INITIAL_DELAY, enabled = true } = options;
 
   const [connected, setConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [lastMessage, setLastMessage] = useState<unknown | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(reconnectInterval);
+  const attemptsRef = useRef(0);
   const onMessageRef = useRef(onMessage);
   const mountedRef = useRef(true);
   const manualDisconnect = useRef(false);
@@ -61,6 +70,31 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
   }, [clearReconnect]);
 
+  // Use a ref-based connect to break the circular dependency with scheduleReconnect
+  const connectFnRef = useRef<() => void>(() => {});
+
+  const scheduleReconnect = useCallback(() => {
+    if (!mountedRef.current || manualDisconnect.current) return;
+    if (attemptsRef.current >= MAX_ATTEMPTS) {
+      if (mountedRef.current) {
+        setConnectionStatus("disconnected");
+      }
+      return;
+    }
+    if (mountedRef.current) {
+      setConnectionStatus("reconnecting");
+      setReconnectAttempts(attemptsRef.current);
+    }
+    reconnectTimer.current = setTimeout(() => {
+      attemptsRef.current++;
+      if (mountedRef.current) {
+        setReconnectAttempts(attemptsRef.current);
+      }
+      connectFnRef.current();
+    }, backoffRef.current);
+    backoffRef.current = Math.min(backoffRef.current * 2, MAX_DELAY);
+  }, []);
+
   const connect = useCallback(() => {
     if (!mountedRef.current || manualDisconnect.current) return;
     closeSocket();
@@ -69,14 +103,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     try {
       ws = new WebSocket(url);
     } catch {
-      // Schedule reconnect on construction failure
-      reconnectTimer.current = setTimeout(() => {
-        backoffRef.current = Math.min(
-          backoffRef.current * 2,
-          MAX_RECONNECT_INTERVAL
-        );
-        connect();
-      }, backoffRef.current);
+      scheduleReconnect();
       return;
     }
 
@@ -84,8 +111,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
     ws.onopen = () => {
       if (!mountedRef.current) return;
+      // Reset backoff on successful connection
       backoffRef.current = reconnectInterval;
+      attemptsRef.current = 0;
       setConnected(true);
+      setConnectionStatus("connected");
+      setReconnectAttempts(0);
     };
 
     ws.onmessage = (event: MessageEvent) => {
@@ -109,16 +140,17 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       setConnected(false);
       wsRef.current = null;
       if (!manualDisconnect.current) {
-        reconnectTimer.current = setTimeout(() => {
-          backoffRef.current = Math.min(
-            backoffRef.current * 2,
-            MAX_RECONNECT_INTERVAL
-          );
-          connect();
-        }, backoffRef.current);
+        scheduleReconnect();
+      } else {
+        setConnectionStatus("disconnected");
       }
     };
-  }, [url, reconnectInterval, closeSocket]);
+  }, [url, reconnectInterval, closeSocket, scheduleReconnect]);
+
+  // Keep connectFnRef in sync
+  useEffect(() => {
+    connectFnRef.current = connect;
+  }, [connect]);
 
   const send = useCallback((data: unknown) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -129,6 +161,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const disconnect = useCallback(() => {
     manualDisconnect.current = true;
     closeSocket();
+    setConnectionStatus("disconnected");
+    setReconnectAttempts(0);
   }, [closeSocket]);
 
   // Connect / disconnect based on enabled flag
@@ -138,9 +172,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
     if (enabled) {
       backoffRef.current = reconnectInterval;
+      attemptsRef.current = 0;
+      setReconnectAttempts(0);
       connect();
     } else {
       closeSocket();
+      setConnectionStatus("disconnected");
     }
 
     return () => {
@@ -149,5 +186,5 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     };
   }, [enabled, url, connect, closeSocket, reconnectInterval]);
 
-  return { connected, send, lastMessage, disconnect };
+  return { connected, connectionStatus, reconnectAttempts, send, lastMessage, disconnect };
 }

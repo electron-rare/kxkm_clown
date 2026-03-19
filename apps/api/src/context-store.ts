@@ -53,7 +53,7 @@ function buildDefaultOptions(): ContextStoreOptions {
   let maxEntriesBeforeCompact = 500;
   let maxFileSizeMB = 100;
   let maxTotalSizeMB = 750;
-  let maxContextChars = 16000;
+  let maxContextChars = 12000;
   let maxSummaryChars = 20000;
 
   if (totalGB <= 8) {
@@ -72,13 +72,13 @@ function buildDefaultOptions(): ContextStoreOptions {
     maxEntriesBeforeCompact = 600;
     maxFileSizeMB = 120;
     maxTotalSizeMB = 900;
-    maxContextChars = 18000;
+    maxContextChars = 12000;
     maxSummaryChars = 24000;
   } else {
     maxEntriesBeforeCompact = 900;
     maxFileSizeMB = 180;
     maxTotalSizeMB = 1400;
-    maxContextChars = 26000;
+    maxContextChars = 20000;
     maxSummaryChars = 32000;
   }
 

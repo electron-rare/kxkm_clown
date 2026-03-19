@@ -43,6 +43,23 @@ docker compose --profile v2 --profile ollama up -d
 
 Par defaut, Ollama est attendu en natif sur le host (port 11434).
 
+## Services (12)
+
+| Service | Port | Description |
+| --- | --- | --- |
+| API V1 | 3333 | Monolithe Express (chat + admin) |
+| API V2 | 4180 | API TypeScript (REST + WS) |
+| Frontend | 5173 | React/Vite (dev) |
+| Ollama | 11434 | LLM local (qwen3:8b, mistral:7b) |
+| PostgreSQL | 5432 | Persistence (personas, runs, logs) |
+| SearXNG | 8080 | Recherche web self-hosted |
+| TTS Sidecar | 9100 | Piper + Chatterbox (dual backend) |
+| Reranker | 8787 | BGE/Jina reranking |
+| Docling | 5001 | Extraction PDF (tables, OCR) |
+| ComfyUI | 8188 | Generation images (SDXL + Flux 2) |
+| Worker | --- | Node Engine job processor (GPU) |
+| Discord Bot | --- | Pharmacius bridge (2 salons) |
+
 ## Fonctionnalites
 
 ### Chat multimodal
@@ -59,6 +76,10 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 - **Generation images** — `/imagine` via ComfyUI (SDXL Lightning + Flux 2)
 - **Memoire persona** — Faits et resume persistants, compaction LLM auto (750 MB)
 - **Inter-persona** — @mention directe, dialogue depth 3
+- **Validation Zod** — Schema validation sur toutes les routes API
+- **Pino logging** — Logs structures JSON, rotation automatique
+- **Dynamic ctx** — Contexte LLM adaptatif selon la longueur de conversation
+- **CRT effect** — Phosphore vert, scanlines, flicker sur le frontend Minitel
 
 ### Discord
 
@@ -81,10 +102,11 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 ### Personas
 
 - 33 personas (musique, arts, sciences, philosophie, ecologie, tech, cinema)
+- Streaming chunks (token-by-token), Zod validation, pino structured logging
 - Pipeline editorial: source → feedback → proposals → apply/revert
 - Pharmacius: routeur principal (qwen3:8b, maxTokens:600, think-strip)
 - Inter-persona @mention depth 3, 2s delay
-- Modeles: qwen3:8b x21, mistral:7b x7, gemma3:4b x4, qwen3-vl:8b (vision)
+- Modeles: qwen3:8b x28, mistral:7b x5, qwen3-vl:8b (vision)
 
 ## Variables d'environnement
 
@@ -98,6 +120,11 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `ADMIN_TOKEN` | (vide) | Token admin (V2) |
 | `ADMIN_ALLOWED_SUBNETS` | (vide) | CIDR autorise pour admin V1 |
 | `ADMIN_SUBNET` | (vide) | CIDR autorise pour admin V2 |
+| `RERANKER_URL` | `http://localhost:8787` | URL du serveur reranker (BGE/Jina) |
+| `DOCLING_URL` | `http://localhost:5001` | URL du serveur Docling (extraction PDF) |
+| `QWEN3_TTS_URL` | (vide) | URL du serveur TTS Qwen3 |
+| `RAG_TOP_K` | `5` | Nombre de chunks RAG retournes |
+| `RAG_MIN_SCORE` | `0.3` | Score minimum de similarite RAG |
 | `MAX_GENERAL_RESPONDERS` | `4` | Nombre max de personas repondant dans #general |
 | `OWNER_NICK` | (vide) | Pseudo du proprietaire |
 | `VISION_MODEL` | `qwen3-vl:8b` | Modele Ollama pour analyse d'images |
@@ -131,7 +158,7 @@ npm run check        # Lint V1 + TypeScript V2
 npm run check:v2     # TypeScript V2 uniquement
 npm run smoke        # Tests d'integration V1
 npm run smoke:v2     # Tests d'integration V2 (22 tests)
-npm run test:v2      # Tests unitaires V2 (294 tests)
+npm run test:v2      # Tests unitaires V2 (425 tests)
 npm run turbo:build  # Build complet
 ```
 
@@ -261,7 +288,7 @@ kxkm_clown/
 | RBAC | n/a | operationnel |
 | Frontend React | n/a | operationnel |
 | Training (TRL/Unsloth) | n/a | operationnel |
-| Tests (294) | smoke | unit + component + smoke |
+| Tests (425) | smoke | unit + component + smoke (425 pass) |
 | VoiceChat push-to-talk | n/a | operationnel |
 | Mediatheque gallery/playlist | n/a | operationnel |
 | UI Minitel VIDEOTEX | n/a | operationnel |

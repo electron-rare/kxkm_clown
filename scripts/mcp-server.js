@@ -86,12 +86,21 @@ async function executeWebSearch({ query }) {
 }
 
 async function executeStatus() {
-  const [health, perf] = await Promise.all([
+  const RERANKER_URL = process.env.RERANKER_URL || "http://localhost:8787";
+  const DOCLING_URL = process.env.DOCLING_URL || "http://localhost:5001";
+  const [health, perf, reranker, docling] = await Promise.all([
     fetchApiJSON("/api/v2/health").catch(() => null),
     fetchApiJSON("/api/v2/perf").catch(() => null),
+    fetchJSON(RERANKER_URL + "/health").catch(() => ({ status: "unreachable" })),
+    fetchJSON(DOCLING_URL + "/health").catch(() => ({ status: "unreachable" })),
   ]);
 
-  return textResult(JSON.stringify({ health: health?.data, perf: perf?.data }, null, 2));
+  return textResult(JSON.stringify({
+    health: health?.data,
+    perf: perf?.data,
+    reranker,
+    docling,
+  }, null, 2));
 }
 
 function createServer() {

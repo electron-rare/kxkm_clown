@@ -243,7 +243,7 @@ describe("ws-upload-handler", () => {
     assert.ok(text.includes("Analyse ce fichier"));
   });
 
-  it("handles unknown file type (returns metadata)", async () => {
+  it("rejects unknown file type after SEC-03 MIME validation", async () => {
     const deps = makeMocks();
     const info = makeClientInfo();
     const parsed: InboundUpload = {
@@ -256,9 +256,7 @@ describe("ws-upload-handler", () => {
 
     await callUpload(parsed, info, deps);
 
-    assert.equal(deps.routeToPersonas.mock.callCount(), 1);
-    const routeText = (deps.routeToPersonas.mock.calls[0].arguments as any[])[1];
-    assert.ok(routeText.includes("mystery.xyz"));
-    assert.ok(routeText.includes("application/x-custom"));
+    // SEC-03: unknown extension without valid magic bytes is rejected
+    assert.equal(deps.routeToPersonas.mock.callCount(), 0);
   });
 });

@@ -6,6 +6,7 @@ import type { WebSocket } from "ws";
 import { generateImage } from "./comfyui.js";
 import { searchWeb } from "./web-search.js";
 import { saveImage, saveAudio } from "./media-store.js";
+import { loadPersonaMemory } from "./ws-persona-router.js";
 import type { ChatPersona, ClientInfo, OutboundMessage, ChatLogEntry } from "./chat-types.js";
 import type { ContextStore } from "./context-store.js";
 
@@ -72,7 +73,9 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/model                             — modele actif",
             "/persona                           — persona active",
             "/context                           — stats du contexte conversationnel",
-            "/export                            — exporter l'historique",
+            "/export                            — exporter l'historique du canal",
+            "/memory <persona>                  — memoire persistante d'une persona",
+            "/models                            — modeles Ollama disponibles/charges",
             "/join #canal                       — rejoindre un canal",
             "/channels                          — liste les canaux actifs",
             "@NomPersona                        — interpeller une persona directement",
@@ -252,6 +255,106 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
       case "/clear":
         broadcast(info.channel, { type: "system", text: "__clear__" });
         return;
+
+      case "/export": {
+        const store = getContextStore?.();
+        if (!store) {
+          send(ws, { type: "system", text: "Context store non disponible." });
+          return;
+        }
+        try {
+          // Use getContext with a generous char budget for the export
+          const contextStr = await store.getContext(info.channel, 100_000);
+          if (!contextStr || contextStr.trim().length === 0) {
+            send(ws, { type: "system", text: "Aucun historique disponible pour ce canal." });
+            return;
+          }
+          const header = `# Export ${info.channel} — ${new Date().toISOString()}\n\n`;
+          send(ws, { type: "system", text: header + contextStr });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur export: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/memory": {
+        const targetNick = parts[1];
+        if (!targetNick) {
+          send(ws, { type: "system", text: "Usage: /memory <nom_persona>" });
+          return;
+        }
+        // Check if persona exists
+        const persona = getPersonas().find(
+          (p) => p.nick.toLowerCase() === targetNick.toLowerCase(),
+        );
+        if (!persona) {
+          const available = getPersonas().map((p) => p.nick).join(", ");
+          send(ws, { type: "system", text: `Persona "${targetNick}" introuvable. Disponibles: ${available}` });
+          return;
+        }
+        try {
+          const memory = await loadPersonaMemory(persona.nick);
+          const lines = [
+            `=== Memoire de ${persona.nick} ===`,
+            ``,
+            `Faits retenus (${memory.facts.length}):`,
+            ...(memory.facts.length > 0
+              ? memory.facts.map((f, i) => `  ${i + 1}. ${f}`)
+              : ["  (aucun)"]),
+            ``,
+            `Resume: ${memory.summary || "(aucun)"}`,
+            ``,
+            `Derniere mise a jour: ${memory.lastUpdated || "jamais"}`,
+          ];
+          send(ws, { type: "system", text: lines.join("\n") });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur memoire: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/models": {
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        const lines: string[] = ["=== Modeles Ollama ==="];
+        try {
+          // Fetch available models
+          const ctrlTags = new AbortController();
+          const tTags = setTimeout(() => ctrlTags.abort(), 3000);
+          const respTags = await fetch(`${ollamaUrl}/api/tags`, { signal: ctrlTags.signal });
+          clearTimeout(tTags);
+          if (!respTags.ok) throw new Error(`HTTP ${respTags.status}`);
+          const tagsBody = await respTags.json() as { models?: Array<{ name: string; size: number; modified_at?: string }> };
+          const available = tagsBody.models || [];
+
+          // Fetch loaded (running) models
+          let loaded = new Set<string>();
+          try {
+            const ctrlPs = new AbortController();
+            const tPs = setTimeout(() => ctrlPs.abort(), 3000);
+            const respPs = await fetch(`${ollamaUrl}/api/ps`, { signal: ctrlPs.signal });
+            clearTimeout(tPs);
+            if (respPs.ok) {
+              const psBody = await respPs.json() as { models?: Array<{ name: string; size_vram?: number }> };
+              loaded = new Set((psBody.models || []).map((m) => m.name));
+            }
+          } catch { /* ps endpoint may not be available */ }
+
+          if (available.length === 0) {
+            lines.push("  Aucun modele installe.");
+          } else {
+            lines.push(`${available.length} modele(s) disponible(s), ${loaded.size} charge(s):\n`);
+            for (const m of available) {
+              const sizeGB = (m.size / 1073741824).toFixed(1);
+              const status = loaded.has(m.name) ? " [CHARGE]" : "";
+              lines.push(`  ${m.name} (${sizeGB}GB)${status}`);
+            }
+          }
+        } catch (err) {
+          lines.push(`Ollama non disponible: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        send(ws, { type: "system", text: lines.join("\n") });
+        return;
+      }
 
       case "/context": {
         const store = getContextStore?.();

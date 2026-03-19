@@ -225,6 +225,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     setMaxResponders: (n: number) => { currentMaxResponders = n; },
     getActiveUserCount: () => clients.size,
     getContextStore: () => contextStore,
+    refreshPersonas,
   });
 
   wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {

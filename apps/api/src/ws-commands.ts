@@ -31,6 +31,7 @@ interface CommandHandlerDeps {
   setMaxResponders: (n: number) => void;
   getActiveUserCount: () => number;
   getContextStore?: () => ContextStore | undefined;
+  refreshPersonas?: () => Promise<void>;
 }
 
 export function createCommandHandler(deps: CommandHandlerDeps) {
@@ -48,6 +49,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
     setMaxResponders,
     getActiveUserCount,
     getContextStore,
+    refreshPersonas,
   } = deps;
 
   return async function handleCommand({ ws, info, text }: CommandContext): Promise<void> {
@@ -78,6 +80,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/models                            — modeles Ollama disponibles/charges",
             "/join #canal                       — rejoindre un canal",
             "/channels                          — liste les canaux actifs",
+            "/reload                            — recharger les personas depuis la DB",
             "@NomPersona                        — interpeller une persona directement",
           ].join("\n"),
         });
@@ -380,6 +383,25 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
           send(ws, { type: "system", text: lines.join("\n") });
         } catch (err) {
           send(ws, { type: "system", text: `Erreur context stats: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/reload": {
+        if (!refreshPersonas) {
+          send(ws, { type: "system", text: "Rechargement non disponible." });
+          return;
+        }
+        send(ws, { type: "system", text: "Rechargement des personas..." });
+        try {
+          await refreshPersonas();
+          const names = getPersonas().map((p) => p.nick).join(", ");
+          broadcast(info.channel, {
+            type: "system",
+            text: `Personas rechargees: ${names}`,
+          });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur rechargement: ${err instanceof Error ? err.message : String(err)}` });
         }
         return;
       }

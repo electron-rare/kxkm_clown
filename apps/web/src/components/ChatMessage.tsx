@@ -1,6 +1,34 @@
 import React from "react";
 import type { ChatMsg } from "./chat-types";
 
+function renderText(text: string): React.ReactNode {
+  const lines = text.split("\n");
+  if (lines.length === 1) return renderInline(text);
+  return lines.map((line, i) => (
+    <React.Fragment key={i}>
+      {i > 0 && <br />}
+      {renderInline(line)}
+    </React.Fragment>
+  ));
+}
+
+function renderInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*.*?\*\*|\*.*?\*|`.*?`)/g;
+  let lastIdx = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIdx) parts.push(text.slice(lastIdx, match.index));
+    const m = match[0];
+    if (m.startsWith("**")) parts.push(<strong key={match.index}>{m.slice(2, -2)}</strong>);
+    else if (m.startsWith("*")) parts.push(<em key={match.index}>{m.slice(1, -1)}</em>);
+    else if (m.startsWith("`")) parts.push(<code key={match.index}>{m.slice(1, -1)}</code>);
+    lastIdx = match.index + m.length;
+  }
+  if (lastIdx < text.length) parts.push(text.slice(lastIdx));
+  return parts.length === 1 ? parts[0] : parts;
+}
+
 function fmtTime(ts: number): string {
   const d = new Date(ts);
   const h = String(d.getHours()).padStart(2, "0");
@@ -120,7 +148,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
           <span className="chat-nick" style={color ? { color } : undefined}>
             {"<"}{msg.nick || "???"}{">"}{" "}
           </span>
-          <span className="chat-text">{msg.text}</span>
+          <span className="chat-text">{renderText(msg.text || "")}</span>
           {isStreaming && <span className="chat-cursor">▌</span>}
         </div>
       );

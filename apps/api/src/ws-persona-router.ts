@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import logger from "./logger.js";
 import type { ChatPersona, PersonaMemory } from "./chat-types.js";
 
 // ---------------------------------------------------------------------------
@@ -56,7 +57,7 @@ export async function updatePersonaMemory(
     try {
       extracted = JSON.parse(data.message?.content || "{}");
     } catch (parseErr) {
-      console.error("[persona-router] Failed to parse LLM JSON:", parseErr);
+      logger.error({ err: parseErr }, "[persona-router] Failed to parse LLM JSON");
     }
 
     if (extracted.facts && Array.isArray(extracted.facts)) {
@@ -69,10 +70,7 @@ export async function updatePersonaMemory(
 
     await savePersonaMemory(memory);
   } catch (err) {
-    console.error(
-      `[ws-chat] Memory update failed for ${persona.nick}:`,
-      err instanceof Error ? err.message : String(err),
-    );
+    logger.error({ err: err instanceof Error ? err.message : String(err), nick: persona.nick }, "[ws-chat] Memory update failed");
   }
 }
 

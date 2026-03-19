@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { useChatState } from "../hooks/useChatState";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
@@ -16,12 +16,31 @@ export default function Chat() {
     toggleSidebar,
     typingPersona,
     ws,
-    messagesEndRef,
-    messagesContainerRef,
     getNickColor,
     handleSend,
     handleKeyDown,
   } = useChatState();
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    function onScroll() {
+      if (!el) return;
+      autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    }
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (autoScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   return (
     <div className="chat-container">
@@ -33,7 +52,7 @@ export default function Chat() {
       </div>
 
       <div className="chat-body">
-        <div className="chat-messages" ref={messagesContainerRef} role="log" aria-live="polite">
+        <div className="chat-messages" ref={containerRef} role="log" aria-live="polite">
           {messages.map((msg) => (
             <ChatMessage key={msg.id} msg={msg} getNickColor={getNickColor} channel={channel} />
           ))}
@@ -49,7 +68,7 @@ export default function Chat() {
       </div>
 
       {typingPersona && (
-        <div className="chat-typing">
+        <div className="chat-typing" role="status" aria-live="assertive">
           {">>> "}{typingPersona}{" ecrit"}
           <span className="chat-typing-dots">...</span>
         </div>

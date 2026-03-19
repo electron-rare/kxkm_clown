@@ -131,10 +131,10 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // Session
-  login(username: string, role?: UserRole): Promise<SessionData> {
+  login(username: string, role?: UserRole, token?: string): Promise<SessionData> {
     return apiFetch<SessionData>("/api/session/login", {
       method: "POST",
-      body: JSON.stringify({ username, role: role || "viewer" }),
+      body: JSON.stringify({ username, role: role || "viewer", ...(token && { token }) }),
     });
   },
 

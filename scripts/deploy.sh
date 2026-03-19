@@ -59,31 +59,53 @@ $SSH "cd $REMOTE_DIR && \
   docker restart kxkm_clown-api-1" || fail "Docker deploy failed"
 log "Docker restarted"
 
-# ─── Step 5: Restart TTS server (chatterbox-remote + piper fallback) ──
+# ─── Step 5: Restart TTS server (systemd user unit) ───────
 if [[ "$MODE" == "--full" || "$MODE" == "--tts" ]]; then
-  log "Restarting TTS server..."
-  $SSH "tmux kill-session -t tts 2>/dev/null || true; \
-    sleep 1; \
-    tmux new-session -d -s tts \
-      'source /home/kxkm/venv/bin/activate && cd $REMOTE_DIR && CHATTERBOX_URL=http://127.0.0.1:9200 python3 scripts/tts-server.py --port 9100 --backend chatterbox-remote 2>&1 | tee /tmp/tts-server.log'; \
+  log "Restarting TTS server (systemd)..."
+  $SSH "systemctl --user restart kxkm-tts.service; \
     sleep 3; \
     curl -sf http://127.0.0.1:9100/health && echo ' TTS OK' || echo ' TTS FAIL'"
 fi
 
-# ─── Step 5b: Restart LightRAG server ─────────────────────
+# ─── Step 5b: Restart LightRAG server (systemd user unit) ─
 if [[ "$MODE" == "--full" ]]; then
-  log "Restarting LightRAG server..."
-  $SSH "tmux kill-session -t lightrag 2>/dev/null || true; \
-    sleep 1; \
-    tmux new-session -d -s lightrag \
-      'source /home/kxkm/venv/bin/activate && cd $REMOTE_DIR && EMBEDDING_DIM=768 LLM_MODEL=qwen3:8b EMBEDDING_MODEL=nomic-embed-text OLLAMA_HOST=http://localhost:11434 lightrag-server --host 0.0.0.0 --port 9621 --working-dir $REMOTE_DIR/data/lightrag --llm-binding ollama --embedding-binding ollama 2>&1 | tee /tmp/lightrag-server.log'; \
+  log "Restarting LightRAG server (systemd)..."
+  $SSH "systemctl --user restart kxkm-lightrag.service; \
     sleep 5; \
     curl -sf http://127.0.0.1:9621/health | head -c 30 && echo ' LightRAG OK' || echo ' LightRAG FAIL'"
+fi
+
+# ─── Step 5c: Restart Reranker server (systemd user unit) ─
+if [[ "$MODE" == "--full" ]]; then
+  log "Restarting Reranker server (systemd)..."
+  $SSH "systemctl --user restart kxkm-reranker.service; \
+    sleep 3; \
+    curl -sf http://127.0.0.1:9500/health && echo ' Reranker OK' || echo ' Reranker FAIL'"
+fi
+
+# ─── Step 5d: Restart Qwen3-TTS server (on-demand, GPU-heavy) ─
+if [[ "$MODE" == "--full" ]]; then
+  log "Checking Qwen3-TTS server (on-demand)..."
+  $SSH "if systemctl --user is-active kxkm-qwen3-tts.service >/dev/null 2>&1; then \
+    systemctl --user restart kxkm-qwen3-tts.service; \
+    sleep 5; \
+    curl -sf http://127.0.0.1:9300/health && echo ' Qwen3-TTS OK' || echo ' Qwen3-TTS FAIL'; \
+  else \
+    echo ' Qwen3-TTS not active (on-demand, skipped)'; \
+  fi"
 fi
 
 # ─── Step 6: Health check ──────────────────────────────────
 log "Health check..."
 sleep 3
 $SSH "curl -sf http://localhost:3333/api/v2/health | head -c 50" && echo " API OK" || echo " API FAIL"
+
+# Docker container health
+log "Docker containers status..."
+$SSH "docker compose --profile v2 ps --format 'table {{.Name}}\t{{.Status}}' 2>/dev/null"
+
+# Journal disk usage
+log "Journal disk usage..."
+$SSH "journalctl --user --disk-usage 2>/dev/null"
 
 log "═══ Deploy complete ═══"

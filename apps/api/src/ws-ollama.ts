@@ -5,6 +5,17 @@ import { trackError } from "./error-tracker.js";
 import type { ToolDefinition } from "./mcp-tools.js";
 import type { ChatPersona } from "./chat-types.js";
 
+// Dynamic context sizing based on prompt length
+// Rough estimate: 1 token ≈ 4 chars for French text
+function estimateNumCtx(systemPrompt: string, userMessage: string, baseCtx = 8192): number {
+  const promptTokens = Math.ceil((systemPrompt.length + userMessage.length) / 4);
+  const minResponse = 2048; // always leave room for response
+  const needed = promptTokens + minResponse;
+  // Round up to nearest 2048
+  const ctx = Math.ceil(needed / 2048) * 2048;
+  return Math.max(4096, Math.min(ctx, 32768)); // clamp 4k-32k
+}
+
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
 // ---------------------------------------------------------------------------
@@ -40,7 +51,7 @@ export async function streamOllamaChat(
             { role: "user", content: userMessage },
           ],
           stream: true,
-          options: { num_predict: persona.maxTokens || 1024 },
+          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m",
         }),
         signal: controller.signal,
       });
@@ -182,7 +193,7 @@ export async function streamOllamaChatWithTools(
           messages,
           tools: tools.map(t => t),
           stream: false,
-          options: { num_predict: persona.maxTokens || 1024 },
+          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m",
         }),
         signal: controller.signal,
       });
@@ -244,7 +255,7 @@ export async function streamOllamaChatWithTools(
           model: persona.model,
           messages,
           stream: true,
-          options: { num_predict: persona.maxTokens || 1024 },
+          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m",
         }),
         signal: controller.signal,
       });

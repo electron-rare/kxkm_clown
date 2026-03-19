@@ -1,3 +1,5 @@
+import logger from "./logger.js";
+
 // ---------------------------------------------------------------------------
 // Web search (DuckDuckGo Lite scraping)
 // ---------------------------------------------------------------------------
@@ -109,7 +111,7 @@ export async function searchWeb(query: string): Promise<string> {
   }
 
   if (results.length === 0) {
-    console.warn(`[web-search] No results for "${query}"`);
+    logger.warn(`[web-search] No results for "${query}"`);
     return "(Aucun résultat trouvé)";
   }
 

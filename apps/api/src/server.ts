@@ -41,7 +41,7 @@ async function main() {
   // -----------------------------------------------------------------------
   // Initialize local RAG (embeddings via Ollama)
   // -----------------------------------------------------------------------
-  const rag = new LocalRAG({ ollamaUrl, lightragUrl: process.env.LIGHTRAG_URL });
+  const rag = new LocalRAG({ ollamaUrl, lightragUrl: process.env.LIGHTRAG_URL, rerankerUrl: process.env.RERANKER_URL });
 
   // Index manifeste files asynchronously (non-blocking)
   // Try multiple paths: relative to cwd (inside container /app) and absolute on host
@@ -55,6 +55,7 @@ async function main() {
 
   (async () => {
     try {
+      await rag.init(); // verify / pull embedding model
       const indexed = new Set<string>();
       for (const file of dataFiles) {
         const filePath = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file);

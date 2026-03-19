@@ -8,6 +8,7 @@ import { createApp } from "./app.js";
 // Ensure no Postgres connection is attempted
 delete process.env.DATABASE_URL;
 process.env.ADMIN_TOKEN = "test-admin-token";
+process.env.NODE_ENV = "test";
 const TEST_LOCAL_DIR = path.join(process.cwd(), ".tmp-test-v2-local");
 process.env.KXKM_LOCAL_DATA_DIR = TEST_LOCAL_DIR;
 

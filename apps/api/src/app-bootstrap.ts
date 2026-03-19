@@ -1,3 +1,4 @@
+import logger from "./logger.js";
 import {
   loadDatabaseConfig,
   createPostgresPool,
@@ -78,7 +79,7 @@ export async function bootstrapRepositories<
     };
   }
 
-  console.warn("[kxkm/api] DATABASE_URL not set — using local persona storage + in-memory runtime stores");
+  logger.warn("[kxkm/api] DATABASE_URL not set — using local persona storage + in-memory runtime stores");
 
   return {
     sessionRepo: factories.createSessionRepo(),

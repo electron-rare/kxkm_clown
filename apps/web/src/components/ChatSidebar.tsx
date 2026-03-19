@@ -8,7 +8,7 @@ export interface ChatSidebarProps {
   toggleSidebar: (section: "personas" | "users") => void;
 }
 
-export function ChatSidebar({ personaColors, users, sidebarCollapsed, toggleSidebar }: ChatSidebarProps) {
+export const ChatSidebar = React.memo(function ChatSidebar({ personaColors, users, sidebarCollapsed, toggleSidebar }: ChatSidebarProps) {
   return (
     <div className="chat-sidebar">
       <div className="chat-sidebar-section">
@@ -52,4 +52,4 @@ export function ChatSidebar({ personaColors, users, sidebarCollapsed, toggleSide
       </div>
     </div>
   );
-}
+});

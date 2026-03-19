@@ -54,6 +54,7 @@ export default function VoiceChat() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const levelAnimRef = useRef<number>(0);
@@ -116,6 +117,7 @@ export default function VoiceChat() {
   // Audio level monitoring
   function startLevelMonitor(stream: MediaStream) {
     const ctx = new AudioContext();
+    audioCtxRef.current = ctx;
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 256;
@@ -225,6 +227,7 @@ export default function VoiceChat() {
         streamRef.current = null;
         cancelAnimationFrame(levelAnimRef.current);
         analyserRef.current = null;
+        if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
         setAudioLevel(0);
         if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
         if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
@@ -276,11 +279,13 @@ export default function VoiceChat() {
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       cancelAnimationFrame(levelAnimRef.current);
+      if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
       if (mediaRecorderRef.current?.state === "recording") {
         try { mediaRecorderRef.current.stop(); } catch {}
       }
       streamRef.current?.getTracks().forEach(t => t.stop());
       if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
+      audioQueueRef.current.length = 0;
     };
   }, []);
 

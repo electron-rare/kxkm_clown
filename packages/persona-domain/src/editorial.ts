@@ -101,5 +101,11 @@ export function extractDPOPairs(
     });
   }
 
+  if (pairs.length === 0 && feedback.length > 0) {
+    console.warn(
+      `[DPO] extractDPOPairs returned 0 pairs for persona "${persona.id}" from ${feedback.length} feedback items — check vote polarity signals`,
+    );
+  }
+
   return pairs;
 }

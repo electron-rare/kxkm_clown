@@ -1,3 +1,4 @@
+import { recordLatency, getMetrics } from "./perf.js";
 import express, { type Request, type Response, type NextFunction } from "express";
 import net from "node:net";
 import { extractSessionId, hasPermission } from "@kxkm/auth";
@@ -139,6 +140,7 @@ export function createPerfTracker() {
       perfStats.requestCount++;
       perfStats.totalLatencyMs += latency;
       if (latency > perfStats.maxLatencyMs) perfStats.maxLatencyMs = latency;
+      recordLatency("http", latency);
       perfStats.statusCodes.set(res.statusCode, (perfStats.statusCodes.get(res.statusCode) || 0) + 1);
     });
     next();
@@ -156,6 +158,7 @@ export function createPerfTracker() {
         requests: perfStats.requestCount,
         avg_latency_ms: Math.round(avgLatency * 100) / 100,
         max_latency_ms: Math.round(perfStats.maxLatencyMs * 100) / 100,
+        percentiles: getMetrics(),
         status_codes: Object.fromEntries(perfStats.statusCodes),
         memory: {
           rss_mb: Math.round(mem.rss / 1048576),

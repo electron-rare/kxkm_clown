@@ -7,7 +7,9 @@
   "dependencies": {
     "@xyflow/react": "^12.10.1",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "react-virtualized-auto-sizer": "^2.0.3",
+    "react-window": "^2.2.7"
   },
   "scripts": {
     "status": "node ../../scripts/workspace-package.js web status",
@@ -20,6 +22,8 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/react-virtualized-auto-sizer": "^1.0.4",
+    "@types/react-window": "^1.8.8",
     "jsdom": "^29.0.0",
     "vitest": "^4.1.0"
   }

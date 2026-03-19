@@ -16,6 +16,15 @@ import {
   type PersonaSourceRecord,
 } from "@kxkm/persona-domain";
 import { resolveVoiceSamplePath, resolveVoiceSamplesRoot } from "../voice-samples.js";
+import {
+  validate,
+  createPersonaSchema,
+  updatePersonaSchema,
+  togglePersonaSchema,
+  updatePersonaSourceSchema,
+  reinforcePersonaSchema,
+  voiceSampleSchema,
+} from "../schemas.js";
 
 interface SessionRequest extends Request {
   session?: AuthSession;
@@ -90,19 +99,15 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
     res.json(asApiData(persona));
   });
 
-  router.post("/api/admin/personas", requirePermission("persona:write"), async (req: SessionRequest, res) => {
-    const name = String(req.body?.name || "").trim();
-    if (!name) {
-      res.status(400).json({ ok: false, error: "name_required" });
-      return;
-    }
+  router.post("/api/admin/personas", requirePermission("persona:write"), validate(createPersonaSchema), async (req: SessionRequest, res) => {
+    const body = req.body as { name: string; model?: string; summary?: string; enabled?: boolean };
     const persona: PersonaRecord = {
       id: createId("persona"),
-      name,
-      model: String(req.body?.model || "qwen3:8b"),
-      summary: String(req.body?.summary || ""),
+      name: body.name,
+      model: body.model || "qwen3:8b",
+      summary: body.summary || "",
       editable: true,
-      enabled: req.body?.enabled !== undefined ? Boolean(req.body.enabled) : true,
+      enabled: body.enabled !== undefined ? body.enabled : true,
     };
     await personaRepo.upsert(persona);
 
@@ -113,7 +118,7 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
     res.status(201).json(asApiData(persona));
   });
 
-  router.put("/api/admin/personas/:id", requirePermission("persona:write"), async (req: SessionRequest, res) => {
+  router.put("/api/admin/personas/:id", requirePermission("persona:write"), validate(updatePersonaSchema), async (req: SessionRequest, res) => {
     const personaId = readRouteParam(req.params.id);
     const persona = await personaRepo.findById(personaId);
     if (!persona) {
@@ -121,11 +126,12 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
       return;
     }
 
-    persona.name = String(req.body?.name || persona.name);
-    persona.model = String(req.body?.model || persona.model);
-    persona.summary = String(req.body?.summary || persona.summary);
-    if (req.body?.enabled !== undefined) {
-      (persona as unknown as Record<string, unknown>).enabled = Boolean(req.body.enabled);
+    const body = req.body as { name?: string; model?: string; summary?: string; enabled?: boolean };
+    persona.name = body.name || persona.name;
+    persona.model = body.model || persona.model;
+    persona.summary = body.summary || persona.summary;
+    if (body.enabled !== undefined) {
+      (persona as unknown as Record<string, unknown>).enabled = body.enabled;
     }
 
     await personaRepo.upsert(persona);
@@ -137,7 +143,7 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
     res.json(asApiData(persona));
   });
 
-  router.post("/api/admin/personas/:id/toggle", requirePermission("persona:write"), async (req: SessionRequest, res) => {
+  router.post("/api/admin/personas/:id/toggle", requirePermission("persona:write"), validate(togglePersonaSchema), async (req: SessionRequest, res) => {
     const personaId = readRouteParam(req.params.id);
     const persona = await personaRepo.findById(personaId);
     if (!persona) {
@@ -145,7 +151,8 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
       return;
     }
 
-    const enabled = req.body?.enabled !== undefined ? Boolean(req.body.enabled) : !(persona as unknown as { enabled?: boolean }).enabled;
+    const body = req.body as { enabled?: boolean };
+    const enabled = body.enabled !== undefined ? body.enabled : !(persona as unknown as { enabled?: boolean }).enabled;
     (persona as unknown as Record<string, unknown>).enabled = enabled;
     await personaRepo.upsert(persona);
 
@@ -163,13 +170,14 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
     res.json(asApiData(source || defaultPersonaSource(personaId, persona?.name || personaId)));
   });
 
-  router.put("/api/admin/personas/:id/source", requirePermission("persona:write"), async (req, res) => {
+  router.put("/api/admin/personas/:id/source", requirePermission("persona:write"), validate(updatePersonaSourceSchema), async (req, res) => {
     const personaId = readRouteParam(req.params.id);
+    const body = req.body as { subjectName?: string; summary?: string; references?: string[] };
     const source: PersonaSourceRecord = {
       personaId,
-      subjectName: String(req.body?.subjectName || personaId),
-      summary: String(req.body?.summary || ""),
-      references: Array.isArray(req.body?.references) ? req.body.references.map(String) : [],
+      subjectName: body.subjectName || personaId,
+      summary: body.summary || "",
+      references: body.references || [],
     };
     const saved = await sourceRepo.upsert(source);
     res.json(asApiData(saved));
@@ -187,7 +195,7 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
     res.json(asApiData(list));
   });
 
-  router.post("/api/admin/personas/:id/reinforce", requirePermission("persona:write"), async (req: SessionRequest, res) => {
+  router.post("/api/admin/personas/:id/reinforce", requirePermission("persona:write"), validate(reinforcePersonaSchema), async (req: SessionRequest, res) => {
     const personaId = readRouteParam(req.params.id);
     const persona = await personaRepo.findById(personaId);
     if (!persona) {
@@ -195,14 +203,15 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
       return;
     }
 
+    const body = req.body as { name?: string; model?: string; summary?: string; apply?: boolean };
     const existingFeedback = await feedbackRepo.listByPersonaId(persona.id);
     const suffix = existingFeedback.length ? " affinee par feedback" : " calibree par source";
     const after = {
-      name: String(req.body?.name || persona.name),
-      model: String(req.body?.model || persona.model),
-      summary: String(req.body?.summary || `${persona.summary}${suffix}`),
+      name: body.name || persona.name,
+      model: body.model || persona.model,
+      summary: body.summary || `${persona.summary}${suffix}`,
     };
-    const apply = Boolean(req.body?.apply);
+    const apply = Boolean(body.apply);
     const proposal = createProposal(persona, after, "reinforce_v2", apply);
 
     if (apply) {
@@ -236,7 +245,7 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
   });
 
   // Voice sample upload for XTTS-v2 cloning
-  router.post("/api/admin/personas/:id/voice-sample", requirePermission("persona:write"), async (req: SessionRequest, res) => {
+  router.post("/api/admin/personas/:id/voice-sample", requirePermission("persona:write"), validate(voiceSampleSchema), async (req: SessionRequest, res) => {
     const personaId = readRouteParam(req.params.id);
     const persona = await personaRepo.findById(personaId);
     if (!persona) {
@@ -244,11 +253,8 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
       return;
     }
 
-    const audioB64 = req.body?.audio as string | undefined;
-    if (!audioB64 || typeof audioB64 !== "string") {
-      res.status(400).json({ ok: false, error: "audio_required (base64 field 'audio')" });
-      return;
-    }
+    const body = req.body as { audio: string };
+    const audioB64 = body.audio;
 
     // Decode and validate size (max 10 MB)
     const buffer = Buffer.from(audioB64, "base64");

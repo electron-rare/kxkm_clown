@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { api } from "../api";
 
 interface ChatLogFile {
@@ -67,6 +67,28 @@ function messageClass(msg: ChatLogMessage): string {
   }
   return "history-line";
 }
+
+const HistoryRow = React.memo(function HistoryRow({ msg, offset, index }: { msg: ChatLogMessage; offset: number; index: number }) {
+  return (
+    <div key={`${offset}-${index}`} className={messageClass(msg)}>
+      {renderMessage(msg)}
+    </div>
+  );
+});
+
+const DateButton = React.memo(function DateButton({ file, isActive, onSelect }: { file: ChatLogFile; isActive: boolean; onSelect: (date: string) => void }) {
+  return (
+    <button
+      className={`history-date-btn${isActive ? " history-date-active" : ""}`}
+      onClick={() => onSelect(file.date)}
+    >
+      <span className="history-date-label">{file.date}</span>
+      <span className="history-date-meta">
+        {file.lines} msg &middot; {formatFileSize(file.size)}
+      </span>
+    </button>
+  );
+});
 
 export default function ChatHistory() {
   const [files, setFiles] = useState<ChatLogFile[]>([]);
@@ -197,8 +219,7 @@ export default function ChatHistory() {
     setSearchResults([]);
   }, []);
 
-  // Highlight matching text in search results
-  function highlightText(text: string, query: string): React.ReactNode {
+  const highlightText = useCallback((text: string, query: string): React.ReactNode => {
     if (!query) return text;
     const lowerText = text.toLowerCase();
     const lowerQuery = query.toLowerCase();
@@ -211,17 +232,19 @@ export default function ChatHistory() {
         {text.slice(idx + query.length)}
       </>
     );
-  }
+  }, []);
 
-  const filteredMessages = filterTerm
-    ? messages.filter((msg) => {
-        const rendered = renderMessage(msg).toLowerCase();
-        return rendered.includes(filterTerm.toLowerCase());
-      })
-    : messages;
+  const filteredMessages = useMemo(() => {
+    if (!filterTerm) return messages;
+    const lowerFilter = filterTerm.toLowerCase();
+    return messages.filter((msg) => {
+      const rendered = renderMessage(msg).toLowerCase();
+      return rendered.includes(lowerFilter);
+    });
+  }, [messages, filterTerm]);
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
+  const totalPages = useMemo(() => Math.ceil(total / PAGE_SIZE), [total]);
+  const currentPage = useMemo(() => Math.floor(offset / PAGE_SIZE) + 1, [offset]);
 
   return (
     <div className="history-container">
@@ -286,16 +309,7 @@ export default function ChatHistory() {
             <div className="history-empty">Aucun log disponible</div>
           )}
           {files.map((f) => (
-            <button
-              key={f.date}
-              className={`history-date-btn${selectedDate === f.date ? " history-date-active" : ""}`}
-              onClick={() => handleDateSelect(f.date)}
-            >
-              <span className="history-date-label">{f.date}</span>
-              <span className="history-date-meta">
-                {f.lines} msg &middot; {formatFileSize(f.size)}
-              </span>
-            </button>
+            <DateButton key={f.date} file={f} isActive={selectedDate === f.date} onSelect={handleDateSelect} />
           ))}
         </div>
 
@@ -346,9 +360,7 @@ export default function ChatHistory() {
               </div>
             )}
             {filteredMessages.map((msg, i) => (
-              <div key={`${offset}-${i}`} className={messageClass(msg)}>
-                {renderMessage(msg)}
-              </div>
+              <HistoryRow key={`${offset}-${i}`} msg={msg} offset={offset} index={i} />
             ))}
           </div>
         </div>

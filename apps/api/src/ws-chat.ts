@@ -1,12 +1,14 @@
 import http from "node:http";
-import fs from "node:fs";
-import path from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
 import { DEFAULT_PERSONAS, personaColor } from "./personas-default.js";
 import { createCommandHandler } from "./ws-commands.js";
 import { createConversationRouter } from "./ws-conversation-router.js";
+import logger from "./logger.js";
+import { logChatMessage } from "./ws-chat-logger.js";
+import { send, generateNick, checkRateLimit, MAX_WS_MESSAGE_BYTES, MAX_TEXT_LENGTH } from "./ws-chat-helpers.js";
+import { replayHistory } from "./ws-chat-history.js";
+import { wsMessageSchema } from "./schemas.js";
 
-const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 import type {
   ChatPersona,
   ClientInfo,
@@ -15,7 +17,6 @@ import type {
   InboundChatMessage,
   InboundUpload,
   OutboundMessage,
-  ChatLogEntry,
 } from "./chat-types.js";
 
 import {
@@ -26,63 +27,22 @@ import {
 } from "./ws-multimodal.js";
 
 // ---------------------------------------------------------------------------
-// Chat logging (JSONL)
+// Per-channel sequence counter
 // ---------------------------------------------------------------------------
 
-const CHAT_LOG_DIR = path.resolve(process.cwd(), "data/chat-logs");
+const channelSeq = new Map<string, number>();
 
-let logDirReady = false;
-
-async function ensureLogDir(): Promise<void> {
-  if (logDirReady) return;
-  await fs.promises.mkdir(CHAT_LOG_DIR, { recursive: true });
-  logDirReady = true;
-}
-
-// Ensure log dir at startup (fire-and-forget)
-ensureLogDir().catch((err) =>
-  console.error("[ws-chat] Failed to create log dir:", err instanceof Error ? err.message : String(err)),
-);
-
-function logFilePath(): string {
-  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  return path.join(CHAT_LOG_DIR, `v2-${date}.jsonl`);
-}
-
-function logChatMessage(entry: ChatLogEntry): void {
-  ensureLogDir()
-    .then(() => fs.promises.appendFile(logFilePath(), JSON.stringify(entry) + "\n", "utf8"))
-    .catch((err) => {
-      if (err && typeof err === "object" && "code" in err && err.code === "ENOENT") {
-        return;
-      }
-      console.error("[ws-chat] Failed to log chat message:", err instanceof Error ? err.message : String(err));
-    });
+function nextSeq(channel: string): number {
+  const n = (channelSeq.get(channel) || 0) + 1;
+  channelSeq.set(channel, n);
+  return n;
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Constants
 // ---------------------------------------------------------------------------
 
-const MAX_WS_MESSAGE_BYTES = 16 * 1024 * 1024; // 16 MB to support file uploads
-const MAX_TEXT_LENGTH = 8192;
-const RATE_LIMIT_WINDOW_MS = 10_000; // 10 seconds
-const RATE_LIMIT_MAX_MESSAGES = 15; // max messages per window
 const PERSONA_REFRESH_INTERVAL_MS = 60_000; // 60 seconds
-
-let clientIdCounter = 0;
-
-function generateNick(): string {
-  return `user_${++clientIdCounter}`;
-}
-
-function send(ws: WebSocket, msg: OutboundMessage): void {
-  if (ws.readyState === WebSocket.OPEN) {
-    try {
-      ws.send(JSON.stringify(msg));
-    } catch { /* connection closed between check and send */ }
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Main export
@@ -109,7 +69,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       const loaded = await loadPersonas();
       const enabled = loaded.filter((p) => p.enabled);
       if (enabled.length === 0) {
-        console.warn("[ws-chat] Persona loader returned no enabled personas — keeping current list");
+        logger.warn("[ws-chat] Persona loader returned no enabled personas — keeping current list");
         return;
       }
 
@@ -122,9 +82,9 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         maxTokens: p.maxTokens,
       }));
 
-      if (DEBUG) console.log(`[ws-chat] Refreshed personas: ${personas.map((p) => p.nick).join(", ")}`);
+      logger.debug(`[ws-chat] Refreshed personas: ${personas.map((p) => p.nick).join(", ")}`);
     } catch (err) {
-      console.error("[ws-chat] Failed to refresh personas, keeping current list:", err instanceof Error ? err.message : String(err));
+      logger.error({ err: err instanceof Error ? err.message : String(err) }, "[ws-chat] Failed to refresh personas, keeping current list");
     } finally {
       refreshInProgress = false;
     }
@@ -145,9 +105,10 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   // --- broadcast helpers ---
 
   function broadcast(channel: string, msg: OutboundMessage, exclude?: WebSocket): void {
+    const stamped = { ...msg, seq: nextSeq(channel) };
     for (const [ws, info] of clients) {
       if (info.channel === channel && ws !== exclude) {
-        send(ws, msg);
+        send(ws, stamped);
       }
     }
   }
@@ -159,7 +120,6 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         users.push(info.nick);
       }
     }
-    // Append persona nicks
     for (const p of personas) {
       users.push(p.nick);
     }
@@ -186,6 +146,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       return await contextStore.getContext(channel, 4000);
     } catch { return ""; }
   }
+
   const routeToPersonas = createConversationRouter({
     ollamaUrl,
     rag,
@@ -200,7 +161,6 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   // --- handle chat message ---
 
   async function handleChatMessage(ws: WebSocket, info: ClientInfo, text: string): Promise<void> {
-    // Echo user message to all clients in channel
     broadcast(info.channel, {
       type: "message",
       nick: info.nick,
@@ -208,7 +168,6 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       color: "#e0e0e0",
     });
 
-    // Log user message + add to context
     logChatMessage({
       ts: new Date().toISOString(),
       channel: info.channel,
@@ -262,7 +221,6 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   });
 
   wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {
-    // Read nick from query param ?nick=, fallback to generated
     const reqUrl = new URL(req.url || "/ws", "http://localhost");
     const paramNick = reqUrl.searchParams.get("nick")?.trim().slice(0, 24);
     const nick = paramNick && /^[a-zA-Z0-9_\-À-ÿ]+$/.test(paramNick) ? paramNick : generateNick();
@@ -307,59 +265,61 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     // Send userlist
     send(ws, { type: "userlist", users: channelUsers(info.channel) });
 
-    // --- message handler ---
+    // Send recent chat history
+    if (contextStore) {
+      replayHistory(ws, info.channel, personas, send);
+    }
 
-    ws.on("message", async (raw: Buffer) => {
-      if (raw.length > MAX_WS_MESSAGE_BYTES) return;
+    // --- message handler (Promise chain to prevent async reordering) ---
 
-      // Rate limiting
-      const now = Date.now();
-      info.messageTimestamps = info.messageTimestamps.filter(
-        (t) => now - t < RATE_LIMIT_WINDOW_MS,
-      );
-      if (info.messageTimestamps.length >= RATE_LIMIT_MAX_MESSAGES) {
-        send(ws, { type: "system", text: "Trop de messages — ralentis un peu." });
-        return;
-      }
-      info.messageTimestamps.push(now);
+    let processingChain = Promise.resolve();
 
-      let message: InboundMessage;
-      try {
-        message = JSON.parse(raw.toString()) as InboundMessage;
-      } catch {
-        return;
-      }
+    ws.on("message", (raw: Buffer) => {
+      processingChain = processingChain.then(async () => {
+        if (raw.length > MAX_WS_MESSAGE_BYTES) return;
 
-      if (!message || typeof message !== "object") return;
-      if (typeof message.type !== "string") return;
+        if (checkRateLimit(info)) {
+          send(ws, { type: "system", text: "Trop de messages — ralentis un peu." });
+          return;
+        }
 
-      if (message.type === "upload") {
-        await handleUploadMessage(ws, info, message as InboundUpload);
-        return;
-      }
+        let rawParsed: unknown;
+        try {
+          rawParsed = JSON.parse(raw.toString());
+        } catch {
+          return;
+        }
 
-      // For message and command types, text is required
-      if (typeof (message as InboundChatMessage).text !== "string") return;
-      const text = (message as InboundChatMessage).text;
-      if (text.length > MAX_TEXT_LENGTH) {
-        send(ws, { type: "system", text: "Message trop long (max 8192 caracteres)." });
-        return;
-      }
+        // Validate with Zod schema (non-breaking: log invalid, drop message)
+        const validated = wsMessageSchema.safeParse(rawParsed);
+        if (!validated.success) {
+          logger.warn({ issues: validated.error.issues }, "[ws-chat] Invalid WS message rejected by schema");
+          send(ws, { type: "system", text: "Message invalide (format incorrect)." });
+          return;
+        }
 
-      if (message.type === "command") {
-        await handleCommand({ ws, info, text });
-      } else if (message.type === "message") {
-        await handleChatMessage(ws, info, text);
-      }
+        const message = validated.data as InboundMessage;
+
+        if (message.type === "upload") {
+          await handleUploadMessage(ws, info, message as InboundUpload);
+          return;
+        }
+
+        const text = (message as InboundChatMessage).text;
+
+        if (message.type === "command") {
+          await handleCommand({ ws, info, text });
+        } else if (message.type === "message") {
+          await handleChatMessage(ws, info, text);
+        }
+      }).catch((err) => {
+        logger.error({ err: err instanceof Error ? err.message : String(err) }, "[ws-chat] handler error");
+      });
     });
-
-    // --- error handler (prevent unhandled error crash) ---
 
     ws.on("error", (err) => {
-      console.error(`[ws-chat] WebSocket error for ${info.nick}:`, err.message);
+      logger.error({ err: err.message, nick: info.nick }, "[ws-chat] WebSocket error");
     });
-
-    // --- close handler ---
 
     ws.on("close", () => {
       broadcast(info.channel, {
@@ -373,6 +333,6 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     });
   });
 
-  if (DEBUG) console.log(`[ws-chat] WebSocket chat attached on /ws (Ollama: ${ollamaUrl})`);
+  logger.debug(`[ws-chat] WebSocket chat attached on /ws (Ollama: ${ollamaUrl})`);
   return wss;
 }

@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260317-230603",
+  "generated_at": "2026-03-17T22:06:11Z",
+  "files": {
+    "audit": "/home/kxkm/KXKM_Clown/ops/v2/logs/deep-audit-20260317-230603.json",
+    "check": "/home/kxkm/KXKM_Clown/ops/v2/logs/check-v2-20260317-230603.log",
+    "test": "/home/kxkm/KXKM_Clown/ops/v2/logs/test-v2-20260317-230603.log",
+    "summary": "/home/kxkm/KXKM_Clown/ops/v2/outputs/deep-cycles/summary-20260317-230603.md"
+  },
+  "checks": {
+    "check:v2": "ok",
+    "test:v2": "ok"
+  },
+  "retained_logs": [
+    "/home/kxkm/KXKM_Clown/ops/v2/logs/deep-audit-20260317-230603.json",
+    "/home/kxkm/KXKM_Clown/ops/v2/logs/check-v2-20260317-230603.log",
+    "/home/kxkm/KXKM_Clown/ops/v2/logs/test-v2-20260317-230603.log"
+  ],
+  "counts": {
+    "security": 0,
+    "performance": 0,
+    "large_files": 9
+  },
+  "debt": {
+    "score": 40,
+    "level": "medium",
+    "components": {
+      "security": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0
+      },
+      "performance": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0
+      },
+      "tsErrors": 0,
+      "largeFiles": 9,
+      "mediumFiles": 10,
+      "deps": 3
+    }
+  },
+  "hotspots": [
+    "packages/persona-domain/src/index.ts",
+    "packages/node-engine/src/index.ts",
+    "packages/storage/src/index.test.ts",
+    "packages/node-engine/src/index.test.ts",
+    "apps/web/src/components/Chat.tsx"
+  ],
+  "open_findings": [],
+  "backlog_links": [
+    "lot-12-deep-audit/pipeline-canonique",
+    "lot-12-deep-audit/deep-cycle-operator",
+    "lot-12-deep-audit/ws-chat-seams",
+    "lot-12-deep-audit/ui-contract",
+    "lot-12-deep-audit/web-shell-convergence"
+  ],
+  "retention_days": 7,
+  "hashes": {
+    "audit_sha256": "f407098d6b9eefa41e87481fce8160d6c61a56c07b52ffc4ec2cd676aad1dda5",
+    "check_sha256": "5c767e1d04becf6a85d57d3ef05b5625120a47ee1fc7d1d0332bfb9c0aab83c4",
+    "test_sha256": "ee0bf24524cdd085a6a0eeee1339aa6924311be226819e7c195471bc7abf8e38"
+  }
+}

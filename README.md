@@ -131,7 +131,7 @@ npm run check        # Lint V1 + TypeScript V2
 npm run check:v2     # TypeScript V2 uniquement
 npm run smoke        # Tests d'integration V1
 npm run smoke:v2     # Tests d'integration V2 (22 tests)
-npm run test:v2      # Tests unitaires V2 (102 tests)
+npm run test:v2      # Tests unitaires V2 (294 tests)
 npm run turbo:build  # Build complet
 ```
 
@@ -261,7 +261,7 @@ kxkm_clown/
 | RBAC | n/a | operationnel |
 | Frontend React | n/a | operationnel |
 | Training (TRL/Unsloth) | n/a | operationnel |
-| Tests (204) | smoke | unit + component + smoke |
+| Tests (294) | smoke | unit + component + smoke |
 | VoiceChat push-to-talk | n/a | operationnel |
 | Mediatheque gallery/playlist | n/a | operationnel |
 | UI Minitel VIDEOTEX | n/a | operationnel |

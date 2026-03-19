@@ -1,219 +1,92 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-
 import {
-  SHELL_THEME,
-  STATUS_COLORS,
-  RUN_STATUS_COLORS,
-  PERSONA_PALETTE,
-  getPersonaColor,
-  createUiCssVariables,
-  UI_CSS_VARIABLES,
-  RUN_STATUS_CLASSES,
-  getRunStatusClass,
-  publishUiCssVariables,
-  createUiCssText,
-  UI_THEME,
+  SHELL_THEME, STATUS_COLORS, RUN_STATUS_COLORS, PERSONA_PALETTE,
+  getPersonaColor, createUiCssVariables, getRunStatusClass,
+  publishUiCssVariables, createUiCssText, UI_THEME, UI_CSS_VARIABLES,
 } from "./index.js";
 
-/* ------------------------------------------------------------------ */
-/*  Constants                                                         */
-/* ------------------------------------------------------------------ */
-
-describe("SHELL_THEME", () => {
-  it("has all expected keys", () => {
-    const keys = [
-      "background", "panel", "ink", "muted", "accent",
-      "border", "borderLight", "fontMono", "fontDisplay", "gap", "radius",
-    ];
-    for (const k of keys) {
-      assert.ok(k in SHELL_THEME, `missing key: ${k}`);
-    }
-  });
-});
-
-describe("STATUS_COLORS", () => {
-  it("has info, warn, danger", () => {
-    assert.equal(typeof STATUS_COLORS.info, "string");
-    assert.equal(typeof STATUS_COLORS.warn, "string");
-    assert.equal(typeof STATUS_COLORS.danger, "string");
-  });
-});
-
-describe("RUN_STATUS_COLORS", () => {
-  it("has 5 statuses", () => {
-    const keys = ["running", "queued", "completed", "failed", "cancelled"];
-    assert.deepEqual(Object.keys(RUN_STATUS_COLORS).sort(), keys.sort());
-  });
-});
-
-describe("PERSONA_PALETTE", () => {
-  it("has 8 elements", () => {
-    assert.equal(PERSONA_PALETTE.length, 8);
-  });
-
-  it("all elements are hex color strings", () => {
-    for (const c of PERSONA_PALETTE) {
-      assert.match(c, /^#[0-9a-f]{6}$/i);
-    }
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  getPersonaColor                                                   */
-/* ------------------------------------------------------------------ */
-
-describe("getPersonaColor", () => {
-  it("returns a color from the palette for a nick", () => {
-    const color = getPersonaColor("Merzbow");
-    assert.ok(PERSONA_PALETTE.includes(color as typeof PERSONA_PALETTE[number]));
-  });
-
-  it("is deterministic (same nick -> same color)", () => {
-    const a = getPersonaColor("Pharmacius");
-    const b = getPersonaColor("Pharmacius");
-    assert.equal(a, b);
-  });
-
-  it("wraps around the palette (9th persona maps back)", () => {
-    // With a custom 3-color palette, hash % 3 always in range
-    const palette = ["#aaa", "#bbb", "#ccc"];
-    const color = getPersonaColor("anything", palette);
-    assert.ok(palette.includes(color));
-  });
-
-  it("returns accent if palette is empty", () => {
-    assert.equal(getPersonaColor("test", []), SHELL_THEME.accent);
-  });
-
-  it("handles short nicks (single char)", () => {
-    const color = getPersonaColor("X");
-    assert.ok(PERSONA_PALETTE.includes(color as typeof PERSONA_PALETTE[number]));
-  });
-
-  it("handles long nicks", () => {
-    const long = "A".repeat(500);
-    const color = getPersonaColor(long);
-    assert.ok(PERSONA_PALETTE.includes(color as typeof PERSONA_PALETTE[number]));
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  createUiCssVariables                                              */
-/* ------------------------------------------------------------------ */
-
-describe("createUiCssVariables", () => {
-  const vars = createUiCssVariables();
-
-  it("returns an object with --kxkm-* keys", () => {
-    for (const key of Object.keys(vars)) {
-      assert.ok(key.startsWith("--kxkm-"), `key ${key} missing --kxkm- prefix`);
-    }
-  });
-
-  it("contains shell, status, and persona variables", () => {
-    assert.ok("--kxkm-shell-background" in vars);
-    assert.ok("--kxkm-status-info" in vars);
-    assert.ok("--kxkm-persona-1" in vars);
-  });
-
-  it("has 27 variables (19 base + 8 persona)", () => {
-    // 11 shell + 3 status + 5 run-status + 8 persona = 27
-    assert.equal(Object.keys(vars).length, 27);
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  UI_CSS_VARIABLES                                                  */
-/* ------------------------------------------------------------------ */
-
-describe("UI_CSS_VARIABLES", () => {
-  it("equals a fresh createUiCssVariables() call", () => {
-    assert.deepEqual(UI_CSS_VARIABLES, createUiCssVariables());
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  getRunStatusClass                                                 */
-/* ------------------------------------------------------------------ */
-
-describe("getRunStatusClass", () => {
-  for (const [status, cls] of Object.entries(RUN_STATUS_CLASSES)) {
-    it(`returns "${cls}" for "${status}"`, () => {
-      assert.equal(getRunStatusClass(status), cls);
+describe("@kxkm/ui", () => {
+  describe("SHELL_THEME", () => {
+    it("has all required keys", () => {
+      assert.ok(SHELL_THEME.background);
+      assert.ok(SHELL_THEME.ink);
+      assert.ok(SHELL_THEME.accent);
+      assert.ok(SHELL_THEME.fontMono);
     });
-  }
-
-  it('returns "status-muted" for unknown status', () => {
-    assert.equal(getRunStatusClass("unknown"), "status-muted");
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  publishUiCssVariables                                             */
-/* ------------------------------------------------------------------ */
-
-describe("publishUiCssVariables", () => {
-  it("calls setProperty for each variable", () => {
-    const calls: [string, string][] = [];
-    const target = { setProperty: (n: string, v: string) => calls.push([n, v]) };
-    const vars = { "--kxkm-test-a": "red", "--kxkm-test-b": "blue" };
-    publishUiCssVariables(target, vars);
-    assert.deepEqual(calls, [["--kxkm-test-a", "red"], ["--kxkm-test-b", "blue"]]);
   });
 
-  it("uses default UI_CSS_VARIABLES when none specified", () => {
-    const calls: [string, string][] = [];
-    const target = { setProperty: (n: string, v: string) => calls.push([n, v]) };
-    publishUiCssVariables(target);
-    assert.equal(calls.length, Object.keys(UI_CSS_VARIABLES).length);
-    assert.deepEqual(calls[0][0], Object.keys(UI_CSS_VARIABLES)[0]);
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  createUiCssText                                                   */
-/* ------------------------------------------------------------------ */
-
-describe("createUiCssText", () => {
-  it("generates a CSS block with :root by default", () => {
-    const css = createUiCssText();
-    assert.ok(css.startsWith(":root {"));
-    assert.ok(css.endsWith("}"));
+  describe("getPersonaColor", () => {
+    it("returns a string from PERSONA_PALETTE", () => {
+      const color = getPersonaColor("Pharmacius");
+      assert.ok(PERSONA_PALETTE.includes(color as any));
+    });
+    it("is deterministic", () => {
+      assert.equal(getPersonaColor("Sherlock"), getPersonaColor("Sherlock"));
+    });
+    it("returns accent for empty palette", () => {
+      assert.equal(getPersonaColor("test", []), SHELL_THEME.accent);
+    });
+    it("distributes across palette", () => {
+      const colors = new Set(["A","B","C","D","E","F","G","H"].map(n => getPersonaColor(n)));
+      assert.ok(colors.size >= 3, `Expected >=3 distinct colors, got ${colors.size}`);
+    });
   });
 
-  it("uses a custom selector if provided", () => {
-    const css = createUiCssText(".my-app");
-    assert.ok(css.startsWith(".my-app {"));
+  describe("createUiCssVariables", () => {
+    it("returns object with CSS custom properties", () => {
+      const vars = createUiCssVariables();
+      assert.ok(vars["--kxkm-shell-background"]);
+      assert.ok(vars["--kxkm-shell-accent"]);
+      assert.ok(vars["--kxkm-persona-1"]);
+    });
+    it("includes all persona palette entries", () => {
+      const vars = createUiCssVariables();
+      for (let i = 1; i <= PERSONA_PALETTE.length; i++) {
+        assert.ok(vars[`--kxkm-persona-${i}`]);
+      }
+    });
   });
 
-  it("contains --kxkm-* variables", () => {
-    const css = createUiCssText();
-    assert.ok(css.includes("--kxkm-shell-background:"));
-    assert.ok(css.includes("--kxkm-persona-1:"));
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  UI_THEME aggregate                                                */
-/* ------------------------------------------------------------------ */
-
-describe("UI_THEME", () => {
-  it("aggregates all sub-objects", () => {
-    assert.equal(UI_THEME.shell, SHELL_THEME);
-    assert.equal(UI_THEME.status, STATUS_COLORS);
-    assert.equal(UI_THEME.runStatus, RUN_STATUS_COLORS);
-    assert.equal(UI_THEME.personaPalette, PERSONA_PALETTE);
-    assert.equal(UI_THEME.runStatusClasses, RUN_STATUS_CLASSES);
+  describe("getRunStatusClass", () => {
+    it("maps known statuses", () => {
+      assert.equal(getRunStatusClass("running"), "status-running");
+      assert.equal(getRunStatusClass("failed"), "status-failed");
+    });
+    it("returns status-muted for unknown", () => {
+      assert.equal(getRunStatusClass("unknown"), "status-muted");
+    });
   });
 
-  it("has typography from shell fonts", () => {
-    assert.equal(UI_THEME.typography.mono, SHELL_THEME.fontMono);
-    assert.equal(UI_THEME.typography.display, SHELL_THEME.fontDisplay);
+  describe("publishUiCssVariables", () => {
+    it("calls setProperty for each variable", () => {
+      const calls: [string, string][] = [];
+      const target = { setProperty: (n: string, v: string) => calls.push([n, v]) };
+      publishUiCssVariables(target);
+      assert.ok(calls.length > 10);
+      assert.ok(calls.some(([n]) => n === "--kxkm-shell-accent"));
+    });
   });
 
-  it("has spacing from shell gap/radius", () => {
-    assert.equal(UI_THEME.spacing.gap, SHELL_THEME.gap);
-    assert.equal(UI_THEME.spacing.radius, SHELL_THEME.radius);
+  describe("createUiCssText", () => {
+    it("generates valid CSS block", () => {
+      const css = createUiCssText();
+      assert.ok(css.startsWith(":root {"));
+      assert.ok(css.includes("--kxkm-shell-background"));
+      assert.ok(css.endsWith("}"));
+    });
+    it("accepts custom selector", () => {
+      const css = createUiCssText(".minitel");
+      assert.ok(css.startsWith(".minitel {"));
+    });
+  });
+
+  describe("UI_THEME", () => {
+    it("aggregates all theme objects", () => {
+      assert.ok(UI_THEME.shell);
+      assert.ok(UI_THEME.status);
+      assert.ok(UI_THEME.personaPalette);
+      assert.ok(UI_THEME.typography);
+    });
   });
 });

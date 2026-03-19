@@ -1,69 +1,43 @@
-# EXECUTION STATUS (kxkm-clown-v2)
+# OPS V2 Status
 
-Updated: 2026-03-17T22:13:03Z
+Updated: 2026-03-19T17:30:00Z
 
-## lot-0-cadrage
-- Status: done
-- Owner: Coordinateur
-- Execution: managed
-- Checks: docs-reviewed
-- Open tasks: none
+## Lots
 
-## lot-1-socle
-- Status: done
-- Owner: Coordinateur
-- Execution: managed
-- Checks: npm run check:v2, npm run test:v2
-- Open tasks: none
+| Lot | Status | Summary |
+|-----|--------|---------|
+| lot-0-cadrage | done | Cadrage historique |
+| lot-1-socle | done | Monorepo, TUI, verifications |
+| lot-2-domaines | done | Auth, chat, storage, personas, node engine |
+| lot-3-surfaces | done | React/Vite, admin, chat UI, node engine UI |
+| lot-4-bascule | done | Migration, parite, rollback |
+| lot-12-deep-audit | done | Pipeline/docs coherents, seams fermes |
+| lot-13-voice-mcp | done | XTTS valide, MCP SDK officiel |
+| lot-14-documents-search | done | SearXNG + BGE-M3 spike |
+| lot-15-hotspot-reduction | done | Chat.tsx 631→67 LOC, cookie secure, rate limit |
+| lot-16-minitel-ui | done | CSS phosphore, VIDEOTEX, F1-F7 |
+| lot-17-chat-fixes | done | nick WS, Pharmacius concis, qwen3:8b |
+| lot-18-media-tts | done | media-store, VoiceChat, 26 voices |
+| lot-19-infra | done | Dockerfile Bookworm, deploy.sh tmux |
+| lot-20-deep-audit-2 | done | 7 bugs, 6 fixes, Mermaid, OSS veille |
+| lot-21-chat-reactivity | done | Streaming chunks, web search, timestamps |
+| lot-22-chatterbox-tts | done | Chatterbox Docker GPU :9200 |
+| lot-23-graph-rag | done | LightRAG :9621 integre |
+| lot-24-deep-audit-3 | running | Admin fixes, compose timing, tests, ARCHITECTURE.md |
 
-## lot-2-domaines
-- Status: done
-- Owner: Backend API
-- Execution: managed
-- Checks: npm run test:v2
-- Open tasks: none
+## Services (kxkm-ai)
 
-## lot-3-surfaces
-- Status: done
-- Owner: Frontend
-- Execution: managed
-- Checks: npm run -w @kxkm/web check
-- Open tasks: none
+| Service | Port | Status |
+|---------|------|--------|
+| API V2 | :3333 | healthy |
+| PostgreSQL | :5432 | healthy |
+| SearXNG | :8080 | healthy (JSON enabled) |
+| Chatterbox TTS | :9200 | GPU Docker |
+| TTS Sidecar | :9100 | chatterbox-remote |
+| LightRAG | :9621 | healthy |
+| Ollama | :11434 | natif (25 models) |
+| Worker | host | UP |
 
-## lot-4-bascule
-- Status: done
-- Owner: Coordinateur
-- Execution: managed
-- Checks: npm run smoke:v2
-- Open tasks: none
+## Tests: 265 (248 pass, 6 fail → fix en cours)
 
-## lot-12-deep-audit
-- Status: done
-- Owner: Coordinateur
-- Execution: manual
-- Checks: npm run check:v2, npm run test:v2, npm run -w @kxkm/web test, node ops/v2/deep-audit.js --json
-- Open tasks: none
-
-## lot-13-voice-mcp
-- Status: done
-- Owner: Multimodal
-- Execution: manual
-- Checks: node scripts/mcp-server-smoke.js, npm run smoke:voice-mcp, npm run smoke:voice-clone, bash ops/v2/run-spike-checks.sh voice-clone --yes
-- Open tasks: none
-
-## lot-14-documents-search
-- Status: done
-- Owner: Ops/TUI
-- Execution: manual
-- Checks: docker compose --profile v2 config --services, bash scripts/health-doc-search.sh search --strict, npm run smoke:documents-search, npm run smoke:embeddings, bash ops/v2/run-spike-checks.sh embeddings --yes
-- Open tasks: none
-
-## lot-15-hotspot-reduction
-- Status: running
-- Owner: Coordinateur
-- Execution: manual
-- Checks: npm run -w @kxkm/persona-domain check, npm run test:v2, bash ops/v2/run-deep-cycle.sh run --yes
-- Open tasks:
-  - node-engine-seams [pending] (P2, Worker/Engine)
-  - storage-test-split [pending] (P3, Backend API)
-  - web-chat-modularization [pending] (P2, Frontend)
+## Health Check: 19/19 pass, 1 warning (Chatterbox :9200 direct)

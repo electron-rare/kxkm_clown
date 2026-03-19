@@ -215,3 +215,51 @@ Fait sur ce lot:
 - [x] Tests `apps/api/src/context-store.test.ts` ajoutes et valides.
 - [x] Scoring de dette technique integre dans `ops/v2/deep-audit.js`.
 - [x] Verification JSON dette: score 78/100 (niveau high).
+
+## P14 Lot 24 — Deep Analyse 3 + Reactivity `[en cours]`
+
+### Phase A — Fixes live session 2026-03-19
+
+- [x] Cookie Secure retire (COOKIE_SECURE env, HTTP fonctionne)
+- [x] ADMIN_TOKEN=kxkm dans docker-compose + AdminPage champ password
+- [x] MediaExplorer fix reponse API ({ok,data} wrapper)
+- [x] Historique 20 derniers messages a la connexion WS [HH:MM]
+- [x] Streaming chunks temps reel (type "chunk", curseur clignotant)
+- [x] Personas paralleles (Promise.all)
+- [x] SearXNG JSON active + auto web_search (Sherlock)
+- [x] pickResponders detecte mots-cles web → Sherlock
+- [x] Timestamps HH:MM sur tous messages
+- [x] TTS retire du chat
+- [x] Delai inter-persona 2s → 500ms, timeout Ollama 5min → 2min
+- [x] /compose progress ticker (feedback 5s, elapsed time, timeout handler)
+- [x] /imagine progress ticker (feedback 5s)
+- [x] Admin endpoints verifies OK (overview 5ms, personas 33, analytics 326 msgs)
+- [x] /compose duration parsing (5-120s, plus hardcode 30s)
+- [x] tts-server.py JSON parsing securise (try-catch)
+- [x] Audio size limit 50MB (Python + Node)
+
+### Phase B — Analyse approfondie
+
+- [x] Analyse code complete: 33 personas, 8 services, 15+ node types, 135+ tests
+- [x] 10 findings prioritaires identifies (P0 securite → P3 docs)
+- [ ] Veille OSS web: projets similaires, libs integrables
+- [ ] Audit docs/plans existants: coherence et lacunes
+- [ ] Fix 6 tests en echec (rate limiting 429, EACCES, TTS)
+
+### Phase C — Livrables
+
+- [x] PLAN.md mis a jour (lots 21-29, statuts corriges)
+- [x] TODO.md mis a jour (P14)
+- [x] Memoire projet mise a jour
+- [ ] ARCHITECTURE.md diagrammes Mermaid actualises
+- [ ] README.md conforme au manifeste
+- [ ] Script diagnostic TUI (health check complet)
+- [ ] docs/OSS_VEILLE_2026-03-19.md (veille enrichie)
+
+### Phase D — Prochaines priorites
+
+- [ ] **P1** lot-25: Structured logging (pino, 39 console.log DEBUG → logger)
+- [ ] **P2** lot-26: Tests integration (mocks HTTP, load test concurrence)
+- [ ] **P2** lot-28: RAG configurable (chunk size, similarity, model env vars)
+- [ ] **P2** lot-29: Systemd units (LightRAG + TTS, retirer tmux)
+- [ ] **P3** lot-27: Effets CRT WebGL (MinitelFrame)

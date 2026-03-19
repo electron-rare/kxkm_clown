@@ -16,6 +16,7 @@ const PACKAGES = [
   "node-engine",
   "storage",
   "tui",
+  "ui",
 ];
 
 function main() {

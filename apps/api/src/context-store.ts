@@ -11,6 +11,7 @@
 
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
+import { trackError } from "./error-tracker.js";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -52,7 +53,7 @@ function buildDefaultOptions(): ContextStoreOptions {
   let maxEntriesBeforeCompact = 500;
   let maxFileSizeMB = 100;
   let maxTotalSizeMB = 750;
-  let maxContextChars = 16000;
+  let maxContextChars = 12000;
   let maxSummaryChars = 20000;
 
   if (totalGB <= 8) {
@@ -71,13 +72,13 @@ function buildDefaultOptions(): ContextStoreOptions {
     maxEntriesBeforeCompact = 600;
     maxFileSizeMB = 120;
     maxTotalSizeMB = 900;
-    maxContextChars = 18000;
+    maxContextChars = 12000;
     maxSummaryChars = 24000;
   } else {
     maxEntriesBeforeCompact = 900;
     maxFileSizeMB = 180;
     maxTotalSizeMB = 1400;
-    maxContextChars = 26000;
+    maxContextChars = 20000;
     maxSummaryChars = 32000;
   }
 
@@ -168,12 +169,12 @@ export class ContextStore {
 
       // Check if compaction needed (runs under same lock)
       await this.maybeCompact(channel).catch((err) => {
-        console.error(`[context] Compaction error for ${channel}:`, err);
+        trackError("context_compaction", err, { channel });
       });
 
       // Enforce per-channel and global storage limits.
       await this.maybeEnforceLimits(channel).catch((err) => {
-        console.error(`[context] Limit enforcement error for ${channel}:`, err);
+        trackError("context_limits", err, { channel });
       });
     } finally {
       release();
@@ -310,7 +311,7 @@ export class ContextStore {
         summaryText = data.message?.content || existingSummary;
       }
     } catch (err) {
-      console.error(`[context] LLM summarization failed for ${channel}:`, err);
+      trackError("context_summarization", err, { channel });
       // Keep existing summary, still compact the raw file
     }
 

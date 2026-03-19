@@ -35,7 +35,7 @@ describe("ws-chat smoke", () => {
     server = undefined;
     globalThis.fetch = originalFetch;
     await wait(50);
-    await rm(CHAT_LOG_DIR, { recursive: true, force: true });
+    try { await rm(CHAT_LOG_DIR, { recursive: true, force: true }); } catch { /* EACCES on root-owned dirs */ }
     try {
       await rmdir(path.dirname(CHAT_LOG_DIR));
     } catch {
@@ -70,6 +70,7 @@ describe("ws-chat smoke", () => {
     });
 
     await new Promise<void>((resolve) => client?.once("open", resolve));
+    await wait(150);
     const baseline = messages.length;
 
     client.send("not-json");
@@ -140,6 +141,7 @@ describe("ws-chat smoke", () => {
     });
 
     await new Promise<void>((resolve) => client?.once("open", resolve));
+    await wait(150);
     await wait(100);
     messages.length = 0;
 

@@ -10,6 +10,7 @@ import {
 } from "@kxkm/core";
 import { validateLoginInput } from "@kxkm/auth";
 import { buildChatChannels } from "@kxkm/chat-domain";
+import { getRecentErrors, getErrorCounts } from "../error-tracker.js";
 import type { PersonaRecord } from "@kxkm/persona-domain";
 import type { ModelRegistryRecord, NodeGraphRecord, NodeRunRecord } from "@kxkm/node-engine";
 
@@ -231,6 +232,14 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
     } catch {}
 
     res.json({ ok: true, data: stats });
+  });
+
+  // -----------------------------------------------------------------------
+  // Error telemetry — recent tracked errors
+  // -----------------------------------------------------------------------
+
+  router.get("/api/v2/errors", requirePermission("ops:read"), (_req: SessionRequest, res) => {
+    res.json({ ok: true, data: { recent: getRecentErrors(), counts: getErrorCounts() } });
   });
 
   return router;

@@ -1,6 +1,6 @@
 export interface ChatMsg {
   id: number;
-  type: "system" | "message" | "join" | "part" | "persona" | "channelInfo" | "userlist" | "command" | "uploadCapability" | "audio" | "image" | "music";
+  type: "system" | "message" | "join" | "part" | "persona" | "channelInfo" | "userlist" | "command" | "uploadCapability" | "audio" | "image" | "music" | "chunk";
   nick?: string;
   text?: string;
   color?: string;
@@ -10,6 +10,7 @@ export interface ChatMsg {
   audioMime?: string;
   imageData?: string;
   imageMime?: string;
+  seq?: number;
   timestamp: number;
 }
 

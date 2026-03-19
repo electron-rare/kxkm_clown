@@ -4,7 +4,10 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { OutboundMessage } from "./chat-types.js";
+import logger from "./logger.js";
+import { trackError } from "./error-tracker.js";
 import { resolvePreferredPythonBin, resolveVoiceSamplePath } from "./voice-samples.js";
+import { getPersonaVoice } from "./persona-voices.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -43,10 +46,11 @@ export function releaseTTS(): void {
 }
 
 // ---------------------------------------------------------------------------
-// TTS synthesis (Piper TTS via Python script)
+// TTS synthesis (Qwen3-TTS primary, Piper/Chatterbox fallback)
 // ---------------------------------------------------------------------------
 
 const TTS_URL = process.env.TTS_URL || "http://127.0.0.1:9100";
+const QWEN3_TTS_URL = process.env.QWEN3_TTS_URL || "http://127.0.0.1:9300";
 
 export async function synthesizeTTS(
   nick: string,
@@ -57,7 +61,36 @@ export async function synthesizeTTS(
   if (!text || text.length < 10) return;
 
   const truncated = text.slice(0, 1000);
+  const voice = getPersonaVoice(nick);
 
+  // --- Try Qwen3-TTS first (per-persona voice routing) ---
+  try {
+    const resp = await fetch(`${QWEN3_TTS_URL}/synthesize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: truncated,
+        persona: nick.toLowerCase(),
+        speaker: voice.speaker,
+        instruct: voice.instruct,
+        language: voice.language,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (resp.ok) {
+      const audioBuffer = Buffer.from(await resp.arrayBuffer());
+      const base64 = audioBuffer.toString("base64");
+      broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
+      logger.info(`[tts] Qwen3-TTS OK for ${nick} (speaker=${voice.speaker})`);
+      return;
+    }
+    logger.warn(`[tts] Qwen3-TTS HTTP ${resp.status} for ${nick}, falling back to ${TTS_URL}`);
+  } catch (err) {
+    logger.warn(`[tts] Qwen3-TTS unreachable for ${nick}: ${err instanceof Error ? err.message : String(err)}, falling back`);
+  }
+
+  // --- Fallback to existing TTS (Chatterbox/Piper via sidecar) ---
   try {
     const resp = await fetch(`${TTS_URL}/synthesize`, {
       method: "POST",
@@ -68,7 +101,7 @@ export async function synthesizeTTS(
 
     if (!resp.ok) {
       const body = await resp.text().catch(() => "");
-      console.error(`[tts] HTTP ${resp.status} for ${nick}: ${body.slice(0, 200)}`);
+      trackError("tts_fallback", new Error(`HTTP ${resp.status}: ${body.slice(0, 200)}`), { nick, backend: "piper" });
       return;
     }
 
@@ -76,7 +109,7 @@ export async function synthesizeTTS(
     const base64 = audioBuffer.toString("base64");
     broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
   } catch (err) {
-    console.error(`[tts] Synthesis failed for ${nick}: ${err instanceof Error ? err.message : String(err)}`);
+    trackError("tts_fallback", err, { nick, backend: "piper" });
   }
 }
 
@@ -144,7 +177,7 @@ export async function analyzeImage(
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      console.error(`[vision] ${visionModel} returned ${response.status}: ${body.slice(0, 200)}`);
+      trackError("vision", new Error(`${visionModel} returned ${response.status}: ${body.slice(0, 200)}`), { filename, model: visionModel });
       return `[Image: ${filename} — analyse échouée: modèle ${visionModel} erreur ${response.status}]`;
     }
 
@@ -154,6 +187,7 @@ export async function analyzeImage(
     const caption = result.message?.content || "Pas de description disponible";
     return `[Image: ${filename}]\n${caption}`;
   } catch (err) {
+    trackError("vision", err, { filename });
     return `[Image: ${filename} — erreur d'analyse: ${err instanceof Error ? err.message : String(err)}]`;
   } finally {
     clearTimeout(timeout);

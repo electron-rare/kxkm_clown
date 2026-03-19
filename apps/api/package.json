@@ -13,7 +13,12 @@
     "@kxkm/node-engine": "*",
     "@kxkm/persona-domain": "*",
     "@kxkm/storage": "*",
-    "express": "^4.22.1"
+    "express": "^4.22.1",
+    "file-type": "^21.3.3",
+    "p-limit": "^7.3.0",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "zod": "^4.3.6"
   },
   "scripts": {
     "status": "node ../../scripts/workspace-package.js api status",
@@ -21,5 +26,8 @@
     "build": "tsc -p tsconfig.json --pretty false",
     "check": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "node --test dist/*.test.js"
+  },
+  "devDependencies": {
+    "@types/pino": "^7.0.4"
   }
 }

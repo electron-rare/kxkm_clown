@@ -6,10 +6,11 @@ Runs on host, provides HTTP API for text-to-speech synthesis.
 Backends:
   - Chatterbox (GPU, zero-shot voice cloning, high quality)
   - Chatterbox-remote (proxy to Chatterbox Docker on :9200)
+  - Qwen3 (proxy to Qwen3-TTS server on :9300, voice design + cloning)
   - Piper (CPU, fast, predefined voices, fallback)
 
 Usage:
-  python3 scripts/tts-server.py [--port 9100] [--backend chatterbox|chatterbox-remote|piper]
+  python3 scripts/tts-server.py [--port 9100] [--backend chatterbox|chatterbox-remote|qwen3|piper]
 
 Endpoints:
   POST /synthesize  { text, voice, persona }  → audio/wav
@@ -30,8 +31,9 @@ from pathlib import Path
 # Lazy-loaded backends
 PiperVoice = None
 ChatterboxModel = None
-TTS_BACKEND = os.environ.get("TTS_BACKEND", "piper")  # "chatterbox", "chatterbox-remote", or "piper"
+TTS_BACKEND = os.environ.get("TTS_BACKEND", "piper")  # "chatterbox", "chatterbox-remote", "qwen3", or "piper"
 CHATTERBOX_URL = os.environ.get("CHATTERBOX_URL", "http://127.0.0.1:9200")
+QWEN3_TTS_URL = os.environ.get("QWEN3_TTS_URL", "http://127.0.0.1:9300")
 
 VOICE_DIR = Path(os.environ.get("PIPER_VOICE_DIR", "data/piper-voices"))
 SAMPLES_DIR = Path(os.environ.get("KXKM_VOICE_SAMPLES_DIR", "data/voice-samples"))
@@ -101,12 +103,32 @@ def synthesize_chatterbox_remote(text: str, persona: str) -> bytes:
         raise RuntimeError(f"Chatterbox remote ({url}) failed: {e}")
 
 
+def synthesize_qwen3(text: str, persona: str) -> bytes:
+    """Proxy TTS request to Qwen3-TTS server (voice design + custom voice)."""
+    payload = json.dumps({
+        "text": text,
+        "persona": persona,
+    }).encode("utf-8")
+    url = f"{QWEN3_TTS_URL.rstrip('/')}/synthesize"
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return resp.read()
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as e:
+        raise RuntimeError(f"Qwen3-TTS remote ({url}) failed: {e}")
+
+
 def resolve_voice(persona: str) -> str:
     return VOICE_MAP.get(persona.lower(), VOICE_MAP["default"])
 
 
 def synthesize(text: str, voice_name: str, persona: str = "default") -> bytes:
-    if TTS_BACKEND == "chatterbox-remote":
+    if TTS_BACKEND == "qwen3":
+        try:
+            return synthesize_qwen3(text, persona)
+        except Exception as e:
+            print(f"[tts] Qwen3-TTS failed, falling back to piper: {e}", file=sys.stderr)
+    elif TTS_BACKEND == "chatterbox-remote":
         try:
             return synthesize_chatterbox_remote(text, persona)
         except Exception as e:
@@ -253,12 +275,22 @@ def main():
     global TTS_BACKEND
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=9100)
-    parser.add_argument("--backend", choices=["piper", "chatterbox", "chatterbox-remote"], default=TTS_BACKEND)
+    parser.add_argument("--backend", choices=["piper", "chatterbox", "chatterbox-remote", "qwen3"], default=TTS_BACKEND)
     args = parser.parse_args()
     TTS_BACKEND = args.backend
 
     # Pre-load TTS backend
-    if TTS_BACKEND == "chatterbox-remote":
+    if TTS_BACKEND == "qwen3":
+        # Quick connectivity check to Qwen3-TTS sidecar (non-fatal)
+        try:
+            req = urllib.request.Request(f"{QWEN3_TTS_URL.rstrip('/')}/health")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+                print(f"[tts-server] Qwen3-TTS OK at {QWEN3_TTS_URL}: {data}", file=sys.stderr)
+        except Exception as e:
+            print(f"[tts-server] WARNING: Qwen3-TTS not reachable ({QWEN3_TTS_URL}): {e}", file=sys.stderr)
+            print(f"[tts-server] Will try at request time, fallback to piper", file=sys.stderr)
+    elif TTS_BACKEND == "chatterbox-remote":
         # Quick connectivity check (non-fatal)
         try:
             req = urllib.request.Request(f"{CHATTERBOX_URL.rstrip('/')}/get_predefined_voices")
@@ -275,7 +307,7 @@ def main():
             print(f"[tts-server] WARNING: Chatterbox failed: {e}, falling back to piper", file=sys.stderr)
             TTS_BACKEND = "piper"
 
-    if TTS_BACKEND in ("piper", "chatterbox-remote"):
+    if TTS_BACKEND in ("piper", "chatterbox-remote", "qwen3"):
         try:
             load_piper()
             print(f"[tts-server] Piper loaded, voices: {VOICE_DIR}", file=sys.stderr)

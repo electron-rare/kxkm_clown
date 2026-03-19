@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { z } from "zod";
 import type { AuthSession, UserRole } from "@kxkm/core";
 import { createId, createIsoTimestamp } from "@kxkm/core";
 import type { PersonaRecord, PersonaSourceRecord, PersonaFeedbackRecord, PersonaProposalRecord } from "@kxkm/persona-domain";
@@ -130,6 +131,74 @@ export async function runMigrations(pool: Pool): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Validation logger (lightweight, no external dep)
+// ---------------------------------------------------------------------------
+
+const validationLogger = {
+  warn(ctx: { repo: string; errors: z.ZodIssue[] }, msg: string) {
+    console.warn(`[storage] ${msg}`, JSON.stringify({ repo: ctx.repo, errors: ctx.errors }));
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Zod schemas for DB row validation
+// ---------------------------------------------------------------------------
+
+const sessionRowSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+  role: z.string(),
+  created_at: z.coerce.date(),
+  expires_at: z.coerce.date(),
+});
+
+const personaRowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  model: z.string(),
+  summary: z.string(),
+  editable: z.union([z.boolean(), z.number()]).transform(Boolean),
+});
+
+const nodeGraphRowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+});
+
+const nodeRunRowSchema = z.object({
+  id: z.string(),
+  graph_id: z.string(),
+  status: z.string(),
+  created_at: z.union([z.date(), z.string()]),
+});
+
+const personaSourceRowSchema = z.object({
+  persona_id: z.string(),
+  subject_name: z.string(),
+  summary: z.string(),
+  references_: z.unknown().transform((v) => (Array.isArray(v) ? v : [])),
+});
+
+const personaFeedbackRowSchema = z.object({
+  id: z.string(),
+  persona_id: z.string(),
+  kind: z.string(),
+  message: z.string(),
+  created_at: z.union([z.date(), z.string()]),
+});
+
+const personaProposalRowSchema = z.object({
+  id: z.string(),
+  persona_id: z.string(),
+  before_snapshot: z.unknown().nullable(),
+  after_snapshot: z.unknown().nullable(),
+  reason: z.string(),
+  applied: z.union([z.boolean(), z.number()]).transform(Boolean),
+  created_at: z.union([z.date(), z.string()]),
+});
+
+// ---------------------------------------------------------------------------
 // Session input type
 // ---------------------------------------------------------------------------
 
@@ -137,6 +206,126 @@ export interface SessionCreateInput {
   username: string;
   role: UserRole;
   expiresAt?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Validated row mappers
+// ---------------------------------------------------------------------------
+
+function mapSessionRow(row: unknown): AuthSession | null {
+  const result = sessionRowSchema.safeParse(row);
+  if (!result.success) {
+    validationLogger.warn({ repo: "session", errors: result.error.issues }, "Invalid session row");
+    return null;
+  }
+  return {
+    id: result.data.id,
+    username: result.data.username,
+    role: result.data.role as UserRole,
+    createdAt: result.data.created_at.toISOString(),
+    expiresAt: result.data.expires_at.toISOString(),
+  };
+}
+
+function mapPersonaRow(row: unknown): PersonaRecord | null {
+  const result = personaRowSchema.safeParse(row);
+  if (!result.success) {
+    validationLogger.warn({ repo: "persona", errors: result.error.issues }, "Invalid persona row");
+    return null;
+  }
+  return {
+    id: result.data.id,
+    name: result.data.name,
+    model: result.data.model,
+    summary: result.data.summary,
+    editable: result.data.editable,
+  };
+}
+
+function mapNodeGraphRow(row: unknown): NodeGraphRecord | null {
+  const result = nodeGraphRowSchema.safeParse(row);
+  if (!result.success) {
+    validationLogger.warn({ repo: "nodeGraph", errors: result.error.issues }, "Invalid node_graph row");
+    return null;
+  }
+  return {
+    id: result.data.id,
+    name: result.data.name,
+    description: result.data.description,
+  };
+}
+
+function mapNodeRunRow(row: unknown): NodeRunRecord | null {
+  const result = nodeRunRowSchema.safeParse(row);
+  if (!result.success) {
+    validationLogger.warn({ repo: "nodeRun", errors: result.error.issues }, "Invalid node_run row");
+    return null;
+  }
+  const ca = result.data.created_at;
+  return {
+    id: result.data.id,
+    graphId: result.data.graph_id,
+    status: result.data.status as RunStatus,
+    createdAt: ca instanceof Date ? ca.toISOString() : String(ca),
+  };
+}
+
+function mapPersonaSourceRow(row: unknown): PersonaSourceRecord | null {
+  const result = personaSourceRowSchema.safeParse(row);
+  if (!result.success) {
+    validationLogger.warn({ repo: "personaSource", errors: result.error.issues }, "Invalid persona_source row");
+    return null;
+  }
+  return {
+    personaId: result.data.persona_id,
+    subjectName: result.data.subject_name,
+    summary: result.data.summary,
+    references: result.data.references_ as string[],
+  };
+}
+
+function mapPersonaFeedbackRow(row: unknown): PersonaFeedbackRecord | null {
+  const result = personaFeedbackRowSchema.safeParse(row);
+  if (!result.success) {
+    validationLogger.warn({ repo: "personaFeedback", errors: result.error.issues }, "Invalid persona_feedback row");
+    return null;
+  }
+  const ca = result.data.created_at;
+  return {
+    id: result.data.id,
+    personaId: result.data.persona_id,
+    kind: result.data.kind as PersonaFeedbackRecord["kind"],
+    message: result.data.message,
+    createdAt: ca instanceof Date ? ca.toISOString() : String(ca),
+  };
+}
+
+function mapPersonaProposalRow(row: unknown): PersonaProposalRecord | null {
+  const result = personaProposalRowSchema.safeParse(row);
+  if (!result.success) {
+    validationLogger.warn({ repo: "personaProposal", errors: result.error.issues }, "Invalid persona_proposal row");
+    return null;
+  }
+  const ca = result.data.created_at;
+  return {
+    id: result.data.id,
+    personaId: result.data.persona_id,
+    before: result.data.before_snapshot as PersonaProposalRecord["before"],
+    after: result.data.after_snapshot as PersonaProposalRecord["after"],
+    reason: result.data.reason,
+    applied: result.data.applied,
+    createdAt: ca instanceof Date ? ca.toISOString() : String(ca),
+  };
+}
+
+/** Filter null results from validated row mapping */
+function filterValid<T>(rows: unknown[], mapper: (row: unknown) => T | null): T[] {
+  const results: T[] = [];
+  for (const row of rows) {
+    const mapped = mapper(row);
+    if (mapped !== null) results.push(mapped);
+  }
+  return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -165,14 +354,7 @@ export function createSessionRepo(pool: Pool) {
         [id],
       );
       if (result.rows.length === 0) return null;
-      const row = result.rows[0];
-      return {
-        id: row.id,
-        username: row.username,
-        role: row.role as UserRole,
-        createdAt: (row.created_at as Date).toISOString(),
-        expiresAt: (row.expires_at as Date).toISOString(),
-      };
+      return mapSessionRow(result.rows[0]);
     },
 
     async deleteById(id: string): Promise<void> {
@@ -198,7 +380,7 @@ export function createPersonaRepo(pool: Pool) {
       const result = await pool.query(
         `SELECT id, name, model, summary, editable FROM personas ORDER BY name`,
       );
-      return result.rows.map(rowToPersona);
+      return filterValid(result.rows, mapPersonaRow);
     },
 
     async findById(id: string): Promise<PersonaRecord | null> {
@@ -207,7 +389,7 @@ export function createPersonaRepo(pool: Pool) {
         [id],
       );
       if (result.rows.length === 0) return null;
-      return rowToPersona(result.rows[0]);
+      return mapPersonaRow(result.rows[0]);
     },
 
     async upsert(persona: PersonaRecord): Promise<PersonaRecord> {
@@ -223,7 +405,9 @@ export function createPersonaRepo(pool: Pool) {
          RETURNING id, name, model, summary, editable`,
         [persona.id, persona.name, persona.model, persona.summary, persona.editable],
       );
-      return rowToPersona(result.rows[0]);
+      const mapped = mapPersonaRow(result.rows[0]);
+      if (!mapped) throw new Error("Persona upsert returned invalid row");
+      return mapped;
     },
 
     async seedCatalog(catalog: PersonaRecord[]): Promise<void> {
@@ -250,16 +434,6 @@ export function createPersonaRepo(pool: Pool) {
   };
 }
 
-function rowToPersona(row: Record<string, unknown>): PersonaRecord {
-  return {
-    id: row.id as string,
-    name: row.name as string,
-    model: row.model as string,
-    summary: row.summary as string,
-    editable: Boolean(row.editable),
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Node Graph repository
 // ---------------------------------------------------------------------------
@@ -270,7 +444,7 @@ export function createNodeGraphRepo(pool: Pool) {
       const result = await pool.query(
         `SELECT id, name, description FROM node_graphs ORDER BY created_at DESC`,
       );
-      return result.rows.map(rowToNodeGraph);
+      return filterValid(result.rows, mapNodeGraphRow);
     },
 
     async findById(id: string): Promise<NodeGraphRecord | null> {
@@ -279,7 +453,7 @@ export function createNodeGraphRepo(pool: Pool) {
         [id],
       );
       if (result.rows.length === 0) return null;
-      return rowToNodeGraph(result.rows[0]);
+      return mapNodeGraphRow(result.rows[0]);
     },
 
     async create(graph: NodeGraphRecord): Promise<NodeGraphRecord> {
@@ -289,11 +463,12 @@ export function createNodeGraphRepo(pool: Pool) {
          RETURNING id, name, description`,
         [graph.id, graph.name, graph.description],
       );
-      return rowToNodeGraph(result.rows[0]);
+      const mapped = mapNodeGraphRow(result.rows[0]);
+      if (!mapped) throw new Error("NodeGraph create returned invalid row");
+      return mapped;
     },
 
     async update(id: string, patch: Partial<NodeGraphRecord>): Promise<NodeGraphRecord | null> {
-      // Build SET clause dynamically from provided fields
       const setClauses: string[] = [];
       const values: unknown[] = [];
       let paramIndex = 1;
@@ -320,16 +495,8 @@ export function createNodeGraphRepo(pool: Pool) {
         values,
       );
       if (result.rows.length === 0) return null;
-      return rowToNodeGraph(result.rows[0]);
+      return mapNodeGraphRow(result.rows[0]);
     },
-  };
-}
-
-function rowToNodeGraph(row: Record<string, unknown>): NodeGraphRecord {
-  return {
-    id: row.id as string,
-    name: row.name as string,
-    description: row.description as string,
   };
 }
 
@@ -343,7 +510,7 @@ export function createNodeRunRepo(pool: Pool) {
       const result = await pool.query(
         `SELECT id, graph_id, status, created_at FROM node_runs ORDER BY created_at DESC`,
       );
-      return result.rows.map(rowToNodeRun);
+      return filterValid(result.rows, mapNodeRunRow);
     },
 
     async findById(id: string): Promise<NodeRunRecord | null> {
@@ -352,7 +519,7 @@ export function createNodeRunRepo(pool: Pool) {
         [id],
       );
       if (result.rows.length === 0) return null;
-      return rowToNodeRun(result.rows[0]);
+      return mapNodeRunRow(result.rows[0]);
     },
 
     async create(run: NodeRunRecord): Promise<NodeRunRecord> {
@@ -362,7 +529,9 @@ export function createNodeRunRepo(pool: Pool) {
          RETURNING id, graph_id, status, created_at`,
         [run.id, run.graphId, run.status, run.createdAt],
       );
-      return rowToNodeRun(result.rows[0]);
+      const mapped = mapNodeRunRow(result.rows[0]);
+      if (!mapped) throw new Error("NodeRun create returned invalid row");
+      return mapped;
     },
 
     async updateStatus(id: string, status: RunStatus): Promise<void> {
@@ -372,7 +541,6 @@ export function createNodeRunRepo(pool: Pool) {
       );
     },
 
-    /** Mark a run as cancel-requested (worker checks this during execution) */
     async requestCancel(id: string): Promise<void> {
       await pool.query(
         `UPDATE node_runs SET status = 'cancelled', updated_at = NOW() WHERE id = $1 AND status IN ('queued', 'running')`,
@@ -380,26 +548,23 @@ export function createNodeRunRepo(pool: Pool) {
       );
     },
 
-    /** Recover runs that were running when the worker crashed → re-queue them */
     async recoverStaleRuns(): Promise<NodeRunRecord[]> {
       const result = await pool.query(
         `UPDATE node_runs SET status = 'queued', updated_at = NOW()
          WHERE status = 'running'
          RETURNING id, graph_id, status, created_at`,
       );
-      return result.rows.map(rowToNodeRun);
+      return filterValid(result.rows, mapNodeRunRow);
     },
 
-    /** List runs by status */
     async listByStatus(status: RunStatus, limit = 50): Promise<NodeRunRecord[]> {
       const result = await pool.query(
         `SELECT id, graph_id, status, created_at FROM node_runs WHERE status = $1 ORDER BY created_at ASC LIMIT $2`,
         [status, limit],
       );
-      return result.rows.map(rowToNodeRun);
+      return filterValid(result.rows, mapNodeRunRow);
     },
 
-    /** Delete completed/failed/cancelled runs older than the given ISO date */
     async deleteOlderThan(date: string): Promise<number> {
       const result = await pool.query(
         `DELETE FROM node_runs WHERE status IN ('completed', 'failed', 'cancelled') AND created_at < $1`,
@@ -407,15 +572,6 @@ export function createNodeRunRepo(pool: Pool) {
       );
       return result.rowCount ?? 0;
     },
-  };
-}
-
-function rowToNodeRun(row: Record<string, unknown>): NodeRunRecord {
-  return {
-    id: row.id as string,
-    graphId: row.graph_id as string,
-    status: row.status as RunStatus,
-    createdAt: (row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at)),
   };
 }
 
@@ -431,7 +587,7 @@ export function createPersonaSourceRepo(pool: Pool) {
         [personaId],
       );
       if (result.rows.length === 0) return null;
-      return rowToPersonaSource(result.rows[0]);
+      return mapPersonaSourceRow(result.rows[0]);
     },
 
     async upsert(source: PersonaSourceRecord): Promise<PersonaSourceRecord> {
@@ -445,17 +601,10 @@ export function createPersonaSourceRepo(pool: Pool) {
          RETURNING persona_id, subject_name, summary, references_`,
         [source.personaId, source.subjectName, source.summary, JSON.stringify(source.references)],
       );
-      return rowToPersonaSource(result.rows[0]);
+      const mapped = mapPersonaSourceRow(result.rows[0]);
+      if (!mapped) throw new Error("PersonaSource upsert returned invalid row");
+      return mapped;
     },
-  };
-}
-
-function rowToPersonaSource(row: Record<string, unknown>): PersonaSourceRecord {
-  return {
-    personaId: row.persona_id as string,
-    subjectName: row.subject_name as string,
-    summary: row.summary as string,
-    references: (row.references_ as string[]) || [],
   };
 }
 
@@ -470,7 +619,7 @@ export function createPersonaFeedbackRepo(pool: Pool) {
         `SELECT id, persona_id, kind, message, created_at FROM persona_feedback WHERE persona_id = $1 ORDER BY created_at`,
         [personaId],
       );
-      return result.rows.map(rowToPersonaFeedback);
+      return filterValid(result.rows, mapPersonaFeedbackRow);
     },
 
     async create(record: PersonaFeedbackRecord): Promise<PersonaFeedbackRecord> {
@@ -480,18 +629,10 @@ export function createPersonaFeedbackRepo(pool: Pool) {
          RETURNING id, persona_id, kind, message, created_at`,
         [record.id, record.personaId, record.kind, record.message, record.createdAt],
       );
-      return rowToPersonaFeedback(result.rows[0]);
+      const mapped = mapPersonaFeedbackRow(result.rows[0]);
+      if (!mapped) throw new Error("PersonaFeedback create returned invalid row");
+      return mapped;
     },
-  };
-}
-
-function rowToPersonaFeedback(row: Record<string, unknown>): PersonaFeedbackRecord {
-  return {
-    id: row.id as string,
-    personaId: row.persona_id as string,
-    kind: row.kind as PersonaFeedbackRecord["kind"],
-    message: row.message as string,
-    createdAt: (row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at)),
   };
 }
 
@@ -507,7 +648,7 @@ export function createPersonaProposalRepo(pool: Pool) {
          FROM persona_proposals WHERE persona_id = $1 ORDER BY created_at`,
         [personaId],
       );
-      return result.rows.map(rowToPersonaProposal);
+      return filterValid(result.rows, mapPersonaProposalRow);
     },
 
     async create(record: PersonaProposalRecord): Promise<PersonaProposalRecord> {
@@ -525,7 +666,9 @@ export function createPersonaProposalRepo(pool: Pool) {
           record.createdAt,
         ],
       );
-      return rowToPersonaProposal(result.rows[0]);
+      const mapped = mapPersonaProposalRow(result.rows[0]);
+      if (!mapped) throw new Error("PersonaProposal create returned invalid row");
+      return mapped;
     },
 
     async markApplied(id: string): Promise<void> {
@@ -534,17 +677,5 @@ export function createPersonaProposalRepo(pool: Pool) {
         [id],
       );
     },
-  };
-}
-
-function rowToPersonaProposal(row: Record<string, unknown>): PersonaProposalRecord {
-  return {
-    id: row.id as string,
-    personaId: row.persona_id as string,
-    before: row.before_snapshot as PersonaProposalRecord["before"],
-    after: row.after_snapshot as PersonaProposalRecord["after"],
-    reason: row.reason as string,
-    applied: Boolean(row.applied),
-    createdAt: (row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at)),
   };
 }

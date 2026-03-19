@@ -9,7 +9,7 @@ export interface ChatInputProps {
   ws: UseWebSocketReturn;
 }
 
-export function ChatInput({ input, setInput, onSend, onKeyDown, ws }: ChatInputProps) {
+export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend, onKeyDown, ws }: ChatInputProps) {
   return (
     <div className="chat-input">
       <input
@@ -51,9 +51,10 @@ export function ChatInput({ input, setInput, onSend, onKeyDown, ws }: ChatInputP
         className="btn btn-primary"
         onClick={onSend}
         disabled={!ws.connected || !input.trim()}
+        aria-label="Envoyer le message"
       >
         Envoyer
       </button>
     </div>
   );
-}
+});

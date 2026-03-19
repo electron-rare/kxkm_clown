@@ -107,6 +107,7 @@ export function useChatState(): UseChatStateReturn {
           text: typeof msg.text === "string" ? msg.text : undefined,
           imageData: typeof msg.imageData === "string" ? msg.imageData : undefined,
           imageMime: typeof msg.imageMime === "string" ? msg.imageMime : undefined,
+          seq: typeof msg.seq === "number" ? msg.seq : undefined,
           timestamp: Date.now(),
         };
         setMessages((prev) => {
@@ -124,6 +125,7 @@ export function useChatState(): UseChatStateReturn {
           text: typeof msg.text === "string" ? msg.text : undefined,
           audioData: typeof msg.audioData === "string" ? msg.audioData : undefined,
           audioMime: typeof msg.audioMime === "string" ? msg.audioMime : undefined,
+          seq: typeof msg.seq === "number" ? msg.seq : undefined,
           timestamp: Date.now(),
         };
         setMessages((prev) => {
@@ -142,6 +144,7 @@ export function useChatState(): UseChatStateReturn {
             text: "\u266A message vocal",
             audioData: msg.data as string,
             audioMime: msg.mimeType as string,
+            seq: typeof msg.seq === "number" ? msg.seq : undefined,
             timestamp: Date.now(),
           };
           setMessages((prev) => {
@@ -149,6 +152,37 @@ export function useChatState(): UseChatStateReturn {
             return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
           });
         }
+        return;
+      }
+
+      case "chunk": {
+        // Streaming chunk from persona — append to existing or create new message
+        const chunkNick = typeof msg.nick === "string" ? msg.nick : "???";
+        const chunkText = typeof msg.text === "string" ? msg.text : "";
+        const chunkColor = typeof msg.color === "string" ? msg.color : undefined;
+        const chunkSeq = typeof msg.seq === "number" ? msg.seq : undefined;
+        setMessages((prev) => {
+          // Find the last message from this nick that is a chunk (still streaming)
+          const lastIdx = prev.length - 1;
+          const last = lastIdx >= 0 ? prev[lastIdx] : null;
+          if (last && last.type === "chunk" && last.nick === chunkNick) {
+            // Append to existing chunk message
+            const updated = [...prev];
+            updated[lastIdx] = { ...last, text: (last.text || "") + chunkText, seq: chunkSeq ?? last.seq };
+            return updated;
+          }
+          // New streaming message
+          const next = [...prev, {
+            id: ++msgIdCounter,
+            type: "chunk" as ChatMsg["type"],
+            nick: chunkNick,
+            text: chunkText,
+            color: chunkColor,
+            seq: chunkSeq,
+            timestamp: Date.now(),
+          }];
+          return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
+        });
         return;
       }
 
@@ -164,6 +198,7 @@ export function useChatState(): UseChatStateReturn {
           }
         }
 
+        const incomingSeq = typeof msg.seq === "number" ? msg.seq : undefined;
         const chatMsg: ChatMsg = {
           id: ++msgIdCounter,
           type,
@@ -171,9 +206,30 @@ export function useChatState(): UseChatStateReturn {
           text: typeof msg.text === "string" ? msg.text : undefined,
           color: typeof msg.color === "string" ? msg.color : undefined,
           channel: typeof msg.channel === "string" ? msg.channel : undefined,
+          seq: incomingSeq,
           timestamp: Date.now(),
         };
         setMessages((prev) => {
+          // If this is a final message from a persona, replace the last chunk from same nick
+          // Use seq to find the right chunk when available
+          if (type === "message" && chatMsg.nick) {
+            let lastChunkIdx = -1;
+            if (incomingSeq != null) {
+              // Find chunk whose seq is just before this message's seq (same persona)
+              lastChunkIdx = prev.findLastIndex(
+                (m) => m.type === "chunk" && m.nick === chatMsg.nick
+              );
+            } else {
+              lastChunkIdx = prev.findLastIndex(
+                (m) => m.type === "chunk" && m.nick === chatMsg.nick
+              );
+            }
+            if (lastChunkIdx >= 0) {
+              const updated = [...prev];
+              updated[lastChunkIdx] = { ...chatMsg, id: prev[lastChunkIdx].id };
+              return updated;
+            }
+          }
           const next = [...prev, chatMsg];
           return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
         });
@@ -261,9 +317,23 @@ export function useChatState(): UseChatStateReturn {
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, []);
 
-  function handleSend() {
-    const trimmed = input.trim();
-    if (!trimmed || !ws.connected) return;
+  // Refs for stable useCallback closures
+  const inputRef = useRef(input);
+  inputRef.current = input;
+  const wsRef = useRef(ws);
+  wsRef.current = ws;
+  const soundsRef = useRef(sounds);
+  soundsRef.current = sounds;
+  const usersRef = useRef(users);
+  usersRef.current = users;
+  const tabIndexRef = useRef(tabIndex);
+  tabIndexRef.current = tabIndex;
+  const tabPrefixRef = useRef(tabPrefix);
+  tabPrefixRef.current = tabPrefix;
+
+  const handleSend = useCallback(() => {
+    const trimmed = inputRef.current.trim();
+    if (!trimmed || !wsRef.current.connected) return;
 
     // Push to history
     historyRef.current.unshift(trimmed);
@@ -304,25 +374,25 @@ export function useChatState(): UseChatStateReturn {
       return;
     }
 
-    sounds.send();
+    soundsRef.current.send();
 
     if (trimmed.startsWith("/")) {
-      ws.send({ type: "command", text: trimmed });
+      wsRef.current.send({ type: "command", text: trimmed });
     } else {
-      ws.send({ type: "message", text: trimmed });
+      wsRef.current.send({ type: "message", text: trimmed });
     }
     setInput("");
-  }
+  }, []); // stable — reads from refs
 
   // Keep handleSendRef in sync
   useEffect(() => { handleSendRef.current = handleSend; });
 
-  function handleKeyDown(e: React.KeyboardEvent) {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     // Debounced Minitel keyPress sound (every 3rd key)
     if (e.key.length === 1) {
       keyPressCountRef.current++;
       if (keyPressCountRef.current % 3 === 0) {
-        sounds.keyPress();
+        soundsRef.current.keyPress();
       }
     }
 
@@ -335,34 +405,34 @@ export function useChatState(): UseChatStateReturn {
     // Tab completion for nicks and slash commands
     if (e.key === "Tab") {
       e.preventDefault();
-      const text = input;
+      const text = inputRef.current;
 
       // Slash command completion
       if (text.startsWith("/") && !text.includes(" ")) {
         const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/reload", "/export"];
-        const prefix = tabPrefix || text;
+        const prefix = tabPrefixRef.current || text;
         const matches = slashCommands.filter((c) => c.startsWith(prefix.toLowerCase()));
         if (matches.length === 0) return;
-        const nextIdx = (tabIndex + 1) % matches.length;
+        const nextIdx = (tabIndexRef.current + 1) % matches.length;
         setInput(matches[nextIdx] + " ");
         setTabIndex(nextIdx);
-        if (!tabPrefix) setTabPrefix(prefix);
+        if (!tabPrefixRef.current) setTabPrefix(prefix);
         return;
       }
 
       // Nick completion
       const words = text.split(" ");
       const lastWord = words[words.length - 1];
-      const prefix = tabPrefix || lastWord;
-      const matches = users.filter((u) =>
+      const prefix = tabPrefixRef.current || lastWord;
+      const matches = usersRef.current.filter((u) =>
         u.toLowerCase().startsWith(prefix.toLowerCase()),
       );
       if (matches.length === 0) return;
-      const nextIdx = (tabIndex + 1) % matches.length;
+      const nextIdx = (tabIndexRef.current + 1) % matches.length;
       words[words.length - 1] = matches[nextIdx] + (words.length === 1 ? ": " : " ");
       setInput(words.join(" "));
       setTabIndex(nextIdx);
-      if (!tabPrefix) setTabPrefix(prefix);
+      if (!tabPrefixRef.current) setTabPrefix(prefix);
       return;
     }
 
@@ -372,7 +442,7 @@ export function useChatState(): UseChatStateReturn {
       if (history.length === 0) return;
       e.preventDefault();
       if (historyIndexRef.current < history.length - 1) {
-        if (historyIndexRef.current === -1) savedInputRef.current = input;
+        if (historyIndexRef.current === -1) savedInputRef.current = inputRef.current;
         historyIndexRef.current++;
         setInput(history[historyIndexRef.current]);
       }
@@ -393,11 +463,11 @@ export function useChatState(): UseChatStateReturn {
     }
 
     // Reset tab state on any other key
-    if (tabIndex >= 0) {
+    if (tabIndexRef.current >= 0) {
       setTabIndex(-1);
       setTabPrefix("");
     }
-  }
+  }, [handleSend]); // stable — reads from refs
 
   const getNickColor = useCallback((nick: string): string | undefined => {
     return personaColors[nick];

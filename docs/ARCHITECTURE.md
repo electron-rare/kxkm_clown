@@ -24,13 +24,15 @@ graph TB
         MULTI[ws-multimodal.ts — TTS HTTP + Vision]
         MSTORE[media-store.ts — Persistance media]
         CTX[context-store.ts — Contexte JSONL 4000ch]
-        RAG[rag.ts — Embeddings cosine]
+        RAG[rag.ts — LightRAG + local fallback]
         REST[Routes REST — session, personas, media]
     end
 
     subgraph Services["Services"]
         OLLAMA[Ollama — qwen3:8b mistral gemma3]
-        TTS[TTS Server piper :9100]
+        TTS[TTS Sidecar :9100 — proxy]
+        CBOX[Chatterbox GPU :9200 — Docker]
+        LRAG[LightRAG :9621 — Graph RAG]
         COMFY[ComfyUI SDXL]
         SEARX[SearXNG :8080]
         PG[(PostgreSQL 16)]
@@ -50,8 +52,9 @@ graph TB
     WS --> ROUTER --> LLM --> OLLAMA
     ROUTER --> CTX
     ROUTER --> RAG
-    LLM -- "TTS" --> MULTI --> TTS
+    LLM -- "TTS" --> MULTI --> TTS --> CBOX
     LLM -- "Vision" --> MULTI --> OLLAMA
+    RAG -- "query hybrid" --> LRAG --> OLLAMA
     CMD -- "/imagine" --> COMFY
     CMD -- "/web" --> SEARX
     CMD -- "save" --> MSTORE
@@ -148,10 +151,23 @@ mindmap
 | packages/persona-domain | 988 | 259 | Personas, feedback, editorial |
 | packages/node-engine | 1499 | 605 | DAG execution, training |
 | packages/storage | 1219 | 669 | PostgreSQL repos |
-| packages/ui | 134 | 0 | Theme, colors, CSS vars |
+| packages/ui | 134 | 29 | Theme, colors, CSS vars |
 | packages/tui | 209 | 108 | ANSI formatting, tables |
 | scripts | 37 fichiers | - | TTS, training, migration |
-| **Total** | **~15600** | **~3200** | |
+| **Total** | **~15600** | **417 tests** | |
+
+## Services production (kxkm-ai)
+
+| Service | Port | Stack | Rôle |
+|---------|------|-------|------|
+| API V2 | :3333 | Docker (Node.js) | Express + WebSocket chat |
+| PostgreSQL | :5432 | Docker (Alpine) | Persistence |
+| SearXNG | :8080 | Docker | Recherche web self-hosted |
+| Chatterbox | :9200 | Docker (GPU) | TTS voice cloning |
+| TTS Sidecar | :9100 | Docker (host) | Proxy Chatterbox + Piper fallback |
+| LightRAG | :9621 | Docker (Python) | Graph RAG, knowledge graph |
+| Ollama | :11434 | Natif | LLM inference |
+| Worker | host | Docker | Node Engine DAG execution |
 
 ## Bugs critiques identifiés (audit 2026-03-18)
 

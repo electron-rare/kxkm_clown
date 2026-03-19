@@ -1,0 +1,391 @@
+{
+  "security": [],
+  "performance": [
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/context-store.ts",
+      "line": 245,
+      "snippet": "console.log(`[context] Compacting ${channel}: ${lines.length} entries`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/context-store.ts",
+      "line": 316,
+      "snippet": "console.log(`[context] Compacted ${channel}: ${toSummarize.length} entries → summary, kept ${toKeep.length} recent`);"
+    },
+    {
+      "severity": "P1",
+      "pattern": "readFileSync in non-init",
+      "file": "apps/api/src/server.ts",
+      "line": 61,
+      "snippet": "const text = fs.readFileSync(filePath, \"utf-8\");"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/server.ts",
+      "line": 63,
+      "snippet": "console.log(`[rag] Indexed ${filePath}: ${count} chunks`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/server.ts",
+      "line": 67,
+      "snippet": "console.log(`[rag] Ready: ${rag.size} total chunks`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/server.ts",
+      "line": 83,
+      "snippet": "console.log(\"[context] Persistent context store ready\");"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/server.ts",
+      "line": 106,
+      "snippet": "console.log(JSON.stringify({"
+    },
+    {
+      "severity": "P2",
+      "pattern": "JSON.parse without try/catch",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 147,
+      "snippet": "const extracted = JSON.parse(data.message?.content || \"{}\") as {"
+    },
+    {
+      "severity": "P2",
+      "pattern": "JSON.parse without try/catch",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 497,
+      "snippet": "const result = JSON.parse(stdout.trim().split(\"\\n\").pop() || \"{}\") as {"
+    },
+    {
+      "severity": "P2",
+      "pattern": "JSON.parse without try/catch",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 893,
+      "snippet": "const result = JSON.parse(stdout.trim().split(\"\\n\").pop() || \"{}\") as {"
+    },
+    {
+      "severity": "P2",
+      "pattern": "JSON.parse without try/catch",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 1262,
+      "snippet": "const result = JSON.parse(lastLine) as { status?: string; transcript?: string; error?: string };"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 379,
+      "snippet": "console.log(`[mcp-tools] ${persona.nick} calling ${name}(${JSON.stringify(args)})`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 644,
+      "snippet": "console.log(`[ws-chat] Refreshed personas: ${personas.map((p) => p.nick).join(\", \")}`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 891,
+      "snippet": "if (stderr) console.log(`[compose] ${stderr.slice(-200)}`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 1258,
+      "snippet": "if (stderr) console.log(`[ws-chat][audio] ${stderr.trim().slice(-200)}`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 1286,
+      "snippet": "if (stderr) console.log(`[upload] pdf: ${stderr.slice(-200)}`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 1314,
+      "snippet": "if (stderr) console.log(`[upload] doc extract: ${stderr.slice(-200)}`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/api/src/ws-chat.ts",
+      "line": 1453,
+      "snippet": "console.log(`[ws-chat] WebSocket chat attached on /ws (Ollama: ${ollamaUrl})`);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "JSON.parse without try/catch",
+      "file": "apps/worker/src/index.ts",
+      "line": 152,
+      "snippet": "const evalResult = JSON.parse(jsonLine);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "JSON.parse without try/catch",
+      "file": "apps/worker/src/index.ts",
+      "line": 226,
+      "snippet": "const trainResult = JSON.parse(jsonLine);"
+    },
+    {
+      "severity": "P2",
+      "pattern": "console.log in production",
+      "file": "apps/worker/src/index.ts",
+      "line": 67,
+      "snippet": "console.log(`[${ts}] ${msg}`);"
+    }
+  ],
+  "metrics": [
+    {
+      "file": "apps/api/src/ws-chat.ts",
+      "lines": 1456,
+      "sizeKB": 48,
+      "flag": "large"
+    },
+    {
+      "file": "apps/api/src/app.ts",
+      "lines": 1326,
+      "sizeKB": 47,
+      "flag": "large"
+    },
+    {
+      "file": "packages/persona-domain/src/index.ts",
+      "lines": 787,
+      "sizeKB": 22,
+      "flag": "large"
+    },
+    {
+      "file": "packages/node-engine/src/index.ts",
+      "lines": 717,
+      "sizeKB": 18,
+      "flag": "large"
+    },
+    {
+      "file": "apps/web/src/components/ChatHistory.tsx",
+      "lines": 602,
+      "sizeKB": 17,
+      "flag": "large"
+    },
+    {
+      "file": "apps/web/src/components/Chat.tsx",
+      "lines": 567,
+      "sizeKB": 19,
+      "flag": "large"
+    },
+    {
+      "file": "packages/storage/src/index.ts",
+      "lines": 551,
+      "sizeKB": 18,
+      "flag": "large"
+    },
+    {
+      "file": "apps/worker/src/index.ts",
+      "lines": 548,
+      "sizeKB": 18,
+      "flag": "large"
+    },
+    {
+      "file": "apps/api/src/app.test.ts",
+      "lines": 452,
+      "sizeKB": 15,
+      "flag": "medium"
+    },
+    {
+      "file": "apps/web/src/components/VoiceChat.tsx",
+      "lines": 424,
+      "sizeKB": 14,
+      "flag": "medium"
+    },
+    {
+      "file": "apps/api/src/context-store.ts",
+      "lines": 420,
+      "sizeKB": 15,
+      "flag": "medium"
+    },
+    {
+      "file": "apps/api/src/personas-default.ts",
+      "lines": 418,
+      "sizeKB": 20,
+      "flag": "medium"
+    },
+    {
+      "file": "apps/web/src/components/NodeEditor.tsx",
+      "lines": 407,
+      "sizeKB": 14,
+      "flag": "medium"
+    },
+    {
+      "file": "apps/web/src/api.ts",
+      "lines": 328,
+      "sizeKB": 9,
+      "flag": "medium"
+    },
+    {
+      "file": "packages/node-engine/src/index.test.ts",
+      "lines": 293,
+      "sizeKB": 9,
+      "flag": "ok"
+    },
+    {
+      "file": "packages/chat-domain/src/index.test.ts",
+      "lines": 279,
+      "sizeKB": 9,
+      "flag": "ok"
+    },
+    {
+      "file": "apps/web/src/components/PersonaDetail.tsx",
+      "lines": 278,
+      "sizeKB": 9,
+      "flag": "ok"
+    },
+    {
+      "file": "apps/web/src/App.tsx",
+      "lines": 273,
+      "sizeKB": 8,
+      "flag": "ok"
+    },
+    {
+      "file": "packages/chat-domain/src/index.ts",
+      "lines": 263,
+      "sizeKB": 8,
+      "flag": "ok"
+    },
+    {
+      "file": "packages/persona-domain/src/index.test.ts",
+      "lines": 260,
+      "sizeKB": 9,
+      "flag": "ok"
+    },
+    {
+      "file": "apps/web/src/components/Collectif.tsx",
+      "lines": 252,
+      "sizeKB": 8,
+      "flag": "ok"
+    },
+    {
+      "file": "packages/node-engine/src/training.ts",
+      "lines": 250,
+      "sizeKB": 7,
+      "flag": "ok"
+    },
+    {
+      "file": "apps/web/src/components/TrainingDashboard.tsx",
+      "lines": 212,
+      "sizeKB": 7,
+      "flag": "ok"
+    }
+  ],
+  "deps": [
+    {
+      "package": "express"
+    },
+    {
+      "package": "pdf-parse",
+      "current": "1.1.4",
+      "wanted": "1.1.4",
+      "latest": "2.4.5"
+    }
+  ],
+  "typescript": [
+    {
+      "dir": "apps/api",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "apps/web",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "apps/worker",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "packages/core",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "packages/auth",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "packages/chat-domain",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "packages/persona-domain",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "packages/node-engine",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "packages/storage",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "packages/ui",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    },
+    {
+      "dir": "packages/tui",
+      "status": "ok",
+      "errors": 0,
+      "detail": ""
+    }
+  ],
+  "debt": {
+    "score": 78,
+    "level": "high",
+    "components": {
+      "security": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0
+      },
+      "performance": {
+        "P0": 0,
+        "P1": 1,
+        "P2": 20
+      },
+      "tsErrors": 0,
+      "largeFiles": 8,
+      "mediumFiles": 6,
+      "deps": 2
+    }
+  }
+}

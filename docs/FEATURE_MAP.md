@@ -99,8 +99,10 @@ flowchart TD
 | --- | --- |
 | RAG local | Embeddings via Ollama (`nomic-embed-text`), cosine similarity, contexte manifeste injecte |
 | STT (Speech-to-Text) | `faster-whisper` (CTranslate2, int8) ou fallback `openai-whisper`, modeles tiny/base/small/medium/large |
-| TTS (Text-to-Speech) | `piper-tts` (fallback rapide) + XTTS-v2 (voice cloning zero-shot per persona, GPU) |
+| TTS (Text-to-Speech) | Dual backend: `piper-tts` (CPU) + `Chatterbox` (GPU, emotion tags, MIT) via TTS sidecar HTTP :9100 |
 | Vision | `qwen3-vl:8b` via Ollama, analyse d'images uploadees, description en francais |
+| VoiceChat | Push-to-talk (maintenir), level meter temps reel, silence auto 2s, 26 voix piper |
+| Mediatheque | Gallery images + playlist audio, persistance disk, API REST |
 | Extraction PDF | Docling (tables, layout, OCR) + fallback PyMuPDF |
 | Texte/CSV/JSON | Lecture directe des fichiers texte, CSV, JSONL uploades |
 | Generation musicale | `/compose` — ACE-Step 1.5 (GPU, <4GB VRAM) + fallback MusicGen |
@@ -234,8 +236,10 @@ flowchart TD
 | **Multimodal** | | | |
 | RAG (embeddings locaux) | -- | OK | haute |
 | STT (faster-whisper) | -- | OK | haute |
-| TTS (piper-tts) | -- | OK | moyenne |
-| Vision (minicpm-v) | -- | OK | haute |
+| TTS (piper + Chatterbox) | -- | OK | moyenne |
+| VoiceChat push-to-talk | -- | OK | haute |
+| Mediatheque gallery/playlist | -- | OK | moyenne |
+| Vision (qwen3-vl:8b) | -- | OK | haute |
 | Extraction PDF | -- | OK | moyenne |
 | Memoire persona | -- | OK | haute |
 | **Admin** | | | |
@@ -277,7 +281,9 @@ flowchart TD
 | Cookies HttpOnly | OK | OK | haute |
 | RBAC roles | -- | OK | haute |
 | **Tests** | | | |
-| Backend unit tests | -- | OK (102) | haute |
-| React component tests | -- | OK (33) | haute |
-| Smoke tests | OK | OK (22) | haute |
+| Backend unit tests | -- | OK (204) | haute |
+| React component tests | -- | OK | haute |
+| Smoke tests | OK | OK | haute |
+| UI Minitel VIDEOTEX | -- | OK | haute |
+| Deploy tmux (deploy.sh) | -- | OK | moyenne |
 | CI/CD GitHub Actions | -- | OK | haute |

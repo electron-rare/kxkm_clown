@@ -1,0 +1,72 @@
+{
+  "timestamp": "20260317-212918",
+  "generated_at": "2026-03-17T20:29:31Z",
+  "files": {
+    "audit": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/deep-audit-20260317-212918.json",
+    "check": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/check-v2-20260317-212918.log",
+    "test": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/test-v2-20260317-212918.log",
+    "summary": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/deep-cycles/summary-20260317-212918.md"
+  },
+  "checks": {
+    "check:v2": "ok",
+    "test:v2": "ok"
+  },
+  "counts": {
+    "security": 0,
+    "performance": 2,
+    "large_files": 10
+  },
+  "debt": {
+    "score": 44,
+    "level": "medium",
+    "components": {
+      "security": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0
+      },
+      "performance": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 2
+      },
+      "tsErrors": 0,
+      "largeFiles": 10,
+      "mediumFiles": 8,
+      "deps": 2
+    }
+  },
+  "hotspots": [
+    "packages/persona-domain/src/index.ts",
+    "packages/node-engine/src/index.ts",
+    "packages/storage/src/index.test.ts",
+    "packages/node-engine/src/index.test.ts",
+    "apps/web/src/components/Chat.tsx"
+  ],
+  "open_findings": [
+    {
+      "severity": "P2",
+      "file": "apps/api/src/ws-commands.ts",
+      "line": 221,
+      "pattern": "console.log in production"
+    },
+    {
+      "severity": "P2",
+      "file": "apps/worker/src/index.ts",
+      "line": 57,
+      "pattern": "console.log in production"
+    }
+  ],
+  "backlog_links": [
+    "lot-12-deep-audit/pipeline-canonique",
+    "lot-12-deep-audit/deep-cycle-operator",
+    "lot-12-deep-audit/ws-chat-seams",
+    "lot-12-deep-audit/web-shell-convergence"
+  ],
+  "retention_days": 7,
+  "hashes": {
+    "audit_sha256": "77d53143f3bb6315a9d8b7d4eb0f2a25f5fa1e126e9a23b14fb855e587793bd7",
+    "check_sha256": "5c767e1d04becf6a85d57d3ef05b5625120a47ee1fc7d1d0332bfb9c0aab83c4",
+    "test_sha256": "9f6ed983113a397e11cacd5a7c04e25571967eb570036b8171928eb252969a2b"
+  }
+}

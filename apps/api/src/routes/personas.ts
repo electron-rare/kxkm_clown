@@ -15,6 +15,7 @@ import {
   type PersonaRecord,
   type PersonaSourceRecord,
 } from "@kxkm/persona-domain";
+import { resolveVoiceSamplePath, resolveVoiceSamplesRoot } from "../voice-samples.js";
 
 interface SessionRequest extends Request {
   session?: AuthSession;
@@ -256,24 +257,18 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
       return;
     }
 
-    const voiceSamplesDir = path.resolve(process.cwd(), "data", "voice-samples");
+    const voiceSamplesDir = resolveVoiceSamplesRoot();
     await mkdir(voiceSamplesDir, { recursive: true });
 
-    const sampleName = path.basename(persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")).slice(0, 64);
-    if (!sampleName || sampleName === "." || sampleName === "..") {
+    const samplePath = resolveVoiceSamplePath(persona.name, voiceSamplesDir);
+    if (!samplePath) {
       res.status(400).json({ ok: false, error: "invalid_persona_name" });
-      return;
-    }
-    const samplePath = path.join(voiceSamplesDir, `${sampleName}.wav`);
-    // Boundary check: ensure resolved path stays within voiceSamplesDir
-    if (!path.resolve(samplePath).startsWith(voiceSamplesDir)) {
-      res.status(400).json({ ok: false, error: "path_traversal_blocked" });
       return;
     }
 
     await writeFile(samplePath, buffer);
 
-    res.json({ ok: true, data: { personaId, samplePath: `data/voice-samples/${sampleName}.wav`, size: buffer.length } });
+    res.json({ ok: true, data: { personaId, samplePath: path.relative(process.cwd(), samplePath), size: buffer.length } });
   });
 
   router.delete("/api/admin/personas/:id/voice-sample", requirePermission("persona:write"), async (req: SessionRequest, res) => {
@@ -284,10 +279,9 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
       return;
     }
 
-    const voiceSamplesDir2 = path.resolve(process.cwd(), "data", "voice-samples");
-    const sampleName = path.basename(persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")).slice(0, 64);
-    const samplePath = path.join(voiceSamplesDir2, `${sampleName}.wav`);
-    if (!sampleName || !path.resolve(samplePath).startsWith(voiceSamplesDir2)) {
+    const voiceSamplesDir2 = resolveVoiceSamplesRoot();
+    const samplePath = resolveVoiceSamplePath(persona.name, voiceSamplesDir2);
+    if (!samplePath) {
       res.status(400).json({ ok: false, error: "invalid_persona_name" });
       return;
     }
@@ -309,17 +303,16 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
       return;
     }
 
-    const voiceSamplesDir3 = path.resolve(process.cwd(), "data", "voice-samples");
-    const sampleName2 = path.basename(persona.name.toLowerCase().replace(/[^a-z0-9_-]/g, "_")).slice(0, 64);
-    const samplePath2 = path.join(voiceSamplesDir3, `${sampleName2}.wav`);
-    if (!sampleName2 || !path.resolve(samplePath2).startsWith(voiceSamplesDir3)) {
+    const voiceSamplesDir3 = resolveVoiceSamplesRoot();
+    const samplePath2 = resolveVoiceSamplePath(persona.name, voiceSamplesDir3);
+    if (!samplePath2) {
       res.json({ ok: true, data: { hasVoiceSample: false } });
       return;
     }
 
     try {
       await stat(samplePath2);
-      res.json({ ok: true, data: { hasVoiceSample: true, samplePath: `data/voice-samples/${sampleName2}.wav` } });
+      res.json({ ok: true, data: { hasVoiceSample: true, samplePath: path.relative(process.cwd(), samplePath2) } });
     } catch {
       res.json({ ok: true, data: { hasVoiceSample: false } });
     }

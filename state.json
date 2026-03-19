@@ -1,0 +1,250 @@
+{
+  "project": "kxkm-clown-v2",
+  "updated_at": "2026-03-17T22:06:31Z",
+  "batches": {
+    "lot-0-cadrage": {
+      "status": "done",
+      "depends_on": [],
+      "tasks": {
+        "architecture": {
+          "status": "done",
+          "attempts": 3,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-0-cadrage/architecture.csv",
+          "last_error": ""
+        },
+        "docs": {
+          "status": "done",
+          "attempts": 3,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-0-cadrage/docs.csv",
+          "last_error": ""
+        },
+        "agents": {
+          "status": "done",
+          "attempts": 3,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-0-cadrage/agents.csv",
+          "last_error": ""
+        }
+      },
+      "owner": "Coordinateur"
+    },
+    "lot-1-socle": {
+      "status": "done",
+      "depends_on": [
+        "lot-0-cadrage"
+      ],
+      "tasks": {
+        "workspace": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-1-socle/workspace.csv",
+          "last_error": ""
+        },
+        "verification": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-1-socle/verification.csv",
+          "last_error": ""
+        },
+        "ops-tui": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/home/kxkm/KXKM_Clown/ops/v2/outputs/lot-1-socle/ops-tui.csv",
+          "last_error": ""
+        }
+      },
+      "owner": "Coordinateur"
+    },
+    "lot-2-domaines": {
+      "status": "done",
+      "depends_on": [
+        "lot-1-socle"
+      ],
+      "tasks": {
+        "auth-chat": {
+          "status": "done",
+          "attempts": 2,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-2-domaines/auth-chat.csv",
+          "last_error": ""
+        },
+        "personas": {
+          "status": "done",
+          "attempts": 2,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-2-domaines/personas.csv",
+          "last_error": ""
+        },
+        "node-engine": {
+          "status": "done",
+          "attempts": 2,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-2-domaines/node-engine.csv",
+          "last_error": ""
+        }
+      },
+      "owner": "Backend API"
+    },
+    "lot-3-surfaces": {
+      "status": "done",
+      "depends_on": [
+        "lot-2-domaines"
+      ],
+      "tasks": {
+        "web-shell": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/web-shell.csv",
+          "last_error": ""
+        },
+        "persona-ui": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/persona-ui.csv",
+          "last_error": ""
+        },
+        "engine-ui": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-3-surfaces/engine-ui.csv",
+          "last_error": ""
+        }
+      },
+      "owner": "Frontend"
+    },
+    "lot-4-bascule": {
+      "status": "done",
+      "depends_on": [
+        "lot-3-surfaces"
+      ],
+      "tasks": {
+        "migration": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-4-bascule/migration.csv",
+          "last_error": ""
+        },
+        "parity": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-4-bascule/parity.csv",
+          "last_error": ""
+        },
+        "cutover": {
+          "status": "done",
+          "attempts": 1,
+          "output": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/lot-4-bascule/cutover.csv",
+          "last_error": ""
+        }
+      },
+      "owner": "Coordinateur"
+    },
+    "lot-12-deep-audit": {
+      "status": "done",
+      "depends_on": [
+        "lot-4-bascule"
+      ],
+      "owner": "Coordinateur",
+      "tasks": {
+        "pipeline-canonique": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "deep-cycle-operator": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "ws-chat-seams": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "app-bootstrap-extraction": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "worker-runtime-harness": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "web-shell-convergence": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "ui-contract": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "oss-shortlist": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-13-voice-mcp": {
+      "status": "done",
+      "depends_on": [
+        "lot-12-deep-audit"
+      ],
+      "owner": "Multimodal",
+      "tasks": {
+        "livekit-agents-spike": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "mcp-sdk-integration": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "voice-cloning-validation": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-14-documents-search": {
+      "status": "done",
+      "depends_on": [
+        "lot-12-deep-audit"
+      ],
+      "owner": "Ops/TUI",
+      "tasks": {
+        "searxng-service": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "docling-mineru-spike": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "bge-m3-benchmark": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    }
+  }
+}

@@ -267,7 +267,7 @@ Les images uploadees sont analysees via un modele Ollama compatible vision.
 
 | Parametre | Default | Description |
 | --- | --- | --- |
-| `VISION_MODEL` | `minicpm-v` | Modele Ollama avec capacite vision |
+| `VISION_MODEL` | `qwen3-vl:8b` | Modele Ollama avec capacite vision |
 | Timeout | 5 minutes | Timeout d'analyse |
 | Prompt | Fixe | "Analyse cette image en detail. Decris ce que tu vois..." (francais) |
 

@@ -7,6 +7,10 @@ export async function searchWeb(query: string): Promise<string> {
   const searxngUrl = process.env.SEARXNG_URL || "http://localhost:8080";
   try {
     const response = await fetch(`${searxngUrl}/search?q=${encodeURIComponent(query)}&format=json&engines=google,bing,duckduckgo`, {
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": "KXKM_Clown/2.0",
+      },
       signal: AbortSignal.timeout(10_000),
     });
     if (response.ok) {

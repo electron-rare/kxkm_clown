@@ -1,86 +1,75 @@
 # PLAN (kxkm-clown-v2)
 
-Updated: 2026-03-17T08:45:00Z
+Updated: 2026-03-19T08:20:00Z
 
 ## lot-0-cadrage [done]
-
 - Description: Docs, architecture, feature map, agents, invariants, orchestration
 - Depends on: none
+- Owner: Coordinateur
+- Execution: managed
+- Checks: docs-reviewed
+- Summary: Cadrage historique clos, conserve comme base de référence.
 
 ## lot-1-socle [done]
-
 - Description: Workspace V2, packages, scripts TUI, verification
 - Depends on: lot-0-cadrage
+- Owner: Coordinateur
+- Execution: managed
+- Checks: npm run check:v2, npm run test:v2
+- Summary: Socle monorepo en place, scripts TUI et vérifications disponibles.
 
 ## lot-2-domaines [done]
-
 - Description: Auth, chat, storage, personas, node engine
 - Depends on: lot-1-socle
+- Owner: Backend API
+- Execution: managed
+- Checks: npm run test:v2
+- Summary: Domaines métier V2 en place, avec couverture de base et repos réels.
 
 ## lot-3-surfaces [done]
-
 - Description: Shell React/Vite, admin, chat, node engine, ops
 - Depends on: lot-2-domaines
+- Owner: Frontend
+- Execution: managed
+- Checks: npm run -w @kxkm/web check
+- Summary: Surfaces V2 disponibles, avec dette UI et duplication admin encore présentes.
 
 ## lot-4-bascule [done]
-
-- Description: Migration, parite, rollback, bascule
+- Description: Migration, parité, rollback, bascule
 - Depends on: lot-3-surfaces
+- Owner: Coordinateur
+- Execution: managed
+- Checks: npm run smoke:v2
+- Summary: Bascule initiale et outillage de migration réalisés.
 
-## lot-5-production [done]
-
-- Description: Training adapters, sandboxing, tests, turborepo, CI/CD, GitHub
+## lot-12-deep-audit [done]
+- Description: Deep analyse continue, refactoring, veille OSS, docs et infrastructure adjacente
 - Depends on: lot-4-bascule
+- Owner: Coordinateur
+- Execution: manual
+- Checks: npm run check:v2, npm run test:v2, npm run -w @kxkm/web test, node ops/v2/deep-audit.js --json
+- Summary: Boucle deep-audit stabilisee: pipeline/docs/logs coherents, seams backend/frontend fermes et cycle ops industrialise.
 
-## lot-6-consolidation [done]
-
-- Description: Deep analyse, correctifs securite, feature parity V2, deploy
-- Depends on: lot-5-production
-
-## lot-7-training [done]
-
-- Description: PyTorch, Unsloth, TRL, DPO pipeline, autoresearch, Ollama import
-- Depends on: lot-6-consolidation
-
-## lot-8-multimodal [done]
-
-- Description: RAG, STT, TTS, vision, PDF, recherche web, memoire persona
-- Depends on: lot-7-training
-
-## lot-9-chat-avance [done]
-
-- Description: Chat vocal, inter-persona, multi-channel, analytics, 26 personas
-- Depends on: lot-8-multimodal
-
-## lot-10-generation [done]
-
-- Description: ComfyUI, Sherlock, Picasso, diversification modeles, contexte 750MB
-- Depends on: lot-9-chat-avance
-
-## lot-11-mcp-personas [done]
-
-- Description: MCP tool-calling personas, pipeline fine-tune
-- Depends on: lot-10-generation
-
-## lot-12-deep-audit [in-progress]
-
-- Description: Deep audit code, refactoring, veille OSS, diagrammes, infrastructure
-- Depends on: lot-11-mcp-personas
-- Deliverables:
-  - ops/v2/deep-audit.js (TUI security/perf/complexity)
-  - docs/OSS_WATCH enrichi (voice, music, PDF, WebRTC, MCP, persona fine-tune)
-  - docs/ARCHITECTURE.md (3 Mermaid ajoutes)
-  - docs/AGENTS.md (matrice 10 agents, pipeline intervention)
-  - PLAN.md + TODO.md consolides
-  - Refactoring ws-chat.ts + app.ts
-  - SearXNG + MinerU/Docling docker
-
-## lot-13-voice-mcp [planned]
-
-- Description: XTTS-v2 voice cloning, LLMRTC WebRTC, MCP SDK, Discord Pharmacius
+## lot-13-voice-mcp [done]
+- Description: Voice/WebRTC/MCP et convergence temps réel
 - Depends on: lot-12-deep-audit
+- Owner: Multimodal
+- Execution: manual
+- Checks: node scripts/mcp-server-smoke.js, npm run smoke:voice-mcp, npm run smoke:voice-clone, bash ops/v2/run-spike-checks.sh voice-clone --yes
+- Summary: Spike voice/MCP stabilise: serveur MCP migre vers le SDK officiel, runtime XTTS valide sur kxkm-ai avec sample Piper genere, ffmpeg disponible et smoke non interactif vert sous COQUI_TOS_AGREED=1.
 
-## lot-14-music-creative [planned]
+## lot-14-documents-search [done]
+- Description: Services adjacents de recherche et document parsing
+- Depends on: lot-12-deep-audit
+- Owner: Ops/TUI
+- Execution: manual
+- Checks: docker compose --profile v2 config --services, bash scripts/health-doc-search.sh search --strict, npm run smoke:documents-search, npm run smoke:embeddings, bash ops/v2/run-spike-checks.sh embeddings --yes
+- Summary: Seams search/doc consolides: SearXNG tourne localement avec format json actif et health check strict vert; le spike BGE-M3 est clos comme resultat negatif sur ce host Apple/Metal, avec maintien de la baseline actuelle.
 
-- Description: ACE-Step 1.5, /compose, Flux 2, A2A Protocol
-- Depends on: lot-13-voice-mcp
+## lot-15-hotspot-reduction [done]
+- Description: Reduction chirurgicale des hotspots de domaine, moteur, tests storage et chat web
+- Depends on: lot-13-voice-mcp, lot-14-documents-search
+- Owner: Coordinateur
+- Execution: manual
+- Checks: npm run -w @kxkm/persona-domain check, npm run test:v2, bash ops/v2/run-deep-cycle.sh run --yes
+- Summary: Lot 15 DONE: persona-domain seams, node-engine registry, storage-test-split (5 suites + helpers), web-chat-modularization (Chat.tsx 631→67 LOC, 5 modules). Cookie Secure flag + rate limit login. 210 tests, 0 fail.

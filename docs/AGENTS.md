@@ -67,57 +67,72 @@ flowchart TD
     OSSAgent --> |hf| OSSHF[HuggingFace models]
 ```
 
-## Todo agents (lot 17)
+## Todo agents (lot 17+ — mis a jour 2026-03-19)
 
 ### Coordinateur
 
-- [ ] Consolider PLAN.md avec etat reel (lots 14-16 complets)
-- [ ] Mettre a jour TODO.md avec backlog Phase 6+
-- [ ] Synchroniser FEATURE_MAP.md matrice
+- [x] Consolider PLAN.md avec etat reel (lots 14-16 complets)
+- [x] Synchroniser FEATURE_MAP.md matrice
+- [ ] Mettre a jour TODO.md avec backlog Phase 7+
 - [ ] Documenter actions dans ops/v2/logs/
 
 ### Backend API
 
-- [ ] Refactorer ws-chat.ts (1449 → <400 LOC par module)
-- [ ] Refactorer app.ts (1292 → routes + middleware + handlers)
+- [x] Extraire app-bootstrap.ts et app-middleware.ts de app.ts
+- [x] Extraire ws-conversation-router.ts de ws-chat.ts
+- [ ] Refactorer ws-chat.ts residuel (<400 LOC cible)
 - [ ] Remplacer writeFileSync par async dans ws-chat.ts
 - [ ] Ajouter error boundaries sur WebSocket handlers
+- [ ] Scinder tests storage volumineux (storage-test-split)
+- [ ] Decouper Chat.tsx en seams transport/liste/composer/media
 
 ### Node Engine
 
+- [x] Extraire registry.ts du hotspot node-engine
 - [ ] Ajouter node type `music_generation` (ACE-Step 1.5)
-- [ ] Ajouter node type `voice_clone` (XTTS-v2)
+- [ ] Ajouter node type `voice_clone` (Chatterbox)
 - [ ] Tester pipeline DPO end-to-end sur kxkm-ai
 
 ### Personas
 
 - [ ] Evaluer PCL (Persona-Aware Contrastive Learning) pour coherence
 - [ ] Evaluer OpenCharacter pour generation profils synthetiques
-- [ ] Ajouter `/compose` command (generation musicale)
+- [x] Ajouter `/compose` command (generation musicale)
 
 ### Frontend
 
-- [ ] Implementer lot 16 UI Minitel rose (phosphore, VIDEOTEX)
+- [x] Implementer lot 16 UI Minitel rose (phosphore, VIDEOTEX)
+- [x] VoiceChat push-to-talk + level meter + silence auto
+- [x] Player audio + viewer image plein ecran
+- [x] Mediatheque gallery/playlist
+- [x] Progress bars animees Compose/Imagine
 - [ ] Ajouter memoization (React.memo) sur composants lourds
 - [ ] Lazy-load ChatHistory, VoiceChat, NodeEditor
+- [ ] vault66-crt-effect (React CRT WebGL)
 
 ### Ops/TUI
 
-- [ ] Deployer deep-audit.js sur kxkm-ai
-- [ ] Ajouter SearXNG au docker-compose
+- [x] Deployer deep-audit.js sur kxkm-ai
+- [x] Ajouter SearXNG au docker-compose
+- [x] TTS sidecar HTTP (tts-server.py :9100, dual Chatterbox/Piper)
+- [x] deploy.sh tmux (build + deploy automatise)
 - [ ] Ajouter MinerU/Docling au docker-compose
+- [ ] Fix Docker transformers (rebuild propre avec torch)
 
 ### Training
 
-- [ ] Spike BGE-M3 embeddings (remplacer nomic-embed-text)
+- [x] Spike BGE-M3 (resultat negatif sur Apple/Metal, baseline maintenue)
+- [x] TTS dual backend Chatterbox/Piper valide
 - [ ] Tester ACE-Step 1.5 sur RTX 4090
-- [ ] Evaluer Chatterbox TTS vs Piper
+- [ ] LightRAG graph RAG (personas/lore)
 
 ### Veille OSS
 
+- [x] Veille mars 2026 complete (40+ projets analyses, top 10 recommandations)
 - [ ] Suivre LLMRTC (WebRTC voice TypeScript)
 - [ ] Suivre A2A Protocol (interop agents)
 - [ ] Suivre MCP SDK updates
+- [ ] Evaluer Kokoro TTS (82M params, ultra-leger)
 
 ## Pipeline d'intervention
 
@@ -165,13 +180,17 @@ stateDiagram-v2
 - Privilegier TUI et scripts avec logs lisibles, puis purge des logs obsoletes.
 - Conserver la V1 comme reference comportementale, V2 comme cible active.
 
-### Etat de cycle (2026-03-17 10:30)
-- Audit/tests: vert (`deep-audit`, `check:v2`, `test:v2`).
-- Correctifs deployables: garde TTS + cleanup sessions memory-mode.
-- Logs: purge des fichiers vides et conservation des artefacts utiles.
-- Veille OSS: shortlist d'integration prioritaire = `SearXNG` + `Docling`.
+### Etat de cycle (2026-03-19)
 
-### Micro-mission suivante
-1. Backend API: extraction du bloc `upload/analyse` de `ws-chat.ts` vers module dedie.
-2. Ops/TUI: ajouter score de dette technique pondere dans `deep-audit` JSON.
-3. Coordinateur: synchroniser PLAN/TODO apres chaque sous-lot (max 1h).
+- Audit/tests: en cours de verification.
+- Lots 0-4, 12-14, 16 complets. Lot 15 en cours (2/4 done).
+- TTS dual backend (Chatterbox/Piper) deploye avec deploy.sh tmux.
+- 33 personas (qwen3:8b x21, mistral:7b x7, gemma3:4b x4).
+- Veille OSS mars 2026: 40+ projets analyses.
+- Deep audit: 7 bugs HIGH/MEDIUM identifies, 6 corriges.
+
+### Micro-missions lot 15 restantes
+
+1. Backend API: scinder tests storage volumineux (storage-test-split).
+2. Frontend: decouper Chat.tsx en seams transport/liste/composer/media.
+3. Coordinateur: synchroniser PLAN/TODO/state apres cloture lot 15.

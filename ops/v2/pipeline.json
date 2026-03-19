@@ -1,56 +1,148 @@
 {
   "project": "kxkm-clown-v2",
+  "root_status_path": "../../docs/OPS_V2_STATUS.md",
   "max_parallel_tasks": 3,
   "task_command_template": "bash -lc \"PATH=\\\"/tmp/node-local/bin:$PATH\\\" node scripts/v2-agent-task.js --batch {batch} --task {task} --query {query} --out {out}\"",
   "batches": [
     {
       "id": "lot-0-cadrage",
       "description": "Docs, architecture, feature map, agents, invariants, orchestration",
+      "summary": "Cadrage historique clos, conserve comme base de référence.",
+      "status": "done",
+      "owner": "Coordinateur",
+      "execution": "managed",
+      "checks": ["docs-reviewed"],
       "depends_on": [],
       "tasks": [
-        { "id": "architecture", "query": "Verrouiller architecture V2 et monorepo apps/packages" },
-        { "id": "docs", "query": "Maintenir spec, memory, README, feature map et mermaid" },
-        { "id": "agents", "query": "Définir agents, sous-agents, compétences et ownership" }
+        { "id": "architecture", "query": "Verrouiller architecture V2 et monorepo apps/packages", "status": "done", "owner": "Coordinateur", "severity": "P2" },
+        { "id": "docs", "query": "Maintenir spec, memory, README, feature map et mermaid", "status": "done", "owner": "Coordinateur", "severity": "P2" },
+        { "id": "agents", "query": "Définir agents, sous-agents, compétences et ownership", "status": "done", "owner": "Coordinateur", "severity": "P2" }
       ]
     },
     {
       "id": "lot-1-socle",
       "description": "Workspace V2, packages, scripts TUI, verification",
+      "summary": "Socle monorepo en place, scripts TUI et vérifications disponibles.",
+      "status": "done",
+      "owner": "Coordinateur",
+      "execution": "managed",
+      "checks": ["npm run check:v2", "npm run test:v2"],
       "depends_on": ["lot-0-cadrage"],
       "tasks": [
-        { "id": "workspace", "query": "Poser apps web api worker et packages métier" },
-        { "id": "verification", "query": "Étendre check build smoke au socle V2" },
-        { "id": "ops-tui", "query": "Préparer TUI, logs et suivi batch" }
+        { "id": "workspace", "query": "Poser apps web api worker et packages métier", "status": "done", "owner": "Coordinateur", "severity": "P2" },
+        { "id": "verification", "query": "Étendre check build smoke au socle V2", "status": "done", "owner": "Coordinateur", "severity": "P2" },
+        { "id": "ops-tui", "query": "Préparer TUI, logs et suivi batch", "status": "done", "owner": "Ops/TUI", "severity": "P2" }
       ]
     },
     {
       "id": "lot-2-domaines",
       "description": "Auth, chat, storage, personas, node engine",
+      "summary": "Domaines métier V2 en place, avec couverture de base et repos réels.",
+      "status": "done",
+      "owner": "Backend API",
+      "execution": "managed",
+      "checks": ["npm run test:v2"],
       "depends_on": ["lot-1-socle"],
       "tasks": [
-        { "id": "auth-chat", "query": "Porter auth et chat-domain en V2" },
-        { "id": "personas", "query": "Porter persona-domain et Pharmacius V2" },
-        { "id": "node-engine", "query": "Porter node-engine central et storage V2" }
+        { "id": "auth-chat", "query": "Porter auth et chat-domain en V2", "status": "done", "owner": "Backend API", "severity": "P2" },
+        { "id": "personas", "query": "Porter persona-domain et Pharmacius V2", "status": "done", "owner": "Personas", "severity": "P2" },
+        { "id": "node-engine", "query": "Porter node-engine central et storage V2", "status": "done", "owner": "Worker/Engine", "severity": "P2" }
       ]
     },
     {
       "id": "lot-3-surfaces",
       "description": "Shell React/Vite, admin, chat, node engine, ops",
+      "summary": "Surfaces V2 disponibles, avec dette UI et duplication admin encore présentes.",
+      "status": "done",
+      "owner": "Frontend",
+      "execution": "managed",
+      "checks": ["npm run -w @kxkm/web check"],
       "depends_on": ["lot-2-domaines"],
       "tasks": [
-        { "id": "web-shell", "query": "Créer shell React/Vite chat/admin" },
-        { "id": "persona-ui", "query": "Créer UI personas et reinforce" },
-        { "id": "engine-ui", "query": "Créer UI Node Engine et overview ops" }
+        { "id": "web-shell", "query": "Créer shell React/Vite chat/admin", "status": "done", "owner": "Frontend", "severity": "P2" },
+        { "id": "persona-ui", "query": "Créer UI personas et reinforce", "status": "done", "owner": "Frontend", "severity": "P2" },
+        { "id": "engine-ui", "query": "Créer UI Node Engine et overview ops", "status": "done", "owner": "Frontend", "severity": "P2" }
       ]
     },
     {
       "id": "lot-4-bascule",
       "description": "Migration, parité, rollback, bascule",
+      "summary": "Bascule initiale et outillage de migration réalisés.",
+      "status": "done",
+      "owner": "Coordinateur",
+      "execution": "managed",
+      "checks": ["npm run smoke:v2"],
       "depends_on": ["lot-3-surfaces"],
       "tasks": [
-        { "id": "migration", "query": "Préparer migration V1 vers V2" },
-        { "id": "parity", "query": "Valider la parité minimale V1 -> V2" },
-        { "id": "cutover", "query": "Préparer bascule et rollback" }
+        { "id": "migration", "query": "Préparer migration V1 vers V2", "status": "done", "owner": "Coordinateur", "severity": "P2" },
+        { "id": "parity", "query": "Valider la parité minimale V1 -> V2", "status": "done", "owner": "Coordinateur", "severity": "P2" },
+        { "id": "cutover", "query": "Préparer bascule et rollback", "status": "done", "owner": "Coordinateur", "severity": "P2" }
+      ]
+    },
+    {
+      "id": "lot-12-deep-audit",
+      "description": "Deep analyse continue, refactoring, veille OSS, docs et infrastructure adjacente",
+      "summary": "Boucle deep-audit stabilisee: pipeline/docs/logs coherents, seams backend/frontend fermes et cycle ops industrialise.",
+      "status": "done",
+      "owner": "Coordinateur",
+      "execution": "manual",
+      "checks": ["npm run check:v2", "npm run test:v2", "npm run -w @kxkm/web test", "node ops/v2/deep-audit.js --json"],
+      "depends_on": ["lot-4-bascule"],
+      "tasks": [
+        { "id": "pipeline-canonique", "query": "Réaligner pipeline, state, docs et ownership sur l'état réel", "status": "done", "owner": "Coordinateur", "severity": "P1" },
+        { "id": "deep-cycle-operator", "query": "Créer un opérateur TUI deep-cycle avec manifestes, résumés et purge", "status": "done", "owner": "Ops/TUI", "severity": "P1" },
+        { "id": "ws-chat-seams", "query": "Extraire commandes, dispatch et effets externes du coeur ws-chat", "status": "done", "owner": "Backend API", "severity": "P1" },
+        { "id": "app-bootstrap-extraction", "query": "Sortir bootstrap storage/auth/session/env de app.ts", "status": "done", "owner": "Backend API", "severity": "P1" },
+        { "id": "worker-runtime-harness", "query": "Rendre le worker testable via seams pures et tests ciblés", "status": "done", "owner": "Worker/Engine", "severity": "P1" },
+        { "id": "web-shell-convergence", "query": "Extraire routes/session/shortcuts et remettre les tests web au vert", "status": "done", "owner": "Frontend", "severity": "P1" },
+        { "id": "ui-contract", "query": "Etendre @kxkm/ui pour porter variables et primitives communes", "status": "done", "owner": "Frontend", "severity": "P2" },
+        { "id": "oss-shortlist", "query": "Documenter les intégrations OSS prioritaires, licences et spikes", "status": "done", "owner": "Veille OSS", "severity": "P2" }
+      ]
+    },
+    {
+      "id": "lot-13-voice-mcp",
+      "description": "Voice/WebRTC/MCP et convergence temps réel",
+      "summary": "Spike voice/MCP stabilise: serveur MCP migre vers le SDK officiel, runtime XTTS valide sur kxkm-ai avec sample Piper genere, ffmpeg disponible et smoke non interactif vert sous COQUI_TOS_AGREED=1.",
+      "status": "done",
+      "owner": "Multimodal",
+      "execution": "manual",
+      "checks": ["node scripts/mcp-server-smoke.js", "npm run smoke:voice-mcp", "npm run smoke:voice-clone", "bash ops/v2/run-spike-checks.sh voice-clone --yes"],
+      "depends_on": ["lot-12-deep-audit"],
+      "tasks": [
+        { "id": "livekit-agents-spike", "query": "Évaluer LiveKit Agents JS pour voice/WebRTC", "status": "done", "owner": "Multimodal", "severity": "P2" },
+        { "id": "mcp-sdk-integration", "query": "Standardiser les outils personas via le SDK MCP TypeScript", "status": "done", "owner": "Backend API", "severity": "P2" },
+        { "id": "voice-cloning-validation", "query": "Valider XTTS-v2 avec samples personas et garde-fous runtime", "status": "done", "owner": "Multimodal", "severity": "P2" }
+      ]
+    },
+    {
+      "id": "lot-14-documents-search",
+      "description": "Services adjacents de recherche et document parsing",
+      "summary": "Seams search/doc consolides: SearXNG tourne localement avec format json actif et health check strict vert; le spike BGE-M3 est clos comme resultat negatif sur ce host Apple/Metal, avec maintien de la baseline actuelle.",
+      "status": "done",
+      "owner": "Ops/TUI",
+      "execution": "manual",
+      "checks": ["docker compose --profile v2 config --services", "bash scripts/health-doc-search.sh search --strict", "npm run smoke:documents-search", "npm run smoke:embeddings", "bash ops/v2/run-spike-checks.sh embeddings --yes"],
+      "depends_on": ["lot-12-deep-audit"],
+      "tasks": [
+        { "id": "searxng-service", "query": "Intégrer SearXNG comme backend de recherche self-hosted", "status": "done", "owner": "Ops/TUI", "severity": "P2" },
+        { "id": "docling-mineru-spike", "query": "Comparer Docling et MinerU pour les PDFs complexes", "status": "done", "owner": "Veille OSS", "severity": "P2" },
+        { "id": "bge-m3-benchmark", "query": "Invalider BGE-M3 comme upgrade local sur ce host Apple/Metal et conserver la baseline actuelle", "status": "done", "owner": "Veille OSS", "severity": "P3" }
+      ]
+    },
+    {
+      "id": "lot-15-hotspot-reduction",
+      "description": "Reduction chirurgicale des hotspots de domaine, moteur, tests storage et chat web",
+      "summary": "Lot 15 DONE: persona-domain seams, node-engine registry, storage-test-split (5 suites), web-chat-modularization (Chat.tsx 631→67 LOC). Cookie Secure flag + rate limit login. 210 tests, 0 fail (2026-03-19).",
+      "status": "done",
+      "owner": "Coordinateur",
+      "execution": "manual",
+      "checks": ["npm run check:v2", "npm run test:v2", "bash ops/v2/run-deep-cycle.sh run --yes"],
+      "depends_on": ["lot-13-voice-mcp", "lot-14-documents-search"],
+      "tasks": [
+        { "id": "persona-domain-seams", "query": "Extraire les blocs Pharmacius et pipeline editorial de persona-domain sans changer l'API publique", "status": "done", "owner": "Backend API", "severity": "P2" },
+        { "id": "node-engine-seams", "query": "Extraire registry, graph et queue du hotspot node-engine sans modifier les contrats", "status": "done", "owner": "Worker/Engine", "severity": "P2" },
+        { "id": "storage-test-split", "query": "Scinder les tests storage volumineux en suites plus ciblées avec helpers partages", "status": "done", "owner": "Backend API", "severity": "P3" },
+        { "id": "web-chat-modularization", "query": "Decouper Chat.tsx en seams transport, liste, composer et media sans changer le protocole", "status": "done", "owner": "Frontend", "severity": "P2" }
       ]
     }
   ]

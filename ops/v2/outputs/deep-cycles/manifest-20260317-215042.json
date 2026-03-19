@@ -1,0 +1,65 @@
+{
+  "timestamp": "20260317-215042",
+  "generated_at": "2026-03-17T20:50:55Z",
+  "files": {
+    "audit": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/deep-audit-20260317-215042.json",
+    "check": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/check-v2-20260317-215042.log",
+    "test": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/test-v2-20260317-215042.log",
+    "summary": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/deep-cycles/summary-20260317-215042.md"
+  },
+  "checks": {
+    "check:v2": "ok",
+    "test:v2": "ok"
+  },
+  "retained_logs": [
+    "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/deep-audit-20260317-215042.json",
+    "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/check-v2-20260317-215042.log",
+    "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/test-v2-20260317-215042.log"
+  ],
+  "counts": {
+    "security": 0,
+    "performance": 0,
+    "large_files": 9
+  },
+  "debt": {
+    "score": 40,
+    "level": "medium",
+    "components": {
+      "security": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0
+      },
+      "performance": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0
+      },
+      "tsErrors": 0,
+      "largeFiles": 9,
+      "mediumFiles": 10,
+      "deps": 3
+    }
+  },
+  "hotspots": [
+    "packages/persona-domain/src/index.ts",
+    "packages/node-engine/src/index.ts",
+    "packages/storage/src/index.test.ts",
+    "packages/node-engine/src/index.test.ts",
+    "apps/web/src/components/Chat.tsx"
+  ],
+  "open_findings": [],
+  "backlog_links": [
+    "lot-12-deep-audit/pipeline-canonique",
+    "lot-12-deep-audit/deep-cycle-operator",
+    "lot-12-deep-audit/ws-chat-seams",
+    "lot-12-deep-audit/ui-contract",
+    "lot-12-deep-audit/web-shell-convergence"
+  ],
+  "retention_days": 7,
+  "hashes": {
+    "audit_sha256": "051b739fd91f9e33923d9a65403a6a8f33870e8e9c9b3d128f6c3fd8a56184c2",
+    "check_sha256": "5c767e1d04becf6a85d57d3ef05b5625120a47ee1fc7d1d0332bfb9c0aab83c4",
+    "test_sha256": "5a556c1d63e4a10a8d4e1c6acebd6d953217b4c8954d1d5652b6f9379e09f3b2"
+  }
+}

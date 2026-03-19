@@ -23,18 +23,79 @@ def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
 
 
+def normalize_output_path(root: Path, output: str) -> str:
+    if not output:
+        return ""
+    try:
+        out_path = Path(output)
+        if out_path.is_absolute():
+            try:
+                return str(out_path.relative_to(root))
+            except ValueError:
+                marker = "/ops/v2/"
+                raw = str(out_path)
+                if marker in raw:
+                    return f"ops/v2/{raw.split(marker, 1)[1]}"
+        return output
+    except Exception:
+        return output
+
+
 def init_state(config: dict) -> dict:
     state = {"project": config.get("project", "pipeline"), "updated_at": now_iso(), "batches": {}}
     for batch in config["batches"]:
-        batch_state = {"status": "pending", "depends_on": batch.get("depends_on", []), "tasks": {}}
+        batch_state = {
+            "status": batch.get("status", "pending"),
+            "depends_on": batch.get("depends_on", []),
+            "owner": batch.get("owner", ""),
+            "tasks": {},
+        }
         for task in batch["tasks"]:
             batch_state["tasks"][task["id"]] = {
-                "status": "pending",
+                "status": task.get("status", "pending"),
                 "attempts": 0,
                 "output": "",
                 "last_error": "",
             }
         state["batches"][batch["id"]] = batch_state
+    return state
+
+
+def sync_state_from_config(config: dict, state: dict) -> dict:
+    state.setdefault("project", config.get("project", "pipeline"))
+    state.setdefault("batches", {})
+
+    for batch in config["batches"]:
+        batch_id = batch["id"]
+        batch_state = state["batches"].setdefault(
+            batch_id,
+            {
+                "status": batch.get("status", "pending"),
+                "depends_on": batch.get("depends_on", []),
+                "owner": batch.get("owner", ""),
+                "tasks": {},
+            },
+        )
+        batch_state["depends_on"] = batch.get("depends_on", [])
+        batch_state["owner"] = batch.get("owner", "")
+        batch_state["status"] = batch.get("status", batch_state.get("status", "pending"))
+
+        existing_tasks = batch_state.setdefault("tasks", {})
+        for task in batch["tasks"]:
+            task_state = existing_tasks.setdefault(
+                task["id"],
+                {
+                    "status": task.get("status", "pending"),
+                    "attempts": 0,
+                    "output": "",
+                    "last_error": "",
+                },
+            )
+            task_state.setdefault("attempts", 0)
+            task_state.setdefault("output", "")
+            task_state.setdefault("last_error", "")
+            task_state["status"] = task.get("status", task_state.get("status", "pending"))
+
     return state
 
 
@@ -57,6 +118,8 @@ def batch_ready(state: dict, batch_id: str) -> bool:
 def next_batch(config: dict, state: dict):
     for batch in config["batches"]:
         batch_id = batch["id"]
+        if batch.get("execution", "managed") == "manual":
+            continue
         if state["batches"][batch_id]["status"] in ("done", "running"):
             continue
         if batch_ready(state, batch_id):
@@ -68,28 +131,71 @@ def write_docs(root: Path, config: dict, state: dict) -> None:
     state["updated_at"] = now_iso()
     plan_lines = [f"# PLAN ({state['project']})", "", f"Updated: {state['updated_at']}", ""]
     todo_lines = [f"# TODO ({state['project']})", "", f"Updated: {state['updated_at']}", ""]
+    status_lines = [f"# EXECUTION STATUS ({state['project']})", "", f"Updated: {state['updated_at']}", ""]
 
     for batch in config["batches"]:
         batch_id = batch["id"]
-        batch_status = state["batches"][batch_id]["status"]
+        batch_state = state["batches"][batch_id]
+        batch_status = batch_state["status"]
         depends_on = ", ".join(batch.get("depends_on", [])) or "none"
+        owner = batch.get("owner", "") or batch_state.get("owner", "")
+        checks = ", ".join(batch.get("checks", [])) or "none"
+        execution = batch.get("execution", "managed")
+
         plan_lines.append(f"## {batch_id} [{batch_status}]")
         plan_lines.append(f"- Description: {batch.get('description', '')}")
         plan_lines.append(f"- Depends on: {depends_on}")
+        if owner:
+            plan_lines.append(f"- Owner: {owner}")
+        plan_lines.append(f"- Execution: {execution}")
+        plan_lines.append(f"- Checks: {checks}")
+        if batch.get("summary"):
+            plan_lines.append(f"- Summary: {batch['summary']}")
         plan_lines.append("")
 
         todo_lines.append(f"## {batch_id}")
         for task in batch["tasks"]:
             task_id = task["id"]
-            task_state = state["batches"][batch_id]["tasks"][task_id]
-            mark = "x" if task_state["status"] == "done" else " "
-            output = f" | out: {task_state['output']}" if task_state["output"] else ""
+            task_state = batch_state["tasks"][task_id]
+            effective_status = task_state.get("status") or task.get("status", "pending")
+            mark = "x" if effective_status == "done" else " "
+            output_path = normalize_output_path(root, task_state["output"])
+            output = f" | out: {output_path}" if output_path else ""
             error = f" | error: {task_state['last_error']}" if task_state["last_error"] else ""
-            todo_lines.append(f"- [{mark}] {task_id} ({task_state['status']}){output}{error}")
+            owner_text = f" | owner: {task.get('owner')}" if task.get("owner") else ""
+            severity_text = f" | severity: {task.get('severity')}" if task.get("severity") else ""
+            todo_lines.append(f"- [{mark}] {task_id} ({effective_status}){owner_text}{severity_text}{output}{error}")
         todo_lines.append("")
+
+        status_lines.append(f"## {batch_id}")
+        status_lines.append(f"- Status: {batch_status}")
+        status_lines.append(f"- Owner: {owner or 'n/a'}")
+        status_lines.append(f"- Execution: {execution}")
+        status_lines.append(f"- Checks: {checks}")
+        open_tasks = []
+        for task in batch["tasks"]:
+            task_state = batch_state["tasks"][task["id"]]
+            effective_status = task_state.get("status") or task.get("status", "pending")
+            if effective_status != "done":
+                severity = task.get("severity", "n/a")
+                owner_label = task.get("owner", owner or "n/a")
+                open_tasks.append(f"  - {task['id']} [{effective_status}] ({severity}, {owner_label})")
+        if open_tasks:
+            status_lines.append("- Open tasks:")
+            status_lines.extend(open_tasks)
+        else:
+            status_lines.append("- Open tasks: none")
+        status_lines.append("")
 
     (root / "PLAN.md").write_text("\n".join(plan_lines), encoding="utf-8")
     (root / "TODO.md").write_text("\n".join(todo_lines), encoding="utf-8")
+    (root / "STATUS.md").write_text("\n".join(status_lines), encoding="utf-8")
+
+    root_status_path = config.get("root_status_path")
+    if root_status_path:
+        root_status = root / root_status_path
+        root_status.parent.mkdir(parents=True, exist_ok=True)
+        root_status.write_text("\n".join(status_lines), encoding="utf-8")
 
 
 def run_cmd(command: str):
@@ -177,6 +283,7 @@ def main() -> int:
         return 0
 
     state = read_json(state_path)
+    state = sync_state_from_config(config, state)
 
     if args.command == "retry-failed":
         for batch in config["batches"]:

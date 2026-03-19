@@ -45,7 +45,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3333/api/ping"]
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3333/api/ping').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))\""]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -78,11 +78,13 @@ services:
       PIPER_VOICE_DIR: "/app/data/piper-voices"
       COQUI_TOS_AGREED: "1"
       VISION_MODEL: "qwen3-vl:8b"
+      LIGHTRAG_URL: "http://localhost:9621"
+      TTS_URL: "http://localhost:9100"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3333/api/v2/health"]
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3333/api/v2/health').then(r=>{process.exit(r.ok?0:1)}).catch(()=>process.exit(1))\""]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -219,6 +221,94 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+  # -------------------------------------------------------------------------
+  # Chatterbox TTS — GPU-accelerated voice synthesis (Docker)
+  # Usage: docker compose --profile v2 up -d
+  # API: POST /tts, POST /v1/audio/speech
+  # -------------------------------------------------------------------------
+  chatterbox:
+    image: ghcr.io/devnen/chatterbox-tts-server:latest
+    restart: unless-stopped
+    profiles: [v2]
+    ports:
+      - "${CHATTERBOX_PORT:-9200}:8004"
+    volumes:
+      - ./data/voice-samples:/app/voices:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8004/get_predefined_voices')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # -------------------------------------------------------------------------
+  # TTS Sidecar — Proxy to Chatterbox + Piper fallback
+  # Runs on host network, proxies /synthesize to Chatterbox :9200
+  # -------------------------------------------------------------------------
+  tts-sidecar:
+    build: .
+    restart: unless-stopped
+    profiles: [v2]
+    network_mode: host
+    command: ["python3", "scripts/tts-server.py", "--port", "9100", "--backend", "chatterbox-remote"]
+    environment:
+      CHATTERBOX_URL: "http://127.0.0.1:9200"
+      PIPER_VOICE_DIR: "/app/data/piper-voices"
+      KXKM_VOICE_SAMPLES_DIR: "/app/data/voice-samples"
+    volumes:
+      - ./data:/app/data
+      - ./scripts:/app/scripts:ro
+    depends_on:
+      chatterbox:
+        condition: service_healthy
+
+  # -------------------------------------------------------------------------
+  # LightRAG — Graph RAG server (Ollama backend)
+  # API: POST /query, POST /documents/text, GET /health
+  # Web UI: http://localhost:9621
+  # -------------------------------------------------------------------------
+  lightrag:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.12-slim
+        RUN pip install --no-cache-dir 'lightrag-hku[api]'
+        EXPOSE 9621
+        CMD ["lightrag-server", "--host", "0.0.0.0", "--port", "9621"]
+    restart: unless-stopped
+    profiles: [v2]
+    network_mode: host
+    environment:
+      LLM_MODEL: "qwen3:8b"
+      EMBEDDING_MODEL: "nomic-embed-text"
+      EMBEDDING_DIM: "768"
+      OLLAMA_HOST: "http://localhost:11434"
+      LLM_BINDING: ollama
+      EMBEDDING_BINDING: ollama
+      RAG_DIR: "/data/lightrag"
+    command: >
+      lightrag-server
+        --host 0.0.0.0
+        --port 9621
+        --working-dir /data/lightrag
+        --llm-binding ollama
+        --embedding-binding ollama
+    volumes:
+      - ./data/lightrag:/data/lightrag
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:9621/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   app-data:

@@ -16,6 +16,7 @@
     "status": "node ../../scripts/workspace-package.js worker status",
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json --pretty false",
-    "check": "tsc -p tsconfig.json --noEmit --pretty false"
+    "check": "tsc -p tsconfig.json --noEmit --pretty false",
+    "test": "npm run build && node --test dist/*.test.js"
   }
 }

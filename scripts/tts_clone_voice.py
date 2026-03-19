@@ -43,6 +43,13 @@ def main():
         print(json.dumps(result))
         sys.exit(0)
 
+    if os.environ.get("COQUI_TOS_AGREED") != "1":
+        result["error"] = (
+            "XTTS requires COQUI_TOS_AGREED=1 after reviewing the CPML terms"
+        )
+        print(json.dumps(result))
+        sys.exit(0)
+
     try:
         from TTS.api import TTS
 
@@ -70,8 +77,8 @@ def main():
             "model": "xtts_v2",
             "language": args.language,
         }
-    except ImportError:
-        result["error"] = "coqui-tts not installed (pip install coqui-tts[codec])"
+    except ImportError as exc:
+        result["error"] = f"XTTS import failed: {exc}"
     except Exception as e:
         result["error"] = str(e)[:500]
 

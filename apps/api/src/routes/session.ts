@@ -49,6 +49,23 @@ interface SessionRouteDeps {
   clearSessionCookie: (res: Response) => void;
 }
 
+// Simple in-memory rate limiter for login attempts
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const LOGIN_RATE_LIMIT = 5; // max attempts
+const LOGIN_RATE_WINDOW_MS = 60_000; // per minute
+
+function checkLoginRateLimit(ip: string): boolean {
+  if (process.env.NODE_ENV === "test") return true;
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_RATE_WINDOW_MS });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= LOGIN_RATE_LIMIT;
+}
+
 export function createSessionRoutes(deps: SessionRouteDeps): Router {
   const {
     sessionRepo,
@@ -104,6 +121,12 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
 
   router.post("/api/session/login", async (req, res) => {
     try {
+      const clientIp = req.ip || req.socket?.remoteAddress || "unknown";
+      if (!checkLoginRateLimit(clientIp)) {
+        res.status(429).json({ ok: false, error: "rate_limited" });
+        return;
+      }
+
       const input = validateLoginInput(req.body);
 
       // SEC-04 fix: Never trust client-supplied role — assign viewer by default.

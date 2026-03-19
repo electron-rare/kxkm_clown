@@ -396,11 +396,13 @@ function escapeForHtml(text: string): string {
 }
 
 function setSessionCookie(res: Response, sessionId: string): void {
-  res.setHeader("Set-Cookie", `${COOKIE_NAME}=${sessionId}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600`);
+  const secure = process.env.NODE_ENV === "production" ? "Secure; " : "";
+  res.setHeader("Set-Cookie", `${COOKIE_NAME}=${sessionId}; HttpOnly; ${secure}SameSite=Strict; Path=/; Max-Age=3600`);
 }
 
 function clearSessionCookie(res: Response): void {
-  res.setHeader("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
+  const secure = process.env.NODE_ENV === "production" ? "Secure; " : "";
+  res.setHeader("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; ${secure}SameSite=Strict; Path=/; Max-Age=0`);
 }
 
 // ---------------------------------------------------------------------------

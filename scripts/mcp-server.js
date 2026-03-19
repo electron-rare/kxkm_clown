@@ -1,242 +1,171 @@
 #!/usr/bin/env node
 /**
- * MCP Server — exposes KXKM personas as MCP tools
+ * MCP Server — exposes KXKM personas as MCP tools.
  *
- * Compatible with Model Context Protocol (Anthropic standard).
- * Runs as stdio transport — launched by MCP clients.
- *
- * Tools exposed:
- *   - kxkm_chat: send a message to KXKM and get persona responses
- *   - kxkm_personas: list active personas
- *   - kxkm_web_search: search the web via SearXNG
- *   - kxkm_generate_image: generate an image via ComfyUI
- *
- * Usage:
- *   node scripts/mcp-server.js
- *
- * MCP client config (claude_desktop_config.json):
- *   {
- *     "mcpServers": {
- *       "kxkm": {
- *         "command": "node",
- *         "args": ["/path/to/kxkm_clown/scripts/mcp-server.js"],
- *         "env": { "KXKM_API_URL": "http://localhost:3333" }
- *       }
- *     }
- *   }
+ * Uses the official MCP TypeScript SDK over stdio while keeping the existing
+ * tool contract stable for local smokes and external MCP clients.
  */
 
+const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
+const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
+const { z } = require("zod");
+
 const KXKM_API = process.env.KXKM_API_URL || "http://localhost:3333";
+const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8080";
 
-// ---------------------------------------------------------------------------
-// MCP Protocol (stdio JSON-RPC)
-// ---------------------------------------------------------------------------
-
-const readline = require("node:readline");
-
-const rl = readline.createInterface({ input: process.stdin });
-
-function sendResponse(id, result) {
-  const msg = JSON.stringify({ jsonrpc: "2.0", id, result });
-  process.stdout.write(`Content-Length: ${Buffer.byteLength(msg)}\r\n\r\n${msg}`);
+function textResult(text, extra = {}) {
+  return {
+    content: [{ type: "text", text }],
+    ...extra,
+  };
 }
 
-function sendError(id, code, message) {
-  const msg = JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } });
-  process.stdout.write(`Content-Length: ${Buffer.byteLength(msg)}\r\n\r\n${msg}`);
-}
-
-// ---------------------------------------------------------------------------
-// Tool definitions
-// ---------------------------------------------------------------------------
-
-const TOOLS = [
-  {
-    name: "kxkm_chat",
-    description: "Envoie un message au systeme de chat KXKM_Clown et recoit les reponses des personas IA (musique concrete, cyberfeminisme, philosophie, tech, ecologie...)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        message: { type: "string", description: "Le message a envoyer aux personas" },
-        persona: { type: "string", description: "Nom de la persona a cibler (optionnel, ex: Schaeffer, Radigue, Pharmacius)" },
-      },
-      required: ["message"],
-    },
-  },
-  {
-    name: "kxkm_personas",
-    description: "Liste les personas IA actives dans KXKM_Clown avec leur modele et description",
-    inputSchema: { type: "object", properties: {} },
-  },
-  {
-    name: "kxkm_web_search",
-    description: "Recherche web via le moteur SearXNG self-hosted de KXKM",
-    inputSchema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "La requete de recherche" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "kxkm_status",
-    description: "Statut du systeme KXKM_Clown (personas, runs, memoire, latence)",
-    inputSchema: { type: "object", properties: {} },
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Tool execution
-// ---------------------------------------------------------------------------
-
-async function fetchJSON(endpoint) {
-  const res = await fetch(`${KXKM_API}${endpoint}`, {
+async function fetchJSON(url) {
+  const response = await fetch(url, {
     signal: AbortSignal.timeout(15_000),
+    headers: { "User-Agent": "kxkm-mcp/1.0" },
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
-}
-
-async function executeTool(name, args) {
-  switch (name) {
-    case "kxkm_chat": {
-      const text = args.persona
-        ? `@${args.persona} ${args.message}`
-        : args.message;
-      // Use WebSocket for real chat, fallback to status description
-      // For MCP, we use a simple HTTP approach
-      const personas = await fetchJSON("/api/personas");
-      const personaList = personas.data || personas;
-      const target = args.persona
-        ? personaList.find(p => p.name.toLowerCase() === args.persona.toLowerCase())
-        : personaList.find(p => p.enabled !== false);
-      return {
-        content: [{
-          type: "text",
-          text: target
-            ? `Message "${text}" envoyé. Persona cible: ${target.name} (${target.model}). Pour des réponses en temps réel, utilisez le chat WebSocket sur ${KXKM_API}.`
-            : `Aucune persona trouvée pour "${args.persona || "default"}". Personas disponibles: ${personaList.map(p => p.name).join(", ")}`,
-        }],
-      };
-    }
-
-    case "kxkm_personas": {
-      const data = await fetchJSON("/api/personas");
-      const personas = data.data || data;
-      const list = personas.map(p =>
-        `${p.enabled !== false ? "●" : "○"} ${p.name} (${p.model}) — ${(p.summary || "").slice(0, 100)}`
-      ).join("\n");
-      return {
-        content: [{ type: "text", text: `Personas KXKM (${personas.length}):\n${list}` }],
-      };
-    }
-
-    case "kxkm_web_search": {
-      const url = `${KXKM_API}/api/v2/chat/search?q=${encodeURIComponent(args.query)}&limit=5`;
-      try {
-        const data = await fetchJSON(url);
-        return {
-          content: [{ type: "text", text: JSON.stringify(data.data || data, null, 2) }],
-        };
-      } catch {
-        // Fallback: direct SearXNG
-        const searxng = process.env.SEARXNG_URL || "http://localhost:8080";
-        const res = await fetch(`${searxng}/search?q=${encodeURIComponent(args.query)}&format=json`, {
-          signal: AbortSignal.timeout(10_000),
-        });
-        const results = await res.json();
-        const formatted = (results.results || []).slice(0, 5)
-          .map((r, i) => `${i + 1}. ${r.title}\n   ${r.content || ""}\n   ${r.url}`)
-          .join("\n\n");
-        return { content: [{ type: "text", text: formatted || "(Aucun résultat)" }] };
-      }
-    }
-
-    case "kxkm_status": {
-      const [health, perf] = await Promise.all([
-        fetchJSON("/api/v2/health").catch(() => null),
-        fetchJSON("/api/v2/perf").catch(() => null),
-      ]);
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({ health: health?.data, perf: perf?.data }, null, 2),
-        }],
-      };
-    }
-
-    default:
-      throw new Error(`Unknown tool: ${name}`);
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
   }
+  return response.json();
 }
 
-// ---------------------------------------------------------------------------
-// MCP message handler
-// ---------------------------------------------------------------------------
+async function fetchApiJSON(endpoint) {
+  return fetchJSON(`${KXKM_API}${endpoint}`);
+}
 
-let inputBuffer = "";
+async function executeChat({ message, persona }) {
+  const text = persona ? `@${persona} ${message}` : message;
+  const data = await fetchApiJSON("/api/personas");
+  const personas = data.data || data;
+  const target = persona
+    ? personas.find((item) => item.name.toLowerCase() === persona.toLowerCase())
+    : personas.find((item) => item.enabled !== false);
 
-process.stdin.on("data", (chunk) => {
-  inputBuffer += chunk.toString();
+  if (!target) {
+    return textResult(
+      `Aucune persona trouvée pour "${persona || "default"}". Personas disponibles: ${personas.map((item) => item.name).join(", ")}`,
+      { isError: true },
+    );
+  }
 
-  // Parse Content-Length framed messages
-  while (true) {
-    const headerEnd = inputBuffer.indexOf("\r\n\r\n");
-    if (headerEnd === -1) break;
+  return textResult(
+    `Message "${text}" envoyé. Persona cible: ${target.name} (${target.model}). Pour des réponses en temps réel, utilisez le chat WebSocket sur ${KXKM_API}.`,
+  );
+}
 
-    const header = inputBuffer.slice(0, headerEnd);
-    const match = header.match(/Content-Length:\s*(\d+)/i);
-    if (!match) { inputBuffer = inputBuffer.slice(headerEnd + 4); continue; }
+async function executePersonas() {
+  const data = await fetchApiJSON("/api/personas");
+  const personas = data.data || data;
+  const list = personas
+    .map((item) => `${item.enabled !== false ? "●" : "○"} ${item.name} (${item.model}) — ${(item.summary || "").slice(0, 100)}`)
+    .join("\n");
+  return textResult(`Personas KXKM (${personas.length}):\n${list}`);
+}
 
-    const contentLength = parseInt(match[1]);
-    const bodyStart = headerEnd + 4;
-    if (inputBuffer.length < bodyStart + contentLength) break;
-
-    const body = inputBuffer.slice(bodyStart, bodyStart + contentLength);
-    inputBuffer = inputBuffer.slice(bodyStart + contentLength);
-
+async function executeWebSearch({ query }) {
+  try {
+    const data = await fetchApiJSON(`/api/v2/chat/search?q=${encodeURIComponent(query)}&limit=5`);
+    return textResult(JSON.stringify(data.data || data, null, 2));
+  } catch (apiError) {
     try {
-      const msg = JSON.parse(body);
-      handleMessage(msg);
-    } catch {}
-  }
-});
-
-async function handleMessage(msg) {
-  const { id, method, params } = msg;
-
-  switch (method) {
-    case "initialize":
-      sendResponse(id, {
-        protocolVersion: "2024-11-05",
-        capabilities: { tools: {} },
-        serverInfo: { name: "kxkm-clown", version: "1.0.0" },
-      });
-      break;
-
-    case "initialized":
-      // No response needed
-      break;
-
-    case "tools/list":
-      sendResponse(id, { tools: TOOLS });
-      break;
-
-    case "tools/call": {
-      const { name, arguments: args } = params;
-      try {
-        const result = await executeTool(name, args || {});
-        sendResponse(id, result);
-      } catch (err) {
-        sendError(id, -32000, err.message);
-      }
-      break;
+      const data = await fetchJSON(`${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json`);
+      const formatted = (data.results || [])
+        .slice(0, 5)
+        .map((item, index) => `${index + 1}. ${item.title}\n   ${item.content || ""}\n   ${item.url}`)
+        .join("\n\n");
+      return textResult(formatted || "(Aucun résultat)");
+    } catch (searchError) {
+      return textResult(
+        `Recherche indisponible. API KXKM: ${apiError.message}. SearXNG: ${searchError.message}.`,
+        { isError: true },
+      );
     }
-
-    default:
-      sendError(id, -32601, `Method not found: ${method}`);
   }
 }
 
-process.stderr.write("[mcp-server] KXKM MCP Server started (stdio)\n");
+async function executeStatus() {
+  const [health, perf] = await Promise.all([
+    fetchApiJSON("/api/v2/health").catch(() => null),
+    fetchApiJSON("/api/v2/perf").catch(() => null),
+  ]);
+
+  return textResult(JSON.stringify({ health: health?.data, perf: perf?.data }, null, 2));
+}
+
+function createServer() {
+  const server = new McpServer(
+    { name: "kxkm-clown", version: "1.0.0" },
+    { capabilities: { logging: {} } },
+  );
+
+  server.registerTool(
+    "kxkm_chat",
+    {
+      title: "KXKM Chat",
+      description: "Envoie un message au systeme de chat KXKM_Clown et recoit les reponses des personas IA.",
+      inputSchema: {
+        message: z.string().min(1),
+        persona: z.string().min(1).optional(),
+      },
+    },
+    executeChat,
+  );
+
+  server.registerTool(
+    "kxkm_personas",
+    {
+      title: "KXKM Personas",
+      description: "Liste les personas IA actives dans KXKM_Clown avec leur modele et description.",
+    },
+    executePersonas,
+  );
+
+  server.registerTool(
+    "kxkm_web_search",
+    {
+      title: "KXKM Web Search",
+      description: "Recherche web via le moteur SearXNG self-hosted de KXKM.",
+      inputSchema: {
+        query: z.string().min(1),
+      },
+    },
+    executeWebSearch,
+  );
+
+  server.registerTool(
+    "kxkm_status",
+    {
+      title: "KXKM Status",
+      description: "Statut du systeme KXKM_Clown (personas, runs, memoire, latence).",
+    },
+    executeStatus,
+  );
+
+  return server;
+}
+
+async function main() {
+  const server = createServer();
+  const transport = new StdioServerTransport();
+
+  process.stderr.write("[mcp-server] KXKM MCP Server started via SDK (stdio)\n");
+
+  process.on("SIGINT", async () => {
+    await server.close().catch(() => {});
+    process.exit(0);
+  });
+
+  process.on("SIGTERM", async () => {
+    await server.close().catch(() => {});
+    process.exit(0);
+  });
+
+  await server.connect(transport);
+}
+
+main().catch((error) => {
+  process.stderr.write(`[mcp-server] fatal: ${error.message}\n`);
+  process.exit(1);
+});

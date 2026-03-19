@@ -36,9 +36,6 @@
       ],
       "@kxkm/tui": [
         "packages/tui/src/index.ts"
-      ],
-      "@kxkm/ui": [
-        "packages/ui/src/index.ts"
       ]
     }
   }

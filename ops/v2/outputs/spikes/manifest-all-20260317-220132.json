@@ -1,0 +1,14 @@
+{
+  "timestamp": "20260317-220132",
+  "mode": "all",
+  "generated_at": "2026-03-17T21:01:33Z",
+  "checks": {
+    "voice-mcp": "ok",
+    "documents-search": "ok"
+  },
+  "logs": {
+    "voice-mcp": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/voice-mcp-smoke-20260317-220132.log",
+    "documents-search": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/documents-search-smoke-20260317-220132.log"
+  },
+  "summary": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/spikes/summary-all-20260317-220132.md"
+}

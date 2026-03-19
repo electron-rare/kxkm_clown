@@ -1,0 +1,149 @@
+# =============================================================================
+# LightRAG Configuration Example for kxkm_clown
+# =============================================================================
+# Ce fichier sert de reference pour configurer LightRAG sur kxkm-ai.
+# Copier vers .env ou utiliser comme base pour docker-compose.yml
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# LLM Configuration (via Ollama)
+# ---------------------------------------------------------------------------
+llm:
+  provider: ollama
+  model: qwen3:8b
+  base_url: http://localhost:11434
+  # Contexte max du modele (qwen3:8b supporte 32K)
+  max_context_size: 32768
+  # Nombre max d'appels LLM asynchrones simultanes
+  max_async: 4
+  # Parametres additionnels pour la generation
+  kwargs:
+    temperature: 0.0
+    num_predict: 2048
+
+# ---------------------------------------------------------------------------
+# Embedding Configuration (via Ollama)
+# ---------------------------------------------------------------------------
+embedding:
+  provider: ollama
+  model: nomic-embed-text
+  base_url: http://localhost:11434
+  # Dimension des embeddings nomic-embed-text
+  embedding_dim: 768
+  max_token_size: 8192
+  # Nombre de textes par batch d'embedding
+  batch_num: 32
+  max_async: 16
+
+# ---------------------------------------------------------------------------
+# Storage Configuration (PostgreSQL all-in-one)
+# ---------------------------------------------------------------------------
+storage:
+  # KV Storage : metadonnees documents et chunks
+  kv_storage: PGKVStorage
+  # Vector Storage : embeddings (requiert extension pgvector)
+  vector_storage: PGVectorStorage
+  # Graph Storage : graphe de connaissances (requiert extension age)
+  graph_storage: PGGraphStorage
+  # Document Status Storage
+  doc_status_storage: PGDocStatusStorage
+
+  postgres:
+    host: localhost
+    port: 5432
+    database: lightrag
+    user: kxkm
+    password: "${LIGHTRAG_PG_PASSWORD}"  # A definir dans .env
+    # Creer la database si elle n'existe pas
+    # CREATE DATABASE lightrag;
+    # CREATE EXTENSION IF NOT EXISTS vector;  -- pgvector
+    # CREATE EXTENSION IF NOT EXISTS age;     -- Apache AGE pour graph storage
+
+# ---------------------------------------------------------------------------
+# Working Directory
+# ---------------------------------------------------------------------------
+working_dir: data/lightrag
+
+# ---------------------------------------------------------------------------
+# RAG Parameters
+# ---------------------------------------------------------------------------
+rag:
+  # Taille des chunks en tokens
+  chunk_token_size: 1200
+  # Overlap entre chunks
+  chunk_overlap_token_size: 100
+  # Nombre de boucles d'extraction d'entites (1 = standard, 2+ = plus precis mais plus lent)
+  entity_extract_max_gleaning: 1
+  # Langue pour l'extraction d'entites et la generation
+  language: French
+  # Types d'entites a extraire (adaptes au projet artistique)
+  entity_types:
+    - personne
+    - artiste
+    - oeuvre
+    - concept
+    - lieu
+    - evenement
+    - technique
+    - instrument
+    - mouvement_artistique
+  # Cache des reponses LLM
+  enable_llm_cache: true
+
+# ---------------------------------------------------------------------------
+# Query Defaults
+# ---------------------------------------------------------------------------
+query:
+  # Mode par defaut pour les requetes
+  default_mode: mix
+  # Nombre de resultats top-k
+  top_k: 30
+  # Seuil de similarite cosine
+  cosine_better_than_threshold: 0.2
+  # Format de reponse
+  response_type: "Multiple Paragraphs"
+  # Activer le reranking (necessite un reranker configure)
+  enable_rerank: false
+
+# ---------------------------------------------------------------------------
+# Server Configuration (lightrag-server)
+# ---------------------------------------------------------------------------
+server:
+  host: 0.0.0.0
+  port: 9621
+  # Authentification (optionnel)
+  # api_key: "${LIGHTRAG_API_KEY}"
+
+# ---------------------------------------------------------------------------
+# Docker Compose equivalent (.env)
+# ---------------------------------------------------------------------------
+# Pour deployer via Docker Compose, creer un fichier .env avec :
+#
+# # LLM
+# LLM_PROVIDER=ollama
+# LLM_MODEL=qwen3:8b
+# OLLAMA_HOST=http://host.docker.internal:11434
+#
+# # Embedding
+# EMBEDDING_PROVIDER=ollama
+# EMBEDDING_MODEL=nomic-embed-text
+# EMBEDDING_DIM=768
+#
+# # Storage (PostgreSQL)
+# KV_STORAGE=PGKVStorage
+# VECTOR_STORAGE=PGVectorStorage
+# GRAPH_STORAGE=PGGraphStorage
+# DOC_STATUS_STORAGE=PGDocStatusStorage
+# POSTGRES_HOST=host.docker.internal
+# POSTGRES_PORT=5432
+# POSTGRES_DATABASE=lightrag
+# POSTGRES_USER=kxkm
+# POSTGRES_PASSWORD=changeme
+#
+# # RAG
+# LANGUAGE=French
+# CHUNK_TOKEN_SIZE=1200
+# CHUNK_OVERLAP_TOKEN_SIZE=100
+#
+# # Server
+# PORT=9621

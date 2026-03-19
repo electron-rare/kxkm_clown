@@ -1,0 +1,72 @@
+{
+  "timestamp": "20260317-214953",
+  "generated_at": "2026-03-17T20:50:06Z",
+  "files": {
+    "audit": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/deep-audit-20260317-214953.json",
+    "check": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/check-v2-20260317-214953.log",
+    "test": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/test-v2-20260317-214953.log",
+    "summary": "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/outputs/deep-cycles/summary-20260317-214953.md"
+  },
+  "checks": {
+    "check:v2": "ok",
+    "test:v2": "ok"
+  },
+  "retained_logs": [
+    "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/deep-audit-20260317-214953.json",
+    "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/check-v2-20260317-214953.log",
+    "/Users/electron/Documents/Projets_Creatifs/kxkm_clown/ops/v2/logs/test-v2-20260317-214953.log"
+  ],
+  "counts": {
+    "security": 0,
+    "performance": 1,
+    "large_files": 9
+  },
+  "debt": {
+    "score": 42,
+    "level": "medium",
+    "components": {
+      "security": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 0
+      },
+      "performance": {
+        "P0": 0,
+        "P1": 0,
+        "P2": 1
+      },
+      "tsErrors": 0,
+      "largeFiles": 9,
+      "mediumFiles": 10,
+      "deps": 3
+    }
+  },
+  "hotspots": [
+    "packages/persona-domain/src/index.ts",
+    "packages/node-engine/src/index.ts",
+    "packages/storage/src/index.test.ts",
+    "packages/node-engine/src/index.test.ts",
+    "apps/web/src/components/Chat.tsx"
+  ],
+  "open_findings": [
+    {
+      "severity": "P2",
+      "file": "apps/api/src/ws-chat-smoke.test.ts",
+      "line": 82,
+      "pattern": "JSON.parse without try/catch"
+    }
+  ],
+  "backlog_links": [
+    "lot-12-deep-audit/pipeline-canonique",
+    "lot-12-deep-audit/deep-cycle-operator",
+    "lot-12-deep-audit/ws-chat-seams",
+    "lot-12-deep-audit/ui-contract",
+    "lot-12-deep-audit/web-shell-convergence"
+  ],
+  "retention_days": 7,
+  "hashes": {
+    "audit_sha256": "ef7decd9bfc82325db46ba727791ea82ca23abacc25a4c5309ce83385ee379b7",
+    "check_sha256": "5c767e1d04becf6a85d57d3ef05b5625120a47ee1fc7d1d0332bfb9c0aab83c4",
+    "test_sha256": "a1d9151d5c607a75a294d95d8df48bcd6dc719ebdf8c68682a88090d3483eaec"
+  }
+}

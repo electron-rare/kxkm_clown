@@ -59,15 +59,26 @@ $SSH "cd $REMOTE_DIR && \
   docker restart kxkm_clown-api-1" || fail "Docker deploy failed"
 log "Docker restarted"
 
-# ─── Step 5: Restart TTS server ────────────────────────────
+# ─── Step 5: Restart TTS server (chatterbox-remote + piper fallback) ──
 if [[ "$MODE" == "--full" || "$MODE" == "--tts" ]]; then
   log "Restarting TTS server..."
   $SSH "tmux kill-session -t tts 2>/dev/null || true; \
     sleep 1; \
     tmux new-session -d -s tts \
-      'source /home/kxkm/venv/bin/activate && cd $REMOTE_DIR && python3 scripts/tts-server.py --port 9100 2>&1 | tee /tmp/tts-server.log'; \
+      'source /home/kxkm/venv/bin/activate && cd $REMOTE_DIR && CHATTERBOX_URL=http://127.0.0.1:9200 python3 scripts/tts-server.py --port 9100 --backend chatterbox-remote 2>&1 | tee /tmp/tts-server.log'; \
     sleep 3; \
     curl -sf http://127.0.0.1:9100/health && echo ' TTS OK' || echo ' TTS FAIL'"
+fi
+
+# ─── Step 5b: Restart LightRAG server ─────────────────────
+if [[ "$MODE" == "--full" ]]; then
+  log "Restarting LightRAG server..."
+  $SSH "tmux kill-session -t lightrag 2>/dev/null || true; \
+    sleep 1; \
+    tmux new-session -d -s lightrag \
+      'source /home/kxkm/venv/bin/activate && cd $REMOTE_DIR && EMBEDDING_DIM=768 LLM_MODEL=qwen3:8b EMBEDDING_MODEL=nomic-embed-text OLLAMA_HOST=http://localhost:11434 lightrag-server --host 0.0.0.0 --port 9621 --working-dir $REMOTE_DIR/data/lightrag --llm-binding ollama --embedding-binding ollama 2>&1 | tee /tmp/lightrag-server.log'; \
+    sleep 5; \
+    curl -sf http://127.0.0.1:9621/health | head -c 30 && echo ' LightRAG OK' || echo ' LightRAG FAIL'"
 fi
 
 # ─── Step 6: Health check ──────────────────────────────────

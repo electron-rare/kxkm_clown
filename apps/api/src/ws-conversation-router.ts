@@ -74,7 +74,7 @@ export interface ConversationRouterDeps {
   isTTSAvailable?: () => boolean;
   acquireTTS?: () => void;
   releaseTTS?: () => void;
-  maxGeneralResponders?: number;
+  maxGeneralResponders?: number | (() => number);
   maxInterPersonaDepth?: number;
   interPersonaDelayMs?: number;
   setTimeoutFn?: typeof setTimeout;
@@ -150,12 +150,17 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     isTTSAvailable = defaultIsTTSAvailable,
     acquireTTS = defaultAcquireTTS,
     releaseTTS = defaultReleaseTTS,
-    maxGeneralResponders = Number(process.env.MAX_GENERAL_RESPONDERS) || 1,
+    maxGeneralResponders: maxGeneralRespondersOpt = Number(process.env.MAX_GENERAL_RESPONDERS) || 1,
     maxInterPersonaDepth = DEFAULT_MAX_INTER_PERSONA_DEPTH,
     interPersonaDelayMs = DEFAULT_INTER_PERSONA_DELAY_MS,
     setTimeoutFn = setTimeout,
     logger = console,
   } = deps;
+
+  // Support both number and getter function for maxGeneralResponders
+  const getMaxResponders = typeof maxGeneralRespondersOpt === "function"
+    ? maxGeneralRespondersOpt
+    : () => maxGeneralRespondersOpt;
 
   const personaMessageCounts = new Map<string, number>();
   const personaRecentMessages = new Map<string, string[]>();
@@ -393,7 +398,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       prunePersonaState(personasSnapshot);
     }
 
-    const responders = pickResponders(text, personasSnapshot).slice(0, Math.max(1, maxGeneralResponders));
+    const responders = pickResponders(text, personasSnapshot).slice(0, Math.max(1, getMaxResponders()));
     if (responders.length === 0) {
       return;
     }

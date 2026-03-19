@@ -25,6 +25,9 @@ interface CommandHandlerDeps {
   routeToPersonas: (channel: string, text: string) => Promise<void>;
   logChatMessage: (entry: ChatLogEntry) => void;
   getPersonas: () => ChatPersona[];
+  getMaxResponders: () => number;
+  setMaxResponders: (n: number) => void;
+  getActiveUserCount: () => number;
 }
 
 export function createCommandHandler(deps: CommandHandlerDeps) {
@@ -38,6 +41,9 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
     routeToPersonas,
     logChatMessage,
     getPersonas,
+    getMaxResponders,
+    setMaxResponders,
+    getActiveUserCount,
   } = deps;
 
   return async function handleCommand({ ws, info, text }: CommandContext): Promise<void> {
@@ -59,6 +65,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/web <recherche> — recherche sur le web",
             "/imagine <desc>  — genere une image via ComfyUI",
             "/compose <desc>  — genere de la musique via ACE-Step",
+            "/responders <n>  — nombre de personas qui repondent (1-5)",
+            "/status          — etat du serveur (VRAM, modeles, perf)",
             "Mentionne un persona avec @Nom pour lui parler directement.",
           ].join("\n"),
         });
@@ -165,6 +173,73 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
       case "/imagine":
         await handleImagineCommand({ ws, info, text, broadcast, send, logChatMessage });
         return;
+
+      case "/responders": {
+        const n = parseInt(parts[1] || "", 10);
+        if (isNaN(n) || n < 1 || n > 5) {
+          send(ws, { type: "system", text: `Usage: /responders <1-5> (actuel: ${getMaxResponders()})` });
+          return;
+        }
+        setMaxResponders(n);
+        broadcast(info.channel, {
+          type: "system",
+          text: `${info.nick} a change le nombre de repondeurs: ${n} persona(s) max`,
+        });
+        return;
+      }
+
+      case "/status": {
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        const lines: string[] = ["=== Statut serveur ==="];
+
+        const uptimeSec = Math.floor(process.uptime());
+        lines.push(`Uptime: ${Math.floor(uptimeSec / 3600)}h${Math.floor((uptimeSec % 3600) / 60)}m${uptimeSec % 60}s`);
+        lines.push(`Utilisateurs connectes: ${getActiveUserCount()}`);
+        lines.push(`Personas actives: ${getPersonas().length}`);
+        lines.push(`Max repondeurs: ${getMaxResponders()}`);
+
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 2000);
+          const resp = await fetch(`${ollamaUrl}/api/tags`, { signal: ctrl.signal });
+          clearTimeout(t);
+          if (resp.ok) {
+            const body = await resp.json() as { models?: Array<{ name: string; size: number }> };
+            if (body.models) {
+              lines.push(`Modeles charges: ${body.models.length}`);
+              for (const m of body.models.slice(0, 8)) {
+                lines.push(`  - ${m.name} (${Math.round(m.size / 1073741824 * 10) / 10}GB)`);
+              }
+            }
+          }
+        } catch { lines.push("Ollama: non disponible"); }
+
+        try {
+          const { stdout } = await execFileAsync("nvidia-smi", ["--query-gpu=memory.used,memory.total,utilization.gpu", "--format=csv,noheader,nounits"], { timeout: 2000 });
+          const gpuParts = stdout.trim().split(", ");
+          if (gpuParts.length >= 3) {
+            lines.push(`VRAM: ${gpuParts[0]}MB / ${gpuParts[1]}MB (GPU util: ${gpuParts[2]}%)`);
+          }
+        } catch { /* nvidia-smi not available */ }
+
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 2000);
+          const resp = await fetch(`http://127.0.0.1:${process.env.V2_API_PORT || 4180}/api/v2/perf`, { signal: ctrl.signal });
+          clearTimeout(t);
+          if (resp.ok) {
+            const perfData = await resp.json() as { data?: { avg_latency_ms?: number; max_latency_ms?: number; requests?: number; memory?: { rss_mb?: number } } };
+            if (perfData.data) {
+              const d = perfData.data;
+              lines.push(`Requetes HTTP: ${d.requests || 0} (avg ${d.avg_latency_ms?.toFixed(1) || "?"}ms, max ${d.max_latency_ms?.toFixed(1) || "?"}ms)`);
+              if (d.memory?.rss_mb) lines.push(`Memoire RSS: ${d.memory.rss_mb}MB`);
+            }
+          }
+        } catch { /* perf endpoint not available */ }
+
+        send(ws, { type: "system", text: lines.join("\n") });
+        return;
+      }
 
       default:
         send(ws, { type: "system", text: `Commande inconnue: ${cmd}. Tape /help.` });

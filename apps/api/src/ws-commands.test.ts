@@ -34,6 +34,9 @@ function makeDeps(overrides?: Partial<Record<string, unknown>>) {
       { id: "p1", nick: "Merzbow", model: "llama3", systemPrompt: "Tu es un artiste noise japonais provocateur et expérimental...", color: "#ff0000" },
       { id: "p2", nick: "Oracle", model: "mistral", systemPrompt: "Tu es un oracle mystique qui parle en énigmes et prophéties...", color: "#9900ff" },
     ]),
+    getMaxResponders: mock.fn<() => number>(() => 2),
+    setMaxResponders: mock.fn<(n: number) => void>(),
+    getActiveUserCount: mock.fn<() => number>(() => 3),
     ...overrides,
   };
 }

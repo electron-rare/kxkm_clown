@@ -147,6 +147,9 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     } catch { return ""; }
   }
 
+  // Mutable responder count — can be changed at runtime via /responders command
+  let currentMaxResponders = maxGeneralResponders;
+
   const routeToPersonas = createConversationRouter({
     ollamaUrl,
     rag,
@@ -155,7 +158,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     addToContext,
     getContextString,
     getPersonas: () => personas,
-    maxGeneralResponders,
+    maxGeneralResponders: () => currentMaxResponders,
   });
 
   // --- handle chat message ---
@@ -218,6 +221,9 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     routeToPersonas,
     logChatMessage,
     getPersonas: () => personas,
+    getMaxResponders: () => currentMaxResponders,
+    setMaxResponders: (n: number) => { currentMaxResponders = n; },
+    getActiveUserCount: () => clients.size,
   });
 
   wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {

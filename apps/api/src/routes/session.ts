@@ -83,11 +83,41 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
 
   const router = Router();
 
-  router.get("/api/v2/health", (_req, res) => {
+  router.get("/api/v2/health", async (_req, res) => {
+    const startMs = Date.now();
+    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+
+    const timeout = <T>(p: Promise<T>, ms = 2000): Promise<T> =>
+      Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+
+    const [ollamaResult, dbResult] = await Promise.allSettled([
+      timeout(fetch(`${ollamaUrl}/api/tags`).then(async (r) => {
+        const body = await r.json() as { models?: unknown[] };
+        return { ok: r.ok, models: Array.isArray(body.models) ? body.models.length : 0 };
+      })),
+      timeout(personaRepo.list().then((list) => ({ ok: true, count: list.length }))),
+    ]);
+
+    const ollama = ollamaResult.status === "fulfilled"
+      ? { status: "ok" as const, models_loaded: ollamaResult.value.models }
+      : { status: "error" as const, error: (ollamaResult.reason as Error).message };
+
+    const db = dbResult.status === "fulfilled"
+      ? { status: "ok" as const, personas: dbResult.value.count }
+      : { status: "error" as const, error: (dbResult.reason as Error).message };
+
+    const uptimeSec = Math.floor(process.uptime());
+    const uptimeHuman = `${Math.floor(uptimeSec / 3600)}h${Math.floor((uptimeSec % 3600) / 60)}m${uptimeSec % 60}s`;
+
     res.json(asApiData({
       app: "@kxkm/api",
-      storage: storageMode, // BUG-06 fix: don't leak DATABASE_URL
+      storage: storageMode,
       roles: ["admin", "editor", "operator", "viewer"] satisfies UserRole[],
+      uptime_sec: uptimeSec,
+      uptime_human: uptimeHuman,
+      ollama,
+      database: db,
+      health_check_ms: Date.now() - startMs,
     }));
   });
 

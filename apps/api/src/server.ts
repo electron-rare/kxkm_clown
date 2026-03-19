@@ -8,6 +8,7 @@ import { attachWebSocketChat } from "./ws-chat.js";
 import { DEFAULT_PERSONAS } from "./personas-default.js";
 import { LocalRAG } from "./rag.js";
 import { ContextStore } from "./context-store.js";
+import logger from "./logger.js";
 
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
@@ -90,7 +91,7 @@ async function main() {
     console.error("[context] Init failed:", err);
   });
 
-  attachWebSocketChat(server, {
+  const wss = attachWebSocketChat(server, {
     ollamaUrl,
     rag,
     contextStore,
@@ -110,6 +111,20 @@ async function main() {
       });
     },
   });
+
+  // --- Graceful shutdown (lot-74) ---
+  function gracefulShutdown(signal: string) {
+    logger.info({ signal }, "Shutting down gracefully...");
+    if (wss) wss.close();
+    server.close(() => {
+      logger.info("HTTP server closed");
+      process.exit(0);
+    });
+    setTimeout(() => { process.exit(1); }, 10000).unref();
+  }
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
   server.listen(port, () => {
     if (DEBUG) console.log(JSON.stringify({

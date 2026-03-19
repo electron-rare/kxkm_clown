@@ -7,6 +7,7 @@ import { generateImage } from "./comfyui.js";
 import { searchWeb } from "./web-search.js";
 import { saveImage, saveAudio } from "./media-store.js";
 import type { ChatPersona, ClientInfo, OutboundMessage, ChatLogEntry } from "./chat-types.js";
+import type { ContextStore } from "./context-store.js";
 
 const execFileAsync = promisify(execFile);
 interface CommandContext {
@@ -28,6 +29,7 @@ interface CommandHandlerDeps {
   getMaxResponders: () => number;
   setMaxResponders: (n: number) => void;
   getActiveUserCount: () => number;
+  getContextStore?: () => ContextStore | undefined;
 }
 
 export function createCommandHandler(deps: CommandHandlerDeps) {
@@ -44,6 +46,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
     getMaxResponders,
     setMaxResponders,
     getActiveUserCount,
+    getContextStore,
   } = deps;
 
   return async function handleCommand({ ws, info, text }: CommandContext): Promise<void> {
@@ -56,18 +59,23 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
           type: "system",
           text: [
             "=== Commandes disponibles ===",
-            "/help            — affiche cette aide",
-            "/nick <nom>      — change ton pseudo",
-            "/join #canal     — rejoindre un canal",
-            "/channels        — liste les canaux actifs",
-            "/who             — liste les utilisateurs connectes",
-            "/personas        — liste les personas actives",
-            "/web <recherche> — recherche sur le web",
-            "/imagine <desc>  — genere une image via ComfyUI",
-            "/compose <desc>  — genere de la musique via ACE-Step",
-            "/responders <n>  — nombre de personas qui repondent (1-5)",
-            "/status          — etat du serveur (VRAM, modeles, perf)",
-            "Mentionne un persona avec @Nom pour lui parler directement.",
+            "/help                              — cette aide",
+            "/clear                             — efface le chat",
+            "/nick <pseudo>                     — change ton pseudo",
+            "/who                               — utilisateurs connectes",
+            "/personas                          — personas actives",
+            "/web <recherche>                   — recherche web via SearXNG",
+            "/imagine <prompt>                  — genere une image",
+            "/compose <prompt>, <style>, <duree>s — compose de la musique",
+            "/status                            — etat du systeme (VRAM, modeles, perf)",
+            "/responders <1-5>                  — nombre de personas qui repondent",
+            "/model                             — modele actif",
+            "/persona                           — persona active",
+            "/context                           — stats du contexte conversationnel",
+            "/export                            — exporter l'historique",
+            "/join #canal                       — rejoindre un canal",
+            "/channels                          — liste les canaux actifs",
+            "@NomPersona                        — interpeller une persona directement",
           ].join("\n"),
         });
         return;
@@ -238,6 +246,38 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         } catch { /* perf endpoint not available */ }
 
         send(ws, { type: "system", text: lines.join("\n") });
+        return;
+      }
+
+      case "/clear":
+        broadcast(info.channel, { type: "system", text: "__clear__" });
+        return;
+
+      case "/context": {
+        const store = getContextStore?.();
+        if (!store) {
+          send(ws, { type: "system", text: "Context store non disponible." });
+          return;
+        }
+        try {
+          const cs = await store.getChannelStats(info.channel);
+          const globalStats = await store.getStats();
+          const lines = [
+            `=== Context Store: ${info.channel} ===`,
+            `Messages stockes: ${cs.entries}`,
+            `Chars bruts: ${cs.totalChars}`,
+            `Compacte: ${cs.compacted ? "oui" : "non"}`,
+            cs.compacted ? `  Entries compactees: ${cs.entriesCompacted}` : null,
+            cs.compacted ? `  Compactions: ${cs.totalCompactions}` : null,
+            cs.compacted ? `  Derniere compaction: ${cs.lastCompactedAt}` : null,
+            `--- Global ---`,
+            `Canaux: ${globalStats.channels}`,
+            `Taille totale: ${globalStats.totalSizeMB.toFixed(2)} MB`,
+          ].filter(Boolean);
+          send(ws, { type: "system", text: lines.join("\n") });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur context stats: ${err instanceof Error ? err.message : String(err)}` });
+        }
         return;
       }
 

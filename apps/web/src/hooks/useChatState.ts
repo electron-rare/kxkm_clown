@@ -188,6 +188,12 @@ export function useChatState(): UseChatStateReturn {
 
       default: {
         // Intercept typing indicators
+        // Server-side /clear: reset messages
+        if (type === "system" && msg.text === "__clear__") {
+          setMessages([]);
+          return;
+        }
+
         if (type === "system" && typeof msg.text === "string") {
           const typingMatch = msg.text.match(/^(.+) est en train d'ecrire/);
           if (typingMatch) {
@@ -409,7 +415,7 @@ export function useChatState(): UseChatStateReturn {
 
       // Slash command completion
       if (text.startsWith("/") && !text.includes(" ")) {
-        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/reload", "/export"];
+        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/context", "/responders", "/who", "/personas", "/export"];
         const prefix = tabPrefixRef.current || text;
         const matches = slashCommands.filter((c) => c.startsWith(prefix.toLowerCase()));
         if (matches.length === 0) return;

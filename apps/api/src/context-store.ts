@@ -412,6 +412,35 @@ export class ContextStore {
 
   // --- Maintenance ---
 
+  async getChannelStats(channel: string): Promise<{
+    entries: number;
+    totalChars: number;
+    compacted: boolean;
+    entriesCompacted: number;
+    lastCompactedAt: string | null;
+    totalCompactions: number;
+  }> {
+    await this.init();
+    let entries = 0;
+    let totalChars = 0;
+    try {
+      const content = await fs.readFile(this.channelFile(channel), "utf-8");
+      const lines = content.trim().split("\n").filter(Boolean);
+      entries = lines.length;
+      totalChars = content.length;
+    } catch { /* no file yet */ }
+
+    const summary = await this.readSummary(channel);
+    return {
+      entries,
+      totalChars,
+      compacted: !!summary,
+      entriesCompacted: summary?.entriesCompacted ?? 0,
+      lastCompactedAt: summary?.lastCompactedAt ?? null,
+      totalCompactions: summary?.totalCompactions ?? 0,
+    };
+  }
+
   async getStats(): Promise<{ channels: number; totalSizeMB: number; entries: Record<string, number> }> {
     await this.init();
     const stats = { channels: 0, totalSizeMB: 0, entries: {} as Record<string, number> };

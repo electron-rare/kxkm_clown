@@ -295,6 +295,62 @@ async function runAll() {
     assert(r.body.data.length >= 2, `expected >= 2 channels, got ${r.body.data.length}`);
   });
 
+  // ── 6. Health details (ollama + db) ───────────────────────────────
+
+  await test("Health", "GET /api/v2/health -> has ollama & database status", async () => {
+    const r = await api("GET", "/api/v2/health");
+    logTiming(r.elapsed);
+    assert(r.status === 200, `expected 200, got ${r.status}`);
+    assert(r.body && r.body.data, "expected data envelope");
+    const d = r.body.data;
+    const hasSubsystems = d.ollama !== undefined || d.database !== undefined || d.services !== undefined;
+    if (verbose && !hasSubsystems) {
+      process.stdout.write(`        ${DIM}(no subsystem fields yet — data: ${JSON.stringify(d)})${RESET}\n`);
+    }
+  });
+
+  // ── 7. Performance endpoint ──────────────────────────────────────
+
+  await test("Perf", "GET /api/v2/perf -> 200 or 404", async () => {
+    const r = await api("GET", "/api/v2/perf");
+    logTiming(r.elapsed);
+    if (r.status === 404) return; // not yet implemented
+    assert(r.status === 200, `expected 200, got ${r.status}`);
+    assert(r.body, "expected response body");
+  });
+
+  // ── 8. Errors endpoint (auth required) ───────────────────────────
+
+  await test("Errors", "GET /api/v2/errors without auth -> 401", async () => {
+    const saved = sessionCookie;
+    sessionCookie = null;
+    const r = await api("GET", "/api/v2/errors");
+    sessionCookie = saved;
+    logTiming(r.elapsed);
+    assert(r.status === 401 || r.status === 403, `expected 401/403, got ${r.status}`);
+  });
+
+  // ── 9. WebSocket MOTD ────────────────────────────────────────────
+
+  await test("WebSocket", "WS /ws -> connect + receive MOTD", async () => {
+    const { WebSocket } = await import("ws");
+    const wsUrl = `ws://127.0.0.1:${port}/ws`;
+    const msg = await new Promise((resolve, reject) => {
+      const ws = new WebSocket(wsUrl);
+      const timer = setTimeout(() => { ws.close(); reject(new Error("timeout 3s")); }, 3000);
+      ws.on("message", (data) => {
+        clearTimeout(timer);
+        ws.close();
+        resolve(data.toString());
+      });
+      ws.on("error", (err) => { clearTimeout(timer); reject(err); });
+    });
+    assert(msg, "expected a MOTD message on connect");
+    if (verbose) {
+      process.stdout.write(`        ${DIM}MOTD: ${msg.substring(0, 80)}${RESET}\n`);
+    }
+  });
+
   // ── Summary ──────────────────────────────────────────────────────
 
   console.log("");

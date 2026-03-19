@@ -167,8 +167,7 @@ describe("synthesizeTTS", () => {
     await synthesizeTTS("Pharmacius", "Hello world this is a test text", "ch1", () => {});
     assert.match(capturedUrl, /\/synthesize$/);
     assert.equal(capturedBody.text, "Hello world this is a test text");
-    // Qwen3-TTS sends lowercase persona, fallback TTS sends original nick
-    assert.ok(capturedBody.persona === "pharmacius" || capturedBody.persona === "Pharmacius", "persona should match");
+    assert.ok(capturedBody.persona === "pharmacius" || capturedBody.persona === "Pharmacius");
   });
 
   it("truncates text to 1000 chars", async () => {

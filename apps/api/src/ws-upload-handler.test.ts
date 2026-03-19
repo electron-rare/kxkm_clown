@@ -243,7 +243,7 @@ describe("ws-upload-handler", () => {
     assert.ok(text.includes("Analyse ce fichier"));
   });
 
-  it("rejects unknown file type after SEC-03 MIME validation", async () => {
+  it("rejects unknown file type (SEC-03 MIME validation)", async () => {
     const deps = makeMocks();
     const info = makeClientInfo();
     const parsed: InboundUpload = {

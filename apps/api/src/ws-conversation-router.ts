@@ -1,7 +1,9 @@
+import { trackError } from "./error-tracker.js";
 import { getToolsForPersona as defaultGetToolsForPersona, type ToolDefinition } from "./mcp-tools.js";
 import {
   streamOllamaChat as defaultStreamOllamaChat,
   streamOllamaChatWithTools as defaultStreamOllamaChatWithTools,
+  cleanPersonaResponse,
 } from "./ws-ollama.js";
 import {
   synthesizeTTS as defaultSynthesizeTTS,
@@ -16,6 +18,28 @@ import {
 } from "./ws-persona-router.js";
 import type { ChatLogEntry, ChatPersona, OutboundMessage, PersonaMemory } from "./chat-types.js";
 
+const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
+
+// ---------------------------------------------------------------------------
+// Sentence-boundary detection for streaming TTS chunking
+// ---------------------------------------------------------------------------
+
+const SENTENCE_END = /[.!?;:]\s/;
+
+export function extractSentences(buffer: string): { sentences: string[]; remaining: string } {
+  const sentences: string[] = [];
+  let remaining = buffer;
+  let match: RegExpExecArray | null;
+  while ((match = SENTENCE_END.exec(remaining)) !== null) {
+    const sentence = remaining.slice(0, match.index + 1).trim();
+    if (sentence.length >= 10) {
+      sentences.push(sentence);
+    }
+    remaining = remaining.slice(match.index + 2);
+  }
+  return { sentences, remaining };
+}
+
 type BroadcastFn = (channel: string, msg: OutboundMessage) => void;
 type Logger = Pick<Console, "error">;
 
@@ -29,7 +53,7 @@ type GetToolsForPersonaFn = typeof defaultGetToolsForPersona;
 
 export interface ConversationRAG {
   size: number;
-  search(query: string, maxResults: number): Promise<Array<{ text: string }>>;
+  search(query: string, maxResults?: number): Promise<Array<{ text: string }>>;
 }
 
 export interface ConversationRouterDeps {
@@ -60,7 +84,7 @@ export interface ConversationRouterDeps {
 export type ConversationRouter = (channel: string, text: string, depth?: number) => Promise<void>;
 
 const DEFAULT_MAX_INTER_PERSONA_DEPTH = 3;
-const DEFAULT_INTER_PERSONA_DELAY_MS = 2_000;
+const DEFAULT_INTER_PERSONA_DELAY_MS = 500;
 
 function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<LoadPersonaMemoryFn>>): ChatPersona {
   if (memory.facts.length === 0 && !memory.summary) {
@@ -94,7 +118,7 @@ export async function buildConversationInput(
 
   if (rag && rag.size > 0) {
     try {
-      const results = await rag.search(text, 2);
+      const results = await rag.search(text);
       if (results.length > 0) {
         const ragContext = results.map((result) => result.text).join("\n---\n");
         sections.push(`[Contexte pertinent]\n${ragContext}`);
@@ -126,7 +150,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     isTTSAvailable = defaultIsTTSAvailable,
     acquireTTS = defaultAcquireTTS,
     releaseTTS = defaultReleaseTTS,
-    maxGeneralResponders = 2,
+    maxGeneralResponders = Number(process.env.MAX_GENERAL_RESPONDERS) || 1,
     maxInterPersonaDepth = DEFAULT_MAX_INTER_PERSONA_DEPTH,
     interPersonaDelayMs = DEFAULT_INTER_PERSONA_DELAY_MS,
     setTimeoutFn = setTimeout,
@@ -136,7 +160,22 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   const personaMessageCounts = new Map<string, number>();
   const personaRecentMessages = new Map<string, string[]>();
   const personaMemoryLocks = new Map<string, Promise<void>>();
+  const ttsQueues = new Map<string, Promise<void>>();
   let totalMessageCount = 0;
+
+  function enqueueTTS(nick: string, text: string, channel: string): void {
+    if (process.env.TTS_ENABLED !== "1" || !isTTSAvailable()) return;
+    if (text.length < 10) return;
+
+    const prev = ttsQueues.get(nick) || Promise.resolve();
+    const next = prev.then(() => {
+      acquireTTS();
+      return synthesizeTTS(nick, text, channel, broadcast)
+        .catch((err) => trackError("tts", err, { nick }))
+        .finally(() => releaseTTS());
+    });
+    ttsQueues.set(nick, next);
+  }
 
   function prunePersonaState(personas: ChatPersona[]): void {
     const activeNicks = new Set(personas.map((persona) => persona.nick));
@@ -167,25 +206,11 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     const next = previous
       .then(() => updatePersonaMemory(persona, recentMessages, ollamaUrl))
       .catch((err) => {
-        logger.error(`[ws-chat] Memory update failed for ${persona.nick}:`, err);
+        trackError("memory_update", err, { persona: persona.nick });
       });
     personaMemoryLocks.set(persona.nick, next);
   }
 
-  function maybeTriggerTTS(persona: ChatPersona, fullText: string, channel: string): void {
-    if (process.env.TTS_ENABLED !== "1" || !isTTSAvailable()) {
-      return;
-    }
-
-    acquireTTS();
-    synthesizeTTS(persona.nick, fullText, channel, broadcast)
-      .catch((err) => {
-        logger.error(`[tts] Error for ${persona.nick}: ${err instanceof Error ? err.message : String(err)}`);
-      })
-      .finally(() => {
-        releaseTTS();
-      });
-  }
 
   function findNextMentionedPersona(
     fullText: string,
@@ -223,21 +248,48 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     depth: number,
     routeToPersonas: ConversationRouter,
   ): Promise<void> {
+    let memory: PersonaMemory = { nick: persona.nick, facts: [], summary: "", lastUpdated: "" };
+    try {
+      memory = await loadPersonaMemory(persona.nick);
+    } catch (err) {
+      trackError("memory_load", err, { persona: persona.nick });
+    }
+    const personaWithMemory = withPersonaMemory(persona, memory);
+    const tools = getToolsForPersona(persona.nick);
+    if (DEBUG) console.log(`[ws-chat] ${persona.nick} responding (tools=${tools.length}, model=${persona.model}, depth=${depth})`);
+
+    // Typing indicator sent AFTER enrichment, right before Ollama call
     broadcast(channel, {
       type: "system",
       text: `${persona.nick} est en train d'ecrire...`,
     });
 
-    let memory: PersonaMemory = { nick: persona.nick, facts: [], summary: "", lastUpdated: "" };
-    try {
-      memory = await loadPersonaMemory(persona.nick);
-    } catch (err) {
-      logger.error(`[ws-chat] Memory load failed for ${persona.nick}:`, err);
-    }
-    const personaWithMemory = withPersonaMemory(persona, memory);
-    const tools = getToolsForPersona(persona.nick);
+    let chunkSeq = 0;
+    let sentenceBuffer = "";
+    let sentenceTTSFired = false;
 
-    const onDone = (fullText: string) => {
+    const onChunk = (token: string) => {
+      chunkSeq++;
+      broadcast(channel, {
+        type: "chunk" as any,
+        nick: persona.nick,
+        text: token,
+        color: persona.color,
+        seq: chunkSeq,
+      });
+
+      // Accumulate tokens for sentence-boundary TTS
+      sentenceBuffer += token;
+      const { sentences, remaining } = extractSentences(sentenceBuffer);
+      sentenceBuffer = remaining;
+      for (const sentence of sentences) {
+        enqueueTTS(persona.nick, sentence, channel);
+        sentenceTTSFired = true;
+      }
+    };
+
+    const onDone = (rawText: string) => {
+      const fullText = cleanPersonaResponse(rawText, persona.nick);
       broadcast(channel, {
         type: "message",
         nick: persona.nick,
@@ -255,6 +307,18 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
       addToContext(channel, persona.nick, fullText);
 
+      // Flush remaining sentence buffer to TTS
+      if (sentenceBuffer.trim().length >= 10) {
+        enqueueTTS(persona.nick, sentenceBuffer.trim(), channel);
+        sentenceTTSFired = true;
+      }
+      sentenceBuffer = "";
+
+      // Fallback: if no sentences were detected during streaming, send full text
+      if (!sentenceTTSFired && process.env.TTS_ENABLED === "1" && isTTSAvailable()) {
+        enqueueTTS(persona.nick, fullText, channel);
+      }
+
       const { count, recentMessages } = trackPersonaMessage(
         persona.nick,
         `User: ${text}\n${persona.nick}: ${fullText}`,
@@ -263,13 +327,13 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         scheduleMemoryUpdate(persona, recentMessages);
       }
 
-      maybeTriggerTTS(persona, fullText, channel);
 
       if (depth >= maxInterPersonaDepth) {
         return;
       }
 
       const nextPersona = findNextMentionedPersona(fullText, personasSnapshot, persona.nick);
+      if (DEBUG) console.log(`[ws-chat] ${persona.nick} done (len=${fullText.length}), nextPersona=${nextPersona?.nick || "none"}`);
       if (!nextPersona) {
         return;
       }
@@ -277,13 +341,13 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       setTimeoutFn(() => {
         const contextMessage = `${persona.nick} a dit: "${fullText.slice(0, 500)}". @${nextPersona.nick}, réponds-lui.`;
         routeToPersonas(channel, contextMessage, depth + 1).catch((err) => {
-          logger.error(`[ws-chat] Inter-persona error for ${nextPersona.nick}:`, err);
+          trackError("inter_persona", err, { persona: nextPersona.nick, depth: depth + 1 });
         });
       }, interPersonaDelayMs);
     };
 
     const onError = (err: Error) => {
-      logger.error(`[ws-chat] Ollama error for ${persona.nick}:`, err.message);
+      trackError("ollama", err, { persona: persona.nick, model: persona.model });
       broadcast(channel, {
         type: "system",
         text: `${persona.nick}: erreur Ollama — ${err.message}`,
@@ -298,9 +362,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           enrichedText,
           tools,
           rag,
-          () => {
-            // Chunks stay internal for now; the UI replaces messages on final payload.
-          },
+          onChunk,
           onDone,
           onError,
         );
@@ -311,19 +373,16 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         ollamaUrl,
         personaWithMemory,
         enrichedText,
-        () => {
-          // Chunks stay internal for now; the UI replaces messages on final payload.
-        },
+        onChunk,
         onDone,
         onError,
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      trackError("ollama_connection", err, { persona: persona.nick, model: persona.model });
       broadcast(channel, {
         type: "system",
         text: `${persona.nick}: erreur de connexion`,
       });
-      logger.error(`[ws-chat] Ollama error for ${persona.nick}:`, message);
     }
   }
 
@@ -341,8 +400,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
     const enrichedText = await buildConversationInput(text, channel, getContextString, rag);
 
-    for (const persona of responders) {
-      await streamPersonaResponse(
+    await Promise.all(responders.map((persona) =>
+      streamPersonaResponse(
         channel,
         text,
         enrichedText,
@@ -350,8 +409,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         personasSnapshot,
         depth,
         routeToPersonas,
-      );
-    }
+      ),
+    ));
   }
 
   return routeToPersonas;

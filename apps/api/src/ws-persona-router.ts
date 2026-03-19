@@ -81,16 +81,33 @@ export async function updatePersonaMemory(
 // ---------------------------------------------------------------------------
 
 export function pickResponders(text: string, pool: ChatPersona[]): ChatPersona[] {
-  // Check for direct @mention — only mentioned personas respond
+  // 1. Direct @mentions — highest priority
   const mentioned = pool.filter((p) =>
     text.toLowerCase().includes(`@${p.nick.toLowerCase()}`),
   );
   if (mentioned.length > 0) return mentioned;
 
-  // Default: only Pharmacius responds (or first persona if Pharmacius not found)
-  const defaultPersona = pool.find((p) => p.nick.toLowerCase() === "pharmacius");
-  if (defaultPersona) return [defaultPersona];
+  // 2. Topic detection — route to specialists directly
+  const lower = text.toLowerCase();
 
-  // Fallback: first persona in pool
-  return pool.length > 0 ? [pool[0]] : [];
+  const topicRoutes: Array<{ keywords: string[]; nicks: string[] }> = [
+    { keywords: ["cherche", "search", "recherche", "google", "web", "trouve", "find"], nicks: ["Sherlock", "Pharmacius"] },
+    { keywords: ["image", "dessine", "draw", "imagine", "génère une image", "picture"], nicks: ["Picasso"] },
+    { keywords: ["musique", "compose", "music", "son", "sound", "audio", "noise"], nicks: ["Schaeffer", "Pharmacius"] },
+    { keywords: ["code", "programme", "bug", "api", "hack", "script"], nicks: ["Turing"] },
+    { keywords: ["philosophie", "penser", "sens", "existence", "conscience"], nicks: ["Deleuze", "Pharmacius"] },
+  ];
+
+  for (const route of topicRoutes) {
+    if (route.keywords.some(kw => lower.includes(kw))) {
+      const responders = route.nicks
+        .map(nick => pool.find(p => p.nick === nick))
+        .filter(Boolean) as ChatPersona[];
+      if (responders.length > 0) return responders;
+    }
+  }
+
+  // 3. Default: Pharmacius only
+  const pharmacius = pool.find((p) => p.nick.toLowerCase() === "pharmacius");
+  return pharmacius ? [pharmacius] : pool.slice(0, 1);
 }

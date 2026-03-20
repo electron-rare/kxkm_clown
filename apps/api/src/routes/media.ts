@@ -1,4 +1,6 @@
 import { Router } from "express";
+import path from "node:path";
+import fs from "node:fs";
 import { listMedia, getMediaFilePath } from "../media-store.js";
 
 const router = Router();
@@ -35,6 +37,30 @@ router.get("/audio/:filename", (req, res) => {
   const filePath = getMediaFilePath("audio", req.params.filename);
   if (!filePath) return res.status(404).json({ error: "Not found" });
   res.sendFile(filePath);
+});
+
+// GET /api/v2/media/compositions/:id/mix — serve mix WAV
+router.get("/compositions/:id/mix", (req, res) => {
+  const compDir = path.join(process.cwd(), "data", "compositions", req.params.id);
+  const mixPath = path.join(compDir, "mix.wav");
+  if (!fs.existsSync(mixPath)) return res.status(404).json({ error: "Mix not found. /mix first." });
+  res.setHeader("Content-Disposition", `attachment; filename="${req.params.id}-mix.wav"`);
+  res.sendFile(mixPath);
+});
+
+// GET /api/v2/media/compositions — list compositions
+router.get("/compositions", async (_req, res) => {
+  const compDir = path.join(process.cwd(), "data", "compositions");
+  try {
+    const entries = fs.readdirSync(compDir).filter(e => fs.existsSync(path.join(compDir, e, "composition.json")));
+    const comps = entries.map(e => {
+      const raw = fs.readFileSync(path.join(compDir, e, "composition.json"), "utf-8");
+      return JSON.parse(raw);
+    });
+    res.json({ ok: true, data: comps });
+  } catch {
+    res.json({ ok: true, data: [] });
+  }
 });
 
 export default router;

@@ -1,9 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
 import { getRecentErrors } from "./error-tracker.js";
 import { loadPersonaMemory } from "./ws-persona-router.js";
+import { getActiveComposition } from "./composition-store.js";
 import type { OutboundMessage } from "./chat-types.js";
 
 const execFileAsync = promisify(execFile);
@@ -358,6 +361,12 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           send(ws, { type: "system", text: header + contextStr });
         } catch (err) {
           send(ws, { type: "system", text: `Erreur export: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        // Check for composition export
+        const comp = getActiveComposition?.(info.nick, info.channel);
+        if (comp && comp.tracks.length > 0) {
+          const mixExists = fs.existsSync(path.join(process.cwd(), "data", "compositions", comp.id, "mix.wav"));
+          send(ws, { type: "system", text: `Composition: ${comp.name} (${comp.tracks.length} pistes)\n  ${mixExists ? "Download mix: /api/v2/media/compositions/" + comp.id + "/mix" : "/mix d'abord pour generer le mixage"}` });
         }
         return;
       }

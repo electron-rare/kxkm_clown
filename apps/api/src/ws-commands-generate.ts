@@ -152,6 +152,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           } as any);
 
           send(ws, { type: "system", text: `\u2705 Mix termine: ${comp.tracks.length} pistes \u2192 mix.wav` });
+          send(ws, { type: "system", text: `Download: /api/v2/media/compositions/${comp.id}/mix` });
         } catch (err) {
           send(ws, { type: "system", text: `Erreur mixage: ${err instanceof Error ? err.message : String(err)}` });
         }
@@ -212,102 +213,121 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
 
       case "/fx": {
         const fxArgs = text.slice(4).trim().split(/\s+/);
-        const effect = fxArgs[0];
+
+        // Check if first arg is a track number
+        let trackIdx = -1;
+        let effectStart = 0;
+        if (fxArgs[0] && /^\d+$/.test(fxArgs[0])) {
+          trackIdx = parseInt(fxArgs[0]) - 1;
+          effectStart = 1;
+        }
+
+        const effect = fxArgs[effectStart];
         const comp = getActiveComposition(info.nick, info.channel);
         if (!comp || comp.tracks.length === 0) {
           send(ws, { type: "system", text: "Aucune piste. /layer d'abord." }); return;
         }
-        const lastTrack = comp.tracks[comp.tracks.length - 1];
+
+        const targetTrack = trackIdx >= 0 && trackIdx < comp.tracks.length
+          ? comp.tracks[trackIdx]
+          : comp.tracks[comp.tracks.length - 1];
+        const targetNum = trackIdx >= 0 ? trackIdx + 1 : comp.tracks.length;
+        const fxParam = fxArgs[effectStart + 1];
+
+        if (!effect || effect === "list") {
+          send(ws, { type: "system", text: "FX: /fx [piste#] volume|fade-in|fade-out|reverse|reverb|pitch|speed|echo|distortion [param]\nExemple: /fx 2 reverb | /fx pitch -3 | /fx 1 fade-in 3" });
+          return;
+        }
 
         switch (effect) {
           case "volume": {
-            const vol = Math.min(200, Math.max(0, parseInt(fxArgs[1] || "100")));
-            lastTrack.volume = vol;
-            send(ws, { type: "system", text: `\u{1F50A} Volume piste #${comp.tracks.length}: ${vol}%` });
+            const vol = Math.min(200, Math.max(0, parseInt(fxParam || "100")));
+            targetTrack.volume = vol;
+            send(ws, { type: "system", text: `\u{1F50A} Volume piste #${targetNum}: ${vol}%` });
             return;
           }
           case "fade-in":
           case "fadein": {
-            const fadeDur = parseInt(fxArgs[1] || "3");
-            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
-              const tmpPath = lastTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", `afade=t=in:d=${fadeDur}`, "-y", tmpPath], { timeout: 30000 });
-              fs.renameSync(tmpPath, lastTrack.filePath);
-              send(ws, { type: "system", text: `\u{1F50A} Fade-in ${fadeDur}s applique a piste #${comp.tracks.length}` });
+            const fadeDur = parseInt(fxParam || "3");
+            if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
+              const tmpPath = targetTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `afade=t=in:d=${fadeDur}`, "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, targetTrack.filePath);
+              send(ws, { type: "system", text: `\u{1F50A} Fade-in ${fadeDur}s applique a piste #${targetNum}` });
             }
             return;
           }
           case "fade-out":
           case "fadeout": {
-            const fadeDur = parseInt(fxArgs[1] || "3");
-            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
-              const tmpPath = lastTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", `areverse,afade=t=in:d=${fadeDur},areverse`, "-y", tmpPath], { timeout: 30000 });
-              fs.renameSync(tmpPath, lastTrack.filePath);
-              send(ws, { type: "system", text: `\u{1F50A} Fade-out ${fadeDur}s applique a piste #${comp.tracks.length}` });
+            const fadeDur = parseInt(fxParam || "3");
+            if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
+              const tmpPath = targetTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `areverse,afade=t=in:d=${fadeDur},areverse`, "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, targetTrack.filePath);
+              send(ws, { type: "system", text: `\u{1F50A} Fade-out ${fadeDur}s applique a piste #${targetNum}` });
             }
             return;
           }
           case "reverse": {
-            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
-              const tmpPath = lastTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", "areverse", "-y", tmpPath], { timeout: 30000 });
-              fs.renameSync(tmpPath, lastTrack.filePath);
-              send(ws, { type: "system", text: `\u{1F504} Reverse applique a piste #${comp.tracks.length}` });
+            if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
+              const tmpPath = targetTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "areverse", "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, targetTrack.filePath);
+              send(ws, { type: "system", text: `\u{1F504} Reverse applique a piste #${targetNum}` });
             }
             return;
           }
           case "reverb": {
-            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
-              const tmpPath = lastTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", "aecho=0.8:0.88:60:0.4", "-y", tmpPath], { timeout: 30000 });
-              fs.renameSync(tmpPath, lastTrack.filePath);
-              send(ws, { type: "system", text: `\u{1F30A} Reverb applique a piste #${comp.tracks.length}` });
+            if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
+              const tmpPath = targetTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "aecho=0.8:0.88:60:0.4", "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, targetTrack.filePath);
+              send(ws, { type: "system", text: `\u{1F30A} Reverb applique a piste #${targetNum}` });
             }
             return;
           }
           case "pitch": {
-            const semitones = parseInt(fxArgs[1] || "2");
-            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
-              const tmpPath = lastTrack.filePath + ".tmp.wav";
+            const semitones = parseInt(fxParam || "2");
+            if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
+              const tmpPath = targetTrack.filePath + ".tmp.wav";
               const factor = Math.pow(2, semitones / 12);
-              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", `asetrate=32000*${factor},aresample=32000`, "-y", tmpPath], { timeout: 30000 });
-              fs.renameSync(tmpPath, lastTrack.filePath);
-              send(ws, { type: "system", text: `\u{1f3b5} Pitch ${semitones > 0 ? "+" : ""}${semitones} demi-tons piste #${comp.tracks.length}` });
+              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `asetrate=32000*${factor},aresample=32000`, "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, targetTrack.filePath);
+              send(ws, { type: "system", text: `\u{1f3b5} Pitch ${semitones > 0 ? "+" : ""}${semitones} demi-tons piste #${targetNum}` });
             }
             return;
           }
           case "speed": {
-            const speed = parseFloat(fxArgs[1] || "1.5");
-            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
-              const tmpPath = lastTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", `atempo=${Math.min(4, Math.max(0.25, speed))}`, "-y", tmpPath], { timeout: 30000 });
-              fs.renameSync(tmpPath, lastTrack.filePath);
-              send(ws, { type: "system", text: `\u23e9 Speed x${speed} piste #${comp.tracks.length}` });
+            const speed = parseFloat(fxParam || "1.5");
+            if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
+              const tmpPath = targetTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `atempo=${Math.min(4, Math.max(0.25, speed))}`, "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, targetTrack.filePath);
+              send(ws, { type: "system", text: `\u23e9 Speed x${speed} piste #${targetNum}` });
             }
             return;
           }
           case "echo": {
-            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
-              const tmpPath = lastTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", "aecho=0.6:0.3:500|1000:0.3|0.2", "-y", tmpPath], { timeout: 30000 });
-              fs.renameSync(tmpPath, lastTrack.filePath);
-              send(ws, { type: "system", text: `\u{1f501} Echo applique piste #${comp.tracks.length}` });
+            if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
+              const tmpPath = targetTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "aecho=0.6:0.3:500|1000:0.3|0.2", "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, targetTrack.filePath);
+              send(ws, { type: "system", text: `\u{1f501} Echo applique piste #${targetNum}` });
             }
             return;
           }
           case "distortion":
           case "distort": {
-            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
-              const tmpPath = lastTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", "acrusher=samples=10:bits=8:mix=0.5", "-y", tmpPath], { timeout: 30000 });
-              fs.renameSync(tmpPath, lastTrack.filePath);
-              send(ws, { type: "system", text: `\u{1f4a5} Distortion applique piste #${comp.tracks.length}` });
+            if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
+              const tmpPath = targetTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "acrusher=samples=10:bits=8:mix=0.5", "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, targetTrack.filePath);
+              send(ws, { type: "system", text: `\u{1f4a5} Distortion applique piste #${targetNum}` });
             }
             return;
           }
           default:
-            send(ws, { type: "system", text: "Effets: /fx volume <0-200> | /fx fade-in <s> | /fx fade-out <s> | /fx reverse | /fx reverb | /fx pitch <\u00b1demi-tons> | /fx speed <0.25-4> | /fx echo | /fx distortion" });
+            send(ws, { type: "system", text: "FX: /fx [piste#] volume|fade-in|fade-out|reverse|reverb|pitch|speed|echo|distortion [param]\nExemple: /fx 2 reverb | /fx pitch -3 | /fx 1 fade-in 3" });
             return;
         }
       }

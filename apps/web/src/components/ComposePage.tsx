@@ -8,6 +8,7 @@ interface Track {
   style: string;
   duration: number;
   volume: number;
+  type: "music" | "voice" | "sfx";
   audioData?: string;
   audioMime?: string;
 }
@@ -50,6 +51,7 @@ export default function ComposePage() {
           {
             id: Date.now(),
             prompt: newest.prompt || prompt || "Sans titre",
+            type: (newest.prompt || prompt || "").toLowerCase().startsWith("noise") ? "sfx" : (newest.prompt || prompt || "").toLowerCase().includes("voice") ? "voice" : "music",
             style,
             duration,
             volume: 100,
@@ -82,6 +84,8 @@ export default function ComposePage() {
     ws.send(JSON.stringify({ type: "command", text: `/comp new ${compName}` }));
     setTracks([]);
   }
+
+  const maxDuration = Math.max(30, ...tracks.map(t => t.duration));
 
   return (
     <div className="compose-page">
@@ -248,6 +252,51 @@ export default function ComposePage() {
           ))
         )}
       </div>
+
+      {/* TIMELINE */}
+      {tracks.length > 0 && (
+        <>
+          <VideotexSeparator color="yellow" />
+          <div className="compose-header">{">>> TIMELINE <<<"}</div>
+          <div className="compose-timeline">
+            {/* Time ruler */}
+            <div className="timeline-ruler">
+              {Array.from({ length: Math.ceil(maxDuration / 5) + 1 }, (_, i) => (
+                <span key={i} className="timeline-tick" style={{ left: `${(i * 5 / maxDuration) * 100}%` }}>
+                  {i * 5}s
+                </span>
+              ))}
+            </div>
+
+            {/* Track lanes */}
+            {tracks.map((track, i) => {
+              const icon = track.type === "voice" ? "\ud83c\udfa4" : track.type === "sfx" ? "\ud83d\udd0a" : "\ud83c\udfb5";
+              const colors = ["#c84c0c", "#2c6e49", "#7c3aed", "#0f766e", "#b45309", "#1d4ed8"];
+              const color = colors[i % colors.length];
+              const widthPct = (track.duration / maxDuration) * 100;
+
+              return (
+                <div key={track.id} className="timeline-lane">
+                  <span className="timeline-label">{icon} #{i + 1}</span>
+                  <div className="timeline-track-area">
+                    <div
+                      className="timeline-block"
+                      style={{
+                        width: `${Math.max(widthPct, 5)}%`,
+                        backgroundColor: color,
+                        opacity: track.volume / 100,
+                      }}
+                      title={`${track.prompt} (${track.duration}s, vol:${track.volume}%)`}
+                    >
+                      <span className="timeline-block-text">{track.prompt.slice(0, 20)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* Mix Controls */}
       {tracks.length > 0 && (

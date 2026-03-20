@@ -101,6 +101,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/ban <pseudo>                      — bannir un utilisateur (admin)",
             "/unban <pseudo>                    — debannir un utilisateur (admin)",
             "@NomPersona                        — interpeller une persona directement",
+            "/search <mot-cle>                  — chercher dans l'historique",
+            "/react <emoji>                     — reagir au dernier message",
           ].join("\n"),
         });
         return;
@@ -551,6 +553,32 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         const target = text.slice(8).trim();
         info.mutedPersonas?.delete(target.toLowerCase());
         send(ws, { type: "system", text: `${target} demute` });
+        return;
+      }
+
+      case "/search": {
+        const query = text.slice(8).trim().toLowerCase();
+        if (!query) { send(ws, { type: "system", text: "Usage: /search <mot-cle>" }); return; }
+        const store = getContextStore?.();
+        if (!store) { send(ws, { type: "system", text: "Context store non disponible." }); return; }
+        try {
+          const context = await store.getContext(info.channel, 100_000);
+          const lines = context.split("\n").filter((l: string) => l.toLowerCase().includes(query));
+          if (lines.length === 0) {
+            send(ws, { type: "system", text: `Aucun resultat pour "${query}"` });
+            return;
+          }
+          send(ws, { type: "system", text: `Resultats pour "${query}" (${lines.length}):\n${lines.slice(-10).join("\n")}` });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur recherche: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/react": {
+        const emoji = text.slice(7).trim();
+        if (!emoji) { send(ws, { type: "system", text: "Usage: /react <emoji>" }); return; }
+        broadcast(info.channel, { type: "system", text: `${info.nick} reagit: ${emoji}` });
         return;
       }
 

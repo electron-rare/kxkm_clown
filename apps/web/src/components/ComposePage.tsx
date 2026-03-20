@@ -46,16 +46,60 @@ export default function ComposePage() {
           <div className="minitel-field">
             <label>Style _</label>
             <select value={style} onChange={(e) => setStyle(e.target.value)} className="minitel-input">
-              <option value="experimental">Experimental</option>
-              <option value="ambient">Ambient</option>
-              <option value="electronic">Electronic</option>
-              <option value="concrete">Musique concrete</option>
-              <option value="drone">Drone</option>
-              <option value="noise">Noise</option>
-              <option value="classical">Classical</option>
-              <option value="jazz">Jazz</option>
-              <option value="hiphop">Hip-hop</option>
-              <option value="folk">Folk</option>
+              <optgroup label="Electronique">
+                <option value="experimental">Experimental</option>
+                <option value="ambient">Ambient</option>
+                <option value="drone">Drone</option>
+                <option value="noise">Noise</option>
+                <option value="glitch">Glitch</option>
+                <option value="industrial">Industrial</option>
+                <option value="techno">Techno</option>
+                <option value="house">House</option>
+                <option value="minimal">Minimal</option>
+                <option value="synthwave">Synthwave</option>
+                <option value="vaporwave">Vaporwave</option>
+                <option value="chillwave">Chillwave</option>
+              </optgroup>
+              <optgroup label="Acoustique / Concrete">
+                <option value="concrete">Musique concrete</option>
+                <option value="electroacoustique">Electroacoustique</option>
+                <option value="acousmatic">Acousmatique</option>
+                <option value="field-recording">Field recording</option>
+                <option value="granular">Granulaire</option>
+                <option value="spectral">Spectrale</option>
+              </optgroup>
+              <optgroup label="Jazz / Classique">
+                <option value="jazz">Jazz</option>
+                <option value="free-jazz">Free jazz</option>
+                <option value="classical">Classique</option>
+                <option value="orchestral">Orchestral</option>
+                <option value="cinematic">Cinematique</option>
+                <option value="epic">Epique</option>
+              </optgroup>
+              <optgroup label="Rock / Metal">
+                <option value="post-rock">Post-rock</option>
+                <option value="shoegaze">Shoegaze</option>
+                <option value="dream-pop">Dream pop</option>
+                <option value="metal">Metal</option>
+                <option value="punk">Punk</option>
+              </optgroup>
+              <optgroup label="Urbain">
+                <option value="hip-hop">Hip-hop</option>
+                <option value="trap">Trap</option>
+                <option value="lo-fi">Lo-fi</option>
+              </optgroup>
+              <optgroup label="World">
+                <option value="folk">Folk</option>
+                <option value="world">World</option>
+                <option value="african">Africain</option>
+                <option value="arabic">Arabe</option>
+                <option value="indian">Indien</option>
+                <option value="gamelan">Gamelan</option>
+              </optgroup>
+              <optgroup label="Dark / Atmosphere">
+                <option value="dark">Dark ambient</option>
+                <option value="dark-ambient">Dark ambient deep</option>
+              </optgroup>
             </select>
           </div>
           <div className="minitel-field">

@@ -13,7 +13,7 @@ const ULLA_LINES = [
   "  ║  Bienvenue sur le service          ║",
   "  ║  le plus celebre du Minitel.       ║",
   "  ║                                    ║",
-  "  ║  Mais ici, c'est 3615 KXKM.       ║",
+  "  ║  Mais ici, c'est 3615 J'ai pété.       ║",
   "  ║  On parle musique concrete,        ║",
   "  ║  cyberfeminisme, et IA locale.     ║",
   "  ║                                    ║",

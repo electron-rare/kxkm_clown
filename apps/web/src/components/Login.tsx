@@ -23,7 +23,7 @@ export default function Login({ onLogin, error }: LoginProps) {
 
   return (
     <div className="minitel-login">
-      <VideotexPageHeader title="3615 KXKM" subtitle="Messagerie locale" color="green" />
+      <VideotexPageHeader title="3615 J'ai pété" subtitle="Messagerie locale" color="green" />
 
       <form onSubmit={handleSubmit} className="minitel-login-form">
         <div className="minitel-field">

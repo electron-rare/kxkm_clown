@@ -992,7 +992,7 @@ code {
 }
 
 /* ========================================================================
-   3615-KXKM — Minitel 1B Physical Terminal Theme
+   3615-J'ai-pété — Minitel 1B Physical Terminal Theme
    ======================================================================== */
 
 :root {
@@ -1132,7 +1132,7 @@ code {
   75% { opacity: 1; }
 }
 
-/* ── Top service bar: 3615 KXKM ── */
+/* ── Top service bar: 3615 J'ai pété ── */
 .minitel-service-top {
   background: var(--minitel-green);
   color: var(--minitel-black);
@@ -1198,7 +1198,7 @@ code {
   font-weight: bold;
 }
 
-/* ── Minitel brand link (clickable 3615 KXKM) ── */
+/* ── Minitel brand link (clickable 3615 J'ai pété) ── */
 .minitel-brand-link {
   cursor: pointer;
   text-decoration: none;

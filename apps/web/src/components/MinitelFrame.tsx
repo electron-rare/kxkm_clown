@@ -105,7 +105,7 @@ export default function MinitelFrame({
                 onClick={() => setNavOpen(!navOpen)}
                 title="Sommaire"
               >
-                3615 KXKM
+                3615 J'ai pété
               </span>
               <span className="minitel-top-page">
                 {channel || currentPage || ""}

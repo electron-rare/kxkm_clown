@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 
 // Phase 1: modem sounds + connection text
 // Phase 2: 3615 ULLA easter egg (pink)
-// Phase 3: transition to 3615 KXKM
+// Phase 3: transition to 3615 J'ai pété
 const MODEM_SEQUENCE = [
   { text: "", delay: 500, phase: "modem" },
   { text: "FRANCE TELECOM", delay: 800, phase: "modem" },
@@ -22,7 +22,7 @@ const MODEM_SEQUENCE = [
   { text: "Mais ici c'est pas ULLA.", delay: 800, phase: "ulla" },
   // Phase 3: KXKM
   { text: "", delay: 400, phase: "kxkm" },
-  { text: "Redirection vers 3615 KXKM...", delay: 800, phase: "kxkm" },
+  { text: "Redirection vers 3615 J'ai pété...", delay: 800, phase: "kxkm" },
   { text: "", delay: 300, phase: "kxkm" },
   { text: "╔══════════════════════════════╗", delay: 100, phase: "kxkm" },
   { text: "║      3615  K X K M          ║", delay: 100, phase: "kxkm" },
@@ -31,7 +31,7 @@ const MODEM_SEQUENCE = [
   { text: '║  "Le medium est le message." ║', delay: 100, phase: "kxkm" },
   { text: "╚══════════════════════════════╝", delay: 100, phase: "kxkm" },
   { text: "", delay: 600, phase: "kxkm" },
-  { text: "CONNEXION 3615 KXKM — OK", delay: 500, phase: "kxkm" },
+  { text: "CONNEXION 3615 J'ai pété — OK", delay: 500, phase: "kxkm" },
 ];
 
 interface MinitelConnectProps {

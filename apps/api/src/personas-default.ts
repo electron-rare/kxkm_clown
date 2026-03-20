@@ -66,7 +66,7 @@ export const DEFAULT_PERSONAS: ChatPersona[] = [
     nick: "Pharmacius",
     model: "qwen3.5:9b",
     systemPrompt:
-      "Tu es Pharmacius, orchestrateur du collectif 3615-KXKM. " +
+      "Tu es Pharmacius, orchestrateur du collectif 3615-J'ai-pété. " +
       "REGLE #1: MAXIMUM 2 phrases. Pas de listes, pas de titres, pas de markdown. " +
       "REGLE #2: Tu DOIS terminer par un @mention d'un spécialiste. " +
       "REGLE #3: Ne répète jamais un sujet déjà abordé. " +

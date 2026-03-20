@@ -30,7 +30,7 @@ const MediaExplorer = lazy(() => import("./components/MediaExplorer"));
 
 // ---------------------------------------------------------------------------
 // App state phases:
-//   1. "connecting" — modem animation (3615 ULLA → 3615 KXKM)
+//   1. "connecting" — modem animation (3615 ULLA → 3615 J'ai pété)
 //   2. "login"      — pseudo + email + password
 //   3. "ready"      — main app (chat, personas, etc.)
 // ---------------------------------------------------------------------------

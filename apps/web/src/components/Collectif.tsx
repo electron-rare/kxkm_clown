@@ -108,7 +108,7 @@ export default function Collectif({ onNavigate }: CollectifProps) {
           }}
         >
           <h2 style={{ margin: 0, letterSpacing: "0.15em" }}>
-            3615 KXKM — LE COLLECTIF
+            3615 J'ai pété — LE COLLECTIF
           </h2>
           <div style={{ color: "var(--muted, #6f5d4f)", marginTop: "0.25rem" }}>
             {personas.length} personas — {DOMAINS.length} domaines

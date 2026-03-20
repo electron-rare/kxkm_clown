@@ -86,6 +86,7 @@ export interface ConversationRouterDeps {
 export type ConversationRouter = (channel: string, text: string, depth?: number) => Promise<void>;
 
 const DEFAULT_MAX_INTER_PERSONA_DEPTH = 3;
+const PERSONA_COOLDOWN_MS = 3000;
 const DEFAULT_INTER_PERSONA_DELAY_MS = 500;
 
 function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<LoadPersonaMemoryFn>>): ChatPersona {
@@ -165,6 +166,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     ? maxGeneralRespondersOpt
     : () => maxGeneralRespondersOpt;
 
+  const personaCooldowns = new Map<string, number>();
   const personaMessageCounts = new Map<string, number>();
   const personaRecentMessages = new Map<string, string[]>();
   const personaMemoryLocks = new Map<string, Promise<void>>();
@@ -256,6 +258,16 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     depth: number,
     routeToPersonas: ConversationRouter,
   ): Promise<void> {
+    // Persona cooldown check (anti-spam for inter-persona chains only)
+    if (depth > 0) {
+      const lastResponse = personaCooldowns.get(persona.nick) || 0;
+      if (Date.now() - lastResponse < PERSONA_COOLDOWN_MS) {
+        if (DEBUG) console.log(`[ws-chat] ${persona.nick} on cooldown, skipping`);
+        return;
+      }
+    }
+    personaCooldowns.set(persona.nick, Date.now());
+
     const responseStart = Date.now();
     let memory: PersonaMemory = { nick: persona.nick, facts: [], summary: "", lastUpdated: "" };
     try {

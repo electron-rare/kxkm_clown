@@ -239,7 +239,20 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     refreshPersonas,
   });
 
+  // Max 5 connections per IP
+  const ipConnections = new Map<string, number>();
+  const MAX_CONNECTIONS_PER_IP = 5;
+
   wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {
+    const ip = req.socket.remoteAddress || "unknown";
+    const count = ipConnections.get(ip) || 0;
+    if (count >= MAX_CONNECTIONS_PER_IP) {
+      send(ws, { type: "system", text: "Trop de connexions depuis cette IP." });
+      ws.close();
+      return;
+    }
+    ipConnections.set(ip, count + 1);
+
     const reqUrl = new URL(req.url || "/ws", "http://localhost");
     const paramNick = reqUrl.searchParams.get("nick")?.trim().slice(0, 24);
     const nick = paramNick && /^[a-zA-Z0-9_\-À-ÿ]+$/.test(paramNick) ? paramNick : generateNick();
@@ -353,6 +366,10 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     });
 
     ws.on("close", () => {
+      const remaining = (ipConnections.get(ip) || 1) - 1;
+      if (remaining <= 0) ipConnections.delete(ip);
+      else ipConnections.set(ip, remaining);
+
       broadcast(info.channel, {
         type: "part",
         nick: info.nick,

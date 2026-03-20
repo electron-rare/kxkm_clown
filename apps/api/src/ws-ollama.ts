@@ -2,8 +2,11 @@ import pLimit from "p-limit";
 import { generateImage } from "./comfyui.js";
 import { searchWeb } from "./web-search.js";
 import { trackError } from "./error-tracker.js";
+import logger from "./logger.js";
 import type { ToolDefinition } from "./mcp-tools.js";
 import type { ChatPersona } from "./chat-types.js";
+
+const FALLBACK_MODEL = process.env.OLLAMA_FALLBACK_MODEL || "qwen3:4b";
 
 // Dynamic context sizing based on prompt length
 // Rough estimate: 1 token ≈ 4 chars for French text
@@ -135,6 +138,60 @@ export async function streamOllamaChat(
       const cleaned = fullText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
       onDone(cleaned);
     } catch (err) {
+      // Try fallback model if primary fails
+      if (persona.model !== FALLBACK_MODEL) {
+        logger.warn({ nick: persona.nick, primaryModel: persona.model, fallback: FALLBACK_MODEL }, "Trying fallback model");
+        const fallbackPersona = { ...persona, model: FALLBACK_MODEL };
+        try {
+          const fallbackController = new AbortController();
+          const fallbackTimeout = setTimeout(() => fallbackController.abort(), 5 * 60_000);
+          try {
+            const fallbackResp = await fetch(`${ollamaUrl}/api/chat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: FALLBACK_MODEL,
+                messages: [
+                  { role: "system", content: persona.systemPrompt },
+                  { role: "user", content: userMessage },
+                ],
+                stream: true,
+                options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) },
+                keep_alive: "30m",
+              }),
+              signal: fallbackController.signal,
+            });
+            if (!fallbackResp.ok) throw new Error(`Fallback returned ${fallbackResp.status}`);
+            const reader = fallbackResp.body?.getReader();
+            if (!reader) throw new Error("No fallback response body");
+            const decoder = new TextDecoder();
+            let fullText = "";
+            let inThinking = false;
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value, { stream: true });
+              for (const line of chunk.split("\n").filter(Boolean)) {
+                try {
+                  const parsed = JSON.parse(line) as { message?: { content?: string } };
+                  if (parsed.message?.content) {
+                    const c = parsed.message.content;
+                    fullText += c;
+                    if (c.includes("<think>")) inThinking = true;
+                    if (!inThinking) onChunk(c);
+                    if (c.includes("</think>")) inThinking = false;
+                  }
+                } catch { /* partial JSON */ }
+              }
+            }
+            const cleaned = fullText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+            onDone(cleaned);
+            return;
+          } finally {
+            clearTimeout(fallbackTimeout);
+          }
+        } catch { /* fallback also failed */ }
+      }
       trackError("ollama", err, { persona: persona.nick, model: persona.model });
       onError(err instanceof Error ? err : new Error(String(err)));
     } finally {

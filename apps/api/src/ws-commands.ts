@@ -103,6 +103,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "@NomPersona                        — interpeller une persona directement",
             "/search <mot-cle>                  — chercher dans l'historique",
             "/react <emoji>                     — reagir au dernier message",
+            "/dice <NdS>                       — lancer des des (ex: 2d20)",
+            "/flip                              — pile ou face",
           ].join("\n"),
         });
         return;
@@ -579,6 +581,23 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         const emoji = text.slice(7).trim();
         if (!emoji) { send(ws, { type: "system", text: "Usage: /react <emoji>" }); return; }
         broadcast(info.channel, { type: "system", text: `${info.nick} reagit: ${emoji}` });
+        return;
+      }
+
+      case "/dice":
+      case "/roll": {
+        const match = text.match(/(\d+)?d(\d+)/i);
+        const count = Math.min(parseInt(match?.[1] || "1"), 10);
+        const sides = Math.min(parseInt(match?.[2] || "6"), 100);
+        const rolls = Array.from({ length: count }, () => Math.floor(Math.random() * sides) + 1);
+        const total = rolls.reduce((a, b) => a + b, 0);
+        broadcast(info.channel, { type: "system", text: `🎲 ${info.nick} lance ${count}d${sides}: [${rolls.join(", ")}] = ${total}` });
+        return;
+      }
+
+      case "/flip": {
+        const result = Math.random() < 0.5 ? "pile" : "face";
+        broadcast(info.channel, { type: "system", text: `🪙 ${info.nick}: ${result}!` });
         return;
       }
 

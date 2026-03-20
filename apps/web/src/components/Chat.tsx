@@ -46,8 +46,8 @@ export default function Chat() {
     <div className="chat-container">
       <div className="chat-header">
         <span className="chat-channel">{channel}</span>
-        <span className={`chat-status ${ws.connected ? "chat-status-on" : "chat-status-off"}`}>
-          {ws.connected ? "connecte" : "deconnecte"}
+        <span className={`chat-status ${ws.connected ? "chat-status-on" : ws.connectionStatus === "reconnecting" ? "chat-status-warn" : "chat-status-off"}`}>
+          {ws.connected ? "connecte" : ws.connectionStatus === "reconnecting" ? `reconnexion (${ws.reconnectAttempts})` : "deconnecte"}
         </span>
         <span className="chat-count">{messages.length} msgs</span>
       </div>

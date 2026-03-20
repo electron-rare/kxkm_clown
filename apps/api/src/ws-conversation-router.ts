@@ -78,6 +78,7 @@ export interface ConversationRouterDeps {
   maxInterPersonaDepth?: number;
   interPersonaDelayMs?: number;
   setTimeoutFn?: typeof setTimeout;
+  dispatchCommand?: (channel: string, text: string, nick: string) => Promise<void>;
   logger?: Logger;
 }
 
@@ -155,6 +156,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     interPersonaDelayMs = DEFAULT_INTER_PERSONA_DELAY_MS,
     setTimeoutFn = setTimeout,
     logger = console,
+    dispatchCommand,
   } = deps;
 
   // Support both number and getter function for maxGeneralResponders
@@ -264,9 +266,10 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     if (DEBUG) console.log(`[ws-chat] ${persona.nick} responding (tools=${tools.length}, model=${persona.model}, depth=${depth})`);
 
     // Typing indicator sent AFTER enrichment, right before Ollama call
+    const isThinking = persona.model.startsWith("qwen3.5") && text.length > 200;
     broadcast(channel, {
       type: "system",
-      text: `${persona.nick} est en train d'ecrire...`,
+      text: `${persona.nick} ${isThinking ? "reflechit" : "est en train d'ecrire"}...`,
     });
 
     let chunkSeq = 0;
@@ -391,7 +394,64 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     }
   }
 
+  // Auto-detect image/music generation requests in natural language
+  function detectGenerationIntent(text: string): { type: "image" | "music" | null; prompt: string } {
+    const lower = text.toLowerCase();
+
+    // Image generation keywords (French + English)
+    const imageKeywords = [
+      "fais.moi une image", "fait.moi une image", "genere.moi une image",
+      "dessine", "draw", "imagine", "cree.moi une image", "montre.moi",
+      "genere une image", "generate an image", "make an image", "picture of",
+      "illustration de", "portrait de", "photo de",
+    ];
+    for (const kw of imageKeywords) {
+      const regex = new RegExp(kw.replace(/\./g, "[- ]?"), "i");
+      if (regex.test(lower)) {
+        // Extract the prompt (everything after the keyword match)
+        const match = text.match(new RegExp(kw.replace(/\./g, "[- ]?") + "\s*(?:de |d'|of |:)?\s*(.*)", "i"));
+        return { type: "image", prompt: match?.[1]?.trim() || text };
+      }
+    }
+
+    // Music generation keywords
+    const musicKeywords = [
+      "fais.moi un son", "fait.moi un son", "fais.moi de la musique",
+      "genere.moi une musique", "compose.moi", "genere un son",
+      "genere une musique", "generate music", "make music", "make a sound",
+      "cree.moi une musique", "joue.moi",
+    ];
+    for (const kw of musicKeywords) {
+      const regex = new RegExp(kw.replace(/\./g, "[- ]?"), "i");
+      if (regex.test(lower)) {
+        const match = text.match(new RegExp(kw.replace(/\./g, "[- ]?") + "\s*(?:de |d'|of |:)?\s*(.*)", "i"));
+        return { type: "music", prompt: match?.[1]?.trim() || text };
+      }
+    }
+
+    return { type: null, prompt: text };
+  }
+
   async function routeToPersonas(channel: string, text: string, depth: number = 0): Promise<void> {
+    // Auto-dispatch generation commands if detected
+    if (depth === 0) {
+      const intent = detectGenerationIntent(text);
+      if (intent.type === "image") {
+        broadcast(channel, { type: "system", text: `Detection auto: generation d'image — "${intent.prompt}"` });
+        // Dispatch as /imagine command through the command handler
+        if (dispatchCommand) {
+          await dispatchCommand(channel, "/imagine " + intent.prompt, "bot");
+        }
+        return;
+      }
+      if (intent.type === "music") {
+        broadcast(channel, { type: "system", text: `Detection auto: composition musicale — "${intent.prompt}"` });
+        if (dispatchCommand) {
+          await dispatchCommand(channel, "/compose " + intent.prompt, "bot");
+        }
+        return;
+      }
+    }
     const personasSnapshot = [...getPersonas()];
     totalMessageCount++;
     if (totalMessageCount % 50 === 0) {

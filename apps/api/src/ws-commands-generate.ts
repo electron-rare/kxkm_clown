@@ -11,6 +11,7 @@ import { createComposition, getActiveComposition, addTrack, listCompositions } f
 export const GENERATE_COMMANDS = new Set([
   "/imagine", "/compose", "/layer", "/mix", "/voice", "/noise",
   "/ambient", "/fx", "/comp", "/imagine-models", "/remix", "/tracks",
+  "/undo", "/solo", "/unsolo", "/rename",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -453,6 +454,50 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           return `  ${icon} #${i+1} [${t.type}] ${t.prompt.slice(0, 60)} (${t.duration}s, vol:${t.volume}%)`;
         });
         send(ws, { type: "system", text: `Composition: ${comp.name}\n${lines.join("\n")}\n\nTotal: ${comp.tracks.length} pistes` });
+        return;
+      }
+
+      case "/undo": {
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || comp.tracks.length === 0) {
+          send(ws, { type: "system", text: "Rien a annuler." }); return;
+        }
+        const removed = comp.tracks.pop();
+        // Delete the audio file
+        if (removed?.filePath && fs.existsSync(removed.filePath)) {
+          fs.unlinkSync(removed.filePath);
+        }
+        send(ws, { type: "system", text: `\u21A9\uFE0F Piste supprimee: "${removed?.prompt?.slice(0, 40)}"` });
+        return;
+      }
+
+      case "/solo": {
+        const trackNum = parseInt(text.slice(6).trim());
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 1 || trackNum > comp.tracks.length) {
+          send(ws, { type: "system", text: `Usage: /solo <piste#>` }); return;
+        }
+        // Set all tracks volume to 0 except target
+        comp.tracks.forEach((t, i) => { t.volume = i === trackNum - 1 ? 100 : 0; });
+        send(ws, { type: "system", text: `\u{1F508} Solo piste #${trackNum}: "${comp.tracks[trackNum-1].prompt.slice(0, 40)}"` });
+        return;
+      }
+
+      case "/unsolo": {
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition." }); return; }
+        comp.tracks.forEach(t => { t.volume = 100; });
+        send(ws, { type: "system", text: "\u{1F50A} Toutes les pistes a 100%" });
+        return;
+      }
+
+      case "/rename": {
+        const newName = text.slice(8).trim();
+        if (!newName) { send(ws, { type: "system", text: "Usage: /rename <nouveau nom>" }); return; }
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition active." }); return; }
+        comp.name = newName.slice(0, 100);
+        send(ws, { type: "system", text: `\u270F\uFE0F Composition renommee: ${comp.name}` });
         return;
       }
 

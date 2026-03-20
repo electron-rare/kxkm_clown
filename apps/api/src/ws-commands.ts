@@ -27,6 +27,7 @@ interface CommandHandlerDeps {
   routeToPersonas: (channel: string, text: string) => Promise<void>;
   logChatMessage: (entry: ChatLogEntry) => void;
   getPersonas: () => ChatPersona[];
+  getChannelTopics?: () => Map<string, string>;
   getMaxResponders: () => number;
   setMaxResponders: (n: number) => void;
   getActiveUserCount: () => number;
@@ -45,6 +46,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
     routeToPersonas,
     logChatMessage,
     getPersonas,
+    getChannelTopics,
     getMaxResponders,
     setMaxResponders,
     getActiveUserCount,
@@ -80,6 +82,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/models                            — modeles Ollama disponibles/charges",
             "/join #canal                       — rejoindre un canal",
             "/channels                          — liste les canaux actifs",
+            "/topic <texte>                    — definir le sujet du canal",
             "/reload                            — recharger les personas depuis la DB",
             "@NomPersona                        — interpeller une persona directement",
           ].join("\n"),
@@ -384,6 +387,18 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         } catch (err) {
           send(ws, { type: "system", text: `Erreur context stats: ${err instanceof Error ? err.message : String(err)}` });
         }
+        return;
+      }
+
+      case "/topic": {
+        const topic = text.slice(7).trim();
+        const topics = getChannelTopics?.();
+        if (!topic) {
+          send(ws, { type: "system", text: `Topic: ${topics?.get(info.channel) || "(aucun)"}` });
+          return;
+        }
+        topics?.set(info.channel, topic);
+        broadcast(info.channel, { type: "system", text: `Topic: ${topic} (par ${info.nick})` });
         return;
       }
 

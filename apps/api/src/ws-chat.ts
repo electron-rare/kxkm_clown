@@ -31,6 +31,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const channelSeq = new Map<string, number>();
+  const channelTopics = new Map<string, string>();
 
 function nextSeq(channel: string): number {
   const n = (channelSeq.get(channel) || 0) + 1;
@@ -105,7 +106,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   // --- broadcast helpers ---
 
   function broadcast(channel: string, msg: OutboundMessage, exclude?: WebSocket): void {
-    const stamped = { ...msg, seq: nextSeq(channel) };
+    const stamped = { ...msg, seq: nextSeq(channel), timestamp: Date.now() };
     for (const [ws, info] of clients) {
       if (info.channel === channel && ws !== exclude) {
         send(ws, stamped);
@@ -221,6 +222,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     routeToPersonas,
     logChatMessage,
     getPersonas: () => personas,
+    getChannelTopics: () => channelTopics,
     getMaxResponders: () => currentMaxResponders,
     setMaxResponders: (n: number) => { currentMaxResponders = n; },
     getActiveUserCount: () => clients.size,

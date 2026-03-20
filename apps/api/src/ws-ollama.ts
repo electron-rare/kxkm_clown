@@ -94,7 +94,7 @@ export async function streamOllamaChat(
             { role: "user", content: userMessage },
           ],
           stream: true,
-          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
+          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
         }),
         signal: controller.signal,
       });
@@ -158,7 +158,7 @@ export async function streamOllamaChat(
                   { role: "user", content: userMessage },
                 ],
                 stream: true,
-                options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) },
+                options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) },
                 keep_alive: "30m",
               }),
               signal: fallbackController.signal,
@@ -290,7 +290,7 @@ export async function streamOllamaChatWithTools(
           messages,
           tools: tools.map(t => t),
           stream: false,
-          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: shouldThink(userMessage, persona.model) ? undefined : false,
+          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: shouldThink(userMessage, persona.model) ? undefined : false,
         }),
         signal: controller.signal,
       });
@@ -361,7 +361,7 @@ export async function streamOllamaChatWithTools(
           model: persona.model,
           messages,
           stream: true,
-          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
+          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
         }),
         signal: controller.signal,
       });

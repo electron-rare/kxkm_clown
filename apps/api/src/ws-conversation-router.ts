@@ -423,6 +423,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
   // Auto-detect image/music generation requests in natural language
   function detectGenerationIntent(text: string): { type: "image" | "music" | null; prompt: string } {
+    // Do not trigger auto-generate on very short messages
+    if (text.length < 15) return { type: null, prompt: text };
     const lower = text.toLowerCase();
 
     // Image generation keywords (French + English)

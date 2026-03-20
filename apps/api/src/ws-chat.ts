@@ -182,7 +182,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   async function getContextString(channel: string): Promise<string> {
     if (!contextStore) return "";
     try {
-      return await contextStore.getContext(channel, 4000);
+      return await contextStore.getContext(channel, 2000);
     } catch { return ""; }
   }
 

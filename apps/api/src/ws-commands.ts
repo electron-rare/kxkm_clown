@@ -115,6 +115,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/changelog                         — 10 derniers commits",
             "/version                           — version et infos systeme",
             "/theme <nom>                       — changer le theme couleur (minitel, noir, matrix, amber, ocean)",
+            "/speed                              — mesurer la latence Ollama",
             "/fortune                            — citation aleatoire",
           ].join("\n"),
         });
@@ -784,6 +785,23 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
           return;
         }
         send(ws, { type: "system", text: `Modele prefere: ${modelName} (note: les personas utilisent leur modele assigne)` });
+        return;
+      }
+
+      case "/speed": {
+        const start = Date.now();
+        try {
+          await fetch(`${process.env.OLLAMA_URL || "http://localhost:11434"}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "qwen3.5:9b", messages: [{ role: "user", content: "ping" }], stream: false, options: { num_predict: 5 }, keep_alive: "30m", think: false }),
+            signal: AbortSignal.timeout(10000),
+          });
+          const ms = Date.now() - start;
+          send(ws, { type: "system", text: `\u26A1 Ollama: ${ms}ms | Modele: qwen3.5:9b` });
+        } catch {
+          send(ws, { type: "system", text: `\u26A1 Ollama: timeout (>10s)` });
+        }
         return;
       }
 

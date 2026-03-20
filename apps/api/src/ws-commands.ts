@@ -28,6 +28,7 @@ interface CommandHandlerDeps {
   logChatMessage: (entry: ChatLogEntry) => void;
   getPersonas: () => ChatPersona[];
   getChannelTopics?: () => Map<string, string>;
+  getClients?: () => Map<any, { nick: string; channel: string }>;
   getMaxResponders: () => number;
   setMaxResponders: (n: number) => void;
   getActiveUserCount: () => number;
@@ -47,6 +48,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
     logChatMessage,
     getPersonas,
     getChannelTopics,
+    getClients,
     getMaxResponders,
     setMaxResponders,
     getActiveUserCount,
@@ -82,6 +84,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/models                            — modeles Ollama disponibles/charges",
             "/join #canal                       — rejoindre un canal",
             "/channels                          — liste les canaux actifs",
+            "/dm <pseudo> <message>            — message prive",
             "/topic <texte>                    — definir le sujet du canal",
             "/reload                            — recharger les personas depuis la DB",
             "@NomPersona                        — interpeller une persona directement",
@@ -387,6 +390,30 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         } catch (err) {
           send(ws, { type: "system", text: `Erreur context stats: ${err instanceof Error ? err.message : String(err)}` });
         }
+        return;
+      }
+
+      case "/dm":
+      case "/msg": {
+        const dmMatch = text.match(/^\/(?:dm|msg)\s+(\S+)\s+(.*)/s);
+        if (!dmMatch) {
+          send(ws, { type: "system", text: "Usage: /dm <pseudo> <message>" });
+          return;
+        }
+        const dmTarget = dmMatch[1];
+        const dmText = dmMatch[2];
+        let targetWs: WebSocket | undefined;
+        if (getClients) {
+          for (const [cws, cinfo] of getClients()) {
+            if (cinfo.nick === dmTarget) { targetWs = cws as WebSocket; break; }
+          }
+        }
+        if (!targetWs) {
+          send(ws, { type: "system", text: `${dmTarget} n'est pas connecte` });
+          return;
+        }
+        send(targetWs, { type: "message", nick: info.nick, text: `[DM] ${dmText}`, color: "#ff69b4" });
+        send(ws, { type: "system", text: `[DM → ${dmTarget}] ${dmText}` });
         return;
       }
 

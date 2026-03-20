@@ -223,6 +223,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     logChatMessage,
     getPersonas: () => personas,
     getChannelTopics: () => channelTopics,
+    getClients: () => clients,
     getMaxResponders: () => currentMaxResponders,
     setMaxResponders: (n: number) => { currentMaxResponders = n; },
     getActiveUserCount: () => clients.size,
@@ -255,6 +256,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         `***  Personas actives: ${personas.map((p) => p.nick).join(", ")}`,
         "***  Tape /help pour les commandes.",
         `***  Ton nick: ${nick}`,
+        `***  Uptime: ${Math.floor(process.uptime() / 3600)}h${Math.floor((process.uptime() % 3600) / 60)}m`,
         "***",
       ].join("\n"),
     });

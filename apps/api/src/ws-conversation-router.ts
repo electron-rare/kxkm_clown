@@ -327,6 +327,15 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         enqueueTTS(persona.nick, fullText, channel);
       }
 
+      // Auto-generate image if Picasso responds
+      if (persona.nick === "Picasso" && dispatchCommand) {
+        const imgMatch = fullText.match(/\[image[_:].*?"(.+?)"\]/i)
+          || fullText.match(/imagin(?:e|ons|ez)\s*:?\s*"?([^"\n]{10,80})"?/i);
+        if (imgMatch) {
+          dispatchCommand(channel, "/imagine " + imgMatch[1].trim(), persona.nick).catch(() => {});
+        }
+      }
+
       const { count, recentMessages } = trackPersonaMessage(
         persona.nick,
         `User: ${text}\n${persona.nick}: ${fullText}`,

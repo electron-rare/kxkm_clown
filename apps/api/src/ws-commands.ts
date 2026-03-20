@@ -103,6 +103,10 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/whisper <persona> <msg>           — message prive a une persona",
             "/history <n>                       — derniers N messages du canal",
             "@NomPersona                        — interpeller une persona directement",
+            "/invite <persona>                  — inviter une persona dans le canal",
+            "/time                              — heure et date actuelles",
+            "/date                              — heure et date actuelles",
+            "/session                           — infos de ta session",
             "/search <mot-cle>                  — chercher dans l'historique",
             "/react <emoji>                     — reagir au dernier message",
             "/dice <NdS>                       — lancer des des (ex: 2d20)",
@@ -613,7 +617,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
 
       case "/version": {
         const pkg = { version: "2.0.0", name: "@kxkm/api" };
-        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 37\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
+        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 40\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
         return;
       }
 
@@ -648,6 +652,49 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         } catch (err) {
           send(ws, { type: "system", text: `Erreur history: ${err instanceof Error ? err.message : String(err)}` });
         }
+        return;
+      }
+
+      case "/invite": {
+        const target = text.slice(8).trim();
+        if (!target) { send(ws, { type: "system", text: "Usage: /invite <persona>" }); return; }
+        const invitePersona = getPersonas().find(p => p.nick.toLowerCase() === target.toLowerCase());
+        if (!invitePersona) { send(ws, { type: "system", text: `Persona ${target} inconnue` }); return; }
+        broadcast(info.channel, { type: "system", text: `${invitePersona.nick} a ete invite par ${info.nick}` });
+        broadcast(info.channel, { type: "join", nick: invitePersona.nick, channel: info.channel, text: `${invitePersona.nick} rejoint ${info.channel}` } as OutboundMessage);
+        return;
+      }
+
+      case "/time":
+      case "/date": {
+        const now = new Date();
+        const formatted = now.toLocaleString("fr-FR", {
+          timeZone: "Europe/Paris",
+          weekday: "long", day: "numeric", month: "long", year: "numeric",
+          hour: "2-digit", minute: "2-digit", second: "2-digit",
+        });
+        send(ws, { type: "system", text: `${formatted}` });
+        return;
+      }
+
+      case "/session": {
+        const sessionUptime = Math.floor(process.uptime());
+        const sessionH = Math.floor(sessionUptime / 3600);
+        const sessionM = Math.floor((sessionUptime % 3600) / 60);
+        const sessionStats = getUserStats?.()?.get(info.nick);
+        const connDuration = Math.floor((Date.now() - info.connectedAt) / 60000);
+        const channelCount = new Set([...getClients?.()?.values() || []].map(c => c.channel)).size;
+        const userCount = getClients?.()?.size || 0;
+        send(ws, { type: "system", text: [
+          `Session: ${info.nick}`,
+          `  Canal: ${info.channel}`,
+          `  Connecte: ${connDuration}min`,
+          `  Messages: ${sessionStats?.messages || 0}`,
+          `  Muted: ${[...info.mutedPersonas || []].join(", ") || "aucun"}`,
+          `  Serveur uptime: ${sessionH}h${sessionM}m`,
+          `  Utilisateurs: ${userCount}`,
+          `  Canaux actifs: ${channelCount}`,
+        ].join("\n") });
         return;
       }
 

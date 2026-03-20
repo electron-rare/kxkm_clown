@@ -216,7 +216,50 @@ Fait sur ce lot:
 - [x] Scoring de dette technique integre dans `ops/v2/deep-audit.js`.
 - [x] Verification JSON dette: score 78/100 (niveau high).
 
-## P14 Lot 24 — Deep Analyse 3 + Reactivity `[en cours]`
+## Phase Session 2026-03-19/20 — Lots 24-94
+
+### Summary
+
+71 lots completed (lot-24 through lot-94). Major achievements:
+
+- [x] **Structured logging**: pino JSON logs, 43 console.log replaced, 0 remaining
+- [x] **WS protocol hardening**: Promise chain per-connection, seq numbers, FIFO ordering, 6 integration tests
+- [x] **Frontend perf**: 17 lazy routes (-53% initial JS), React.memo + useCallback stabilization
+- [x] **CRT effect**: CSS-only (scanlines, vignette, phosphor glow, boot animation 0.8s)
+- [x] **Systemd services**: kxkm-tts + kxkm-lightrag, auto-restart, deploy.sh migrated from tmux
+- [x] **Tool-calling**: llama3.1:8b-instruct for Sherlock, benchmark 3 models
+- [x] **Qwen3-TTS**: 0.6B deployed :9300, 9 speakers, on-demand VRAM
+- [x] **Docling + Reranker**: PDF parsing :9400, BGE reranker :9500
+- [x] **19 chat commands**: /help /nick /who /personas /web /clear /status /model /persona /reload /export /compose /imagine /voice /memory /context /rag /stats /uptime
+- [x] **Markdown rendering**: marked + DOMPurify in chat
+- [x] **Smart routing**: 5 topic domains (music, philosophy, tech, arts, science)
+- [x] **Dynamic context**: 4k-32k adaptive window
+- [x] **Perf instrumentation**: 6 labels, p50/p95/p99 endpoint
+- [x] **Error telemetry**: 16 error labels, structured error logging
+- [x] **Zod validation**: 19 schemas on all API routes
+- [x] **MIME magic bytes**: file-type validation, SAFE_MIMES allowlist
+- [x] **WS reconnect**: exponential backoff 1s-30s, seq gap detection
+- [x] **CRT boot animation**: modem dial, phosphor warmup, scanline reveal
+- [x] **Chat virtualization**: react-window, variable row heights
+- [x] **425 tests, 0 failures** across all packages
+- [x] **12 services** in production docker-compose
+- [x] **MCP server**: 4 tools, stdio transport
+- [x] **Discord bridge**: text + voice bot
+- [x] **Timing-safe token**: crypto.timingSafeEqual for admin auth
+- [x] **Audio size limit**: 50MB enforced
+- [x] **Architecture docs**: 4 Mermaid diagrams
+- [x] **Health check**: bash TUI, 19 service checks
+
+### Future work (lots 95-100)
+
+- [ ] **P1** lot-95: E2E Playwright tests (login, chat, upload, admin)
+- [ ] **P2** lot-96: Persona DPO automation pipeline (feedback → pairs → training)
+- [ ] **P2** lot-97: Multi-channel support (create/join channels)
+- [ ] **P3** lot-98: File sharing between users (upload → gallery)
+- [ ] **P2** lot-99: Mobile responsive deep pass (touch, bottom nav, viewport)
+- [ ] **P3** lot-100: Public demo mode (read-only guest access)
+
+## P14 Lot 24 — Deep Analyse 3 + Reactivity `[done]`
 
 ### Phase A — Fixes live session 2026-03-19
 

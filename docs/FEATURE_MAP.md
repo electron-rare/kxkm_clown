@@ -217,6 +217,21 @@ flowchart TD
 | Same-origin check | Verification origine sur les mutations |
 | RBAC (V2) | Roles admin, editor, operator, viewer |
 
+## Fonctionnalites session 2026-03-19/20
+
+| Fonctionnalite | Detail |
+| --- | --- |
+| **19 chat commands** | /help, /nick, /who, /personas, /web, /clear, /status, /model, /persona, /reload, /export, /compose, /imagine, /voice, /memory, /context, /rag, /stats, /uptime |
+| **Markdown rendering** | marked + DOMPurify, bold, italic, code blocks, links, lists in chat messages |
+| **Smart routing** | 5 topic domains (music, philosophy, tech, arts, science), keyword + embedding scoring |
+| **Dynamic context window** | Adaptive 4k-32k tokens based on conversation length and complexity |
+| **Perf instrumentation** | 6 labels (http, ollama_ttfb, ollama_total, rag_search, rag_rerank, ws_message), p50/p95/p99 endpoint |
+| **Error telemetry** | 16 error labels (validation, auth, ws, ollama, rag, tts, comfy, vision, stt, pdf, upload, memory, context, persona, mcp, search) |
+| **Zod validation** | 19 schemas covering personas, sessions, node-engine, chat, media, admin, analytics routes |
+| **MIME magic bytes** | file-type library magic bytes detection, SAFE_MIMES allowlist, blocks disguised executables |
+| **WS reconnect + seq numbers** | Auto-reconnect (1s-30s exponential backoff), seq numbers for gap detection, missed message replay |
+| **CRT boot animation** | Modem dial sound, progressive scanline reveal, phosphor glow warmup, 0.8s boot sequence |
+
 ---
 
 ## Matrice de statut
@@ -281,7 +296,7 @@ flowchart TD
 | Cookies HttpOnly | OK | OK | haute |
 | RBAC roles | -- | OK | haute |
 | **Tests** | | | |
-| Backend unit tests | -- | OK (204) | haute |
+| Backend unit tests | -- | OK (425) | haute |
 | React component tests | -- | OK | haute |
 | Smoke tests | OK | OK | haute |
 | UI Minitel VIDEOTEX | -- | OK | haute |

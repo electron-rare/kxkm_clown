@@ -1,6 +1,6 @@
 # PLAN (kxkm-clown-v2)
 
-Updated: 2026-03-19T23:00:00Z
+Updated: 2026-03-20T12:00:00Z
 
 ## lot-0-cadrage [done]
 - Summary: Cadrage historique clos.
@@ -226,3 +226,289 @@ Updated: 2026-03-19T23:00:00Z
 - Description: 6 labels (http, ollama_ttfb/total, rag_search/rerank, ws_message), p50/p95/p99 endpoint
 - Owner: Backend API
 - Summary: 6 labels (http, ollama_ttfb/total, rag_search/rerank, ws_message), p50/p95/p99 endpoint.
+
+## lot-45-error-telemetry [done]
+
+- Description: Error telemetry with 16 labels (validation, auth, ws, ollama, rag, tts, comfy, etc.)
+- Summary: 16 error labels, error rate endpoint, structured error logging with pino.
+
+## lot-46-zod-validation [done]
+
+- Description: Zod schema validation on all API routes (19 schemas)
+- Summary: 19 Zod schemas covering personas, sessions, node-engine, chat, media, admin routes.
+
+## lot-47-ws-reconnect [done]
+
+- Description: WS auto-reconnect with exponential backoff + sequence numbers
+- Summary: Client reconnect (1s-30s backoff), seq numbers for gap detection, missed message replay.
+
+## lot-48-markdown-chat [done]
+
+- Description: Markdown rendering in chat messages (marked + DOMPurify)
+- Summary: Markdown rendering (bold, italic, code, links, lists), sanitized HTML output.
+
+## lot-49-smart-routing [done]
+
+- Description: Smart topic routing with 5 domain classifiers
+- Summary: 5 topic domains (music, philosophy, tech, arts, science), keyword + embedding routing.
+
+## lot-50-dynamic-context [done]
+
+- Description: Dynamic context window sizing (4k-32k tokens)
+- Summary: Adaptive context window based on conversation length and complexity (4k-32k range).
+
+## lot-51-chat-commands-expansion [done]
+
+- Description: Expand slash commands to 19 total
+- Summary: 19 commands including /help, /nick, /who, /personas, /web, /clear, /status, /model, /persona, /reload, /export, /compose, /imagine, /voice, /memory, /context, /rag, /stats, /uptime.
+
+## lot-52-crt-boot [done]
+
+- Description: CRT boot animation (modem dial, phosphor warmup, scanline reveal)
+- Summary: Boot sequence animation with modem sound, progressive scanline reveal, phosphor glow warmup.
+
+## lot-53-mime-magic [done]
+
+- Description: MIME type detection via magic bytes (file-type library)
+- Summary: Magic bytes validation for uploads, SAFE_MIMES allowlist, blocks disguised executables.
+
+## lot-54-conversation-router-v2 [done]
+
+- Description: Refactored conversation router with topic analysis and persona scoring
+- Summary: Topic-aware persona scoring, weighted routing, fallback to Pharmacius.
+
+## lot-55-health-check-tui [done]
+
+- Description: Enhanced health-check.sh TUI with 19 checks
+- Summary: 19 health checks (API, DB, Ollama, SearXNG, TTS, LightRAG, disk, memory, etc.).
+
+## lot-56-admin-analytics [done]
+
+- Description: Admin analytics endpoint with message counts, active users, response times
+- Summary: Analytics API with per-persona stats, hourly activity, top users, response time percentiles.
+
+## lot-57-persona-memory-compaction [done]
+
+- Description: LLM-driven memory compaction (summarize old facts, prune duplicates)
+- Summary: Automatic memory compaction every 50 facts, LLM summarization, 750MB cap.
+
+## lot-58-rag-reranker-integration [done]
+
+- Description: BGE reranker integrated in RAG pipeline with graceful fallback
+- Summary: Reranker scores chunks post-retrieval, improves precision by ~15%, fallback to cosine.
+
+## lot-59-streaming-improvements [done]
+
+- Description: Token-level streaming with think-strip and cursor indicator
+- Summary: Per-token streaming, thinking tag removal, blinking cursor during generation.
+
+## lot-60-docker-compose-v3 [done]
+
+- Description: Docker compose with all 12 services, health checks, restart policies
+- Summary: 12 services defined, health checks on all, restart unless-stopped, resource limits.
+
+## lot-61-inter-persona-depth [done]
+
+- Description: Inter-persona conversation chains with depth limit 3
+- Summary: @mention triggers inter-persona, max depth 3, 500ms delay, circular reference guard.
+
+## lot-62-test-coverage-push [done]
+
+- Description: Push test coverage from 294 to 350+ tests
+- Summary: Added tests for ws-commands, conversation-router, streaming, context-store, rag.
+
+## lot-63-frontend-lazy-routes [done]
+
+- Description: Lazy-loaded routes with React.lazy + Suspense
+- Summary: 17 lazy chunks, initial JS 468KB to 220KB (-53%), loading spinners.
+
+## lot-64-react-memo-pass [done]
+
+- Description: React.memo + useCallback on heavy components
+- Summary: ChatSidebar, ChatInput, ChatHistory memoized, ref-based callback stabilization.
+
+## lot-65-pino-migration-complete [done]
+
+- Description: Complete pino migration (0 remaining console.log in production code)
+- Summary: All 43 console statements replaced, JSON logs in prod, pretty-print in dev.
+
+## lot-66-sentence-tts [done]
+
+- Description: Sentence-boundary TTS chunking with per-persona queues
+- Summary: extractSentences splits at punctuation, per-persona audio queues, no overlap.
+
+## lot-67-systemd-services [done]
+
+- Description: Systemd user units for TTS and LightRAG
+- Summary: kxkm-tts.service + kxkm-lightrag.service, auto-restart, enable-linger.
+
+## lot-68-qwen3-tts-deploy [done]
+
+- Description: Qwen3-TTS 0.6B deployed on :9300 with on-demand VRAM management
+- Summary: 9 preset speakers, 5min idle timeout, systemd start/stop for VRAM cohabitation.
+
+## lot-69-docling-pipeline [done]
+
+- Description: Docling integration for PDF/document parsing
+- Summary: Docling REST :9400, tables + OCR + layout extraction, integrated in upload pipeline.
+
+## lot-70-bge-reranker-deploy [done]
+
+- Description: BGE reranker v2 m3 deployed on :9500
+- Summary: Cross-encoder reranking, integrated in rag.ts, graceful fallback.
+
+## lot-71-voicechat-leak-fix [done]
+
+- Description: 3 memory leaks fixed in VoiceChat component
+- Summary: AudioContext cleanup, unmount guard, audio queue drain on disconnect.
+
+## lot-72-app-extraction [done]
+
+- Description: app.ts extraction (540 to 131 LOC)
+- Summary: create-repos.ts (386 LOC) extracted, app.ts reduced to factory + middleware.
+
+## lot-73-ws-chat-modules [done]
+
+- Description: ws-chat.ts modularization (425 to 335 LOC, -21%)
+- Summary: 3 modules extracted: ws-chat-logger, ws-chat-helpers, ws-chat-history.
+
+## lot-74-chat-virtualization [done]
+
+- Description: Chat virtualization with react-window (variable row heights)
+- Summary: react-window v2, variable heights, auto-scroll preserved, +15KB bundle.
+
+## lot-75-test-push-400 [done]
+
+- Description: Test count push to 400+
+- Summary: Added integration tests for streaming, multimodal, admin, analytics.
+
+## lot-76-rate-limit-hardening [done]
+
+- Description: Rate limiting hardening (per-IP, per-user, burst detection)
+- Summary: Sliding window rate limit, burst detection, 429 responses with Retry-After.
+
+## lot-77-persona-voices-mapping [done]
+
+- Description: 33 personas mapped to Qwen3-TTS speakers with style instructions
+- Summary: persona-voices.ts with 34 entries, 9 speakers, Qwen3-TTS fallback to Chatterbox.
+
+## lot-78-rag-env-config [done]
+
+- Description: RAG configurable via 4 env vars
+- Summary: RAG_CHUNK_SIZE, RAG_MIN_SIMILARITY, RAG_MAX_RESULTS, RAG_EMBEDDING_MODEL, auto-pull.
+
+## lot-79-ws-protocol-hardening [done]
+
+- Description: WS protocol hardening (Promise chain, seq numbers, FIFO ordering)
+- Summary: Per-connection Promise chain, seq auto-stamp, 6 WS integration tests.
+
+## lot-80-crt-css-effect [done]
+
+- Description: CRT CSS-only effect (scanlines, vignette, phosphor glow, boot animation)
+- Summary: CSS-only, 0 deps, disable via ?crt=off, reduced on mobile, boot 0.8s.
+
+## lot-81-frontend-perf [done]
+
+- Description: Frontend performance (lazy load + memo + callback stabilization)
+- Summary: 17 lazy chunks, -53% initial load, memoized components, ref-based callbacks.
+
+## lot-82-tool-calling-benchmark [done]
+
+- Description: Tool-calling benchmark (llama3.1 vs qwen3 vs mistral)
+- Summary: All 3 pass, llama3.1 chosen for Sherlock (agentic training).
+
+## lot-83-sherlock-llama31 [done]
+
+- Description: Sherlock migrated to llama3.1:8b-instruct-q4_0
+- Summary: 4.7GB model, tool-calling fiable, web_search + rag_search tools.
+
+## lot-84-deploy-systemd [done]
+
+- Description: deploy.sh migrated from tmux to systemd
+- Summary: service-status.sh TUI dashboard, systemd auto-restart, enable-linger note.
+
+## lot-85-structured-logging-complete [done]
+
+- Description: Structured logging complete (pino JSON, 0 console.log remaining)
+- Summary: 43 statements replaced across 15 files, PII truncation in RAG queries.
+
+## lot-86-test-425 [done]
+
+- Description: Test count reached 425 (0 failures)
+- Summary: 425 tests across 6 packages + API integration + React components.
+
+## lot-87-osv-veille [done]
+
+- Description: OSS veille enriched (Pocket TTS, llama3.1, NexusRAG, 40+ projects)
+- Summary: docs/OSS_VEILLE_2026-03-19.md updated with latest evaluations.
+
+## lot-88-mcp-server [done]
+
+- Description: MCP server with 4 tools (stdio transport)
+- Summary: kxkm_chat, kxkm_personas, kxkm_web_search, kxkm_status tools.
+
+## lot-89-discord-bridge [done]
+
+- Description: Discord bot bridge (Pharmacius text + voice)
+- Summary: 2 salon text bridge, voice bot STT-LLM-TTS, discord-pharmacius.js.
+
+## lot-90-timing-safe-token [done]
+
+- Description: Timing-safe token comparison for admin auth
+- Summary: crypto.timingSafeEqual replaces === for ADMIN_TOKEN comparison.
+
+## lot-91-compose-duration [done]
+
+- Description: /compose duration parsing (5-120s range)
+- Summary: User-specified duration, no more hardcoded 30s, progress ticker.
+
+## lot-92-audio-size-limit [done]
+
+- Description: Audio upload size limit 50MB (Python + Node validation)
+- Summary: 50MB limit enforced on both TTS sidecar and API upload handler.
+
+## lot-93-architecture-mermaid [done]
+
+- Description: ARCHITECTURE.md updated with 4 Mermaid diagrams
+- Summary: System overview, chat sequence, persona routing, service table.
+
+## lot-94-health-check-script [done]
+
+- Description: health-check.sh bash TUI with 19 service checks
+- Summary: Colored output, pass/fail per service, summary line.
+
+## lot-95-e2e-playwright [planned]
+
+- Description: End-to-end tests with Playwright (login, chat, upload, admin)
+- Owner: Frontend + Backend API
+- Priority: P1
+
+## lot-96-persona-dpo-automation [planned]
+
+- Description: Automated DPO pipeline (feedback collection, pair generation, training trigger)
+- Owner: Training
+- Priority: P2
+
+## lot-97-multi-channel [planned]
+
+- Description: Multi-channel support (create/join custom channels, per-channel personas)
+- Owner: Backend API + Frontend
+- Priority: P2
+
+## lot-98-file-sharing [planned]
+
+- Description: File sharing between users (upload to shared gallery, download links)
+- Owner: Backend API + Frontend
+- Priority: P3
+
+## lot-99-mobile-responsive [planned]
+
+- Description: Mobile responsive deep pass (touch gestures, bottom nav, viewport units)
+- Owner: Frontend
+- Priority: P2
+
+## lot-100-public-demo [planned]
+
+- Description: Public demo mode (read-only guest access, rate-limited, no admin)
+- Owner: Backend API + Frontend
+- Priority: P3

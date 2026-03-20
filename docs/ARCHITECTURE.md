@@ -205,22 +205,78 @@ graph LR
 
 ## Services production (kxkm-ai)
 
-| Service | Port | Docker Profile | Stack | Health | Rôle |
-| ------- | ---- | ------------- | ----- | ------ | ---- |
-| **API V2** | `:3333` | `v2` | Node.js (network_mode: host) | `GET /api/v2/health` | Express + WebSocket chat + React SPA |
-| **PostgreSQL** | `:5432` | *(always)* | postgres:16-alpine | `pg_isready` | Persistence sessions, personas, graphs |
-| **SearXNG** | `:8080` | `v2` | searxng/searxng | `wget /` | Recherche web self-hosted (Google, Bing, DDG) |
-| **Chatterbox** | `:9200` | `v2` | Docker GPU (ghcr.io/devnen/chatterbox-tts-server) | `GET /get_predefined_voices` | TTS voice cloning GPU |
-| **TTS Sidecar** | `:9100` | `v2` | Python (network_mode: host) | — | Proxy Chatterbox + Piper fallback |
-| **LightRAG** | `:9621` | `v2` | Python 3.12 (lightrag-hku, network_mode: host) | `GET /health` | Graph RAG, knowledge graph (Ollama backend) |
-| **Ollama** | `:11434` | `ollama` *(opt)* | Natif RTX 4090 | `GET /api/tags` | LLM inference: qwen3:8b, mistral:7b, qwen3-vl:8b |
-| **Worker** | host | `v2` | Node.js (GPU passthrough) | — | Node Engine DAG execution, training |
-| **Docling** | `:9400` | `v2` | Python (Docling REST) | `GET /health` | PDF/document parsing (tables, layout, OCR) |
-| **Reranker** | `:9500` | `v2` | Python (bge-reranker-v2-m3) | `GET /health` | Cross-encoder reranking for RAG results |
-| **ComfyUI** | ext | — | stable2.kxkm.net | — | Image gen SDXL |
-| **StableView** | `:3000` | — | Séparé | — | Interface visualisation (hors cluster) |
-| **Discord Bot** | — | `discord` | Node.js (network_mode: host) | — | Bridge chat KXKM → Discord |
-| **Discord Voice** | — | `discord-voice` | Node.js + Python STT | — | STT → Personas → TTS en vocal |
+| # | Service | Port | Type | Stack | Health | Rôle |
+| - | ------- | ---- | ---- | ----- | ------ | ---- |
+| 1 | **API V2** | `:3333` | Docker | Node.js (network_mode: host) | `GET /api/v2/health` | Express + WebSocket chat + React SPA |
+| 2 | **PostgreSQL** | `:5432` | Docker | postgres:16-alpine | `pg_isready` | Persistence sessions, personas, graphs |
+| 3 | **SearXNG** | `:8080` | Docker | searxng/searxng | `wget /` | Recherche web self-hosted (Google, Bing, DDG) |
+| 4 | **Chatterbox** | `:9200` | Docker GPU | ghcr.io/devnen/chatterbox-tts-server | `GET /get_predefined_voices` | TTS voice cloning GPU |
+| 5 | **TTS Sidecar** | `:9100` | systemd | Python (network_mode: host) | — | Proxy Chatterbox + Piper fallback |
+| 6 | **LightRAG** | `:9621` | Docker | Python 3.12 (lightrag-hku, network_mode: host) | `GET /health` | Graph RAG, knowledge graph (Ollama backend) |
+| 7 | **Ollama** | `:11434` | Natif | RTX 4090 (systemd) | `GET /api/tags` | LLM inference: qwen3:8b, mistral:7b, qwen3-vl:8b |
+| 8 | **Worker** | host | Docker | Node.js (GPU passthrough) | — | Node Engine DAG execution, training |
+| 9 | **Docling** | `:9400` | Docker | Python (Docling REST) | `GET /health` | PDF/document parsing (tables, layout, OCR) |
+| 10 | **Reranker** | `:9500` | Docker | Python (bge-reranker-v2-m3) | `GET /health` | Cross-encoder reranking for RAG results |
+| 11 | **ComfyUI** | ext | Externe | stable2.kxkm.net | — | Image gen SDXL |
+| 12 | **StableView** | `:3000` | Externe | Séparé | — | Interface visualisation (hors cluster) |
+| 13 | **Discord Bot** | — | Docker | Node.js (network_mode: host) | — | Bridge chat KXKM → Discord |
+| 14 | **Discord Voice** | — | Docker | Node.js + Python STT | — | STT → Personas → TTS en vocal |
+
+## Command Flow
+
+```mermaid
+graph TD
+    User[User Input] --> Parser{Message Type?}
+    Parser -->|/command| CommandHandler
+    Parser -->|message| ChatHandler
+    Parser -->|upload| UploadHandler
+
+    CommandHandler --> |/web| SearXNG[SearXNG :8080]
+    CommandHandler --> |/imagine| ComfyUI[ComfyUI SDXL]
+    CommandHandler --> |/compose| ACEStep[ACE-Step via TTS :9100]
+    CommandHandler --> |/status| PerfMetrics[Perf Metrics + nvidia-smi]
+    CommandHandler --> |/memory| PersonaMemory[Persona Memory JSON]
+    CommandHandler --> |/models| OllamaAPI[Ollama /api/tags + /api/ps]
+    CommandHandler --> |/context| ContextStore[Context Store JSONL]
+    CommandHandler --> |/join /channels| ChannelMgr[Channel Manager]
+    CommandHandler --> |/nick /who| UserMgr[User Manager]
+    CommandHandler --> |/reload| PersonaDB[Persona DB Refresh]
+
+    ChatHandler --> pickResponders[pickResponders]
+    pickResponders --> TopicRouting[Pharmacius Topic Routing]
+    TopicRouting --> OllamaStream[Ollama Stream + Tools]
+    OllamaStream --> ChunkBroadcast[Chunk Broadcast seq++]
+    OllamaStream --> InterPersona{@mention detected?}
+    InterPersona -->|yes, depth < 3| pickResponders
+
+    UploadHandler --> MIMEValidation[MIME Magic Bytes]
+    MIMEValidation -->|image/*| Vision[Vision qwen3-vl:8b]
+    MIMEValidation -->|audio/*| STT[STT faster-whisper]
+    MIMEValidation -->|text/* pdf| TextExtract[Text Extraction]
+    MIMEValidation -->|office| Docling[Docling :9400]
+    Vision --> ChatHandler
+    STT --> ChatHandler
+    TextExtract --> ChatHandler
+    Docling --> ChatHandler
+```
+
+## Data Flow
+
+```mermaid
+graph LR
+    Chat[Chat Message] --> Context[Context Store JSONL]
+    Chat --> RAG[RAG Search]
+    RAG --> Embeddings[nomic-embed-text]
+    RAG --> LightRAG[LightRAG :9621]
+    RAG --> Reranker[bge-reranker :9500]
+    Chat --> Memory[Persona Memory JSON]
+    Memory -->|every 5 msgs| Ollama[Ollama qwen3:8b]
+    Context -->|compaction| Ollama
+    Chat --> Log[Chat Log JSONL]
+    Log --> Analytics[/api/v2/analytics]
+    Log --> DPO[DPO Export]
+    Log --> HTMLExport[HTML Export]
+```
 
 ## Feature Map
 
@@ -287,7 +343,7 @@ mindmap
 | packages/ui | 134 | 29 | Theme, colors, CSS vars |
 | packages/tui | 209 | 108 | ANSI formatting, tables |
 | scripts | 37 fichiers | - | TTS, training, migration |
-| **Total** | **~15600** | **417 tests** | |
+| **Total** | **~15600** | **425 tests** | |
 
 ## Bugs critiques identifiés (audit 2026-03-18)
 
@@ -305,7 +361,7 @@ mindmap
 
 | Variable | Default | Requis |
 |----------|---------|--------|
-| V2_API_PORT | 3333 | Non |
+| V2_API_PORT | 4180 | Non |
 | OLLAMA_URL | localhost:11434 | Non |
 | DATABASE_URL | - | Prod only |
 | TTS_ENABLED | 0 | Non |
@@ -314,6 +370,14 @@ mindmap
 | COMFYUI_URL | stable2.kxkm.net | Non |
 | SEARXNG_URL | localhost:8080 | Non |
 | LIGHTRAG_URL | localhost:9621 | Non |
+| RERANKER_URL | localhost:9500 | Non |
 | PYTHON_BIN | python3 | Non |
 | MAX_OLLAMA_CONCURRENT | 3 | Non |
+| MAX_GENERAL_RESPONDERS | 1 | Non |
+| ADMIN_TOKEN | - | Non |
+| ADMIN_SUBNET | - | Non |
 | ADMIN_BOOTSTRAP_TOKEN | - | Non |
+| KXKM_LOCAL_DATA_DIR | data | Non |
+| WEB_DIST_PATH | apps/web/dist | Non |
+| NODE_ENV | - | Non |
+| DEBUG | 0 | Non |

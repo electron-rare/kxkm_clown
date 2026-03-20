@@ -67,31 +67,37 @@ flowchart TD
     OSSAgent --> |hf| OSSHF[HuggingFace models]
 ```
 
-## Todo agents (lot 17+ — mis a jour 2026-03-19)
+## Todo agents (lot 17+ — mis a jour 2026-03-20)
 
 ### Coordinateur
 
-- [x] Consolider PLAN.md avec etat reel (lots 14-16 complets)
+- [x] Consolider PLAN.md avec etat reel (lots 0-94 complets)
 - [x] Synchroniser FEATURE_MAP.md matrice
-- [ ] Mettre a jour TODO.md avec backlog Phase 7+
-- [ ] Documenter actions dans ops/v2/logs/
+- [x] Mettre a jour TODO.md avec backlog Phase session 2026-03-19/20
+- [x] Documenter actions dans ops/v2/logs/
+- [ ] lot-95: Coordonner E2E Playwright test plan
+- [ ] lot-100: Design public demo mode access control
 
 ### Backend API
 
 - [x] Extraire app-bootstrap.ts et app-middleware.ts de app.ts
 - [x] Extraire ws-conversation-router.ts de ws-chat.ts
-- [ ] Refactorer ws-chat.ts residuel (<400 LOC cible)
-- [ ] Remplacer writeFileSync par async dans ws-chat.ts
-- [ ] Ajouter error boundaries sur WebSocket handlers
-- [ ] Scinder tests storage volumineux (storage-test-split)
-- [ ] Decouper Chat.tsx en seams transport/liste/composer/media
+- [x] ws-chat.ts modularized (425 to 335 LOC, 3 modules extracted)
+- [x] app.ts extraction (540 to 131 LOC, create-repos.ts extracted)
+- [x] Zod validation on all 19 API route schemas
+- [x] Error telemetry (16 labels)
+- [x] Perf instrumentation (6 labels, p50/p95/p99)
+- [x] Smart routing (5 topic domains)
+- [x] Dynamic context window (4k-32k)
+- [ ] lot-97: Multi-channel support (create/join channels)
+- [ ] lot-100: Public demo mode read-only routes
 
 ### Node Engine
 
 - [x] Extraire registry.ts du hotspot node-engine
 - [ ] Ajouter node type `music_generation` (ACE-Step 1.5)
 - [ ] Ajouter node type `voice_clone` (Chatterbox)
-- [ ] Tester pipeline DPO end-to-end sur kxkm-ai
+- [ ] lot-96: Automated DPO pipeline (feedback → pairs → training trigger)
 
 ### Personas
 
@@ -106,25 +112,35 @@ flowchart TD
 - [x] Player audio + viewer image plein ecran
 - [x] Mediatheque gallery/playlist
 - [x] Progress bars animees Compose/Imagine
-- [ ] Ajouter memoization (React.memo) sur composants lourds
-- [ ] Lazy-load ChatHistory, VoiceChat, NodeEditor
-- [ ] vault66-crt-effect (React CRT WebGL)
+- [x] React.memo + useCallback on ChatSidebar, ChatInput, ChatHistory
+- [x] 17 lazy-loaded routes (-53% initial JS)
+- [x] CRT CSS-only effect (scanlines, vignette, phosphor glow, boot 0.8s)
+- [x] Chat virtualization (react-window, variable row heights)
+- [x] Markdown rendering (marked + DOMPurify)
+- [x] CRT boot animation (modem dial, scanline reveal)
+- [ ] lot-95: E2E Playwright tests (login, chat, upload, admin)
+- [ ] lot-98: File sharing UI (upload → gallery)
+- [ ] lot-99: Mobile responsive deep pass (touch, bottom nav, viewport)
 
 ### Ops/TUI
 
 - [x] Deployer deep-audit.js sur kxkm-ai
 - [x] Ajouter SearXNG au docker-compose
 - [x] TTS sidecar HTTP (tts-server.py :9100, dual Chatterbox/Piper)
-- [x] deploy.sh tmux (build + deploy automatise)
-- [ ] Ajouter MinerU/Docling au docker-compose
+- [x] deploy.sh migrated tmux → systemd
+- [x] Systemd services (kxkm-tts + kxkm-lightrag, auto-restart)
+- [x] health-check.sh TUI (19 checks)
+- [x] Docker compose 12 services with health checks
 - [ ] Fix Docker transformers (rebuild propre avec torch)
 
 ### Training
 
 - [x] Spike BGE-M3 (resultat negatif sur Apple/Metal, baseline maintenue)
 - [x] TTS dual backend Chatterbox/Piper valide
+- [x] Tool-calling benchmark (llama3.1 vs qwen3 vs mistral)
+- [x] Sherlock migrated to llama3.1:8b-instruct-q4_0
+- [ ] lot-96: Persona DPO automation pipeline
 - [ ] Tester ACE-Step 1.5 sur RTX 4090
-- [ ] LightRAG graph RAG (personas/lore)
 
 ### Veille OSS
 
@@ -152,7 +168,7 @@ stateDiagram-v2
     Backlog_P2 --> [*]: ajoute au TODO
 ```
 
-## Affectations en cours (2026-03-17)
+## Affectations en cours (2026-03-20)
 
 ### Mission globale
 - Deep analyse continue du code, optimisation chirurgicale, et synchronisation documentaire apres chaque lot.
@@ -180,17 +196,21 @@ stateDiagram-v2
 - Privilegier TUI et scripts avec logs lisibles, puis purge des logs obsoletes.
 - Conserver la V1 comme reference comportementale, V2 comme cible active.
 
-### Etat de cycle (2026-03-19)
+### Etat de cycle (2026-03-20)
 
-- Audit/tests: en cours de verification.
-- Lots 0-4, 12-14, 16 complets. Lot 15 en cours (2/4 done).
-- TTS dual backend (Chatterbox/Piper) deploye avec deploy.sh tmux.
-- 33 personas (qwen3:8b x21, mistral:7b x7, gemma3:4b x4).
-- Veille OSS mars 2026: 40+ projets analyses.
-- Deep audit: 7 bugs HIGH/MEDIUM identifies, 6 corriges.
+- 71 lots termines (lot-24 a lot-94).
+- 425 tests, 0 failures.
+- 12 services en production.
+- 19 chat commands, 33 personas.
+- Structured logging complet (pino JSON, 0 console.log).
+- Systemd services (TTS + LightRAG).
+- Frontend: lazy routes (-53%), React.memo, CRT boot, chat virtualization.
 
-### Micro-missions lot 15 restantes
+### Prochains lots (95-100)
 
-1. Backend API: scinder tests storage volumineux (storage-test-split).
-2. Frontend: decouper Chat.tsx en seams transport/liste/composer/media.
-3. Coordinateur: synchroniser PLAN/TODO/state apres cloture lot 15.
+1. lot-95: E2E Playwright tests
+2. lot-96: Persona DPO automation pipeline
+3. lot-97: Multi-channel support
+4. lot-98: File sharing between users
+5. lot-99: Mobile responsive deep pass
+6. lot-100: Public demo mode

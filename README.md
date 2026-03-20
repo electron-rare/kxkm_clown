@@ -76,10 +76,18 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 - **Generation images** — `/imagine` via ComfyUI (SDXL Lightning + Flux 2)
 - **Memoire persona** — Faits et resume persistants, compaction LLM auto (750 MB)
 - **Inter-persona** — @mention directe, dialogue depth 3
-- **Validation Zod** — Schema validation sur toutes les routes API
+- **19 commandes slash** — /help, /nick, /who, /personas, /web, /clear, /status, /compose, /imagine, /voice, /memory, /context, /rag, /stats, /uptime, /model, /persona, /reload, /export
+- **Markdown chat** — Rendu Markdown (marked + DOMPurify) dans les messages
+- **Smart routing** — 5 domaines thematiques (musique, philosophie, tech, arts, science)
+- **Validation Zod** — 19 schemas sur toutes les routes API
 - **Pino logging** — Logs structures JSON, rotation automatique
-- **Dynamic ctx** — Contexte LLM adaptatif selon la longueur de conversation
-- **CRT effect** — Phosphore vert, scanlines, flicker sur le frontend Minitel
+- **Dynamic ctx** — Contexte LLM adaptatif 4k-32k selon la conversation
+- **Perf instrumentation** — 6 labels (http, ollama, rag, ws), p50/p95/p99
+- **Error telemetry** — 16 labels d'erreur, logging structure
+- **MIME magic bytes** — Validation magic bytes sur uploads, allowlist SAFE_MIMES
+- **WS reconnect** — Reconnexion auto (backoff 1s-30s), seq numbers, detection de gaps
+- **CRT effect** — Phosphore vert, scanlines, flicker, boot animation modem
+- **Chat virtualization** — react-window, hauteurs variables, auto-scroll
 
 ### Discord
 
@@ -133,7 +141,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `PYTHON_BIN` | `python3` | Python avec libs ML (PyTorch, faster-whisper, piper-tts) |
 | `SCRIPTS_DIR` | `./scripts` | Chemin vers les scripts Python (TTS, STT, training) |
 
-## Commandes slash
+## Commandes slash (19)
 
 | Commande | Description | Admin |
 | --- | --- | --- |
@@ -144,6 +152,14 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `/web <query>` | Recherche web + commentaire personas | non |
 | `/clear` | Effacer le chat | non |
 | `/status` | Statut systeme | non |
+| `/compose <prompt>` | Generation musicale (ACE-Step) | non |
+| `/imagine <prompt>` | Generation image (ComfyUI) | non |
+| `/voice` | Toggle TTS voix | non |
+| `/memory` | Afficher memoire persona | non |
+| `/context` | Afficher contexte conversation | non |
+| `/rag <query>` | Recherche RAG directe | non |
+| `/stats` | Statistiques chat | non |
+| `/uptime` | Temps de fonctionnement | non |
 | `/model` | Changer modele | oui |
 | `/persona` | Gerer personas | oui |
 | `/reload` | Recharger config | oui |

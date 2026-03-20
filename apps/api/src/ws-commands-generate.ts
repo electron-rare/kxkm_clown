@@ -11,7 +11,7 @@ import { createComposition, getActiveComposition, addTrack, listCompositions } f
 export const GENERATE_COMMANDS = new Set([
   "/imagine", "/compose", "/layer", "/mix", "/voice", "/noise",
   "/ambient", "/fx", "/comp", "/imagine-models", "/remix", "/tracks",
-  "/undo", "/solo", "/unsolo", "/rename",
+  "/undo", "/solo", "/unsolo", "/rename", "/duplicate", "/dup", "/bpm", "/clear-comp",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -327,7 +327,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             }
             return;
           }
-          default:
+      default:
             send(ws, { type: "system", text: "FX: /fx [piste#] volume|fade-in|fade-out|reverse|reverb|pitch|speed|echo|distortion [param]\nExemple: /fx 2 reverb | /fx pitch -3 | /fx 1 fade-in 3" });
             return;
         }
@@ -500,6 +500,49 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         send(ws, { type: "system", text: `\u270F\uFE0F Composition renommee: ${comp.name}` });
         return;
       }
+
+      case "/duplicate":
+      case "/dup": {
+        const trackNum = parseInt(text.split(/\s+/)[1] || "");
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 1 || trackNum > comp.tracks.length) {
+          send(ws, { type: "system", text: `Usage: /dup <piste#>` }); return;
+        }
+        const src = comp.tracks[trackNum - 1];
+        const newTrack = addTrack(comp.id, { type: src.type, prompt: src.prompt + " (copie)", duration: src.duration, volume: src.volume, startMs: 0 });
+        if (newTrack && src.filePath && fs.existsSync(src.filePath)) {
+          const newPath = path.join(process.cwd(), "data", "compositions", comp.id, newTrack.id + ".wav");
+          fs.copyFileSync(src.filePath, newPath);
+          newTrack.filePath = newPath;
+        }
+        send(ws, { type: "system", text: `\u{1f4cb} Piste #${trackNum} dupliquee \u2192 #${comp.tracks.length}` });
+        return;
+      }
+
+      case "/bpm": {
+        const bpmVal = parseInt(text.slice(5).trim());
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition active." }); return; }
+        if (bpmVal && bpmVal >= 20 && bpmVal <= 300) {
+          (comp as any).bpm = bpmVal;
+          send(ws, { type: "system", text: `\u{1f941} BPM: ${bpmVal}` });
+        } else {
+          send(ws, { type: "system", text: `BPM: ${(comp as any).bpm || "non defini"}. Usage: /bpm <20-300>` });
+        }
+        return;
+      }
+
+      case "/clear-comp": {
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition active." }); return; }
+        for (const t of comp.tracks) {
+          if (t.filePath && fs.existsSync(t.filePath)) fs.unlinkSync(t.filePath);
+        }
+        comp.tracks = [];
+        send(ws, { type: "system", text: `\u{1f5d1}\ufe0f Composition "${comp.name}" videe` });
+        return;
+      }
+
 
       default:
         send(ws, { type: "system", text: `Commande inconnue: ${cmd}. Tape /help.` });

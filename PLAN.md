@@ -1,18 +1,20 @@
 # PLAN.md — KXKM_Clown
 
-Updated: 2026-03-20T22:00:00Z
+Updated: 2026-03-21T12:00:00Z
 
 ## Summary
 
-- **170+ lots executed** (24-191) in session 2026-03-19/20
+- **205+ lots executed** (24-205) in sessions 2026-03-19/20/21
 - **425 tests**, 0 fail
-- **53 commands**, 13 services, 9 spec docs
+- **55 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
 - Ollama v0.18.2, qwen3.5:9b (256K ctx, adaptive thinking)
 - 35 music styles, 9 audio effects, 5 CSS themes, 32 ComfyUI checkpoints + 24 LoRAs
-- Composition pipeline: multi-track, voice, noise, effects, mix
+- Composition pipeline: multi-track, voice, noise, effects, mix, timeline UI
+- ComposePage rewritten: direct WS, 5 generation buttons (Musique, Voix, Drone, Pink, White), timeline
+- MusicGen compose fixed (WAV write, VRAM management)
 - TTFC 284ms
-- Next: lots 192+ (ws-commands extraction, waveform viz, remix, MIDI, templates, collab, stems, DAW export)
+- Next: lots 206+ (wavesurfer waveform, Demucs stems, WAV export, templates, collab, MIDI, automation, FX rack, sample browser, spectral view)
 
 ---
 
@@ -731,10 +733,76 @@ Updated: 2026-03-20T12:00:00Z
 - Priority: P2
 - Notes: Demucs v4 (htdemucs) MIT license, pip install demucs, 6-stem mode (piano+guitar), SDR 9.20dB. htdemucs_ft for best quality. GPU recommended.
 
-## lot-200-daw-export [planned]
-- Description: Full DAW export (WAV stems + JSON project file with markers, effects, arrangement)
+## lot-200-milestone [done]
+- Description: MILESTONE — 55 commands, 13 services
+- Summary: Major milestone reached. 55 slash commands, 13 production services, full composition pipeline.
+
+## lot-201-4track-timeline [done]
+- Description: 4-track timeline verified (2 voices + 2 noise + mix)
+- Summary: Timeline verified with 4-track layout: 2 voice tracks + 2 noise tracks + final mix output.
+
+## lot-202-admin-login-restore [done]
+- Description: Admin login restored
+- Summary: Admin login flow restored and verified.
+
+## lot-203-musicgen-compose-fix [done]
+- Description: MusicGen compose fixed (WAV write, VRAM management)
+- Summary: MusicGen compose pipeline fixed: proper WAV file write, VRAM allocation/release management.
+
+## lot-204-composepage-rewrite [done]
+- Description: ComposePage UI rewritten (direct WS, 5 buttons, timeline)
+- Summary: ComposePage completely rewritten with direct WebSocket connection, 5 generation buttons (Musique, Voix, Drone, Pink, White), integrated timeline view.
+
+## lot-205-post200-cleanup [done]
+- Description: Post-200 cleanup
+- Summary: Post-milestone cleanup pass.
+
+## lot-206-wavesurfer-waveform [planned]
+- Description: wavesurfer.js waveform visualization in timeline
+- Owner: Frontend
+- Priority: P1
+
+## lot-207-demucs-stems [planned]
+- Description: Demucs v4 stem separation (vocals, drums, bass, other, piano, guitar)
+- Owner: Multimodal
+- Priority: P2
+
+## lot-208-export-wav-download [planned]
+- Description: /export WAV download link
+- Owner: Backend API
+- Priority: P1
+
+## lot-209-composition-templates [planned]
+- Description: Composition templates (preset arrangements)
+- Owner: Backend API
+- Priority: P2
+
+## lot-210-collab-composition [planned]
+- Description: Collaborative composition (shared comp, real-time sync)
+- Owner: Backend API + Frontend
+- Priority: P3
+
+## lot-211-midi-export [planned]
+- Description: MIDI export from composition
 - Owner: Multimodal
 - Priority: P3
 
-## lot-200-milestone [done]
-- Summary: LOT 200 MILESTONE — 180 lots (24-199), 55 commands, 13 services, 9 audio effects, 35 music styles, 32 ComfyUI checkpoints, 24 LoRAs, TTFC 284ms, composition pipeline Phase 1-3, 12 spec docs, ~45 commits
+## lot-212-automation-curves [planned]
+- Description: Automation curves (volume envelope per track)
+- Owner: Frontend + Multimodal
+- Priority: P2
+
+## lot-213-fx-rack [planned]
+- Description: FX rack per track (chain multiple effects)
+- Owner: Multimodal
+- Priority: P2
+
+## lot-214-sample-browser [planned]
+- Description: Sample browser (upload + reuse audio samples)
+- Owner: Frontend + Backend API
+- Priority: P2
+
+## lot-215-spectral-view [planned]
+- Description: Spectral view (canvas visualization)
+- Owner: Frontend
+- Priority: P3

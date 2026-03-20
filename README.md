@@ -75,11 +75,11 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 - **PDF** — Extraction via Docling/PyMuPDF (tables, layout, OCR)
 - **Recherche web** — SearXNG self-hosted + DuckDuckGo fallback
 - **Generation musicale** — `/compose` via ACE-Step 1.5 / MusicGen, 35 music styles
-- **Composition pipeline** — Multi-track (`/layer`), voice (`/voice`), noise (`/noise` 5 types), ambient (`/ambient`), effects (`/fx` 9 effects: reverb, delay, chorus, flanger, distortion, bitcrusher, EQ, compressor, tremolo), mix (`/mix`)
+- **Composition pipeline** — Multi-track (`/layer`), voice (`/voice`), noise (`/noise` 5 types), ambient (`/ambient`), effects (`/fx` 9 effects: reverb, delay, chorus, flanger, distortion, bitcrusher, EQ, compressor, tremolo), mix (`/mix`). Timeline UI with 5 generation buttons (Musique, Voix, Drone, Pink, White)
 - **Generation images** — `/imagine` via ComfyUI (32 checkpoints + 24 LoRAs, smart NLP selection)
 - **Memoire persona** — Faits et resume persistants, compaction LLM auto (750 MB)
 - **Inter-persona** — @mention directe, dialogue depth 3
-- **53 commandes slash** — /help, /nick, /who, /personas, /web, /clear, /status, /compose, /imagine, /voice, /noise, /ambient, /fx, /layer, /mix, /comp, /memory, /context, /rag, /stats, /uptime, /model, /persona, /reload, /export, /changelog, /version, /dice, /roll, /flip, /ban, /unban, /mute, /unmute, /whisper, /history, /search, /react, /invite, /time, /date, /session, /speed, + more
+- **55 commandes slash** — /help, /nick, /who, /personas, /web, /clear, /status, /compose, /imagine, /voice, /noise, /ambient, /fx, /layer, /mix, /comp, /memory, /context, /rag, /stats, /uptime, /model, /persona, /reload, /export, /changelog, /version, /dice, /roll, /flip, /ban, /unban, /mute, /unmute, /whisper, /history, /search, /react, /invite, /time, /date, /session, /speed, + more
 - **Markdown chat** — Rendu Markdown (marked + DOMPurify) dans les messages
 - **Smart routing** — 5 domaines thematiques (musique, philosophie, tech, arts, science)
 - **Validation Zod** — 19 schemas sur toutes les routes API
@@ -147,7 +147,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `PYTHON_BIN` | `python3` | Python avec libs ML (PyTorch, faster-whisper, piper-tts) |
 | `SCRIPTS_DIR` | `./scripts` | Chemin vers les scripts Python (TTS, STT, training) |
 
-## Commandes slash (53)
+## Commandes slash (55)
 
 | Commande | Description | Admin |
 | --- | --- | --- |

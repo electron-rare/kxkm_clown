@@ -10,7 +10,7 @@ import { createComposition, getActiveComposition, addTrack, listCompositions } f
 
 export const GENERATE_COMMANDS = new Set([
   "/imagine", "/compose", "/layer", "/mix", "/voice", "/noise",
-  "/ambient", "/fx", "/comp", "/imagine-models",
+  "/ambient", "/fx", "/comp", "/imagine-models", "/remix", "/tracks",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -383,6 +383,56 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         } catch (err) {
           send(ws, { type: "system", text: `Erreur ambient: ${err instanceof Error ? err.message : String(err)}` });
         }
+        return;
+      }
+
+      case "/remix": {
+        const trackNum = parseInt(text.slice(7).trim());
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 1 || trackNum > comp.tracks.length) {
+          send(ws, { type: "system", text: `Usage: /remix <numero piste 1-${comp?.tracks.length || "?"}` });
+          return;
+        }
+        const track = comp.tracks[trackNum - 1];
+        broadcast(info.channel, { type: "system", text: `\u{1F504} Remix piste #${trackNum}: "${track.prompt}"...` });
+
+        const remixTtsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
+        try {
+          const resp = await fetch(`${remixTtsUrl}/compose`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: track.prompt, duration: track.duration }),
+            signal: AbortSignal.timeout(300_000),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const audioBuffer = Buffer.from(await resp.arrayBuffer());
+
+          if (track.filePath) {
+            fs.writeFileSync(track.filePath, audioBuffer);
+          }
+
+          broadcast(info.channel, {
+            type: "music", nick: info.nick,
+            text: `[Remix piste #${trackNum}: "${track.prompt}"]`,
+            audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
+          } as any);
+          send(ws, { type: "system", text: `\u2705 Piste #${trackNum} remixee` });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur remix: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/tracks": {
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || comp.tracks.length === 0) {
+          send(ws, { type: "system", text: "Aucune piste. /comp new puis /layer" });
+          return;
+        }
+        const lines = comp.tracks.map((t, i) => {
+          const icon = t.type === "voice" ? "\u{1F399}\uFE0F" : t.type === "sfx" ? "\u{1F50A}" : "\u{1F3B5}";
+          return `  ${icon} #${i+1} [${t.type}] ${t.prompt.slice(0, 60)} (${t.duration}s, vol:${t.volume}%)`;
+        });
+        send(ws, { type: "system", text: `Composition: ${comp.name}\n${lines.join("\n")}\n\nTotal: ${comp.tracks.length} pistes` });
         return;
       }
 

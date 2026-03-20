@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import logger from "./logger.js";
@@ -30,7 +31,7 @@ export interface Composition {
 const compositions = new Map<string, Composition>();
 
 export function createComposition(nick: string, channel: string, name?: string): Composition {
-  const id = `comp_${Date.now().toString(36)}`;
+  const id = `comp_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`;
   const comp: Composition = {
     id, name: name || `Composition ${id}`,
     channel, nick, tracks: [],
@@ -56,7 +57,7 @@ export function getActiveComposition(nick: string, channel: string): Composition
 export function addTrack(compId: string, track: Omit<Track, "id" | "createdAt">): Track | null {
   const comp = compositions.get(compId);
   if (!comp) return null;
-  const t: Track = { ...track, id: `trk_${Date.now().toString(36)}`, createdAt: new Date().toISOString() };
+  const t: Track = { ...track, id: `trk_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`, createdAt: new Date().toISOString() };
   comp.tracks.push(t);
   comp.updatedAt = new Date().toISOString();
   saveComposition(comp);

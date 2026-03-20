@@ -57,6 +57,8 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "/fx <effet> [param]                \u2014 effets audio (volume/fade/reverse/reverb/pitch/speed/echo/distortion)",
             "/noise <type> [duree]              \u2014 bruit: white/pink/brown/sine/drone",
             "/ambient <desc> | off              \u2014 fond sonore persistant pour le canal",
+            "/remix <numero piste>              \u2014 re-generer une piste avec le meme prompt",
+            "/tracks                            \u2014 afficher les pistes de la composition",
             "/status                            \u2014 etat du systeme (VRAM, modeles, perf)",
             "/responders <1-5>                  \u2014 nombre de personas qui repondent",
             "/model                             \u2014 modele actif",

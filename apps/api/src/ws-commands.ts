@@ -1,6 +1,6 @@
 import { promises as fsp } from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import type { WebSocket } from "ws";
 import { generateImage } from "./comfyui.js";
@@ -87,6 +87,9 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/comp new <nom> | list             — gerer les compositions multi-pistes",
             "/layer <description musicale>      — ajouter une piste a la composition",
             "/mix                               — mixer toutes les pistes (ffmpeg)",
+            "/voice <persona> \"texte\" [Ns]     — piste voix TTS persona",
+            "/fx <effet> [param]                — effets audio (volume/fade/reverse/reverb)",
+            "/noise <type> [duree]              — bruit: white/pink/brown/sine/drone",
             "/status                            — etat du systeme (VRAM, modeles, perf)",
             "/responders <1-5>                  — nombre de personas qui repondent",
             "/model                             — modele actif",
@@ -647,7 +650,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
 
       case "/version": {
         const pkg = { version: "2.0.0", name: "@kxkm/api" };
-        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 43\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
+        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 46\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
         return;
       }
 
@@ -920,6 +923,158 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
           send(ws, { type: "system", text: `✅ Mix termine: ${comp.tracks.length} pistes → mix.wav` });
         } catch (err) {
           send(ws, { type: "system", text: `Erreur mixage: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+
+      case "/voice": {
+        const voiceMatch = text.match(/^\/voice\s+(\S+)\s+"([^"]+)"(?:\s+(\d+)s)?/);
+        if (!voiceMatch) {
+          send(ws, { type: "system", text: 'Usage: /voice <persona> "texte" [duree]s\nExemple: /voice Pharmacius "Bienvenue dans le chaos sonore" 10s' });
+          return;
+        }
+        const [, personaNick, voiceText, durStr] = voiceMatch;
+
+        let comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) {
+          comp = createComposition(info.nick, info.channel);
+        }
+
+        broadcast(info.channel, { type: "system", text: `\u{1F399}\uFE0F ${info.nick} ajoute une voix: ${personaNick} \u2014 "${voiceText}"` });
+
+        const voiceTtsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
+        try {
+          const resp = await fetch(`${voiceTtsUrl}/synthesize`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: voiceText, persona: personaNick.toLowerCase() }),
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!resp.ok) throw new Error(`TTS HTTP ${resp.status}`);
+
+          const audioBuffer = Buffer.from(await resp.arrayBuffer());
+          const track = addTrack(comp.id, { type: "voice", prompt: `${personaNick}: "${voiceText}"`, duration: parseInt(durStr || "10"), volume: 100, startMs: 0 });
+
+          if (track) {
+            const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
+            fs.mkdirSync(trackDir, { recursive: true });
+            const trackPath = path.join(trackDir, `${track.id}.wav`);
+            fs.writeFileSync(trackPath, audioBuffer);
+            track.filePath = trackPath;
+          }
+
+          broadcast(info.channel, {
+            type: "audio", nick: personaNick,
+            data: audioBuffer.toString("base64"), mimeType: "audio/wav",
+          } as any);
+
+          send(ws, { type: "system", text: `\u2705 Voix ajoutee (piste ${comp.tracks.length}). /mix pour combiner.` });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur voix: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/fx": {
+        const fxArgs = text.slice(4).trim().split(/\s+/);
+        const effect = fxArgs[0];
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || comp.tracks.length === 0) {
+          send(ws, { type: "system", text: "Aucune piste. /layer d'abord." }); return;
+        }
+        const lastTrack = comp.tracks[comp.tracks.length - 1];
+
+        switch (effect) {
+          case "volume": {
+            const vol = Math.min(200, Math.max(0, parseInt(fxArgs[1] || "100")));
+            lastTrack.volume = vol;
+            send(ws, { type: "system", text: `\u{1F50A} Volume piste #${comp.tracks.length}: ${vol}%` });
+            return;
+          }
+          case "fade-in":
+          case "fadein": {
+            const fadeDur = parseInt(fxArgs[1] || "3");
+            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
+              const tmpPath = lastTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", `afade=t=in:d=${fadeDur}`, "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, lastTrack.filePath);
+              send(ws, { type: "system", text: `\u{1F50A} Fade-in ${fadeDur}s applique a piste #${comp.tracks.length}` });
+            }
+            return;
+          }
+          case "fade-out":
+          case "fadeout": {
+            const fadeDur = parseInt(fxArgs[1] || "3");
+            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
+              const tmpPath = lastTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", `areverse,afade=t=in:d=${fadeDur},areverse`, "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, lastTrack.filePath);
+              send(ws, { type: "system", text: `\u{1F50A} Fade-out ${fadeDur}s applique a piste #${comp.tracks.length}` });
+            }
+            return;
+          }
+          case "reverse": {
+            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
+              const tmpPath = lastTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", "areverse", "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, lastTrack.filePath);
+              send(ws, { type: "system", text: `\u{1F504} Reverse applique a piste #${comp.tracks.length}` });
+            }
+            return;
+          }
+          case "reverb": {
+            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
+              const tmpPath = lastTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", "aecho=0.8:0.88:60:0.4", "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, lastTrack.filePath);
+              send(ws, { type: "system", text: `\u{1F30A} Reverb applique a piste #${comp.tracks.length}` });
+            }
+            return;
+          }
+          default:
+            send(ws, { type: "system", text: "Effets: /fx volume <0-200> | /fx fade-in <s> | /fx fade-out <s> | /fx reverse | /fx reverb" });
+            return;
+        }
+      }
+
+      case "/noise": {
+        const noiseArgs = text.slice(7).trim().split(/\s+/);
+        const noiseType = noiseArgs[0] || "white";
+        const noiseDur = parseInt(noiseArgs[1] || "10");
+
+        const noiseTypes: Record<string, string> = {
+          white: "anoisesrc=d=DUR:c=white",
+          pink: "anoisesrc=d=DUR:c=pink",
+          brown: "anoisesrc=d=DUR:c=brown",
+          sine: "sine=frequency=220:duration=DUR",
+          drone: "sine=frequency=55:duration=DUR,tremolo=f=0.1:d=0.7",
+        };
+
+        if (!noiseTypes[noiseType]) {
+          send(ws, { type: "system", text: "Types: white, pink, brown, sine, drone. Usage: /noise <type> <duree>" });
+          return;
+        }
+
+        let comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) comp = createComposition(info.nick, info.channel);
+
+        const filter = noiseTypes[noiseType].replace(/DUR/g, String(noiseDur));
+        const track = addTrack(comp.id, { type: "sfx", prompt: `${noiseType} noise ${noiseDur}s`, duration: noiseDur, volume: 50, startMs: 0 });
+
+        if (track) {
+          const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
+          fs.mkdirSync(trackDir, { recursive: true });
+          const trackPath = path.join(trackDir, `${track.id}.wav`);
+          execFileSync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", String(noiseDur), "-ar", "32000", "-ac", "1", trackPath], { timeout: 30000 });
+          track.filePath = trackPath;
+
+          const audioBuffer = fs.readFileSync(trackPath);
+          broadcast(info.channel, {
+            type: "music", nick: info.nick,
+            text: `[Noise: ${noiseType} ${noiseDur}s]`,
+            audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
+          } as any);
+          send(ws, { type: "system", text: `\u2705 ${noiseType} noise ajoute (piste ${comp.tracks.length}). /mix pour combiner.` });
         }
         return;
       }

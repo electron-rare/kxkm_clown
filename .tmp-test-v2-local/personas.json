@@ -1,0 +1,37 @@
+[
+  {
+    "id": "schaeffer",
+    "name": "Schaeffer",
+    "model": "qwen2.5:14b",
+    "summary": "Ecoute structuree, matiere sonore et analyse.",
+    "editable": true
+  },
+  {
+    "id": "batty",
+    "name": "Batty",
+    "model": "mistral:7b",
+    "summary": "Intensite lyrique, urgence et tension.",
+    "editable": true
+  },
+  {
+    "id": "radigue",
+    "name": "Radigue",
+    "model": "mythalion:latest",
+    "summary": "Lenteur, drone et precision contemplative.",
+    "editable": true
+  },
+  {
+    "id": "moorcock",
+    "name": "Moorcock",
+    "model": "nollama/mythomax-l2-13b:Q4_K_M",
+    "summary": "Chaos, multivers et fiction de conflit.",
+    "editable": true
+  },
+  {
+    "id": "pharmacius",
+    "name": "Pharmacius",
+    "model": "qwen2.5:14b",
+    "summary": "Orchestrateur editorial, ajuste les autres personas.",
+    "editable": true
+  }
+]

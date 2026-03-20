@@ -1,4 +1,6 @@
 import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
 import { DEFAULT_PERSONAS, personaColor } from "./personas-default.js";
 import { createCommandHandler } from "./ws-commands.js";
@@ -31,9 +33,35 @@ import {
 // ---------------------------------------------------------------------------
 
 const channelSeq = new Map<string, number>();
-  const channelTopics = new Map<string, string>();
-  const channelPins = new Map<string, string[]>();
+const channelTopics = new Map<string, string>();
+const channelPins = new Map<string, string[]>();
 const userStats = new Map<string, { messages: number; firstSeen: number }>();
+
+// ---------------------------------------------------------------------------
+// Channel state persistence (lot-146)
+// ---------------------------------------------------------------------------
+
+const CHANNEL_STATE_FILE = path.join(process.cwd(), "data", "channel-state.json");
+
+function saveChannelState() {
+  const state = {
+    topics: Object.fromEntries(channelTopics),
+    pins: Object.fromEntries([...channelPins].map(([k, v]) => [k, v])),
+    savedAt: new Date().toISOString(),
+  };
+  fs.promises.writeFile(CHANNEL_STATE_FILE, JSON.stringify(state, null, 2)).catch(() => {});
+}
+
+// Load on start
+try {
+  const raw = fs.readFileSync(CHANNEL_STATE_FILE, "utf-8");
+  const state = JSON.parse(raw);
+  if (state.topics) Object.entries(state.topics).forEach(([k, v]) => channelTopics.set(k, v as string));
+  if (state.pins) Object.entries(state.pins).forEach(([k, v]) => channelPins.set(k, v as string[]));
+  logger.info("[ws-chat] Loaded channel state from disk");
+} catch { /* no saved state */ }
+
+setInterval(saveChannelState, 5 * 60 * 1000);
 
 // Moderation: banned nicks (shared with command handler)
 export const bannedNicks = new Set<string>();

@@ -9,7 +9,7 @@
     "packages/*"
   ],
   "scripts": {
-    "start": "node server.js",
+    "start": "node legacy/server.js",
     "dev": "node server.js",
     "build": "node scripts/build-v2.js && node scripts/build.js",
     "build:v2": "node scripts/build-v2.js",

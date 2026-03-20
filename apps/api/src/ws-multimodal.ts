@@ -17,14 +17,22 @@ const execFileAsync = promisify(execFile);
 
 let fileProcessActive = 0;
 const MAX_FILE_PROCESSORS = 2;
+const fileProcessWaiters: Array<() => void> = [];
 
 export async function acquireFileProcessor(): Promise<void> {
-  while (fileProcessActive >= MAX_FILE_PROCESSORS) {
-    await new Promise(r => setTimeout(r, 100));
+  if (fileProcessActive < MAX_FILE_PROCESSORS) {
+    fileProcessActive++;
+    return;
   }
-  fileProcessActive++;
+  return new Promise<void>((resolve) => {
+    fileProcessWaiters.push(() => { fileProcessActive++; resolve(); });
+  });
 }
-export function releaseFileProcessor(): void { fileProcessActive--; }
+export function releaseFileProcessor(): void {
+  fileProcessActive--;
+  const next = fileProcessWaiters.shift();
+  if (next) next();
+}
 
 // ---------------------------------------------------------------------------
 // TTS concurrency semaphore (P2-02)

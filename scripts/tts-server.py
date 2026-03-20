@@ -212,6 +212,37 @@ class TTSHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": str(e)}).encode())
             print(f"[tts] ERROR: {e}", file=sys.stderr)
 
+    def _free_vram_for_generation(self):
+        """Unload Ollama models to free VRAM for ACE-Step/ComfyUI."""
+        import urllib.request, json
+        try:
+            for model in ["qwen3.5:9b", "mistral:7b", "nomic-embed-text"]:
+                req = urllib.request.Request(
+                    "http://localhost:11434/api/generate",
+                    data=json.dumps({"model": model, "keep_alive": 0}).encode(),
+                    headers={"Content-Type": "application/json"},
+                )
+                urllib.request.urlopen(req, timeout=5)
+            print("[compose] VRAM freed: Ollama models unloaded", file=sys.stderr)
+            import time; time.sleep(2)
+        except Exception as e:
+            print(f"[compose] VRAM free warning: {e}", file=sys.stderr)
+
+    def _reload_ollama_models(self):
+        """Reload Ollama models after generation."""
+        import urllib.request, json
+        try:
+            for model in ["qwen3.5:9b", "nomic-embed-text"]:
+                req = urllib.request.Request(
+                    "http://localhost:11434/api/chat",
+                    data=json.dumps({"model": model, "messages": [{"role": "user", "content": "."}], "stream": False, "options": {"num_predict": 1}, "keep_alive": "30m", "think": False}).encode(),
+                    headers={"Content-Type": "application/json"},
+                )
+                urllib.request.urlopen(req, timeout=60)
+            print("[compose] Ollama models reloaded", file=sys.stderr)
+        except Exception as e:
+            print(f"[compose] Reload warning: {e}", file=sys.stderr)
+
     def _handle_compose(self, body):
         """Run compose_music.py on host with GPU access."""
         import subprocess, tempfile
@@ -226,6 +257,7 @@ class TTSHandler(BaseHTTPRequestHandler):
         script_path = os.path.join(os.path.dirname(__file__), "compose_music.py")
 
         try:
+            self._free_vram_for_generation()
             result = subprocess.run(
                 [sys.executable, script_path, "--prompt", prompt, "--duration", str(duration), "--output", output_path],
                 capture_output=True, text=True, timeout=300,

@@ -36,7 +36,7 @@ def generate_with_ace_step(prompt, duration, output, steps=100, seed=-1):
         )
         
         # Save to WAV
-        import soundfile as sf
+        import scipy.io.wavfile as wavfile; import numpy as np
         sf.write(output, result["audio"], result.get("sample_rate", 32000))
         
         return {"seed": result.get("seed", 0), "duration": duration}
@@ -75,16 +75,28 @@ inference_steps = {steps}
 
 def generate_with_musicgen(prompt, duration, output):
     """Fallback: MusicGen (smaller, CPU-friendly)."""
-    from transformers import pipeline
+    from transformers import AutoProcessor, MusicgenForConditionalGeneration
+    import torch, scipy.io.wavfile, numpy as np
     
     print(f"[compose] MusicGen fallback: {duration}s...", file=sys.stderr)
-    gen = pipeline("text-to-audio", model="facebook/musicgen-small", device="cuda")
-    max_tokens = min(duration * 256, 1536)
-    result = gen(prompt, max_new_tokens=max_tokens)
     
-    import soundfile as sf
-    sf.write(output, result["audio"][0], result["sampling_rate"])
+    processor = AutoProcessor.from_pretrained("facebook/musicgen-small")
+    model = MusicgenForConditionalGeneration.from_pretrained("facebook/musicgen-small").to("cuda")
+    
+    inputs = processor(text=[prompt], padding=True, return_tensors="pt").to("cuda")
+    max_tokens = min(duration * 256, 1536)
+    
+    with torch.no_grad():
+        audio_values = model.generate(**inputs, max_new_tokens=max_tokens)
+    
+    audio = audio_values[0, 0].cpu().numpy()
+    # Normalize to int16
+    audio = audio / max(abs(audio.max()), abs(audio.min()), 1e-8)
+    audio_int16 = (audio * 32767).astype(np.int16)
+    
+    scipy.io.wavfile.write(output, model.config.audio_encoder.sampling_rate, audio_int16)
     return {"duration": duration}
+
 
 def main():
     args = parse_args()

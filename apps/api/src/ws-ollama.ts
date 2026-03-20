@@ -51,7 +51,7 @@ export async function streamOllamaChat(
             { role: "user", content: userMessage },
           ],
           stream: true,
-          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m",
+          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
         }),
         signal: controller.signal,
       });
@@ -193,7 +193,7 @@ export async function streamOllamaChatWithTools(
           messages,
           tools: tools.map(t => t),
           stream: false,
-          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m",
+          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
         }),
         signal: controller.signal,
       });
@@ -255,7 +255,7 @@ export async function streamOllamaChatWithTools(
           model: persona.model,
           messages,
           stream: true,
-          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m",
+          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
         }),
         signal: controller.signal,
       });

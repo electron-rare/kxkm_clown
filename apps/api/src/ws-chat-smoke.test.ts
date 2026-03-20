@@ -145,6 +145,11 @@ describe("ws-chat smoke", () => {
     await wait(100);
     messages.length = 0;
 
+    // Leave guest mode so chat messages are accepted
+    client.send(JSON.stringify({ type: "command", text: "/nick smoketest" }));
+    await wait(150);
+    messages.length = 0;
+
     client.send(JSON.stringify({ type: "command", text: "/help" }));
     await wait(100);
     assert.ok(messages.some((msg) => msg.type === "system" && /Commandes disponibles/.test(msg.text)));
@@ -155,7 +160,7 @@ describe("ws-chat smoke", () => {
 
     client.send(JSON.stringify({ type: "message", text: "bonjour pharmacius" }));
     await wait(200);
-    assert.ok(messages.some((msg) => msg.type === "message" && /^user_/.test(msg.nick)));
+    assert.ok(messages.some((msg) => msg.type === "message" && msg.nick === "smoketest"));
     assert.ok(messages.some((msg) => msg.type === "message" && msg.nick === "Pharmacius" && msg.text === "reponse stub"));
   });
 });

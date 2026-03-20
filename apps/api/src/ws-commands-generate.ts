@@ -531,6 +531,11 @@ async function handleComposeCommand({
   const duration = durationMatch ? Math.min(Math.max(parseInt(durationMatch[1], 10), 5), 120) : 30;
   let musicPrompt = durationMatch ? rawPrompt.replace(/,?\s*\d+s\s*$/, '').trim() : rawPrompt;
 
+  if (!musicPrompt) {
+    send(ws, { type: "system", text: "Usage: /compose <description>, <style>, <duree>s" });
+    return;
+  }
+
   if (musicPrompt.length > 1000) {
     send(ws, { type: "system", text: "Prompt trop long (max 1000 chars)" });
     return;

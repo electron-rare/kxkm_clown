@@ -63,7 +63,7 @@ fs.promises.readFile(CHANNEL_STATE_FILE, "utf-8").then(raw => {
   } catch { /* corrupt file */ }
 }).catch(() => { /* no saved state */ });
 
-setInterval(saveChannelState, 5 * 60 * 1000);
+setInterval(saveChannelState, 5 * 60 * 1000).unref();
 
 // ---------------------------------------------------------------------------
 // Periodic cleanup of unbounded Maps (every 30 min)
@@ -98,7 +98,7 @@ setInterval(() => {
     userStats.clear();
     for (const [k, v] of entries.slice(0, 500)) userStats.set(k, v);
   }
-}, CLEANUP_INTERVAL);
+}, CLEANUP_INTERVAL).unref();
 
 // Moderation: banned nicks (shared with command handler)
 export const bannedNicks = new Set<string>();
@@ -166,6 +166,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   // Initial load + periodic refresh
   refreshPersonas();
   const refreshTimer = setInterval(refreshPersonas, PERSONA_REFRESH_INTERVAL_MS);
+  refreshTimer.unref();
 
   const wss = new WebSocketServer({ server, path: "/ws" });
   const clients = new Map<WebSocket, ClientInfo>();
@@ -453,12 +454,13 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
         const text = (message as InboundChatMessage).text;
 
-        // Guest mode: allow /nick to leave guest mode, block everything else
+        // Guest mode: allow /nick + read-only commands, block chat
         if (info.isGuest) {
-          if (message.type === "command" && text.startsWith("/nick ")) {
+          const GUEST_ALLOWED = ["/nick ", "/help", "/who", "/channels"];
+          if (message.type === "command" && GUEST_ALLOWED.some((c) => text.startsWith(c))) {
             await handleCommand({ ws, info, text });
             // If nick changed successfully, leave guest mode
-            if (!info.nick.startsWith("guest_")) {
+            if (text.startsWith("/nick ") && !info.nick.startsWith("guest_")) {
               info.isGuest = false;
               send(ws, { type: "system", text: `Mode invit\u00e9 d\u00e9sactiv\u00e9 — bienvenue ${info.nick} !` });
             }

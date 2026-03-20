@@ -4,12 +4,12 @@ Updated: 2026-03-20T09:00:00Z
 
 ## Summary
 
-- **104 lots executed** (24-127) in session 2026-03-19/20
+- **120 lots executed** (24-143) in session 2026-03-19/20
 - **425 tests**, 0 fail
-- **34 commands**, 12 services, 9 spec docs
+- **40 commands**, 12 services, 9 spec docs
 - **All SEC-01-05 resolved**
 - Ollama v0.18.2, qwen3.5:9b (256K ctx, adaptive thinking)
-- Next: lots 128+ (E2E Playwright, DPO automation, mobile responsive)
+- Next: lots 144+ (E2E Playwright, DPO automation, mobile responsive)
 
 ---
 
@@ -525,3 +525,69 @@ Updated: 2026-03-20T12:00:00Z
 - Description: Public demo mode (read-only guest access, rate-limited, no admin)
 - Owner: Backend API + Frontend
 - Priority: P3
+
+## lot-128-changelog-version [done]
+- Summary: /changelog (git log), /version (app info), 34 commands
+
+## lot-129-fun-commands [done]
+- Summary: /dice NdS, /roll, /flip pile/face, reconnect indicator CSS
+
+## lot-130-docs-update [done]
+- Summary: PLAN 104 lots summary, STATUS.md complete services table
+
+## lot-131-moderation [done]
+- Summary: /ban /unban, @mention highlighting CSS, enhanced /status
+
+## lot-132-mute-unmute [done]
+- Summary: /mute /unmute per-client persona filter, msg count header, disconnect logging
+
+## lot-133-mention-notification [done]
+- Summary: @mention sound notification client-side, @persona tab-complete
+
+## lot-134-idle-disconnect [done]
+- Summary: 30min warn, 35min kick, timer reset on activity
+
+## lot-135-streaming-fix [done]
+- Summary: think:false on all streaming paths, thinking field extraction for probe
+
+## lot-136-whisper [done]
+- Summary: /whisper private persona messages, /w alias
+
+## lot-137-code-blocks [done]
+- Summary: Triple backtick code block rendering, dark background CSS
+
+## lot-138-history [done]
+- Summary: /history N (1-100 messages from context store)
+
+## lot-139-search-react [done]
+- Summary: /search keyword in context, /react emoji broadcast
+
+## lot-140-invite [done]
+- Summary: /invite persona into channel, join broadcast
+
+## lot-141-time-date [done]
+- Summary: /time /date FR locale Europe/Paris
+
+## lot-142-session [done]
+- Summary: /session info (nick, channel, messages, muted, uptime, users)
+
+## lot-143-final [done]
+- Summary: 40 commands, 120 lots, 425 tests, full deploy
+
+## lot-144-e2e-playwright [planned]
+- Description: Tests E2E Playwright (navigation, login, chat flow)
+
+## lot-145-dpo-pipeline [planned]
+- Description: Persona DPO automation (feedback -> training)
+
+## lot-146-multi-channel-persist [planned]
+- Description: Channel persistence + channel-specific personas
+
+## lot-147-mobile-responsive [planned]
+- Description: Deep responsive pass for mobile/tablet
+
+## lot-148-guest-mode [planned]
+- Description: Read-only guest access (no login required)
+
+## lot-149-file-sharing [planned]
+- Description: Upload files visible in MediaExplorer gallery

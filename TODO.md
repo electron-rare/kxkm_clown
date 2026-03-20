@@ -306,3 +306,23 @@ Fait sur ce lot:
 - [ ] **P2** lot-28: RAG configurable (chunk size, similarity, model env vars)
 - [ ] **P2** lot-29: Systemd units (LightRAG + TTS, retirer tmux)
 - [ ] **P3** lot-27: Effets CRT WebGL (MinitelFrame)
+
+## Phase Session 2026-03-20 (lots 128-143)
+- [x] /changelog, /version commands
+- [x] /dice, /roll, /flip fun commands
+- [x] /ban, /unban moderation
+- [x] /mute, /unmute per-client persona filter
+- [x] @mention notification + @persona tab-complete
+- [x] Idle auto-disconnect (30min warn, 35min kick)
+- [x] Streaming think:false fix
+- [x] /whisper private persona, /w alias
+- [x] Code block rendering (triple backtick)
+- [x] /history, /search, /react commands
+- [x] /invite persona, /time, /session commands
+- [x] Connection quality indicator (reconnect status)
+- [x] IP connection limit (max 5/IP)
+- [x] Ollama model fallback (qwen3:4b)
+- [x] Persona cooldown (3s inter-persona)
+- [x] qwen3.5:9b migration (256K ctx, adaptive thinking)
+- [x] ComfyUI local :8189
+- [x] Auto-detect image/music generation in natural language

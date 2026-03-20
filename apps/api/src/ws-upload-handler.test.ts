@@ -14,6 +14,7 @@ function makeClientInfo(overrides?: Partial<ClientInfo>): ClientInfo {
     messageTimestamps: [],
     uploadBytesWindow: 0,
     lastUploadReset: Date.now(),
+    isGuest: false,
     ...overrides,
   };
 }

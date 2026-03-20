@@ -735,6 +735,40 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         return;
       }
 
+      case "/persona": {
+        const personaName = text.slice(9).trim();
+        const pList = getPersonas();
+        if (!personaName) {
+          const list = pList.map(p => `  ${p.nick} (${p.model})`).join("\n");
+          send(ws, { type: "system", text: `Personas actives (${pList.length}):\n${list}` });
+          return;
+        }
+        const found = pList.find(p => p.nick.toLowerCase() === personaName.toLowerCase());
+        if (!found) {
+          send(ws, { type: "system", text: `Persona "${personaName}" inconnue. /personas pour la liste.` });
+          return;
+        }
+        send(ws, { type: "system", text: `${found.nick}\n  Modele: ${found.model}\n  Couleur: ${found.color}\n  Prompt: ${found.systemPrompt.slice(0, 200)}...` });
+        return;
+      }
+
+      case "/model": {
+        const modelName = text.slice(7).trim();
+        if (!modelName) {
+          try {
+            const resp = await fetch("http://localhost:11434/api/ps", { signal: AbortSignal.timeout(3000) });
+            const data = await resp.json() as { models?: Array<{ name: string; size: number }> };
+            const loaded = data.models?.map(m => `  ${m.name} (${(m.size / 1e9).toFixed(1)}GB)`).join("\n") || "  aucun";
+            send(ws, { type: "system", text: `Modeles charges:\n${loaded}` });
+          } catch {
+            send(ws, { type: "system", text: "Impossible de contacter Ollama" });
+          }
+          return;
+        }
+        send(ws, { type: "system", text: `Modele prefere: ${modelName} (note: les personas utilisent leur modele assigne)` });
+        return;
+      }
+
       default:
         send(ws, { type: "system", text: `Commande inconnue: ${cmd}. Tape /help.` });
     }

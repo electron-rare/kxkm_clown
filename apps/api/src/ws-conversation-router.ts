@@ -119,7 +119,7 @@ export async function buildConversationInput(
     sections.push(`[Contexte conversationnel]\n${contextStr}`);
   }
 
-  if (rag && rag.size > 0) {
+  if (rag && rag.size > 0 && text.length > 30) { // Skip RAG for short messages (<30 chars)
     try {
       const results = await rag.search(text);
       if (results.length > 0) {

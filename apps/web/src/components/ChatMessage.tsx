@@ -2,14 +2,34 @@ import React from "react";
 import type { ChatMsg } from "./chat-types";
 
 function renderText(text: string): React.ReactNode {
+  // Split by code blocks first
+  const parts: React.ReactNode[] = [];
+  const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g;
+  let lastIdx = 0;
+  let match;
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(...renderInlineBlock(text.slice(lastIdx, match.index)));
+    }
+    parts.push(<pre key={match.index} className="chat-code-block"><code>{match[2]}</code></pre>);
+    lastIdx = match.index + match[0].length;
+  }
+  if (lastIdx < text.length) parts.push(...renderInlineBlock(text.slice(lastIdx)));
+  return parts;
+}
+
+function renderInlineBlock(text: string): React.ReactNode[] {
   const lines = text.split("\n");
-  if (lines.length === 1) return renderInline(text);
-  return lines.map((line, i) => (
+  if (lines.length === 1) {
+    const r = renderInline(text);
+    return Array.isArray(r) ? r : [r];
+  }
+  return [lines.map((line, i) => (
     <React.Fragment key={i}>
       {i > 0 && <br />}
       {renderInline(line)}
     </React.Fragment>
-  ));
+  ))];
 }
 
 function renderInline(text: string): React.ReactNode {

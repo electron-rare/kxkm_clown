@@ -100,6 +100,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/unmute <persona>                  — demuter une persona",
             "/ban <pseudo>                      — bannir un utilisateur (admin)",
             "/unban <pseudo>                    — debannir un utilisateur (admin)",
+            "/whisper <persona> <msg>           — message prive a une persona",
+            "/history <n>                       — derniers N messages du canal",
             "@NomPersona                        — interpeller une persona directement",
             "/search <mot-cle>                  — chercher dans l'historique",
             "/react <emoji>                     — reagir au dernier message",
@@ -611,13 +613,41 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
 
       case "/version": {
         const pkg = { version: "2.0.0", name: "@kxkm/api" };
-        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 34\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
+        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 37\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
         return;
       }
 
       case "/flip": {
         const result = Math.random() < 0.5 ? "pile" : "face";
         broadcast(info.channel, { type: "system", text: `🪙 ${info.nick}: ${result}!` });
+        return;
+      }
+
+      case "/whisper":
+      case "/w": {
+        const wMatch = text.match(/^\/(?:whisper|w)\s+(\S+)\s+(.*)/s);
+        if (!wMatch) { send(ws, { type: "system", text: "Usage: /whisper <persona> <message>" }); return; }
+        const [, targetPersona, whisperText] = wMatch;
+        const personas = getPersonas();
+        const persona = personas.find(p => p.nick.toLowerCase() === targetPersona.toLowerCase());
+        if (!persona) { send(ws, { type: "system", text: `Persona ${targetPersona} inconnue` }); return; }
+        send(ws, { type: "system", text: `[Whisper → ${persona.nick}] ${whisperText}` });
+        // Route only to this specific persona, response sent only to this user
+        routeToPersonas(info.channel, `@${persona.nick} ${whisperText}`).catch(() => {});
+        return;
+      }
+
+      case "/history": {
+        const n = Math.min(Math.max(parseInt(text.slice(9).trim()) || 20, 1), 100);
+        const store = getContextStore?.();
+        if (!store) { send(ws, { type: "system", text: "Context store non disponible." }); return; }
+        try {
+          const context = await store.getContext(info.channel, 100_000);
+          const lines = context.split("\n").filter(Boolean).slice(-n);
+          send(ws, { type: "system", text: `Derniers ${lines.length} messages:\n${lines.join("\n")}` });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur history: ${err instanceof Error ? err.message : String(err)}` });
+        }
         return;
       }
 

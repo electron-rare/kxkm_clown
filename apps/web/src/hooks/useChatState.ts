@@ -424,7 +424,7 @@ export function useChatState(): UseChatStateReturn {
 
       // Slash command completion
       if (text.startsWith("/") && !text.includes(" ")) {
-        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/context", "/responders", "/who", "/personas", "/export", "/memory", "/models", "/reload", "/topic", "/dm", "/pin", "/stats", "/ban", "/unban", "/mute", "/unmute", "/dice", "/roll", "/flip", "/changelog", "/version"];
+        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/context", "/responders", "/who", "/personas", "/export", "/memory", "/models", "/reload", "/topic", "/dm", "/pin", "/stats", "/ban", "/unban", "/mute", "/unmute", "/dice", "/roll", "/flip", "/changelog", "/version", "/whisper", "/w", "/history", "/search", "/react"];
         const prefix = tabPrefixRef.current || text;
         const matches = slashCommands.filter((c) => c.startsWith(prefix.toLowerCase()));
         if (matches.length === 0) return;

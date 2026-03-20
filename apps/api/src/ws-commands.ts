@@ -10,6 +10,8 @@ import { loadPersonaMemory } from "./ws-persona-router.js";
 import type { ChatPersona, ClientInfo, OutboundMessage, ChatLogEntry } from "./chat-types.js";
 import type { ContextStore } from "./context-store.js";
 import { getRecentErrors } from "./error-tracker.js";
+import fs from "node:fs";
+import { createComposition, getActiveComposition, addTrack, listCompositions } from "./composition-store.js";
 
 const execFileAsync = promisify(execFile);
 interface CommandContext {
@@ -82,6 +84,9 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/imagine <prompt>                  — genere une image",
             "/imagine-models                    — modeles ComfyUI disponibles",
             "/compose <prompt>, <style>, <duree>s — compose de la musique",
+            "/comp new <nom> | list             — gerer les compositions multi-pistes",
+            "/layer <description musicale>      — ajouter une piste a la composition",
+            "/mix                               — mixer toutes les pistes (ffmpeg)",
             "/status                            — etat du systeme (VRAM, modeles, perf)",
             "/responders <1-5>                  — nombre de personas qui repondent",
             "/model                             — modele actif",
@@ -801,6 +806,120 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
           send(ws, { type: "system", text: `\u26A1 Ollama: ${ms}ms | Modele: qwen3.5:9b` });
         } catch {
           send(ws, { type: "system", text: `\u26A1 Ollama: timeout (>10s)` });
+        }
+        return;
+      }
+
+      case "/comp": {
+        const sub = text.slice(6).trim().split(/\s+/);
+        const action = sub[0] || "list";
+
+        if (action === "new") {
+          const name = sub.slice(1).join(" ") || undefined;
+          const comp = createComposition(info.nick, info.channel, name);
+          send(ws, { type: "system", text: `🎼 Composition creee: ${comp.name} (${comp.id})\n  /layer <prompt> pour ajouter des pistes` });
+          return;
+        }
+        if (action === "list") {
+          const comps = listCompositions(info.nick);
+          if (comps.length === 0) { send(ws, { type: "system", text: "Aucune composition. /comp new <nom>" }); return; }
+          send(ws, { type: "system", text: `Compositions:\n${comps.map(c => `  ${c.id}: ${c.name} (${c.tracks.length} pistes)`).join("\n")}` });
+          return;
+        }
+        send(ws, { type: "system", text: "Usage: /comp new <nom> | /comp list" });
+        return;
+      }
+
+      case "/layer": {
+        const layerPrompt = text.slice(7).trim();
+        if (!layerPrompt) { send(ws, { type: "system", text: "Usage: /layer <description musicale>. Cree d'abord: /comp new" }); return; }
+
+        let comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) {
+          comp = createComposition(info.nick, info.channel);
+          send(ws, { type: "system", text: `🎼 Composition auto-creee: ${comp.name}` });
+        }
+
+        // Parse duration
+        const durMatch = layerPrompt.match(/(\d+)s\s*$/);
+        const duration = durMatch ? Math.min(Math.max(parseInt(durMatch[1]), 5), 120) : 30;
+        const prompt = durMatch ? layerPrompt.replace(/,?\s*\d+s\s*$/, "").trim() : layerPrompt;
+
+        broadcast(info.channel, { type: "system", text: `🎵 ${info.nick} ajoute une piste: "${prompt}" (${duration}s)...` });
+
+        // Generate audio
+        const ttsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
+        try {
+          const resp = await fetch(`${ttsUrl}/compose`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt, duration }),
+            signal: AbortSignal.timeout(300_000),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+          const audioBuffer = Buffer.from(await resp.arrayBuffer());
+          const track = addTrack(comp.id, { type: "music", prompt, duration, volume: 100, startMs: 0 });
+
+          // Save audio file
+          if (track) {
+            const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
+            fs.mkdirSync(trackDir, { recursive: true });
+            const trackPath = path.join(trackDir, `${track.id}.wav`);
+            fs.writeFileSync(trackPath, audioBuffer);
+            track.filePath = trackPath;
+          }
+
+          broadcast(info.channel, {
+            type: "music", nick: info.nick,
+            text: `[Layer: "${prompt}" — piste ${comp.tracks.length}/${comp.name}]`,
+            audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
+          } as any);
+
+          send(ws, { type: "system", text: `✅ Piste ajoutee (${comp.tracks.length} total). /mix pour mixer.` });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur layer: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/mix": {
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || comp.tracks.length === 0) {
+          send(ws, { type: "system", text: "Aucune piste a mixer. /layer d'abord." }); return;
+        }
+
+        broadcast(info.channel, { type: "system", text: `🎛️ Mixage de ${comp.tracks.length} pistes...` });
+
+        const { execFileSync } = await import("node:child_process");
+        const outPath = path.join(process.cwd(), "data", "compositions", comp.id, "mix.wav");
+
+        try {
+          if (comp.tracks.length === 1 && comp.tracks[0].filePath) {
+            // Single track — just copy
+            fs.copyFileSync(comp.tracks[0].filePath, outPath);
+          } else {
+            // Multi-track — mix with ffmpeg
+            const inputs = comp.tracks.filter(t => t.filePath && fs.existsSync(t.filePath));
+            const ffmpegArgs: string[] = [];
+            for (const t of inputs) {
+              ffmpegArgs.push("-i", t.filePath!);
+            }
+            // amix filter for overlaying
+            ffmpegArgs.push("-filter_complex", `amix=inputs=${inputs.length}:duration=longest:dropout_transition=2`);
+            ffmpegArgs.push("-ac", "1", "-ar", "32000", "-y", outPath);
+            execFileSync("ffmpeg", ffmpegArgs, { timeout: 60000 });
+          }
+
+          const mixBuffer = fs.readFileSync(outPath);
+          broadcast(info.channel, {
+            type: "music", nick: info.nick,
+            text: `[Mix: ${comp.name} — ${comp.tracks.length} pistes]`,
+            audioData: mixBuffer.toString("base64"), audioMime: "audio/wav",
+          } as any);
+
+          send(ws, { type: "system", text: `✅ Mix termine: ${comp.tracks.length} pistes → mix.wav` });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur mixage: ${err instanceof Error ? err.message : String(err)}` });
         }
         return;
       }

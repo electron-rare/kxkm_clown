@@ -809,12 +809,45 @@ async function handleComposeCommand({
   logChatMessage: (entry: ChatLogEntry) => void;
 }): Promise<void> {
   const rawPrompt = text.slice(9).trim();
-  // Parse duration from prompt (e.g., "ambient drone, 60s" or "ambient drone, experimental style, 120s")
+  // Parse duration from prompt (e.g., "ambient drone, 60s")
   const durationMatch = rawPrompt.match(/(\d+)s\s*$/);
   const duration = durationMatch ? Math.min(Math.max(parseInt(durationMatch[1], 10), 5), 120) : 30;
-  const musicPrompt = durationMatch ? rawPrompt.replace(/,?\s*\d+s\s*$/, '').trim() : rawPrompt;
+  let musicPrompt = durationMatch ? rawPrompt.replace(/,?\s*\d+s\s*$/, '').trim() : rawPrompt;
+  
+  // Extract style keyword if present and enhance prompt
+  const styleKeywords = [
+    "ambient", "drone", "noise", "glitch", "industrial", "techno", "house",
+    "jazz", "free-jazz", "experimental", "electroacoustique", "concrete",
+    "classical", "orchestral", "cinematic", "epic", "dark", "minimal",
+    "hip-hop", "trap", "lo-fi", "chillwave", "synthwave", "vaporwave",
+    "metal", "punk", "post-rock", "shoegaze", "dream-pop",
+    "world", "african", "arabic", "indian", "gamelan", "folk",
+    "acousmatic", "granular", "spectral", "field-recording",
+  ];
+  const detectedStyles = styleKeywords.filter(s => musicPrompt.toLowerCase().includes(s));
+  // If no style detected, add "experimental" as default
+  if (detectedStyles.length === 0 && !musicPrompt.toLowerCase().includes("style")) {
+    musicPrompt += ", experimental style";
+  }
   if (!musicPrompt) {
-    send(ws, { type: "system", text: "Usage: /compose <description musicale>, <style>, <duree>s" });
+    send(ws, { type: "system", text: [
+      "Usage: /compose <description>, <style>, <duree>s",
+      "",
+      "Styles disponibles:",
+      "  ambient, drone, noise, glitch, industrial, techno, house",
+      "  jazz, free-jazz, experimental, electroacoustique, concrete",
+      "  classical, orchestral, cinematic, epic, dark, minimal",
+      "  hip-hop, trap, lo-fi, chillwave, synthwave, vaporwave",
+      "  metal, punk, post-rock, shoegaze, dream-pop",
+      "  world, african, arabic, indian, gamelan, folk",
+      "  acousmatic, granular, spectral, field-recording",
+      "",
+      "Exemples:",
+      "  /compose ambient drone with deep bass, experimental, 30s",
+      "  /compose dark industrial noise, glitch, 60s",
+      "  /compose lo-fi hip-hop beats, chill, 120s",
+      "  /compose musique concrete avec sons metalliques, acousmatic, 30s",
+    ].join("\n") });
     return;
   }
 
@@ -829,11 +862,10 @@ async function handleComposeCommand({
   // Progress ticker — send updates every 5s while waiting
   const progressInterval = setInterval(() => {
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    const maxDuration = duration * 2; // rough estimate of generation time
-    const pct = Math.min(95, Math.floor((elapsed / maxDuration) * 100));
-    const filled = Math.floor(pct / 5);
-    const bar = "█".repeat(filled) + "░".repeat(20 - filled);
-    broadcast(info.channel, { type: "system", text: `🎵 [${bar}] ${pct}% — composition ${elapsed}s` });
+    // Smooth elapsed-based progress (no percentage — we don't know when it'll finish)
+    const dots = "·".repeat(Math.min(elapsed, 30));
+    const spinner = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"][elapsed % 10];
+    broadcast(info.channel, { type: "system", text: `🎵 ${spinner} Composition en cours ${dots} ${elapsed}s` });
   }, 5000);
 
   try {
@@ -925,10 +957,9 @@ async function handleImagineCommand({
   const startTime = Date.now();
   const progressInterval = setInterval(() => {
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    const pctImg = Math.min(95, Math.floor((elapsed / 30) * 100));
-    const filledImg = Math.floor(pctImg / 5);
-    const barImg = "█".repeat(filledImg) + "░".repeat(20 - filledImg);
-    broadcast(info.channel, { type: "system", text: `🎨 [${barImg}] ${pctImg}% — generation ${elapsed}s` });
+    const spinnerImg = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"][elapsed % 10];
+    const dotsImg = "·".repeat(Math.min(elapsed, 20));
+    broadcast(info.channel, { type: "system", text: `🎨 ${spinnerImg} Generation image ${dotsImg} ${elapsed}s` });
   }, 5000);
 
   try {

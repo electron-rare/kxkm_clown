@@ -34,3 +34,8 @@ Specs: 9 module docs (5220+ lines)
 ## Next: lots 144-149
 - E2E Playwright, DPO automation, multi-channel persist
 - Mobile responsive, guest mode, file sharing
+
+## Final State 2026-03-20
+Lots: 171 done | Tests: 425+ | Commands: 45 | Services: 13 (8/8 green)
+TTFC: 284ms | RSS: 110MB | VRAM: 14.2GB/24GB
+NLP auto-detect verified | ComfyUI smart models (32ckpt, 24 LoRA)

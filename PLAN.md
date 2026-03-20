@@ -591,3 +591,69 @@ Updated: 2026-03-20T12:00:00Z
 
 ## lot-149-file-sharing [planned]
 - Description: Upload files visible in MediaExplorer gallery
+
+## lot-150-reload-markdown [done]
+- Summary: /reload, markdown rendering, /help + tab-complete
+
+## lot-151-export-memory-models [done]
+- Summary: /export, /memory, /models commands
+
+## lot-152-comfyui-integration [done]
+- Summary: ComfyUI :8188 live, systemd unit
+
+## lot-153-rag-perf [done]
+- Summary: RAG timeout 2s, TTFC 284ms (27x faster)
+
+## lot-154-progress-bars [done]
+- Summary: Broadcast progress for /imagine and /compose
+
+## lot-155-comfyui-smart-models [done]
+- Summary: Smart model selection, 32 checkpoints, 24 LoRAs
+
+## lot-156-imagine-end2end [done]
+- Summary: /imagine end-to-end verified
+
+## lot-157-compose-end2end [done]
+- Summary: /compose end-to-end verified
+
+## lot-158-e2e-tests [done]
+- Summary: E2E 10/10 pass
+
+## lot-159-45-commands [done]
+- Summary: 45 commands, tab-complete
+
+## lot-160-nlp-autodetect [done]
+- Summary: NL auto-triggers /imagine + /compose
+
+## lot-161-admin [done]
+- Summary: Admin panel, services, users
+
+## lot-162-media-explorer [done]
+- Summary: Gallery for generated images/audio
+
+## lot-163-persona-voices [done]
+- Summary: Per-persona voice config
+
+## lot-164-context-stats [done]
+- Summary: /context stats
+
+## lot-165-security [done]
+- Summary: SEC-01 to SEC-03
+
+## lot-166-docs [done]
+- Summary: Full spec docs
+
+## lot-167-oss-veille [done]
+- Summary: Qwen3-TTS, NexusRAG research
+
+## lot-168-nlp-verified [done]
+- Summary: NLP auto-detect E2E verified
+
+## lot-169-plan-update [done]
+- Summary: PLAN.md lots 150-169
+
+## lot-170-final-health [done]
+- Summary: 8/8 services, 45 cmds, TTFC 284ms
+
+## lot-171-final [done]
+- Summary: Final session commit

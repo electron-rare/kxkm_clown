@@ -53,16 +53,52 @@ function saveChannelState() {
   fs.promises.writeFile(CHANNEL_STATE_FILE, JSON.stringify(state, null, 2)).catch(() => {});
 }
 
-// Load on start
-try {
-  const raw = fs.readFileSync(CHANNEL_STATE_FILE, "utf-8");
-  const state = JSON.parse(raw);
-  if (state.topics) Object.entries(state.topics).forEach(([k, v]) => channelTopics.set(k, v as string));
-  if (state.pins) Object.entries(state.pins).forEach(([k, v]) => channelPins.set(k, v as string[]));
-  logger.info("[ws-chat] Loaded channel state from disk");
-} catch { /* no saved state */ }
+// Load on start (async to avoid blocking event loop)
+fs.promises.readFile(CHANNEL_STATE_FILE, "utf-8").then(raw => {
+  try {
+    const state = JSON.parse(raw);
+    if (state.topics) Object.entries(state.topics).forEach(([k, v]) => channelTopics.set(k, v as string));
+    if (state.pins) Object.entries(state.pins).forEach(([k, v]) => channelPins.set(k, v as string[]));
+    logger.info("[ws-chat] Loaded channel state from disk");
+  } catch { /* corrupt file */ }
+}).catch(() => { /* no saved state */ });
 
 setInterval(saveChannelState, 5 * 60 * 1000);
+
+// ---------------------------------------------------------------------------
+// Periodic cleanup of unbounded Maps (every 30 min)
+// ---------------------------------------------------------------------------
+
+const CLEANUP_INTERVAL = 30 * 60 * 1000;
+
+// NOTE: `clients` is created inside attachWebSocketChat; we store a ref here
+// so the module-level interval can access it once set.
+let _clients: Map<WebSocket, ClientInfo> | undefined;
+
+setInterval(() => {
+  if (!_clients) return;
+  // Get active channels
+  const activeChannels = new Set<string>();
+  for (const [, info] of _clients) {
+    activeChannels.add(info.channel);
+  }
+  // Clean inactive channels
+  for (const key of channelSeq.keys()) {
+    if (!activeChannels.has(key)) channelSeq.delete(key);
+  }
+  for (const key of channelTopics.keys()) {
+    if (!activeChannels.has(key)) channelTopics.delete(key);
+  }
+  for (const key of channelPins.keys()) {
+    if (!activeChannels.has(key)) channelPins.delete(key);
+  }
+  // Clean disconnected users from stats (keep last 1000)
+  if (userStats.size > 1000) {
+    const entries = [...userStats.entries()].sort((a, b) => b[1].firstSeen - a[1].firstSeen);
+    userStats.clear();
+    for (const [k, v] of entries.slice(0, 500)) userStats.set(k, v);
+  }
+}, CLEANUP_INTERVAL);
 
 // Moderation: banned nicks (shared with command handler)
 export const bannedNicks = new Set<string>();
@@ -133,6 +169,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
   const wss = new WebSocketServer({ server, path: "/ws" });
   const clients = new Map<WebSocket, ClientInfo>();
+  _clients = clients; // expose to module-level cleanup interval
 
   // Clean up refresh timer when server closes
   wss.on("close", () => {

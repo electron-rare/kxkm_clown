@@ -17,9 +17,11 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
     : { checkpoint: process.env.COMFYUI_CHECKPOINT || "sdxl_lightning_4step.safetensors", lora: undefined, loraStrength: 0.7 };
 
   const checkpoint = selection.checkpoint;
-  const isFlux = checkpoint.toLowerCase().includes("flux");
-  const isLightning = checkpoint.toLowerCase().includes("lightning");
-  const isTurbo = checkpoint.toLowerCase().includes("turbo");
+  const ckLower = checkpoint.toLowerCase();
+  const isFlux = ckLower.includes("flux");
+  const isLightning = ckLower.includes("lightning");
+  const isTurbo = ckLower.includes("turbo");
+  const isLCM = ckLower.includes("lcm");
 
   // Adapt workflow parameters based on model type
   let steps: number, cfg: number, sampler: string, scheduler: string;
@@ -27,6 +29,8 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
     steps = 20; cfg = 3.5; sampler = "euler"; scheduler = "normal";
   } else if (isLightning) {
     steps = 4; cfg = 1.5; sampler = "dpmpp_sde"; scheduler = "karras";
+  } else if (isLCM) {
+    steps = 6; cfg = 1.5; sampler = "lcm"; scheduler = "sgm_uniform";
   } else if (isTurbo) {
     steps = 6; cfg = 1.8; sampler = "dpmpp_sde"; scheduler = "karras";
   } else {

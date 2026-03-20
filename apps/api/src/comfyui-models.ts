@@ -69,12 +69,12 @@ export function selectModel(prompt: string, models: ComfyModel[]): { checkpoint:
   }
   // Abstract / Art / Painting
   if (lower.match(/abstract|art|paint|surreal|dream|oil|impressionis/)) {
-    checkpoint = checkpoints.find(c => c.match(/dream|Deliberate|impressionism/i)) || checkpoint;
+    checkpoint = checkpoints.find(c => c.match(/dreamshaperXL|Deliberate|impressionism/i)) || checkpoint;
     lora = loras.find(l => l.match(/Pixel.Sorting/i));
   }
   // Cyberpunk / SciFi / Neon
   if (lower.match(/cyber|sci.fi|futur|neon|tech|robot/)) {
-    checkpoint = checkpoints.find(c => c.match(/cyberrealistic|dream/i)) || checkpoint;
+    checkpoint = checkpoints.find(c => c.match(/cyberrealistic|dreamshaperXL/i)) || checkpoint;
   }
   // Animal / Hybrid
   if (lower.match(/animal|hybrid|creature|beast|chimera/)) {

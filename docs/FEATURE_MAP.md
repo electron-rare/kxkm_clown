@@ -217,6 +217,15 @@ flowchart TD
 | Same-origin check | Verification origine sur les mutations |
 | RBAC (V2) | Roles admin, editor, operator, viewer |
 
+## Composition Pipeline (lots 184-191)
+
+| Fonctionnalite | Detail |
+| --- | --- |
+| **Phase 1: Multi-track** | `/compose` generates base track, `/layer` adds tracks, composition-store manages multi-track state |
+| **Phase 2: Voice & Noise** | `/voice` TTS voiceover injected as track, `/noise` 5 types (white/pink/brown/rain/wind), `/ambient` scene generator (forest/ocean/city/space/cave) |
+| **Phase 3: Effects & Mix** | `/fx` 9 audio effects (reverb, delay, chorus, flanger, distortion, bitcrusher, EQ, compressor, tremolo), `/mix` merge all tracks with mastering (loudness normalization, limiter) |
+| **Commands** | `/comp` (composition info/structure), `/layer` (add track), `/mix` (merge + master), `/voice` (TTS layer), `/noise` (noise layer), `/ambient` (scene layer), `/fx` (apply effect) |
+
 ## Fonctionnalites session 2026-03-20 (lots 174-177)
 
 | Fonctionnalite | Detail |
@@ -232,7 +241,7 @@ flowchart TD
 
 | Fonctionnalite | Detail |
 | --- | --- |
-| **43 chat commands** | /help, /nick, /who, /personas, /web, /clear, /status, /model, /persona, /reload, /export, /compose, /imagine, /voice, /memory, /context, /rag, /stats, /uptime, /changelog, /version, /dice, /roll, /flip, /ban, /unban, /mute, /unmute, /whisper, /w, /history, /search, /react, /invite, /time, /date, /session, /speed, + more |
+| **53 chat commands** | /help, /nick, /who, /personas, /web, /clear, /status, /model, /persona, /reload, /export, /compose, /imagine, /voice, /memory, /context, /rag, /stats, /uptime, /changelog, /version, /dice, /roll, /flip, /ban, /unban, /mute, /unmute, /whisper, /w, /history, /search, /react, /invite, /time, /date, /session, /speed, + more |
 | **Markdown rendering** | marked + DOMPurify, bold, italic, code blocks, links, lists in chat messages |
 | **Smart routing** | 5 topic domains (music, philosophy, tech, arts, science), keyword + embedding scoring |
 | **Dynamic context window** | Adaptive 4k-32k tokens based on conversation length and complexity |

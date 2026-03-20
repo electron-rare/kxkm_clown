@@ -1,17 +1,18 @@
 # PLAN.md — KXKM_Clown
 
-Updated: 2026-03-20T18:00:00Z
+Updated: 2026-03-20T22:00:00Z
 
 ## Summary
 
-- **165+ lots executed** (24-177) in session 2026-03-19/20
+- **170+ lots executed** (24-191) in session 2026-03-19/20
 - **425 tests**, 0 fail
-- **43 commands**, 13 services, 9 spec docs
+- **53 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
 - Ollama v0.18.2, qwen3.5:9b (256K ctx, adaptive thinking)
-- 35 music styles, 5 CSS themes, 32 ComfyUI checkpoints + 24 LoRAs
+- 35 music styles, 9 audio effects, 5 CSS themes, 32 ComfyUI checkpoints + 24 LoRAs
+- Composition pipeline: multi-track, voice, noise, effects, mix
 - TTFC 284ms
-- Next: lots 178+ (Compose pipeline, DAW integration, composition advanced)
+- Next: lots 192+ (ws-commands extraction, waveform viz, remix, MIDI, templates, collab, stems, DAW export)
 
 ---
 
@@ -648,87 +649,89 @@ Updated: 2026-03-20T12:00:00Z
 - Owner: Multimodal
 - Priority: P3
 
-## lot-184-multi-track [planned]
+## lot-184-multi-track [done]
 - Description: Multi-track composition (layer multiple ACE-Step generations)
 - Owner: Multimodal
-- Priority: P2
+- Summary: /layer command, composition-store multi-track, track merge pipeline.
 
-## lot-185-composition-ui [planned]
+## lot-185-composition-ui [done]
 - Description: Composition timeline UI (waveform view, track lanes)
 - Owner: Frontend
-- Priority: P2
+- Summary: CompositionView with track lanes, play/pause/seek, layer visualization.
 
-## lot-186-arrangement [planned]
+## lot-186-arrangement [done]
 - Description: Arrangement tools (intro/verse/chorus structure)
 - Owner: Backend API + Frontend
-- Priority: P2
+- Summary: /comp structure command, section markers, arrangement presets.
 
-## lot-187-mastering [planned]
+## lot-187-mastering [done]
 - Description: Auto-mastering pipeline (loudness normalization, limiting)
 - Owner: Multimodal
-- Priority: P3
+- Summary: /mix master command, loudness normalization, limiter, final WAV export.
 
-## lot-188-stem-separation [planned]
-- Description: Stem separation (vocals, drums, bass, other)
+## lot-188-voice-composition [done]
+- Description: /voice command — TTS voiceover injected into composition timeline
+- Owner: Multimodal
+- Summary: /voice generates TTS audio, injects as track layer in composition.
+
+## lot-189-noise-generator [done]
+- Description: /noise command — 5 noise types (white, pink, brown, rain, wind)
+- Owner: Multimodal
+- Summary: /noise generates ambient noise layers, 5 types available.
+
+## lot-190-fx-pipeline [done]
+- Description: /fx command — 9 audio effects (reverb, delay, chorus, flanger, distortion, bitcrusher, EQ, compressor, tremolo)
+- Owner: Multimodal
+- Summary: 9 real-time audio effects applicable to any track or mix.
+
+## lot-191-ambient-command [done]
+- Description: /ambient command — ambient scene generator (forest, ocean, city, space, cave)
+- Owner: Multimodal
+- Summary: /ambient generates layered ambient soundscapes from scene presets.
+
+## lot-192-ws-commands-extraction [planned]
+- Description: ws-commands modular extraction (split monolithic command handler into per-command modules)
+- Owner: Backend API
+- Priority: P1
+
+## lot-193-composition-tests [planned]
+- Description: Composition tests (unit tests for composition-store, /fx effects)
+- Owner: Backend API
+- Priority: P1
+
+## lot-194-waveform-viz [planned]
+- Description: Waveform visualization (wavesurfer.js @wavesurfer/react or canvas)
+- Owner: Frontend
+- Priority: P2
+- Notes: wavesurfer.js v7+ has official @wavesurfer/react package (hook + component). Plugins: regions, timeline, spectrogram, minimap. MIT license.
+
+## lot-195-remix [planned]
+- Description: /remix re-generate specific track in composition
+- Owner: Multimodal
+- Priority: P2
+
+## lot-196-midi-export [planned]
+- Description: MIDI export from composition
 - Owner: Multimodal
 - Priority: P3
 
-## lot-189-midi-export [planned]
-- Description: MIDI export from generated compositions
-- Owner: Multimodal
-- Priority: P3
-
-## lot-190-composition-templates [planned]
-- Description: Composition templates (ambient, techno, orchestral presets)
+## lot-197-composition-templates [planned]
+- Description: Composition templates (preset multi-track arrangements: ambient, techno, orchestral, cinematic)
 - Owner: Backend API
 - Priority: P2
 
-## lot-191-collab-composition [planned]
-- Description: Collaborative composition (multi-user timeline editing)
+## lot-198-collab-composition [planned]
+- Description: Collaborative composition (multiple users, shared composition, real-time sync)
 - Owner: Backend API + Frontend
 - Priority: P3
 
-## lot-192-lyrics-gen [planned]
-- Description: Lyrics generation (LLM-driven, synced to composition)
-- Owner: Backend API
-- Priority: P3
-
-## lot-193-voice-composition [planned]
-- Description: Voice-driven composition (hum/sing to generate)
+## lot-199-stem-separation [planned]
+- Description: Stem separation via Demucs v4 (htdemucs) — vocals, drums, bass, other, piano, guitar
 - Owner: Multimodal
-- Priority: P3
+- Priority: P2
+- Notes: Demucs v4 (htdemucs) MIT license, pip install demucs, 6-stem mode (piano+guitar), SDR 9.20dB. htdemucs_ft for best quality. GPU recommended.
 
-## lot-194-fx-rack [planned]
-- Description: FX rack UI (drag-drop effects chain)
-- Owner: Frontend
-- Priority: P3
-
-## lot-195-automation [planned]
-- Description: Parameter automation (volume, pan, effects over time)
-- Owner: Frontend + Backend API
-- Priority: P3
-
-## lot-196-sample-library [planned]
-- Description: Sample library integration (one-shots, loops, foley)
+## lot-200-daw-export [planned]
+- Description: Full DAW export (WAV stems + JSON project file with markers, effects, arrangement)
 - Owner: Multimodal
-- Priority: P3
-
-## lot-197-spectral-view [planned]
-- Description: Spectral analysis view for compositions
-- Owner: Frontend
-- Priority: P3
-
-## lot-198-composition-history [planned]
-- Description: Composition version history (undo/redo, snapshots)
-- Owner: Backend API
-- Priority: P3
-
-## lot-199-render-queue [planned]
-- Description: Render queue (batch export, format options)
-- Owner: Backend API + Multimodal
-- Priority: P3
-
-## lot-200-composition-sharing [planned]
-- Description: Composition sharing (public links, embeds)
-- Owner: Backend API + Frontend
 - Priority: P3

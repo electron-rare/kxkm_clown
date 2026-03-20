@@ -338,3 +338,15 @@ Pas de changement par rapport au 19 mars. Tester Qwen3-TTS pour les voix de pers
 - [react-window v2 Changes](https://github.com/bvaughn/react-window/issues/302)
 - [react-window Releases](https://github.com/bvaughn/react-window/releases)
 - [react-window CHANGELOG](https://github.com/bvaughn/react-window/blob/main/CHANGELOG.md)
+
+### Audio / Composition (recherche 2026-03-20 22:00)
+- [wavesurfer.js](https://wavesurfer.xyz/) — Waveform visualization, Web Audio API + Canvas, MIT
+- [@wavesurfer/react](https://www.npmjs.com/package/@wavesurfer/react) — Official React hook + component, all wavesurfer options as props
+- Plugins: regions (clickable overlays), timeline, spectrogram, minimap, hover, envelope, microphone
+- Candidat ideal pour lot-194 (waveform visualization dans CompositionView)
+- [Demucs v4 (htdemucs)](https://github.com/facebookresearch/demucs) — Meta, MIT license, pip install demucs
+- Hybrid Transformer architecture, SDR 9.20 dB sur MUSDB HQ
+- 6-stem mode: vocals, drums, bass, other, piano, guitar (htdemucs_6s)
+- htdemucs_ft (fine-tuned) pour meilleure qualite, mdx_extra pour vitesse
+- GPU recommande, fonctionne aussi CPU (plus lent)
+- Candidat ideal pour lot-199 (stem separation)

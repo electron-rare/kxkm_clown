@@ -109,12 +109,18 @@ flowchart TD
 
 - [x] 35 music styles ACE-Step
 - [x] ComfyUI smart checkpoint selection (32 checkpoints + 24 LoRAs)
-- [ ] lot-178: ACE-Step API direct (duration fix)
-- [ ] lot-181: TTS voiceover mix into timeline
-- [ ] lot-182: Audio effects pipeline (reverb, delay, EQ, compression)
-- [ ] lot-183: DAW export (stems, markers, project file)
-- [ ] lot-187: Auto-mastering (loudness normalization, limiting)
-- [ ] lot-188: Stem separation (vocals, drums, bass, other)
+- [x] lot-184: Multi-track composition (/layer, composition-store)
+- [x] lot-185: Composition UI (track lanes, play/pause/seek)
+- [x] lot-186: Arrangement tools (/comp structure, section markers)
+- [x] lot-187: Auto-mastering (/mix master, loudness normalization, limiter)
+- [x] lot-188: /voice TTS voiceover injected into composition
+- [x] lot-189: /noise 5 types (white, pink, brown, rain, wind)
+- [x] lot-190: /fx 9 audio effects (reverb, delay, chorus, flanger, distortion, bitcrusher, EQ, compressor, tremolo)
+- [x] lot-191: /ambient scene generator (forest, ocean, city, space, cave)
+- [ ] lot-194: Waveform visualization (wavesurfer.js)
+- [ ] lot-195: /remix re-generate specific track
+- [ ] lot-199: Stem separation (Demucs v4 htdemucs, 6-stem, MIT)
+- [ ] lot-200: Full DAW export (WAV stems + JSON project)
 
 ### Personas
 
@@ -217,13 +223,14 @@ stateDiagram-v2
 - Privilegier TUI et scripts avec logs lisibles, puis purge des logs obsoletes.
 - Conserver la V1 comme reference comportementale, V2 comme cible active.
 
-### Etat de cycle (2026-03-20 18:00)
+### Etat de cycle (2026-03-20 22:00)
 
-- 130+ lots termines (lot-24 a lot-177).
+- 170+ lots termines (lot-24 a lot-191).
 - 425 tests, 0 failures.
 - 13 services en production.
-- 43 chat commands, 33 personas.
-- 35 music styles (ACE-Step), 5 CSS themes.
+- 53 chat commands, 33 personas.
+- 35 music styles (ACE-Step), 9 audio effects, 5 CSS themes.
+- Composition pipeline: multi-track, voice, noise, ambient, effects, mix.
 - 32 ComfyUI checkpoints + 24 LoRAs, smart selection NLP.
 - TTFC 284ms.
 - Guest mode, mobile responsive.
@@ -231,12 +238,14 @@ stateDiagram-v2
 - Systemd services (TTS + LightRAG).
 - Frontend: lazy routes (-53%), React.memo, CRT boot, chat virtualization.
 
-### Prochains lots (178-200) — Composition Pipeline
+### Prochains lots (192-200) — Composition Advanced
 
-1. lot-178: Compose duration fix (ACE-Step API direct)
-2. lot-179: SPEC_COMPOSE_ADVANCED plan
-3. lot-180: Timeline data model (tracks, clips, markers)
-4. lot-181: TTS voiceover mix into timeline
-5. lot-182: Audio effects pipeline (reverb, delay, EQ)
-6. lot-183: DAW export (stems, markers, project)
-7. lot-184-200: Multi-track, arrangement, mastering, stem separation, MIDI, templates, collab, lyrics, FX rack, automation, samples, spectral view, history, render queue, sharing
+1. lot-192: ws-commands modular extraction
+2. lot-193: Composition tests (unit tests composition-store, /fx)
+3. lot-194: Waveform visualization (wavesurfer.js @wavesurfer/react)
+4. lot-195: /remix re-generate specific track
+5. lot-196: MIDI export from composition
+6. lot-197: Composition templates (preset multi-track arrangements)
+7. lot-198: Collaborative composition (multi-user, shared comp)
+8. lot-199: Stem separation (Demucs v4 htdemucs, MIT, 6-stem)
+9. lot-200: Full DAW export (WAV stems + JSON project file)

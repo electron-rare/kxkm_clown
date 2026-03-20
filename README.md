@@ -55,6 +55,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | SearXNG | 8080 | Recherche web self-hosted |
 | TTS Sidecar | 9100 | Piper + Chatterbox (dual backend) |
 | Qwen3-TTS | 9300 | Qwen3-TTS 0.6B CustomVoice (9 speakers) |
+| ACE-Step | 9400 | Generation musicale (35 styles, GPU) |
 | Reranker | 8787 | BGE/Jina reranking |
 | Docling | 5001 | Extraction PDF (tables, OCR) |
 | ComfyUI | 8188 | Generation images (32 checkpoints + 24 LoRAs) |
@@ -74,10 +75,11 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 - **PDF** — Extraction via Docling/PyMuPDF (tables, layout, OCR)
 - **Recherche web** — SearXNG self-hosted + DuckDuckGo fallback
 - **Generation musicale** — `/compose` via ACE-Step 1.5 / MusicGen, 35 music styles
+- **Composition pipeline** — Multi-track (`/layer`), voice (`/voice`), noise (`/noise` 5 types), ambient (`/ambient`), effects (`/fx` 9 effects: reverb, delay, chorus, flanger, distortion, bitcrusher, EQ, compressor, tremolo), mix (`/mix`)
 - **Generation images** — `/imagine` via ComfyUI (32 checkpoints + 24 LoRAs, smart NLP selection)
 - **Memoire persona** — Faits et resume persistants, compaction LLM auto (750 MB)
 - **Inter-persona** — @mention directe, dialogue depth 3
-- **43 commandes slash** — /help, /nick, /who, /personas, /web, /clear, /status, /compose, /imagine, /voice, /memory, /context, /rag, /stats, /uptime, /model, /persona, /reload, /export, /changelog, /version, /dice, /roll, /flip, /ban, /unban, /mute, /unmute, /whisper, /history, /search, /react, /invite, /time, /date, /session, /speed, + more
+- **53 commandes slash** — /help, /nick, /who, /personas, /web, /clear, /status, /compose, /imagine, /voice, /noise, /ambient, /fx, /layer, /mix, /comp, /memory, /context, /rag, /stats, /uptime, /model, /persona, /reload, /export, /changelog, /version, /dice, /roll, /flip, /ban, /unban, /mute, /unmute, /whisper, /history, /search, /react, /invite, /time, /date, /session, /speed, + more
 - **Markdown chat** — Rendu Markdown (marked + DOMPurify) dans les messages
 - **Smart routing** — 5 domaines thematiques (musique, philosophie, tech, arts, science)
 - **Validation Zod** — 19 schemas sur toutes les routes API
@@ -145,7 +147,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `PYTHON_BIN` | `python3` | Python avec libs ML (PyTorch, faster-whisper, piper-tts) |
 | `SCRIPTS_DIR` | `./scripts` | Chemin vers les scripts Python (TTS, STT, training) |
 
-## Commandes slash (43)
+## Commandes slash (53)
 
 | Commande | Description | Admin |
 | --- | --- | --- |
@@ -178,6 +180,12 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `/date` | Date (FR locale) | non |
 | `/session` | Info session courante | non |
 | `/speed` | Diagnostics latence (TTFC, p50/p95) | non |
+| `/layer <prompt>` | Ajouter une couche audio a la composition | non |
+| `/mix` | Mixer les couches de la composition | non |
+| `/comp` | Gerer la composition (structure, info) | non |
+| `/noise <type>` | Generer bruit ambiant (white/pink/brown/rain/wind) | non |
+| `/ambient <scene>` | Scene ambiante (forest/ocean/city/space/cave) | non |
+| `/fx <effect>` | Appliquer effet audio (reverb/delay/chorus/flanger/distortion/bitcrusher/eq/compressor/tremolo) | non |
 | `/model` | Changer modele | oui |
 | `/persona` | Gerer personas | oui |
 | `/reload` | Recharger config | oui |
@@ -326,6 +334,7 @@ kxkm_clown/
 | RBAC | n/a | operationnel |
 | Frontend React | n/a | operationnel |
 | Training (TRL/Unsloth) | n/a | operationnel |
+| Composition pipeline | n/a | operationnel |
 | Tests (425+) | smoke | unit + component + smoke (425+ pass) |
 | VoiceChat push-to-talk | n/a | operationnel |
 | Mediatheque gallery/playlist | n/a | operationnel |

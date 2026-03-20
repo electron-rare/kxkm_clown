@@ -3623,3 +3623,10 @@ code {
 .minitel-skip-link:focus {
   top: 0;
 }
+
+/* ── @mention highlighting (lot-113) ── */
+.chat-mention {
+  color: var(--accent, #c84c0c);
+  font-weight: bold;
+  cursor: pointer;
+}

@@ -35,6 +35,9 @@ const channelSeq = new Map<string, number>();
   const channelPins = new Map<string, string[]>();
 const userStats = new Map<string, { messages: number; firstSeen: number }>();
 
+// Moderation: banned nicks (shared with command handler)
+export const bannedNicks = new Set<string>();
+
 function nextSeq(channel: string): number {
   const n = (channelSeq.get(channel) || 0) + 1;
   channelSeq.set(channel, n);
@@ -237,6 +240,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     getActiveUserCount: () => clients.size,
     getContextStore: () => contextStore,
     refreshPersonas,
+    bannedNicks,
   });
 
   // Max 5 connections per IP
@@ -264,6 +268,13 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       uploadBytesWindow: 0,
       lastUploadReset: Date.now(),
     };
+
+    // Check ban
+    if (bannedNicks.has(nick.toLowerCase())) {
+      send(ws, { type: "system", text: "Tu es banni de ce serveur." });
+      ws.close();
+      return;
+    }
 
     clients.set(ws, info);
 

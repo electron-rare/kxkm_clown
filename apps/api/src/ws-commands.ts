@@ -9,6 +9,7 @@ import { saveImage, saveAudio } from "./media-store.js";
 import { loadPersonaMemory } from "./ws-persona-router.js";
 import type { ChatPersona, ClientInfo, OutboundMessage, ChatLogEntry } from "./chat-types.js";
 import type { ContextStore } from "./context-store.js";
+import { getRecentErrors } from "./error-tracker.js";
 
 const execFileAsync = promisify(execFile);
 interface CommandContext {
@@ -36,6 +37,7 @@ interface CommandHandlerDeps {
   refreshPersonas?: () => Promise<void>;
   getChannelPins?: () => Map<string, string[]>;
   getUserStats?: () => Map<string, { messages: number; firstSeen: number }>;
+  bannedNicks?: Set<string>;
 }
 
 export function createCommandHandler(deps: CommandHandlerDeps) {
@@ -58,6 +60,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
     refreshPersonas,
     getChannelPins,
     getUserStats,
+    bannedNicks,
   } = deps;
 
   return async function handleCommand({ ws, info, text }: CommandContext): Promise<void> {
@@ -93,6 +96,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/reload                            — recharger les personas depuis la DB",
             "/pin <message>                     — epingler un message (vide = voir les pins)",
             "/stats                             — tes stats personnelles",
+            "/ban <pseudo>                      — bannir un utilisateur (admin)",
+            "/unban <pseudo>                    — debannir un utilisateur (admin)",
             "@NomPersona                        — interpeller une persona directement",
           ].join("\n"),
         });
@@ -262,6 +267,34 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             }
           }
         } catch { /* perf endpoint not available */ }
+
+        // Messages processed
+        const ustats = getUserStats?.();
+        if (ustats) {
+          let totalMsgs = 0;
+          for (const [, s] of ustats) totalMsgs += s.messages;
+          lines.push(`Messages traites: ${totalMsgs}`);
+        }
+
+        // Context store stats
+        try {
+          const cs = getContextStore?.();
+          if (cs) {
+            const gStats = await cs.getStats();
+            lines.push(`Context store: ${gStats.channels} canaux, ${gStats.totalSizeMB.toFixed(2)} MB`);
+          }
+        } catch { /* context stats unavailable */ }
+
+        // Last error
+        try {
+          const recent = getRecentErrors(1);
+          if (recent.length > 0) {
+            const e = recent[0];
+            lines.push(`Derniere erreur: [${e.label}] ${e.message} (${e.timestamp})`);
+          } else {
+            lines.push("Derniere erreur: aucune");
+          }
+        } catch { /* error tracker unavailable */ }
 
         send(ws, { type: "system", text: lines.join("\n") });
         return;
@@ -474,6 +507,32 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         const stats = getUserStats?.()?.get(info.nick);
         const uptime = stats ? Math.floor((Date.now() - stats.firstSeen) / 60000) : 0;
         send(ws, { type: "system", text: `Stats ${info.nick}:\n  Messages: ${stats?.messages || 0}\n  Connecte: ${uptime}min` });
+        return;
+      }
+
+      case "/ban": {
+        const target = text.slice(5).trim();
+        if (!target) { send(ws, { type: "system", text: "Usage: /ban <pseudo>" }); return; }
+        if (!bannedNicks) { send(ws, { type: "system", text: "Moderation non disponible." }); return; }
+        bannedNicks.add(target.toLowerCase());
+        if (getClients) {
+          for (const [cws, cinfo] of getClients()) {
+            if (cinfo.nick.toLowerCase() === target.toLowerCase()) {
+              send(cws as WebSocket, { type: "system", text: "Tu as ete banni." });
+              (cws as WebSocket).close();
+            }
+          }
+        }
+        broadcast(info.channel, { type: "system", text: `${target} a ete banni par ${info.nick}` });
+        return;
+      }
+
+      case "/unban": {
+        const target = text.slice(7).trim();
+        if (!target) { send(ws, { type: "system", text: "Usage: /unban <pseudo>" }); return; }
+        if (!bannedNicks) { send(ws, { type: "system", text: "Moderation non disponible." }); return; }
+        bannedNicks.delete(target.toLowerCase());
+        send(ws, { type: "system", text: `${target} debanni` });
         return;
       }
 

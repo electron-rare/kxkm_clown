@@ -14,7 +14,7 @@ function renderText(text: string): React.ReactNode {
 
 function renderInline(text: string): React.ReactNode {
   const parts: React.ReactNode[] = [];
-  const regex = /(\*\*.*?\*\*|\*.*?\*|`.*?`)/g;
+  const regex = /(\*\*.*?\*\*|\*.*?\*|`.*?`|@[A-Za-z0-9_\-\u00C0-\u00FF]+)/g;
   let lastIdx = 0;
   let match;
   while ((match = regex.exec(text)) !== null) {
@@ -23,6 +23,7 @@ function renderInline(text: string): React.ReactNode {
     if (m.startsWith("**")) parts.push(<strong key={match.index}>{m.slice(2, -2)}</strong>);
     else if (m.startsWith("*")) parts.push(<em key={match.index}>{m.slice(1, -1)}</em>);
     else if (m.startsWith("`")) parts.push(<code key={match.index}>{m.slice(1, -1)}</code>);
+    else if (m.startsWith("@")) parts.push(<span key={match.index} className="chat-mention">{m}</span>);
     lastIdx = match.index + m.length;
   }
   if (lastIdx < text.length) parts.push(text.slice(lastIdx));

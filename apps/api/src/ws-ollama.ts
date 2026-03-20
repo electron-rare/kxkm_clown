@@ -77,6 +77,8 @@ export async function streamOllamaChat(
   onDone: (fullText: string) => void,
   onError: (err: Error) => void,
 ): Promise<void> {
+  // Always disable thinking for streaming — thinking output goes to separate field, not content stream
+  const useThinking = false;
   await ollamaLimit(async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
@@ -300,7 +302,7 @@ export async function streamOllamaChatWithTools(
       const probeData = await probeResp.json() as {
         message?: {
           role?: string;
-          content?: string;
+          content?: string; thinking?: string;
           tool_calls?: OllamaToolCall[];
         };
       };
@@ -309,7 +311,16 @@ export async function streamOllamaChatWithTools(
 
       // If no tool calls, use the response directly
       if (!toolCalls || toolCalls.length === 0) {
-        const content = stripThinking(probeData.message?.content || "");
+        let content = stripThinking(probeData.message?.content || "");
+    // If thinking was enabled and content is empty, extract from thinking field
+    if (!content && probeData.message?.thinking) {
+      content = probeData.message.thinking.replace(/^.*?(?:Answer|Response|Reponse|Output):\s*/si, "").trim();
+      // If still looks like thinking (starts with reasoning markers), take the last paragraph
+      if (content.startsWith("1.") || content.startsWith("*") || content.startsWith("Here")) {
+        const paragraphs = content.split("\n\n").filter(p => p.trim().length > 20);
+        content = paragraphs[paragraphs.length - 1] || content;
+      }
+    }
         if (content) {
           onChunk(content);
         }

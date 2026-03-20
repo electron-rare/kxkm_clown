@@ -80,6 +80,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/personas                          — personas actives",
             "/web <recherche>                   — recherche web via SearXNG",
             "/imagine <prompt>                  — genere une image",
+            "/imagine-models                    — modeles ComfyUI disponibles",
             "/compose <prompt>, <style>, <duree>s — compose de la musique",
             "/status                            — etat du systeme (VRAM, modeles, perf)",
             "/responders <1-5>                  — nombre de personas qui repondent",
@@ -220,6 +221,23 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
       case "/imagine":
         await handleImagineCommand({ ws, info, text, broadcast, send, logChatMessage });
         return;
+
+      case "/imagine-models": {
+        const { getComfyUIModels } = await import("./comfyui-models.js");
+        const models = await getComfyUIModels();
+        const checkpoints = models.filter(m => m.type === "checkpoint");
+        const loras = models.filter(m => m.type === "lora");
+        const lines = [
+          `=== ComfyUI Models ===`,
+          `  Checkpoints (${checkpoints.length}):`,
+          ...checkpoints.map(m => `    ${m.name}`),
+          `  LoRAs (${loras.length}):`,
+          ...loras.map(m => `    ${m.name}`),
+        ];
+        if (models.length === 0) lines.push("  (ComfyUI non disponible ou aucun modele trouve)");
+        send(ws, { type: "system", text: lines.join("\n") });
+        return;
+      }
 
       case "/responders": {
         const n = parseInt(parts[1] || "", 10);
@@ -924,7 +942,7 @@ async function handleImagineCommand({
     broadcast(info.channel, {
       type: "image",
       nick: info.nick,
-      text: `[Image generee: "${imagePrompt}" seed:${result.seed}]`,
+      text: `[Image generee: "${imagePrompt}" seed:${result.seed}${result.model ? ` model:${result.model}` : ""}${result.lora ? ` lora:${result.lora}` : ""}]`,
       imageData: result.imageBase64,
       imageMime: "image/png",
     } as OutboundMessage);

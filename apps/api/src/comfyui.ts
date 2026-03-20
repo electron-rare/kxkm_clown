@@ -1,38 +1,46 @@
 import logger from "./logger.js";
+import { getComfyUIModels, selectModel } from "./comfyui-models.js";
 
 // ---------------------------------------------------------------------------
-// ComfyUI image generation
+// ComfyUI image generation with smart model/LoRA selection
 // ---------------------------------------------------------------------------
 
 export const COMFYUI_URL = process.env.COMFYUI_URL || "http://localhost:8188";
 
-export async function generateImage(prompt: string): Promise<{ imageBase64: string; seed: number } | null> {
+export async function generateImage(prompt: string): Promise<{ imageBase64: string; seed: number; model?: string; lora?: string } | null> {
   const seed = Math.floor(Math.random() * 2 ** 32);
-  const checkpoint = process.env.COMFYUI_CHECKPOINT || "sdxl_lightning_4step.safetensors";
+
+  // Smart model selection: discover available models and pick best match
+  const models = await getComfyUIModels();
+  const selection = models.length > 0
+    ? selectModel(prompt, models)
+    : { checkpoint: process.env.COMFYUI_CHECKPOINT || "sdxl_lightning_4step.safetensors", lora: undefined, loraStrength: 0.7 };
+
+  const checkpoint = selection.checkpoint;
   const isFlux = checkpoint.toLowerCase().includes("flux");
+  const isLightning = checkpoint.toLowerCase().includes("lightning");
+  const isTurbo = checkpoint.toLowerCase().includes("turbo");
 
-  // Adapt workflow for SDXL vs Flux 2
-  const steps = isFlux ? 20 : 4;
-  const cfg = isFlux ? 3.5 : 1.5;
-  const sampler = isFlux ? "euler" : "dpmpp_sde";
-  const scheduler = isFlux ? "normal" : "karras";
+  // Adapt workflow parameters based on model type
+  let steps: number, cfg: number, sampler: string, scheduler: string;
+  if (isFlux) {
+    steps = 20; cfg = 3.5; sampler = "euler"; scheduler = "normal";
+  } else if (isLightning) {
+    steps = 4; cfg = 1.5; sampler = "dpmpp_sde"; scheduler = "karras";
+  } else if (isTurbo) {
+    steps = 6; cfg = 1.8; sampler = "dpmpp_sde"; scheduler = "karras";
+  } else {
+    // Standard SD 1.5 / SDXL models need more steps
+    steps = 25; cfg = 7; sampler = "euler_ancestral"; scheduler = "normal";
+  }
 
-  const workflow = {
-    "3": {
-      class_type: "KSampler",
-      inputs: {
-        seed,
-        steps,
-        cfg,
-        sampler_name: sampler,
-        scheduler,
-        denoise: 1,
-        model: ["4", 0],
-        positive: ["6", 0],
-        negative: ["7", 0],
-        latent_image: ["5", 0],
-      },
-    },
+  logger.info({ checkpoint, lora: selection.lora, steps, cfg, sampler }, "[comfyui] Generating with smart selection");
+
+  // Build workflow — model output is node "4", slot 0=model, 1=clip, 2=vae
+  let modelOutput: [string, number] = ["4", 0];
+  let clipOutput: [string, number] = ["4", 1];
+
+  const workflow: Record<string, any> = {
     "4": {
       class_type: "CheckpointLoaderSimple",
       inputs: { ckpt_name: checkpoint },
@@ -41,14 +49,6 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
       class_type: "EmptyLatentImage",
       inputs: { width: 1024, height: 1024, batch_size: 1 },
     },
-    "6": {
-      class_type: "CLIPTextEncode",
-      inputs: { text: prompt, clip: ["4", 1] },
-    },
-    "7": {
-      class_type: "CLIPTextEncode",
-      inputs: { text: "ugly, blurry, low quality, deformed", clip: ["4", 1] },
-    },
     "8": {
       class_type: "VAEDecode",
       inputs: { samples: ["3", 0], vae: ["4", 2] },
@@ -56,6 +56,49 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
     "9": {
       class_type: "SaveImage",
       inputs: { filename_prefix: "kxkm", images: ["8", 0] },
+    },
+  };
+
+  // Insert LoRA node if selected
+  if (selection.lora) {
+    workflow["10"] = {
+      class_type: "LoraLoader",
+      inputs: {
+        lora_name: selection.lora,
+        strength_model: selection.loraStrength ?? 0.7,
+        strength_clip: selection.loraStrength ?? 0.7,
+        model: ["4", 0],
+        clip: ["4", 1],
+      },
+    };
+    modelOutput = ["10", 0];
+    clipOutput = ["10", 1];
+  }
+
+  // CLIP encode nodes use the (possibly LoRA-modified) clip output
+  workflow["6"] = {
+    class_type: "CLIPTextEncode",
+    inputs: { text: prompt, clip: clipOutput },
+  };
+  workflow["7"] = {
+    class_type: "CLIPTextEncode",
+    inputs: { text: "ugly, blurry, low quality, deformed", clip: clipOutput },
+  };
+
+  // KSampler uses the (possibly LoRA-modified) model output
+  workflow["3"] = {
+    class_type: "KSampler",
+    inputs: {
+      seed,
+      steps,
+      cfg,
+      sampler_name: sampler,
+      scheduler,
+      denoise: 1,
+      model: modelOutput,
+      positive: ["6", 0],
+      negative: ["7", 0],
+      latent_image: ["5", 0],
     },
   };
 
@@ -95,7 +138,7 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
           if (!imgRes.ok) continue;
 
           const buffer = Buffer.from(await imgRes.arrayBuffer());
-          return { imageBase64: buffer.toString("base64"), seed };
+          return { imageBase64: buffer.toString("base64"), seed, model: checkpoint, lora: selection.lora };
         }
       }
     }

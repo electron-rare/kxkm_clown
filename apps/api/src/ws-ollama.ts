@@ -16,6 +16,44 @@ function estimateNumCtx(systemPrompt: string, userMessage: string, baseCtx = 819
   return Math.max(4096, Math.min(ctx, 32768)); // clamp 4k-32k
 }
 
+// Adaptive thinking: enable for complex prompts, disable for simple ones
+function shouldThink(userMessage: string, model: string): boolean {
+  // Only qwen3.5 supports thinking mode
+  if (!model.startsWith("qwen3.5")) return false;
+
+  const lower = userMessage.toLowerCase();
+  const len = userMessage.length;
+
+  // Always think for deep/complex requests
+  const deepKeywords = [
+    "explique", "explain", "analyse", "analyze", "compare", "pourquoi",
+    "comment fonctionne", "how does", "philosophie", "theorie", "theory",
+    "architecture", "conception", "design", "strategie", "strategy",
+    "avantages et inconvenients", "pros and cons", "difference entre",
+    "en detail", "in detail", "approfondi", "comprehensive",
+    "reflexion", "pense a", "think about", "raisonne", "reason",
+  ];
+  if (deepKeywords.some(kw => lower.includes(kw))) return true;
+
+  // Think for long messages (likely complex questions)
+  if (len > 200) return true;
+
+  // Don't think for short/simple messages
+  if (len < 50) return false;
+
+  // Don't think for greetings, commands, simple questions
+  const simplePatterns = [
+    /^(salut|bonjour|hello|hey|hi|coucou)/i,
+    /^(merci|thanks|ok|oui|non|yes|no)/i,
+    /^(quoi de neuf|ca va)/i,
+    /^@\w+/,  // direct mentions
+  ];
+  if (simplePatterns.some(p => p.test(lower))) return false;
+
+  // Default: don't think (faster responses)
+  return false;
+}
+
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
 // ---------------------------------------------------------------------------
@@ -51,7 +89,7 @@ export async function streamOllamaChat(
             { role: "user", content: userMessage },
           ],
           stream: true,
-          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
+          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: shouldThink(userMessage, persona.model) ? undefined : false,
         }),
         signal: controller.signal,
       });
@@ -193,7 +231,7 @@ export async function streamOllamaChatWithTools(
           messages,
           tools: tools.map(t => t),
           stream: false,
-          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
+          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: shouldThink(userMessage, persona.model) ? undefined : false,
         }),
         signal: controller.signal,
       });
@@ -255,7 +293,7 @@ export async function streamOllamaChatWithTools(
           model: persona.model,
           messages,
           stream: true,
-          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
+          options: { num_predict: persona.maxTokens || 2048, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: shouldThink(userMessage, persona.model) ? undefined : false,
         }),
         signal: controller.signal,
       });

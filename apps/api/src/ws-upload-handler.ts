@@ -8,6 +8,7 @@ import logger from "./logger.js";
 import { trackError } from "./error-tracker.js";
 import type { InboundUpload, ClientInfo, OutboundMessage } from "./chat-types.js";
 import { fileTypeFromBuffer } from "file-type";
+import { saveImage, saveAudio } from "./media-store.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -108,6 +109,18 @@ export async function handleUpload(
     analysis = `[Fichier texte: ${filename}]\n${text}`;
   } else if (actualMime.startsWith("image/")) {
     analysis = await analyzeImage(buffer, actualMime, filename, ollamaUrl);
+    // Save user upload to MediaExplorer (lot-150)
+    try {
+      await saveImage({
+        base64: dataB64,
+        prompt: `Upload: ${filename}`,
+        nick: info.nick,
+        channel: info.channel,
+        mime: actualMime,
+      });
+    } catch (err) {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[upload] Failed to save image to media-store");
+    }
   } else if (actualMime.startsWith("audio/")) {
     // Transcribe audio via Whisper (faster-whisper or openai-whisper)
     const ext = filename.split(".").pop() || "wav";
@@ -140,6 +153,18 @@ export async function handleUpload(
       analysis = `[Audio: ${filename} — erreur: ${err instanceof Error ? err.message : String(err)}]`;
     } finally {
       try { await fsp.unlink(tmpFile); } catch { /* ignore cleanup errors */ }
+    }
+    // Save user audio upload to MediaExplorer (lot-150)
+    try {
+      await saveAudio({
+        base64: dataB64,
+        prompt: `Upload: ${filename}`,
+        nick: info.nick,
+        channel: info.channel,
+        mime: actualMime,
+      });
+    } catch (err) {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[upload] Failed to save audio to media-store");
     }
   } else if (actualMime === "application/pdf") {
     const tmpFile = path.join("/tmp", `kxkm-pdf-${Date.now()}.pdf`);

@@ -18,6 +18,7 @@ export interface ClientInfo {
   uploadBytesWindow: number;
   lastUploadReset: number;
   mutedPersonas?: Set<string>;
+  isGuest: boolean;
 }
 
 export interface PersonaLoaderResult {

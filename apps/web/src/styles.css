@@ -3648,3 +3648,21 @@ code {
   overflow-x: auto;
   font-size: 0.85em;
 }
+
+/* ── Mobile responsive pass (lot-148) ── */
+@media (max-width: 768px) {
+  .chat-body { flex-direction: column; }
+  .chat-header { font-size: 0.85em; padding: 4px 8px; }
+  .chat-input { font-size: 16px; } /* prevent iOS zoom */
+  .chat-msg { font-size: 0.9em; padding: 2px 4px; }
+  .minitel-bottom-bar { font-size: 0.8em; }
+  .admin-grid { grid-template-columns: 1fr; }
+  .media-grid { grid-template-columns: 1fr 1fr; }
+  .compose-form, .imagine-form { padding: 8px; }
+}
+
+@media (max-width: 480px) {
+  .chat-ts { display: none; }
+  .chat-nick { font-size: 0.85em; }
+  .media-grid { grid-template-columns: 1fr; }
+}

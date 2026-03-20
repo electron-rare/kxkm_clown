@@ -32,6 +32,7 @@ import {
 // Per-channel sequence counter
 // ---------------------------------------------------------------------------
 
+let guestIdCounter = 0;
 const channelSeq = new Map<string, number>();
 const channelTopics = new Map<string, string>();
 const channelPins = new Map<string, string[]>();
@@ -291,7 +292,9 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
     const reqUrl = new URL(req.url || "/ws", "http://localhost");
     const paramNick = reqUrl.searchParams.get("nick")?.trim().slice(0, 24);
-    const nick = paramNick && /^[a-zA-Z0-9_\-À-ÿ]+$/.test(paramNick) ? paramNick : generateNick();
+    const validNick = paramNick && /^[a-zA-Z0-9_\-À-ÿ]+$/.test(paramNick) ? paramNick : "";
+    const nick = validNick || `guest_${++guestIdCounter}`;
+    const isGuest = !validNick || nick.startsWith("guest_");
     const info: ClientInfo = {
       nick,
       channel: "#general",
@@ -300,6 +303,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       uploadBytesWindow: 0,
       lastUploadReset: Date.now(),
       mutedPersonas: new Set(),
+      isGuest,
     };
 
     // Check ban
@@ -326,6 +330,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         `***  Personas actives: ${personas.map((p) => p.nick).join(", ")}`,
         "***  Tape /help pour les commandes.",
         `***  Ton nick: ${nick}`,
+        ...(isGuest ? ["***  Mode invit\u00e9 (lecture seule) — /nick <pseudo> pour participer."] : []),
         `***  Uptime: ${Math.floor(process.uptime() / 3600)}h${Math.floor((process.uptime() % 3600) / 60)}m`,
         "***",
       ].join("\n"),
@@ -410,6 +415,21 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         }
 
         const text = (message as InboundChatMessage).text;
+
+        // Guest mode: allow /nick to leave guest mode, block everything else
+        if (info.isGuest) {
+          if (message.type === "command" && text.startsWith("/nick ")) {
+            await handleCommand({ ws, info, text });
+            // If nick changed successfully, leave guest mode
+            if (!info.nick.startsWith("guest_")) {
+              info.isGuest = false;
+              send(ws, { type: "system", text: `Mode invit\u00e9 d\u00e9sactiv\u00e9 — bienvenue ${info.nick} !` });
+            }
+          } else {
+            send(ws, { type: "system", text: "Mode invit\u00e9 \u2014 connexion requise pour envoyer des messages. /nick <pseudo> pour te connecter." });
+          }
+          return;
+        }
 
         if (message.type === "command") {
           await handleCommand({ ws, info, text });

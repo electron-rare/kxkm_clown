@@ -96,6 +96,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/reload                            — recharger les personas depuis la DB",
             "/pin <message>                     — epingler un message (vide = voir les pins)",
             "/stats                             — tes stats personnelles",
+            "/mute <persona>                    — muter une persona pour toi",
+            "/unmute <persona>                  — demuter une persona",
             "/ban <pseudo>                      — bannir un utilisateur (admin)",
             "/unban <pseudo>                    — debannir un utilisateur (admin)",
             "@NomPersona                        — interpeller une persona directement",
@@ -533,6 +535,22 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         if (!bannedNicks) { send(ws, { type: "system", text: "Moderation non disponible." }); return; }
         bannedNicks.delete(target.toLowerCase());
         send(ws, { type: "system", text: `${target} debanni` });
+        return;
+      }
+
+      case "/mute": {
+        const target = text.slice(6).trim();
+        if (!target) { send(ws, { type: "system", text: "Usage: /mute <persona>" }); return; }
+        info.mutedPersonas = info.mutedPersonas || new Set();
+        info.mutedPersonas.add(target.toLowerCase());
+        send(ws, { type: "system", text: `${target} mute pour toi` });
+        return;
+      }
+
+      case "/unmute": {
+        const target = text.slice(8).trim();
+        info.mutedPersonas?.delete(target.toLowerCase());
+        send(ws, { type: "system", text: `${target} demute` });
         return;
       }
 

@@ -17,6 +17,7 @@ export interface ClientInfo {
   messageTimestamps: number[];
   uploadBytesWindow: number;
   lastUploadReset: number;
+  mutedPersonas?: Set<string>;
 }
 
 export interface PersonaLoaderResult {

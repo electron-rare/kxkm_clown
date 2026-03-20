@@ -114,6 +114,8 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     const stamped = { ...msg, seq: nextSeq(channel), timestamp: Date.now() };
     for (const [ws, info] of clients) {
       if (info.channel === channel && ws !== exclude) {
+        // Skip if persona is muted for this client
+        if ('nick' in stamped && info.mutedPersonas?.has((stamped as any).nick?.toLowerCase())) continue;
         send(ws, stamped);
       }
     }
@@ -267,6 +269,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       messageTimestamps: [],
       uploadBytesWindow: 0,
       lastUploadReset: Date.now(),
+      mutedPersonas: new Set(),
     };
 
     // Check ban
@@ -377,6 +380,10 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     });
 
     ws.on("close", () => {
+      const sessionDuration = Math.floor((Date.now() - info.connectedAt) / 60000);
+      const stats = userStats.get(info.nick);
+      logger.info({ nick: info.nick, duration: sessionDuration, messages: stats?.messages || 0 }, "User disconnected");
+
       const remaining = (ipConnections.get(ip) || 1) - 1;
       if (remaining <= 0) ipConnections.delete(ip);
       else ipConnections.set(ip, remaining);

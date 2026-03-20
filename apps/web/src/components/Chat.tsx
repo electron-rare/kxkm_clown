@@ -49,6 +49,7 @@ export default function Chat() {
         <span className={`chat-status ${ws.connected ? "chat-status-on" : "chat-status-off"}`}>
           {ws.connected ? "connecte" : "deconnecte"}
         </span>
+        <span className="chat-count">{messages.length} msgs</span>
       </div>
 
       <div className="chat-body">

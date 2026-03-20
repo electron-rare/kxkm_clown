@@ -18,6 +18,16 @@ function buildWsUrl(): string {
   return `${base}${sep}nick=${encodeURIComponent(nick)}`;
 }
 
+function findLastChunkIndex(messages: ChatMsg[], nick: string): number {
+  for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+    const message = messages[idx];
+    if (message.type === "chunk" && message.nick === nick) {
+      return idx;
+    }
+  }
+  return -1;
+}
+
 export interface UseChatStateReturn {
   messages: ChatMsg[];
   users: string[];
@@ -217,19 +227,8 @@ export function useChatState(): UseChatStateReturn {
         };
         setMessages((prev) => {
           // If this is a final message from a persona, replace the last chunk from same nick
-          // Use seq to find the right chunk when available
           if (type === "message" && chatMsg.nick) {
-            let lastChunkIdx = -1;
-            if (incomingSeq != null) {
-              // Find chunk whose seq is just before this message's seq (same persona)
-              lastChunkIdx = prev.findLastIndex(
-                (m) => m.type === "chunk" && m.nick === chatMsg.nick
-              );
-            } else {
-              lastChunkIdx = prev.findLastIndex(
-                (m) => m.type === "chunk" && m.nick === chatMsg.nick
-              );
-            }
+            const lastChunkIdx = findLastChunkIndex(prev, chatMsg.nick);
             if (lastChunkIdx >= 0) {
               const updated = [...prev];
               updated[lastChunkIdx] = { ...chatMsg, id: prev[lastChunkIdx].id };
@@ -415,7 +414,7 @@ export function useChatState(): UseChatStateReturn {
 
       // Slash command completion
       if (text.startsWith("/") && !text.includes(" ")) {
-        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/context", "/responders", "/who", "/personas", "/export", "/memory", "/models", "/reload", "/topic", "/dm", "/pin", "/stats", "/ban", "/unban"];
+        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/context", "/responders", "/who", "/personas", "/export", "/memory", "/models", "/reload", "/topic", "/dm", "/pin", "/stats", "/ban", "/unban", "/mute", "/unmute"];
         const prefix = tabPrefixRef.current || text;
         const matches = slashCommands.filter((c) => c.startsWith(prefix.toLowerCase()));
         if (matches.length === 0) return;

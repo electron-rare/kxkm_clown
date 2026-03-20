@@ -5,6 +5,7 @@
   "type": "module",
   "description": "V2 web shell scaffold for React/Vite migration",
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.23",
     "@xyflow/react": "^12.10.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

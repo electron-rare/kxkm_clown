@@ -49,6 +49,8 @@ function nextSeq(channel: string): number {
 // ---------------------------------------------------------------------------
 
 const PERSONA_REFRESH_INTERVAL_MS = 60_000; // 60 seconds
+const IDLE_WARN_MS = 30 * 60 * 1000; // 30 minutes
+const IDLE_KICK_MS = 5 * 60 * 1000;  // 5 minutes after warning
 
 // ---------------------------------------------------------------------------
 // Main export
@@ -328,11 +330,27 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       replayHistory(ws, info.channel, personas, send);
     }
 
+    // --- idle auto-disconnect ---
+    function startIdleTimer() {
+      return setTimeout(() => {
+        send(ws, { type: "system", text: "Tu es inactif depuis 30min. Deconnexion dans 5min..." });
+        idleTimer = setTimeout(() => {
+          send(ws, { type: "system", text: "Deconnexion pour inactivite." });
+          ws.close();
+        }, IDLE_KICK_MS);
+      }, IDLE_WARN_MS);
+    }
+    let idleTimer: ReturnType<typeof setTimeout> = startIdleTimer();
+
     // --- message handler (Promise chain to prevent async reordering) ---
 
     let processingChain = Promise.resolve();
 
     ws.on("message", (raw: Buffer) => {
+      // Reset idle timer on activity
+      clearTimeout(idleTimer);
+      idleTimer = startIdleTimer();
+
       processingChain = processingChain.then(async () => {
         if (raw.length > MAX_WS_MESSAGE_BYTES) return;
 
@@ -380,6 +398,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     });
 
     ws.on("close", () => {
+      clearTimeout(idleTimer);
       const sessionDuration = Math.floor((Date.now() - info.connectedAt) / 60000);
       const stats = userStats.get(info.nick);
       logger.info({ nick: info.nick, duration: sessionDuration, messages: stats?.messages || 0 }, "User disconnected");

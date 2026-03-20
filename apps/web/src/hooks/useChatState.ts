@@ -247,6 +247,14 @@ export function useChatState(): UseChatStateReturn {
           sounds.receive();
         }
 
+        // Check if current user is mentioned
+        if (type === "message" && chatMsg.text) {
+          const currentNick = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("kxkm-nick") : null;
+          if (currentNick && chatMsg.text.toLowerCase().includes(`@${currentNick.toLowerCase()}`)) {
+            sounds.receive(); // play notification sound on @mention
+          }
+        }
+
         if (type === "join" && chatMsg.nick) {
           setUsers((prev) =>
             prev.includes(chatMsg.nick!) ? prev : [...prev, chatMsg.nick!]
@@ -331,6 +339,8 @@ export function useChatState(): UseChatStateReturn {
   soundsRef.current = sounds;
   const usersRef = useRef(users);
   usersRef.current = users;
+  const personaColorsRef = useRef(personaColors);
+  personaColorsRef.current = personaColors;
   const tabIndexRef = useRef(tabIndex);
   tabIndexRef.current = tabIndex;
   const tabPrefixRef = useRef(tabPrefix);
@@ -428,6 +438,21 @@ export function useChatState(): UseChatStateReturn {
       // Nick completion
       const words = text.split(" ");
       const lastWord = words[words.length - 1];
+
+      // @mention completion (persona names)
+      if (lastWord.startsWith("@")) {
+        const prefix = tabPrefixRef.current || lastWord.slice(1); // remove @
+        const allPersonas = Object.keys(personaColorsRef.current);
+        const matches = allPersonas.filter(p => p.toLowerCase().startsWith(prefix.toLowerCase()));
+        if (matches.length === 0) return;
+        const nextIdx = (tabIndexRef.current + 1) % matches.length;
+        words[words.length - 1] = "@" + matches[nextIdx] + " ";
+        setInput(words.join(" "));
+        setTabIndex(nextIdx);
+        if (!tabPrefixRef.current) setTabPrefix(prefix);
+        return;
+      }
+
       const prefix = tabPrefixRef.current || lastWord;
       const matches = usersRef.current.filter((u) =>
         u.toLowerCase().startsWith(prefix.toLowerCase()),

@@ -105,6 +105,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/react <emoji>                     — reagir au dernier message",
             "/dice <NdS>                       — lancer des des (ex: 2d20)",
             "/flip                              — pile ou face",
+            "/changelog                         — 10 derniers commits",
+            "/version                           — version et infos systeme",
           ].join("\n"),
         });
         return;
@@ -592,6 +594,24 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         const rolls = Array.from({ length: count }, () => Math.floor(Math.random() * sides) + 1);
         const total = rolls.reduce((a, b) => a + b, 0);
         broadcast(info.channel, { type: "system", text: `🎲 ${info.nick} lance ${count}d${sides}: [${rolls.join(", ")}] = ${total}` });
+        return;
+      }
+
+
+      case "/changelog": {
+        try {
+          const { execFileSync } = await import("node:child_process");
+          const log = execFileSync("git", ["log", "--oneline", "-10"], { cwd: process.cwd(), timeout: 5000 }).toString().trim();
+          send(ws, { type: "system", text: `Changelog:\n${log}` });
+        } catch {
+          send(ws, { type: "system", text: "Changelog indisponible" });
+        }
+        return;
+      }
+
+      case "/version": {
+        const pkg = { version: "2.0.0", name: "@kxkm/api" };
+        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 34\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
         return;
       }
 

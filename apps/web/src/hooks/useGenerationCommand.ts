@@ -110,5 +110,5 @@ export function useGenerationCommand<T extends Record<string, unknown>>(
     sounds.send();
   }
 
-  return { generating, progress, results, setResults, error, send };
+  return { generating, progress, results, setResults, error, send, getWs };
 }

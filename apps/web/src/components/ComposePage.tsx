@@ -1,6 +1,16 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useGenerationCommand } from "../hooks/useGenerationCommand";
-import { VideotexPageHeader } from "./VideotexMosaic";
+import { VideotexPageHeader, VideotexSeparator } from "./VideotexMosaic";
+
+interface Track {
+  id: number;
+  prompt: string;
+  style: string;
+  duration: number;
+  volume: number;
+  audioData?: string;
+  audioMime?: string;
+}
 
 interface ComposeResult {
   status: string;
@@ -13,9 +23,11 @@ export default function ComposePage() {
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState("experimental");
   const [duration, setDuration] = useState(30);
-  const [activeTrack, setActiveTrack] = useState<number | null>(null);
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [mixing, setMixing] = useState(false);
+  const [compName, setCompName] = useState("Ma composition");
 
-  const { generating, progress, results, error, send } = useGenerationCommand<ComposeResult>({
+  const { generating, progress, results, error, send, getWs } = useGenerationCommand<ComposeResult>({
     responseType: "music",
     extractResult: (msg) =>
       msg.audioData
@@ -27,21 +39,84 @@ export default function ComposePage() {
     maxResults: 10,
   });
 
-  function handleCompose(e: React.FormEvent) {
+  // When a new result arrives, add it as a track
+  const lastResultCount = React.useRef(0);
+  useEffect(() => {
+    if (results.length > lastResultCount.current) {
+      const newest = results[0]; // results are prepended
+      if (newest?.audioData) {
+        setTracks((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            prompt: newest.prompt || prompt || "Sans titre",
+            style,
+            duration,
+            volume: 100,
+            audioData: newest.audioData,
+            audioMime: newest.audioMime,
+          },
+        ]);
+      }
+    }
+    lastResultCount.current = results.length;
+  }, [results.length]);
+
+  function handleAddTrack(e: React.FormEvent) {
     e.preventDefault();
     if (!prompt.trim() || generating) return;
-    send(`/compose ${prompt.trim()}, ${style} style, ${duration}s`);
+    send(`/layer ${prompt.trim()}, ${style} style, ${duration}s`);
+  }
+
+  function handleMix() {
+    const ws = getWs();
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    setMixing(true);
+    ws.send(JSON.stringify({ type: "command", text: "/mix" }));
+    setTimeout(() => setMixing(false), 30000);
+  }
+
+  function handleNewComp() {
+    const ws = getWs();
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "command", text: `/comp new ${compName}` }));
+    setTracks([]);
   }
 
   return (
     <div className="compose-page">
-      <VideotexPageHeader title="COMPOSITION MUSICALE" subtitle="ACE-Step 1.5 — GPU local" color="pink" />
+      <VideotexPageHeader title="COMPOSE" subtitle="Studio de composition multi-pistes" color="pink" />
 
-      <form onSubmit={handleCompose} className="compose-form">
-        <div className="minitel-field">
-          <label>Description musicale _</label>
-          <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="ambient drone with deep bass, musique concrete style..." className="minitel-input compose-textarea" rows={3} maxLength={500} />
-        </div>
+      {/* Composition Header */}
+      <div className="compose-comp-header">
+        <input
+          type="text"
+          value={compName}
+          onChange={(e) => setCompName(e.target.value)}
+          className="minitel-input"
+          placeholder="Nom de la composition"
+        />
+        <button className="minitel-nav-btn" onClick={handleNewComp}>
+          Nouvelle
+        </button>
+        <span className="compose-track-count">
+          {tracks.length} piste{tracks.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      <VideotexSeparator color="pink" />
+
+      {/* Track Generator */}
+      <form onSubmit={handleAddTrack} className="compose-form">
+        <div className="compose-header">{">>> AJOUTER UNE PISTE <<<"}</div>
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="dark ambient drone with deep bass, musique concrete style..."
+          className="minitel-input compose-textarea"
+          rows={2}
+          maxLength={500}
+        />
         <div className="compose-options">
           <div className="minitel-field">
             <label>Style _</label>
@@ -111,42 +186,82 @@ export default function ComposePage() {
               <option value={120}>2min</option>
             </select>
           </div>
+          <button type="submit" className="minitel-login-btn" disabled={generating || !prompt.trim()}>
+            {generating ? `Generation... ${Math.floor(progress)}%` : ">>> Ajouter piste <<<"}
+          </button>
         </div>
-        <button type="submit" className="minitel-login-btn" disabled={generating || !prompt.trim()}>
-          {generating ? "Generation en cours..." : ">>> Composer <<<"}
-        </button>
+        {error && <div className="minitel-login-error">{error}</div>}
       </form>
-
-      {error && <div className="minitel-login-error">{error}</div>}
 
       {generating && (
         <div className="vtx-progress">
-          <div className="vtx-progress-label"><span className="minitel-cursor">{"█"}</span> GENERATION EN COURS</div>
+          <div className="vtx-progress-label">
+            <span className="minitel-cursor">{"\u2588"}</span> GENERATION EN COURS
+          </div>
           <div className="vtx-progress-bar">
-            <div className="vtx-progress-fill" style={{ width: `${progress}%` }}>{"█".repeat(Math.floor(progress / 2.5))}</div>
+            <div className="vtx-progress-fill" style={{ width: `${progress}%` }}>
+              {"\u2588".repeat(Math.floor(progress / 2.5))}
+            </div>
           </div>
           <div className="vtx-progress-pct">{Math.floor(progress)}%</div>
         </div>
       )}
 
-      {results.length > 0 && (
-        <div className="compose-results">
-          <div className="compose-results-title">{"--- Compositions ---"}</div>
-          {results.map((r, i) => (
-            <div key={i} className={`vtx-track${activeTrack === i ? " vtx-track-active" : ""}`} onClick={() => setActiveTrack(activeTrack === i ? null : i)}>
-              <div className="vtx-track-header">
-                <span className="vtx-track-icon">{activeTrack === i ? "\u25B6" : "\u266B"}</span>
-                <span className="vtx-track-title">{r.prompt || "Sans titre"}</span>
-                <span className="vtx-track-badge">OK</span>
-              </div>
-              {activeTrack === i && r.audioData && r.audioMime && (
-                <div className="vtx-player">
-                  <audio controls autoPlay src={`data:${r.audioMime};base64,${r.audioData}`} className="vtx-audio" />
-                </div>
+      <VideotexSeparator color="cyan" />
+
+      {/* Track List */}
+      <div className="compose-tracks">
+        <div className="compose-header">{">>> PISTES <<<"}</div>
+        {tracks.length === 0 ? (
+          <div className="muted" style={{ textAlign: "center", padding: "12px 0", opacity: 0.5 }}>
+            Aucune piste. Ajoute-en une ci-dessus.
+          </div>
+        ) : (
+          tracks.map((track, i) => (
+            <div key={track.id} className="compose-track">
+              <span className="compose-track-num">#{i + 1}</span>
+              <span className="compose-track-prompt">{track.prompt}</span>
+              <span className="compose-track-info">
+                {track.style} &middot; {track.duration}s
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={track.volume}
+                onChange={(e) => {
+                  setTracks((prev) => prev.map((t, j) => (j === i ? { ...t, volume: Number(e.target.value) } : t)));
+                }}
+                className="compose-volume"
+                title={`Volume: ${track.volume}%`}
+              />
+              {track.audioData && (
+                <audio controls src={`data:${track.audioMime};base64,${track.audioData}`} className="compose-audio" />
               )}
+              <button
+                className="compose-track-del"
+                onClick={() => setTracks((prev) => prev.filter((_, j) => j !== i))}
+              >
+                X
+              </button>
             </div>
-          ))}
-        </div>
+          ))
+        )}
+      </div>
+
+      {/* Mix Controls */}
+      {tracks.length > 0 && (
+        <>
+          <VideotexSeparator color="green" />
+          <div className="compose-mix">
+            <div className="compose-header">{">>> MIXAGE <<<"}</div>
+            <div className="compose-mix-controls">
+              <button className="minitel-login-btn" onClick={handleMix} disabled={mixing || tracks.length < 1}>
+                {mixing ? "Mixage en cours..." : `>>> Mixer ${tracks.length} piste${tracks.length !== 1 ? "s" : ""} <<<`}
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

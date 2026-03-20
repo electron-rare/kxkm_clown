@@ -204,6 +204,13 @@ export function useChatState(): UseChatStateReturn {
           return;
         }
 
+        // Theme switcher: detect __theme__ prefix
+        if (type === "system" && typeof msg.text === "string" && msg.text.startsWith("__theme__")) {
+          const theme = msg.text.slice(9);
+          document.documentElement.setAttribute("data-theme", theme);
+          return;
+        }
+
         if (type === "system" && typeof msg.text === "string") {
           const typingMatch = msg.text.match(/^(.+) est en train d'ecrire/);
           if (typingMatch) {
@@ -424,7 +431,7 @@ export function useChatState(): UseChatStateReturn {
 
       // Slash command completion
       if (text.startsWith("/") && !text.includes(" ")) {
-        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/context", "/responders", "/who", "/personas", "/export", "/memory", "/models", "/reload", "/topic", "/dm", "/pin", "/stats", "/ban", "/unban", "/mute", "/unmute", "/dice", "/roll", "/flip", "/changelog", "/version", "/whisper", "/w", "/history", "/search", "/react", "/invite", "/time", "/date", "/session"];
+        const slashCommands = ["/help", "/clear", "/nick", "/join", "/channels", "/msg", "/web", "/imagine", "/compose", "/status", "/model", "/persona", "/context", "/responders", "/who", "/personas", "/export", "/memory", "/models", "/reload", "/topic", "/dm", "/pin", "/stats", "/ban", "/unban", "/mute", "/unmute", "/dice", "/roll", "/flip", "/changelog", "/version", "/whisper", "/w", "/history", "/search", "/react", "/invite", "/time", "/date", "/session", "/theme", "/fortune"];
         const prefix = tabPrefixRef.current || text;
         const matches = slashCommands.filter((c) => c.startsWith(prefix.toLowerCase()));
         if (matches.length === 0) return;

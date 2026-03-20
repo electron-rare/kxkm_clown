@@ -113,6 +113,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/flip                              — pile ou face",
             "/changelog                         — 10 derniers commits",
             "/version                           — version et infos systeme",
+            "/theme <nom>                       — changer le theme couleur (minitel, noir, matrix, amber, ocean)",
+            "/fortune                            — citation aleatoire",
           ].join("\n"),
         });
         return;
@@ -490,10 +492,14 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         send(ws, { type: "system", text: "Rechargement des personas..." });
         try {
           await refreshPersonas();
-          const names = getPersonas().map((p) => p.nick).join(", ");
+          const personas = getPersonas();
+          // Re-broadcast persona colors to all clients in channel
+          for (const p of personas) {
+            broadcast(info.channel, { type: "persona", nick: p.nick, color: p.color } as OutboundMessage);
+          }
           broadcast(info.channel, {
             type: "system",
-            text: `Personas rechargees: ${names}`,
+            text: `Personas rechargees (${personas.length}): ${personas.map(p => p.nick).join(", ")}`,
           });
         } catch (err) {
           send(ws, { type: "system", text: `Erreur rechargement: ${err instanceof Error ? err.message : String(err)}` });
@@ -617,7 +623,7 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
 
       case "/version": {
         const pkg = { version: "2.0.0", name: "@kxkm/api" };
-        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 40\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
+        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 43\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
         return;
       }
 
@@ -698,6 +704,37 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         return;
       }
 
+      case "/theme": {
+        const theme = text.slice(7).trim().toLowerCase();
+        const themes = ["minitel", "noir", "matrix", "amber", "ocean"];
+        if (!theme || !themes.includes(theme)) {
+          send(ws, { type: "system", text: `Themes: ${themes.join(", ")}. Usage: /theme <nom>` });
+          return;
+        }
+        send(ws, { type: "system", text: `__theme__${theme}` });
+        return;
+      }
+
+      case "/fortune": {
+        const quotes = [
+          "Le bruit est la matiere premiere de toute musique. \u2014 Pierre Schaeffer",
+          "L'avenir est deja la, il n'est pas encore uniformement distribue. \u2014 William Gibson",
+          "La technologie n'est ni bonne ni mauvaise, ni neutre. \u2014 Melvin Kranzberg",
+          "Nous sommes tous des cyborgs. \u2014 Donna Haraway",
+          "Le medium est le message. \u2014 Marshall McLuhan",
+          "Space is the place. \u2014 Sun Ra",
+          "Le silence est aussi plein de sagesse et d'esprit en puissance que le marbre non taille. \u2014 Aldous Huxley",
+          "Saboteurs of big daddy mainframe. \u2014 VNS Matrix",
+          "Les machines sont nos amies. \u2014 Komplex Kapharnaum",
+          "Le code est la loi. \u2014 Lawrence Lessig",
+          "L'information veut etre libre. \u2014 Stewart Brand",
+          "Tout ce qui est solide se dissout dans l'air. \u2014 Marx",
+        ];
+        const quote = quotes[Math.floor(Math.random() * quotes.length)];
+        send(ws, { type: "system", text: `\u{1F52E} ${quote}` });
+        return;
+      }
+
       default:
         send(ws, { type: "system", text: `Commande inconnue: ${cmd}. Tape /help.` });
     }
@@ -725,7 +762,7 @@ async function handleComposeCommand({
   const duration = durationMatch ? Math.min(Math.max(parseInt(durationMatch[1], 10), 5), 120) : 30;
   const musicPrompt = durationMatch ? rawPrompt.replace(/,?\s*\d+s\s*$/, '').trim() : rawPrompt;
   if (!musicPrompt) {
-    send(ws, { type: "system", text: "Usage: /compose <description musicale>" });
+    send(ws, { type: "system", text: "Usage: /compose <description musicale>, <style>, <duree>s" });
     return;
   }
 
@@ -740,7 +777,11 @@ async function handleComposeCommand({
   // Progress ticker — send updates every 5s while waiting
   const progressInterval = setInterval(() => {
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    send(ws, { type: "system", text: `[compose] Generation en cours... ${elapsed}s` });
+    const maxDuration = duration * 2; // rough estimate of generation time
+    const pct = Math.min(95, Math.floor((elapsed / maxDuration) * 100));
+    const filled = Math.floor(pct / 5);
+    const bar = "█".repeat(filled) + "░".repeat(20 - filled);
+    broadcast(info.channel, { type: "system", text: `🎵 [${bar}] ${pct}% — composition ${elapsed}s` });
   }, 5000);
 
   try {
@@ -832,14 +873,17 @@ async function handleImagineCommand({
   const startTime = Date.now();
   const progressInterval = setInterval(() => {
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    send(ws, { type: "system", text: `[imagine] Generation en cours... ${elapsed}s` });
+    const pctImg = Math.min(95, Math.floor((elapsed / 30) * 100));
+    const filledImg = Math.floor(pctImg / 5);
+    const barImg = "█".repeat(filledImg) + "░".repeat(20 - filledImg);
+    broadcast(info.channel, { type: "system", text: `🎨 [${barImg}] ${pctImg}% — generation ${elapsed}s` });
   }, 5000);
 
   try {
     const result = await generateImage(imagePrompt);
     clearInterval(progressInterval);
     if (!result) {
-      send(ws, { type: "system", text: "Generation echouee — verifiez ComfyUI" });
+      broadcast(info.channel, { type: "system", text: "🎨 Generation echouee — verifiez ComfyUI" });
       return;
     }
 

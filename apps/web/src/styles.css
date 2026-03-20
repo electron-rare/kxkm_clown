@@ -30,6 +30,29 @@
   --radius: var(--kxkm-radius, 0);
 }
 
+/* ── Theme variants (via /theme command) ── */
+[data-theme="noir"] {
+  --bg: #0a0a0a; --panel: rgba(20, 20, 20, 0.95); --ink: #ccc; --muted: #777;
+  --accent: #ff4444; --border: #333; --border-light: rgba(255, 255, 255, 0.1);
+}
+[data-theme="matrix"] {
+  --bg: #000; --panel: rgba(0, 20, 0, 0.95); --ink: #00ff00; --muted: #009900;
+  --accent: #00cc00; --border: #003300; --border-light: rgba(0, 255, 0, 0.1);
+}
+[data-theme="amber"] {
+  --bg: #1a1000; --panel: rgba(30, 20, 0, 0.95); --ink: #ffb000; --muted: #996600;
+  --accent: #ff8800; --border: #332200; --border-light: rgba(255, 176, 0, 0.1);
+}
+[data-theme="ocean"] {
+  --bg: #001020; --panel: rgba(0, 16, 40, 0.95); --ink: #88ccff; --muted: #446688;
+  --accent: #0088ff; --border: #003366; --border-light: rgba(0, 136, 255, 0.1);
+}
+[data-theme="noir"] body, [data-theme="matrix"] body,
+[data-theme="amber"] body, [data-theme="ocean"] body {
+  background: var(--bg);
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -992,7 +1015,7 @@ code {
 }
 
 /* ========================================================================
-   3615-J'ai-pété — Minitel 1B Physical Terminal Theme
+   3615-KXKM — Minitel 1B Physical Terminal Theme
    ======================================================================== */
 
 :root {
@@ -1132,7 +1155,7 @@ code {
   75% { opacity: 1; }
 }
 
-/* ── Top service bar: 3615 J'ai pété ── */
+/* ── Top service bar: 3615 KXKM ── */
 .minitel-service-top {
   background: var(--minitel-green);
   color: var(--minitel-black);
@@ -1198,7 +1221,7 @@ code {
   font-weight: bold;
 }
 
-/* ── Minitel brand link (clickable 3615 J'ai pété) ── */
+/* ── Minitel brand link (clickable 3615 KXKM) ── */
 .minitel-brand-link {
   cursor: pointer;
   text-decoration: none;

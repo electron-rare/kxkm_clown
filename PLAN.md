@@ -1,15 +1,17 @@
 # PLAN.md — KXKM_Clown
 
-Updated: 2026-03-20T09:00:00Z
+Updated: 2026-03-20T18:00:00Z
 
 ## Summary
 
-- **120 lots executed** (24-143) in session 2026-03-19/20
+- **130+ lots executed** (24-177) in session 2026-03-19/20
 - **425 tests**, 0 fail
-- **40 commands**, 12 services, 9 spec docs
+- **43 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
 - Ollama v0.18.2, qwen3.5:9b (256K ctx, adaptive thinking)
-- Next: lots 144+ (E2E Playwright, DPO automation, mobile responsive)
+- 35 music styles, 5 CSS themes, 32 ComfyUI checkpoints + 24 LoRAs
+- TTFC 284ms
+- Next: lots 178+ (Compose pipeline, DAW integration, composition advanced)
 
 ---
 
@@ -592,68 +594,141 @@ Updated: 2026-03-20T12:00:00Z
 ## lot-149-file-sharing [planned]
 - Description: Upload files visible in MediaExplorer gallery
 
-## lot-150-reload-markdown [done]
-- Summary: /reload, markdown rendering, /help + tab-complete
+## lot-174-perf-ttfc [done]
+- Description: Performance optimization, TTFC 284ms
+- Summary: Time-to-first-chunk optimized to 284ms, connection pooling, lazy service init.
 
-## lot-151-export-memory-models [done]
-- Summary: /export, /memory, /models commands
+## lot-175-speed-command [done]
+- Description: /speed command for latency diagnostics
+- Summary: /speed returns TTFC, p50/p95 latencies, Ollama/RAG/TTS response times.
 
-## lot-152-comfyui-integration [done]
-- Summary: ComfyUI :8188 live, systemd unit
+## lot-176-auto-gen-fix [done]
+- Description: Auto-generation fix (NLP detect, ComfyUI smart selection)
+- Summary: NLP auto-detect generation intent (/compose vs /imagine), ComfyUI smart checkpoint selection based on prompt analysis.
 
-## lot-153-rag-perf [done]
-- Summary: RAG timeout 2s, TTFC 284ms (27x faster)
+## lot-177-music-styles [done]
+- Description: 35 music styles + 5 CSS themes + guest mode + mobile responsive
+- Summary: 35 ACE-Step music styles, 5 CSS themes (minitel/crt/hacker/synthwave/default), guest mode read-only, mobile responsive pass.
 
-## lot-154-progress-bars [done]
-- Summary: Broadcast progress for /imagine and /compose
+## lot-178-compose-duration-fix [planned]
+- Description: Compose duration fix (ACE-Step API direct integration)
+- Owner: Multimodal
+- Priority: P1
+- Tasks:
+  - [ ] Direct ACE-Step API call (bypass shell script)
+  - [ ] Duration parameter passthrough (5-300s)
+  - [ ] Progress callback from ACE-Step process
 
-## lot-155-comfyui-smart-models [done]
-- Summary: Smart model selection, 32 checkpoints, 24 LoRAs
+## lot-179-spec-compose-advanced [planned]
+- Description: SPEC_COMPOSE_ADVANCED plan (multi-track, effects, mastering)
+- Owner: Coordinateur
+- Priority: P1
+- Tasks:
+  - [ ] Write SPEC_COMPOSE_ADVANCED.md
+  - [ ] Define timeline data model
+  - [ ] Define mix/master pipeline stages
 
-## lot-156-imagine-end2end [done]
-- Summary: /imagine end-to-end verified
+## lot-180-timeline-model [planned]
+- Description: Composition timeline data model (tracks, clips, markers)
+- Owner: Backend API
+- Priority: P2
 
-## lot-157-compose-end2end [done]
-- Summary: /compose end-to-end verified
+## lot-181-tts-mix [planned]
+- Description: TTS voiceover mix into composition timeline
+- Owner: Multimodal
+- Priority: P2
 
-## lot-158-e2e-tests [done]
-- Summary: E2E 10/10 pass
+## lot-182-audio-effects [planned]
+- Description: Audio effects pipeline (reverb, delay, EQ, compression)
+- Owner: Multimodal
+- Priority: P2
 
-## lot-159-45-commands [done]
-- Summary: 45 commands, tab-complete
+## lot-183-daw-export [planned]
+- Description: DAW export (stems, markers, project file)
+- Owner: Multimodal
+- Priority: P3
 
-## lot-160-nlp-autodetect [done]
-- Summary: NL auto-triggers /imagine + /compose
+## lot-184-multi-track [planned]
+- Description: Multi-track composition (layer multiple ACE-Step generations)
+- Owner: Multimodal
+- Priority: P2
 
-## lot-161-admin [done]
-- Summary: Admin panel, services, users
+## lot-185-composition-ui [planned]
+- Description: Composition timeline UI (waveform view, track lanes)
+- Owner: Frontend
+- Priority: P2
 
-## lot-162-media-explorer [done]
-- Summary: Gallery for generated images/audio
+## lot-186-arrangement [planned]
+- Description: Arrangement tools (intro/verse/chorus structure)
+- Owner: Backend API + Frontend
+- Priority: P2
 
-## lot-163-persona-voices [done]
-- Summary: Per-persona voice config
+## lot-187-mastering [planned]
+- Description: Auto-mastering pipeline (loudness normalization, limiting)
+- Owner: Multimodal
+- Priority: P3
 
-## lot-164-context-stats [done]
-- Summary: /context stats
+## lot-188-stem-separation [planned]
+- Description: Stem separation (vocals, drums, bass, other)
+- Owner: Multimodal
+- Priority: P3
 
-## lot-165-security [done]
-- Summary: SEC-01 to SEC-03
+## lot-189-midi-export [planned]
+- Description: MIDI export from generated compositions
+- Owner: Multimodal
+- Priority: P3
 
-## lot-166-docs [done]
-- Summary: Full spec docs
+## lot-190-composition-templates [planned]
+- Description: Composition templates (ambient, techno, orchestral presets)
+- Owner: Backend API
+- Priority: P2
 
-## lot-167-oss-veille [done]
-- Summary: Qwen3-TTS, NexusRAG research
+## lot-191-collab-composition [planned]
+- Description: Collaborative composition (multi-user timeline editing)
+- Owner: Backend API + Frontend
+- Priority: P3
 
-## lot-168-nlp-verified [done]
-- Summary: NLP auto-detect E2E verified
+## lot-192-lyrics-gen [planned]
+- Description: Lyrics generation (LLM-driven, synced to composition)
+- Owner: Backend API
+- Priority: P3
 
-## lot-169-plan-update [done]
-- Summary: PLAN.md lots 150-169
+## lot-193-voice-composition [planned]
+- Description: Voice-driven composition (hum/sing to generate)
+- Owner: Multimodal
+- Priority: P3
 
-## lot-170-final-health [done]
-- Summary: 8/8 services, 45 cmds, TTFC 284ms
+## lot-194-fx-rack [planned]
+- Description: FX rack UI (drag-drop effects chain)
+- Owner: Frontend
+- Priority: P3
 
-## lot-171-final [done]
-- Summary: Final session commit
+## lot-195-automation [planned]
+- Description: Parameter automation (volume, pan, effects over time)
+- Owner: Frontend + Backend API
+- Priority: P3
+
+## lot-196-sample-library [planned]
+- Description: Sample library integration (one-shots, loops, foley)
+- Owner: Multimodal
+- Priority: P3
+
+## lot-197-spectral-view [planned]
+- Description: Spectral analysis view for compositions
+- Owner: Frontend
+- Priority: P3
+
+## lot-198-composition-history [planned]
+- Description: Composition version history (undo/redo, snapshots)
+- Owner: Backend API
+- Priority: P3
+
+## lot-199-render-queue [planned]
+- Description: Render queue (batch export, format options)
+- Owner: Backend API + Multimodal
+- Priority: P3
+
+## lot-200-composition-sharing [planned]
+- Description: Composition sharing (public links, embeds)
+- Owner: Backend API + Frontend
+- Priority: P3

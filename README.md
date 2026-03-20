@@ -43,7 +43,7 @@ docker compose --profile v2 --profile ollama up -d
 
 Par defaut, Ollama est attendu en natif sur le host (port 11434).
 
-## Services (12)
+## Services (13)
 
 | Service | Port | Description |
 | --- | --- | --- |
@@ -54,9 +54,10 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | PostgreSQL | 5432 | Persistence (personas, runs, logs) |
 | SearXNG | 8080 | Recherche web self-hosted |
 | TTS Sidecar | 9100 | Piper + Chatterbox (dual backend) |
+| Qwen3-TTS | 9300 | Qwen3-TTS 0.6B CustomVoice (9 speakers) |
 | Reranker | 8787 | BGE/Jina reranking |
 | Docling | 5001 | Extraction PDF (tables, OCR) |
-| ComfyUI | 8188 | Generation images (SDXL + Flux 2) |
+| ComfyUI | 8188 | Generation images (32 checkpoints + 24 LoRAs) |
 | Worker | --- | Node Engine job processor (GPU) |
 | Discord Bot | --- | Pharmacius bridge (2 salons) |
 
@@ -72,18 +73,21 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 - **TTS** — Piper-tts + Chatterbox (dual backend via TTS sidecar HTTP :9100)
 - **PDF** — Extraction via Docling/PyMuPDF (tables, layout, OCR)
 - **Recherche web** — SearXNG self-hosted + DuckDuckGo fallback
-- **Generation musicale** — `/compose` via ACE-Step 1.5 / MusicGen
-- **Generation images** — `/imagine` via ComfyUI (SDXL Lightning + Flux 2)
+- **Generation musicale** — `/compose` via ACE-Step 1.5 / MusicGen, 35 music styles
+- **Generation images** — `/imagine` via ComfyUI (32 checkpoints + 24 LoRAs, smart NLP selection)
 - **Memoire persona** — Faits et resume persistants, compaction LLM auto (750 MB)
 - **Inter-persona** — @mention directe, dialogue depth 3
-- **19 commandes slash** — /help, /nick, /who, /personas, /web, /clear, /status, /compose, /imagine, /voice, /memory, /context, /rag, /stats, /uptime, /model, /persona, /reload, /export
+- **43 commandes slash** — /help, /nick, /who, /personas, /web, /clear, /status, /compose, /imagine, /voice, /memory, /context, /rag, /stats, /uptime, /model, /persona, /reload, /export, /changelog, /version, /dice, /roll, /flip, /ban, /unban, /mute, /unmute, /whisper, /history, /search, /react, /invite, /time, /date, /session, /speed, + more
 - **Markdown chat** — Rendu Markdown (marked + DOMPurify) dans les messages
 - **Smart routing** — 5 domaines thematiques (musique, philosophie, tech, arts, science)
 - **Validation Zod** — 19 schemas sur toutes les routes API
 - **Pino logging** — Logs structures JSON, rotation automatique
 - **Dynamic ctx** — Contexte LLM adaptatif 4k-32k selon la conversation
-- **Perf instrumentation** — 6 labels (http, ollama, rag, ws), p50/p95/p99
+- **Perf instrumentation** — 6 labels (http, ollama, rag, ws), p50/p95/p99, TTFC 284ms
 - **Error telemetry** — 16 labels d'erreur, logging structure
+- **5 CSS themes** — minitel (phosphore), crt (amber), hacker (matrix), synthwave (neon), default
+- **Guest mode** — Acces lecture seule sans login, rate-limited
+- **Mobile responsive** — Touch gestures, bottom nav, viewport units
 - **MIME magic bytes** — Validation magic bytes sur uploads, allowlist SAFE_MIMES
 - **WS reconnect** — Reconnexion auto (backoff 1s-30s), seq numbers, detection de gaps
 - **CRT effect** — Phosphore vert, scanlines, flicker, boot animation modem
@@ -141,7 +145,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `PYTHON_BIN` | `python3` | Python avec libs ML (PyTorch, faster-whisper, piper-tts) |
 | `SCRIPTS_DIR` | `./scripts` | Chemin vers les scripts Python (TTS, STT, training) |
 
-## Commandes slash (19)
+## Commandes slash (43)
 
 | Commande | Description | Admin |
 | --- | --- | --- |
@@ -152,18 +156,36 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `/web <query>` | Recherche web + commentaire personas | non |
 | `/clear` | Effacer le chat | non |
 | `/status` | Statut systeme | non |
-| `/compose <prompt>` | Generation musicale (ACE-Step) | non |
-| `/imagine <prompt>` | Generation image (ComfyUI) | non |
+| `/compose <prompt>` | Generation musicale (ACE-Step, 35 styles) | non |
+| `/imagine <prompt>` | Generation image (ComfyUI, smart selection) | non |
 | `/voice` | Toggle TTS voix | non |
 | `/memory` | Afficher memoire persona | non |
 | `/context` | Afficher contexte conversation | non |
 | `/rag <query>` | Recherche RAG directe | non |
 | `/stats` | Statistiques chat | non |
 | `/uptime` | Temps de fonctionnement | non |
+| `/changelog` | Historique git recent | non |
+| `/version` | Version et info app | non |
+| `/dice NdS` | Lancer des des | non |
+| `/roll` | Lancer 1d6 | non |
+| `/flip` | Pile ou face | non |
+| `/whisper <persona>` | Message prive a une persona | non |
+| `/history N` | Historique N derniers messages | non |
+| `/search <mot>` | Recherche dans le contexte | non |
+| `/react <emoji>` | Reaction emoji broadcast | non |
+| `/invite <persona>` | Inviter persona dans le canal | non |
+| `/time` | Heure (Europe/Paris) | non |
+| `/date` | Date (FR locale) | non |
+| `/session` | Info session courante | non |
+| `/speed` | Diagnostics latence (TTFC, p50/p95) | non |
 | `/model` | Changer modele | oui |
 | `/persona` | Gerer personas | oui |
 | `/reload` | Recharger config | oui |
 | `/export` | Exporter donnees | oui |
+| `/ban <nick>` | Bannir un utilisateur | oui |
+| `/unban <nick>` | Debannir un utilisateur | oui |
+| `/mute <persona>` | Muter une persona | non |
+| `/unmute <persona>` | Demuter une persona | non |
 
 Mention directe: `@Schaeffer ta question` pour s'adresser a une persona specifique.
 
@@ -304,7 +326,7 @@ kxkm_clown/
 | RBAC | n/a | operationnel |
 | Frontend React | n/a | operationnel |
 | Training (TRL/Unsloth) | n/a | operationnel |
-| Tests (425) | smoke | unit + component + smoke (425 pass) |
+| Tests (425+) | smoke | unit + component + smoke (425+ pass) |
 | VoiceChat push-to-talk | n/a | operationnel |
 | Mediatheque gallery/playlist | n/a | operationnel |
 | UI Minitel VIDEOTEX | n/a | operationnel |

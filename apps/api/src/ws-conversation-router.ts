@@ -1,4 +1,5 @@
 import { trackError } from "./error-tracker.js";
+import { recordLatency } from "./perf.js";
 import { getToolsForPersona as defaultGetToolsForPersona, type ToolDefinition } from "./mcp-tools.js";
 import {
   streamOllamaChat as defaultStreamOllamaChat,
@@ -255,6 +256,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     depth: number,
     routeToPersonas: ConversationRouter,
   ): Promise<void> {
+    const responseStart = Date.now();
     let memory: PersonaMemory = { nick: persona.nick, facts: [], summary: "", lastUpdated: "" };
     try {
       memory = await loadPersonaMemory(persona.nick);
@@ -314,6 +316,10 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       });
 
       addToContext(channel, persona.nick, fullText);
+
+      const responseMs = Date.now() - responseStart;
+      if (DEBUG) console.log(`[ws-chat] ${persona.nick} response complete (${responseMs}ms, ${fullText.length} chars)`);
+      recordLatency("persona_response", responseMs);
 
       // Flush remaining sentence buffer to TTS
       if (sentenceBuffer.trim().length >= 10) {

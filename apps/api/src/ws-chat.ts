@@ -32,6 +32,8 @@ import {
 
 const channelSeq = new Map<string, number>();
   const channelTopics = new Map<string, string>();
+  const channelPins = new Map<string, string[]>();
+const userStats = new Map<string, { messages: number; firstSeen: number }>();
 
 function nextSeq(channel: string): number {
   const n = (channelSeq.get(channel) || 0) + 1;
@@ -165,6 +167,10 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
   // --- handle chat message ---
 
   async function handleChatMessage(ws: WebSocket, info: ClientInfo, text: string): Promise<void> {
+    // Track user stats
+    const existing = userStats.get(info.nick);
+    if (existing) { existing.messages++; } else { userStats.set(info.nick, { messages: 1, firstSeen: Date.now() }); }
+
     broadcast(info.channel, {
       type: "message",
       nick: info.nick,
@@ -223,6 +229,8 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     logChatMessage,
     getPersonas: () => personas,
     getChannelTopics: () => channelTopics,
+    getChannelPins: () => channelPins,
+    getUserStats: () => userStats,
     getClients: () => clients,
     getMaxResponders: () => currentMaxResponders,
     setMaxResponders: (n: number) => { currentMaxResponders = n; },
@@ -245,6 +253,11 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     };
 
     clients.set(ws, info);
+
+    // Initialize user stats if first time
+    if (!userStats.has(nick)) {
+      userStats.set(nick, { messages: 0, firstSeen: Date.now() });
+    }
 
     // Send MOTD
     send(ws, {
@@ -276,6 +289,12 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
     // Send userlist
     send(ws, { type: "userlist", users: channelUsers(info.channel) });
+
+    // Send pinned messages to new joiners
+    const pins = channelPins.get(info.channel);
+    if (pins?.length) {
+      send(ws, { type: "system", text: `Pins:\n${pins.map((p: string, i: number) => `  ${i + 1}. ${p}`).join("\n")}` });
+    }
 
     // Send recent chat history
     if (contextStore) {

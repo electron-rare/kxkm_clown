@@ -34,6 +34,8 @@ interface CommandHandlerDeps {
   getActiveUserCount: () => number;
   getContextStore?: () => ContextStore | undefined;
   refreshPersonas?: () => Promise<void>;
+  getChannelPins?: () => Map<string, string[]>;
+  getUserStats?: () => Map<string, { messages: number; firstSeen: number }>;
 }
 
 export function createCommandHandler(deps: CommandHandlerDeps) {
@@ -54,6 +56,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
     getActiveUserCount,
     getContextStore,
     refreshPersonas,
+    getChannelPins,
+    getUserStats,
   } = deps;
 
   return async function handleCommand({ ws, info, text }: CommandContext): Promise<void> {
@@ -87,6 +91,8 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/dm <pseudo> <message>            — message prive",
             "/topic <texte>                    — definir le sujet du canal",
             "/reload                            — recharger les personas depuis la DB",
+            "/pin <message>                     — epingler un message (vide = voir les pins)",
+            "/stats                             — tes stats personnelles",
             "@NomPersona                        — interpeller une persona directement",
           ].join("\n"),
         });
@@ -445,6 +451,29 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
         } catch (err) {
           send(ws, { type: "system", text: `Erreur rechargement: ${err instanceof Error ? err.message : String(err)}` });
         }
+        return;
+      }
+
+      case "/pin": {
+        const pinText = text.slice(5).trim();
+        if (!pinText) {
+          const pins = getChannelPins?.()?.get(info.channel) || [];
+          send(ws, { type: "system", text: pins.length ? `Pins:\n${pins.map((p: string, i: number) => `  ${i + 1}. ${p}`).join("\n")}` : "Aucun pin" });
+          return;
+        }
+        const pinsMap = getChannelPins?.();
+        const current = pinsMap?.get(info.channel) || [];
+        current.push(`${info.nick}: ${pinText}`);
+        if (current.length > 10) current.shift();
+        pinsMap?.set(info.channel, current);
+        broadcast(info.channel, { type: "system", text: `\u{1F4CC} Pin: ${pinText} (par ${info.nick})` });
+        return;
+      }
+
+      case "/stats": {
+        const stats = getUserStats?.()?.get(info.nick);
+        const uptime = stats ? Math.floor((Date.now() - stats.firstSeen) / 60000) : 0;
+        send(ws, { type: "system", text: `Stats ${info.nick}:\n  Messages: ${stats?.messages || 0}\n  Connecte: ${uptime}min` });
         return;
       }
 

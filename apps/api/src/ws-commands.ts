@@ -88,8 +88,9 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             "/layer <description musicale>      — ajouter une piste a la composition",
             "/mix                               — mixer toutes les pistes (ffmpeg)",
             "/voice <persona> \"texte\" [Ns]     — piste voix TTS persona",
-            "/fx <effet> [param]                — effets audio (volume/fade/reverse/reverb)",
+            "/fx <effet> [param]                — effets audio (volume/fade/reverse/reverb/pitch/speed/echo/distortion)",
             "/noise <type> [duree]              — bruit: white/pink/brown/sine/drone",
+            "/ambient <desc> | off              — fond sonore persistant pour le canal",
             "/status                            — etat du systeme (VRAM, modeles, perf)",
             "/responders <1-5>                  — nombre de personas qui repondent",
             "/model                             — modele actif",
@@ -1031,8 +1032,48 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             }
             return;
           }
+          case "pitch": {
+            const semitones = parseInt(fxArgs[1] || "2");
+            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
+              const tmpPath = lastTrack.filePath + ".tmp.wav";
+              const factor = Math.pow(2, semitones / 12);
+              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", `asetrate=32000*${factor},aresample=32000`, "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, lastTrack.filePath);
+              send(ws, { type: "system", text: `\u{1f3b5} Pitch ${semitones > 0 ? "+" : ""}${semitones} demi-tons piste #${comp.tracks.length}` });
+            }
+            return;
+          }
+          case "speed": {
+            const speed = parseFloat(fxArgs[1] || "1.5");
+            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
+              const tmpPath = lastTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", `atempo=${Math.min(4, Math.max(0.25, speed))}`, "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, lastTrack.filePath);
+              send(ws, { type: "system", text: `\u23e9 Speed x${speed} piste #${comp.tracks.length}` });
+            }
+            return;
+          }
+          case "echo": {
+            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
+              const tmpPath = lastTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", "aecho=0.6:0.3:500|1000:0.3|0.2", "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, lastTrack.filePath);
+              send(ws, { type: "system", text: `\u{1f501} Echo applique piste #${comp.tracks.length}` });
+            }
+            return;
+          }
+          case "distortion":
+          case "distort": {
+            if (lastTrack.filePath && fs.existsSync(lastTrack.filePath)) {
+              const tmpPath = lastTrack.filePath + ".tmp.wav";
+              execFileSync("ffmpeg", ["-i", lastTrack.filePath, "-af", "acrusher=samples=10:bits=8:mix=0.5", "-y", tmpPath], { timeout: 30000 });
+              fs.renameSync(tmpPath, lastTrack.filePath);
+              send(ws, { type: "system", text: `\u{1f4a5} Distortion applique piste #${comp.tracks.length}` });
+            }
+            return;
+          }
           default:
-            send(ws, { type: "system", text: "Effets: /fx volume <0-200> | /fx fade-in <s> | /fx fade-out <s> | /fx reverse | /fx reverb" });
+            send(ws, { type: "system", text: "Effets: /fx volume <0-200> | /fx fade-in <s> | /fx fade-out <s> | /fx reverse | /fx reverb | /fx pitch <\u00b1demi-tons> | /fx speed <0.25-4> | /fx echo | /fx distortion" });
             return;
         }
       }
@@ -1075,6 +1116,38 @@ export function createCommandHandler(deps: CommandHandlerDeps) {
             audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
           } as any);
           send(ws, { type: "system", text: `\u2705 ${noiseType} noise ajoute (piste ${comp.tracks.length}). /mix pour combiner.` });
+        }
+        return;
+      }
+
+      case "/ambient": {
+        const ambPrompt = text.slice(9).trim();
+        if (!ambPrompt) {
+          send(ws, { type: "system", text: "Usage: /ambient <description> \u2014 genere un fond sonore pour le canal\n  /ambient off \u2014 arreter" });
+          return;
+        }
+        if (ambPrompt === "off" || ambPrompt === "stop") {
+          broadcast(info.channel, { type: "system", text: "\u{1f507} Ambient arrete" });
+          return;
+        }
+        broadcast(info.channel, { type: "system", text: `\u{1f30a} Generation ambient: "${ambPrompt}"...` });
+
+        const ttsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
+        try {
+          const resp = await fetch(`${ttsUrl}/compose`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: `${ambPrompt}, ambient loop, seamless`, duration: 60 }),
+            signal: AbortSignal.timeout(300_000),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const audioBuffer = Buffer.from(await resp.arrayBuffer());
+          broadcast(info.channel, {
+            type: "music", nick: info.nick,
+            text: `[Ambient: "${ambPrompt}" \u2014 en boucle]`,
+            audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
+          } as any);
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur ambient: ${err instanceof Error ? err.message : String(err)}` });
         }
         return;
       }

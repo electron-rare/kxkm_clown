@@ -46,7 +46,7 @@ async function main() {
   app.all("/api/opendaw/*", (req, res) => {
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     res.setHeader("Access-Control-Allow-Origin", "*");
-    if (req.path.includes("list")) return res.json([]);
+    if (req.path.includes("list")) return res.json(req.path.includes("music") ? {tracks:[]} : []);
     if (req.path.includes("counter")) return res.json({ ok: true });
     res.json({ ok: true });
   });

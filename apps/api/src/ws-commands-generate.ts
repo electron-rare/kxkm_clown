@@ -25,7 +25,7 @@ export const GENERATE_COMMANDS = new Set([
   "/play", "/stop-all", "/template", "/marker",
   "/metronome", "/delete", "/preview", "/gain",
   "/suggest", "/snapshot", "/randomize",
-  "/glitch", "/stretch", "/bounce",
+  "/glitch", "/stretch", "/bounce", "/stem",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -522,21 +522,54 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
       }
 
       case "/master": {
+        // /master [ref_track#] — auto-master mix. With ref track: Matchering AI. Without: ffmpeg loudnorm.
         const comp = getActiveComposition(info.nick, info.channel);
         if (!comp) { send(ws, { type: "system", text: "Pas de composition." }); return; }
         const mixPath = path.join(process.cwd(), "data", "compositions", comp.id, "mix.wav");
         if (!fs.existsSync(mixPath)) { send(ws, { type: "system", text: "/mix d'abord." }); return; }
-        broadcast(info.channel, { type: "system", text: "\u{1F39B}\uFE0F Mastering en cours..." });
+
+        const refArg = parts[1];
         const masterPath = path.join(process.cwd(), "data", "compositions", comp.id, "master.wav");
-        execFileSync("ffmpeg", ["-i", mixPath, "-af", "loudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50,alimiter=limit=0.95", "-ar", "44100", "-y", masterPath], { timeout: 60000 });
+
+        // If reference track specified → Matchering AI mastering
+        if (refArg && /^\d+$/.test(refArg)) {
+          const refIdx = parseInt(refArg) - 1;
+          const refTrack = comp.tracks[refIdx];
+          if (!refTrack?.filePath || !fs.existsSync(refTrack.filePath)) {
+            send(ws, { type: "system", text: `Piste #${refArg} introuvable. /master <piste#>` }); return;
+          }
+          broadcast(info.channel, { type: "system", text: `\u{1F39B}\uFE0F Mastering AI (reference: piste #${refArg})...` });
+          try {
+            const AI_BRIDGE_URL = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+            const targetBuf = fs.readFileSync(mixPath);
+            const refBuf = fs.readFileSync(refTrack.filePath);
+            const resp = await fetch(`${AI_BRIDGE_URL}/master`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ target: targetBuf.toString("base64"), reference: refBuf.toString("base64") }),
+              signal: AbortSignal.timeout(120_000),
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const masterBuf = Buffer.from(await resp.arrayBuffer());
+            fs.writeFileSync(masterPath, masterBuf);
+          } catch (err) {
+            send(ws, { type: "system", text: `Erreur Matchering: ${err instanceof Error ? err.message : String(err)}. Fallback ffmpeg...` });
+            execFileSync("ffmpeg", ["-i", mixPath, "-af", "loudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50,alimiter=limit=0.95", "-ar", "44100", "-y", masterPath], { timeout: 60000 });
+          }
+        } else {
+          // No reference → ffmpeg mastering
+          broadcast(info.channel, { type: "system", text: "\u{1F39B}\uFE0F Mastering (loudnorm + compressor)..." });
+          execFileSync("ffmpeg", ["-i", mixPath, "-af", "loudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50,alimiter=limit=0.95", "-ar", "44100", "-y", masterPath], { timeout: 60000 });
+        }
+
         const audioBuffer = fs.readFileSync(masterPath);
         broadcast(info.channel, {
           type: "music", nick: info.nick,
-          text: `[Master: ${comp.name} \u2014 ${comp.tracks.length} pistes, 44.1kHz]`,
+          text: `[Master: ${comp.name} \u2014 ${comp.tracks.length} pistes, 44.1kHz${refArg ? " (AI ref)" : ""}]`,
           audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
         } as any);
         send(ws, { type: "system", text: `\u2705 Master termine. Download: /api/v2/media/compositions/${comp.id}/master` });
-        broadcastCompUpdate(broadcast, info.channel, comp.id, "mix_complete");
+        broadcastCompUpdate(broadcast, info.channel, comp.id, "master_complete");
         return;
       }
 
@@ -1198,6 +1231,85 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           broadcastCompUpdate(broadcast, info.channel, comp.id, "bounce_complete");
         } catch (err) {
           send(ws, { type: "system", text: `Erreur bounce: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/stem": {
+        // /stem [track#] — separate last generated audio (or specific track) into stems
+        const trackNum = parseInt(parts[1]) - 1;
+        const comp = getActiveComposition(info.nick, info.channel);
+
+        // Find the audio to separate
+        let audioPath: string | null = null;
+        let label = "dernier audio";
+
+        if (comp && !isNaN(trackNum) && trackNum >= 0 && trackNum < comp.tracks.length) {
+          const track = comp.tracks[trackNum];
+          if (track.filePath && fs.existsSync(track.filePath)) {
+            audioPath = track.filePath;
+            label = `piste #${trackNum + 1}`;
+          }
+        } else if (comp && comp.tracks.length > 0) {
+          // Use last track with a file
+          for (let i = comp.tracks.length - 1; i >= 0; i--) {
+            if (comp.tracks[i].filePath && fs.existsSync(comp.tracks[i].filePath!)) {
+              audioPath = comp.tracks[i].filePath!;
+              label = `piste #${i + 1}`;
+              break;
+            }
+          }
+        }
+
+        if (!audioPath) {
+          send(ws, { type: "system", text: "Aucune piste audio a separer. /layer d'abord." });
+          return;
+        }
+
+        broadcast(info.channel, { type: "system", text: `Separation stems de ${label}...` });
+
+        try {
+          const audioBuf = fs.readFileSync(audioPath);
+          const AI_BRIDGE_URL = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+
+          const resp = await fetch(`${AI_BRIDGE_URL}/separate`, {
+            method: "POST",
+            headers: { "Content-Type": "audio/wav" },
+            body: audioBuf,
+            signal: AbortSignal.timeout(120_000),
+          });
+
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const result = await resp.json();
+
+          if (result.ok && result.data) {
+            // Add each stem as a new track in the composition
+            for (const [stemName, stemBase64] of Object.entries(result.data)) {
+              const stemBuf = Buffer.from(stemBase64 as string, "base64");
+              const track = addTrack(comp!.id, {
+                type: "sfx",
+                prompt: `[stem: ${stemName}] ${label}`,
+                duration: comp!.tracks[0]?.duration || 30,
+                volume: 100,
+                startMs: 0,
+              });
+              if (track) {
+                const trackDir = path.join(process.cwd(), "data", "compositions", comp!.id);
+                fs.mkdirSync(trackDir, { recursive: true });
+                const trackPath = path.join(trackDir, `${track.id}.wav`);
+                fs.writeFileSync(trackPath, stemBuf);
+                track.filePath = trackPath;
+              }
+            }
+
+            const stemNames = Object.keys(result.data).join(", ");
+            broadcast(info.channel, { type: "system", text: `Stems separes: ${stemNames}. ${comp!.tracks.length} pistes total.` });
+            broadcastCompUpdate(broadcast, info.channel, comp!.id, "stems_separated", { trackCount: comp!.tracks.length });
+          } else {
+            throw new Error("Separation failed");
+          }
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur stems: ${err instanceof Error ? err.message : String(err)}` });
         }
         return;
       }

@@ -170,12 +170,12 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
             <span className="chat-actions">
               {onVote && (
                 <>
-                  <button className="chat-vote-btn chat-vote-up" title="Bonne reponse" onClick={() => onVote(msg, "up")}>{"\u25B2"}</button>
-                  <button className="chat-vote-btn chat-vote-down" title="Mauvaise reponse" onClick={() => onVote(msg, "down")}>{"\u25BC"}</button>
+                  <button className="chat-vote-btn chat-vote-up" title="Bonne reponse" aria-label="Voter positif" onClick={() => onVote(msg, "up")}>{"\u25B2"}</button>
+                  <button className="chat-vote-btn chat-vote-down" title="Mauvaise reponse" aria-label="Voter negatif" onClick={() => onVote(msg, "down")}>{"\u25BC"}</button>
                 </>
               )}
               {REACTIONS.map(r => (
-                <button key={r} className="chat-react-btn" onClick={() => {
+                <button key={r} className="chat-react-btn" aria-label={`Reagir ${r}`} onClick={() => {
                   fetch("/api/v2/feedback", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -183,10 +183,10 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
                   }).catch(() => {});
                 }}>{r}</button>
               ))}
-              <button className="chat-react-btn" onClick={() => {
+              <button className="chat-react-btn" aria-label="Copier le message" onClick={() => {
                 if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {});
               }} title="Copier">{"\uD83D\uDCCB"}</button>
-              <button className="chat-pin-btn" onClick={() => {
+              <button className="chat-pin-btn" aria-label="Epingler le message" onClick={() => {
                 if (msg.text) {
                   fetch("/api/v2/feedback", {
                     method: "POST",

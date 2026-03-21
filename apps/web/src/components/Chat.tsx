@@ -207,7 +207,7 @@ export default function Chat() {
               ? `reconnexion (${ws.reconnectAttempts})`
               : <>deconnecte<button className="chat-reconnect-btn" onClick={ws.reconnect}>reconnecter</button></>}
         </span>
-        <span className="chat-count">{messages.length} msgs</span>
+        <span className="chat-count">{users.length} en ligne | {messages.length} msgs</span>
         <button
           className={`chat-voice-toggle ${voiceChat ? "chat-voice-on" : ""}`}
           onClick={toggleVoiceChat}

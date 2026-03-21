@@ -18,6 +18,8 @@ export const CHAT_COMMANDS = new Set([
   "/collab",
   "/persona-create",
   "/radio",
+  "/summarize",
+  "/mood",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -50,7 +52,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         send(ws, {
           type: "system",
           text: [
-            "=== 3615 J'ai pete -- 105 commandes ===",
+            "=== 3615 J'ai pete -- 108 commandes ===",
             "",
             "CHAT",
             "  /nick <nom>        Changer de pseudo",
@@ -72,6 +74,9 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "  /react <emoji>      Reagir au dernier message",
             "  /random-persona [sujet]  Invoquer une persona au hasard",
             "  /debate [sujet]     Debat entre 2 personas au hasard",
+            "  /collab [sujet]     5 personas collaborent",
+            "  /persona-create <nom> <model> <desc>  Creer une persona",
+            "  /radio [on|off]     Radio auto (persona toutes les 30s)",
             "  @NomPersona         Interpeller une persona",
             "",
             "GENERATION IMAGES (F5)",
@@ -708,6 +713,48 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         }, 30000);
 
         (globalThis as any).__radioTimers.set(info.channel, radioTimer);
+        return;
+      }
+
+      case "/summarize": {
+        const store = getContextStore?.();
+        if (!store) { send(ws, { type: "system", text: "Context store indisponible." }); return; }
+        try {
+          const context = await store.getContext(info.channel, 10000);
+          if (!context || context.length < 20) { send(ws, { type: "system", text: "Pas assez d'historique." }); return; }
+
+          send(ws, { type: "system", text: "Resume en cours..." });
+          const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "qwen3.5:9b",
+              messages: [
+                { role: "system", content: "Tu resumes les conversations de maniere concise. Bullet points. Maximum 10 points." },
+                { role: "user", content: `Resume cette conversation:\n\n${context.slice(-5000)}` },
+              ],
+              stream: false, options: { num_predict: 500 }, keep_alive: "30m", think: false,
+            }),
+            signal: AbortSignal.timeout(20_000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as { message?: { content?: string } };
+            const summary = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            send(ws, { type: "system", text: `=== RESUME ===\n${summary || "(vide)"}` });
+          }
+        } catch { send(ws, { type: "system", text: "Erreur resume." }); }
+        return;
+      }
+
+      case "/mood": {
+        const hour = new Date().getHours();
+        let mood = "";
+        if (hour >= 6 && hour < 12) mood = "MATINAL — energique et frais";
+        else if (hour >= 12 && hour < 14) mood = "MIDI — detendu et gourmand";
+        else if (hour >= 14 && hour < 18) mood = "APRES-MIDI — concentre et productif";
+        else if (hour >= 18 && hour < 22) mood = "SOIREE — philosophe et contemplatif";
+        else mood = "NUIT — mystique et onirique";
+        send(ws, { type: "system", text: `Humeur actuelle: ${mood}\nLes personas adaptent leur ton selon l'heure.` });
         return;
       }
 

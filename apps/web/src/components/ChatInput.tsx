@@ -21,6 +21,7 @@ const ALL_COMMANDS = [
   "/persona", "/version", "/changelog", "/session", "/history", "/context",
   "/export", "/reload", "/theme", "/time", "/fortune", "/dice", "/flip",
   "/translate", "/tr", "/debate", "/quote", "/weather", "/ascii",
+  "/collab", "/persona-create", "/radio",
 ];
 
 export interface ChatInputProps {
@@ -149,10 +150,12 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
   return (
     <div className="chat-input" style={{ position: "relative" }}>
       {mentionSuggestions.length > 0 && (
-        <div className="chat-mention-dropdown">
+        <div className="chat-mention-dropdown" role="listbox" aria-label="Suggestions personas">
           {mentionSuggestions.map((name, i) => (
             <button
               key={name}
+              role="option"
+              aria-selected={i === mentionIdx}
               className={`chat-mention-item ${i === mentionIdx ? "active" : ""}`}
               onMouseDown={(ev) => { ev.preventDefault(); selectMention(name); }}
             >
@@ -162,10 +165,12 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
         </div>
       )}
       {cmdSuggestions.length > 0 && mentionSuggestions.length === 0 && (
-        <div className="chat-mention-dropdown">
+        <div className="chat-mention-dropdown" role="listbox" aria-label="Suggestions commandes">
           {cmdSuggestions.map((cmd, i) => (
             <button
               key={cmd}
+              role="option"
+              aria-selected={i === mentionIdx}
               className={`chat-mention-item ${i === mentionIdx ? "active" : ""}`}
               onMouseDown={(ev) => { ev.preventDefault(); selectCommand(cmd); }}
             >

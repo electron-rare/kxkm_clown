@@ -64,6 +64,7 @@ export const INFO_COMMANDS = new Set([
   "/lot400",
   "/about",
   "/benchmark",
+  "/ping",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -587,18 +588,26 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
 
       case "/dice":
       case "/roll": {
-        const match = text.match(/(\d+)?d(\d+)/i);
-        const count = Math.min(parseInt(match?.[1] || "1"), 10);
-        const sides = Math.min(parseInt(match?.[2] || "6"), 100);
+        const notation = parts[1] || "1d6";
+        const match = notation.match(/^(\d+)d(\d+)$/i);
+        const count = match ? Math.min(parseInt(match[1]), 20) : 1;
+        const sides = match ? Math.min(parseInt(match[2]), 100) : 6;
         const rolls = Array.from({ length: count }, () => Math.floor(Math.random() * sides) + 1);
         const total = rolls.reduce((a, b) => a + b, 0);
-        broadcast(info.channel, { type: "system", text: `\u{1F3B2} ${info.nick} lance ${count}d${sides}: [${rolls.join(", ")}] = ${total}` });
+        const detail = count > 1 ? ` (${rolls.join(" + ")})` : "";
+        broadcast(info.channel, { type: "system", text: `\u{1F3B2} ${info.nick} lance ${count}d${sides}: ${total}${detail}` });
         return;
       }
 
       case "/flip": {
         const result = Math.random() < 0.5 ? "pile" : "face";
         broadcast(info.channel, { type: "system", text: `\u{1FA99} ${info.nick}: ${result}!` });
+        return;
+      }
+
+      case "/ping": {
+        const start = Date.now();
+        send(ws, { type: "system", text: `Pong! ${Date.now() - start}ms (serveur)` });
         return;
       }
 

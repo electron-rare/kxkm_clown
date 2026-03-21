@@ -65,12 +65,14 @@ services:
     volumes:
       - ./data:/app/data
       - ./scripts:/app/scripts:ro
+      - /home/kxkm/openDAW/packages/app/studio/dist:/app/daw:ro
     environment:
       OLLAMA_URL: "http://localhost:11434"
       DATABASE_URL: "postgres://kxkm:kxkm@localhost:5432/kxkm_clown"
       NODE_ENV: production
       V2_API_PORT: "${API_PORT:-3333}"
       WEB_DIST_PATH: "/app/apps/web/dist"
+      DAW_DIST_PATH: "/app/daw"
       ADMIN_BOOTSTRAP_TOKEN: "${ADMIN_BOOTSTRAP_TOKEN:-}"
       ADMIN_TOKEN: "${ADMIN_TOKEN:-kxkm}"
       ADMIN_ALLOWED_SUBNETS: "${ADMIN_ALLOWED_SUBNETS:-}"
@@ -274,6 +276,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./scripts:/app/scripts:ro
+      - /home/kxkm/openDAW/packages/app/studio/dist:/app/daw:ro
     depends_on:
       chatterbox:
         condition: service_healthy

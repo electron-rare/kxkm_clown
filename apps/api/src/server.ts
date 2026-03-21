@@ -20,6 +20,25 @@ async function main() {
   // -----------------------------------------------------------------------
   // Serve V2 web build (Vite output) as static files
   // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Serve openDAW studio at /daw with COOP/COEP headers
+  // -----------------------------------------------------------------------
+  const dawDistPath = process.env.DAW_DIST_PATH || "/home/kxkm/openDAW/packages/app/studio/dist";
+  app.use("/daw", (req, res, next) => {
+    // Required for crossOriginIsolated (SharedArrayBuffer, AudioWorklet)
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  }, express.static(dawDistPath));
+  // SPA fallback for /daw
+  app.get("/daw/*", (req, res) => {
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.sendFile(path.join(dawDistPath, "index.html"));
+  });
+
   const webDistPath = process.env.WEB_DIST_PATH || path.resolve(process.cwd(), "apps/web/dist");
   app.use(express.static(webDistPath));
 

@@ -146,7 +146,16 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           }
           return;
         }
-        send(ws, { type: "system", text: "Usage: /comp new|list|save|load|delete" });
+        if (action === "rename") {
+          const newName = sub.slice(1).join(" ");
+          if (!newName) { send(ws, { type: "system", text: "Usage: /comp rename <nouveau nom>" }); return; }
+          const comp = getActiveComposition(info.nick, info.channel);
+          if (!comp) { send(ws, { type: "system", text: "Pas de composition active." }); return; }
+          comp.name = newName;
+          send(ws, { type: "system", text: `Composition renommee: ${newName}` });
+          return;
+        }
+        send(ws, { type: "system", text: "Usage: /comp new|list|save|load|delete|rename" });
         return;
       }
 

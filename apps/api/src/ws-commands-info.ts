@@ -322,6 +322,19 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           "Le code est la loi. \u2014 Lawrence Lessig",
           "L'information veut etre libre. \u2014 Stewart Brand",
           "Tout ce qui est solide se dissout dans l'air. \u2014 Marx",
+          "Le bruit est relatif au silence qui le precede.",
+          "Tout code est une partition qui attend son interprete.",
+          "La musique concrete commence la ou les mots s'arretent.",
+          "Le chaos est la forme la plus haute de l'ordre.",
+          "Ecouter c'est deja composer.",
+          "Le bug est le premier pas vers la decouverte.",
+          "Un bon mix est celui qu'on n'entend pas.",
+          "La latence est l'ennemie de l'art vivant.",
+          "Chaque pixel est un univers en attente.",
+          "Le silence entre les notes est aussi important que les notes.",
+          "L'IA ne remplace pas l'artiste, elle lui tend un miroir.",
+          "Le glitch est la verite du signal.",
+          "3615 J'ai pete : parce que le son libere.",
         ];
         const quote = quotes[Math.floor(Math.random() * quotes.length)];
         send(ws, { type: "system", text: `\u{1F52E} ${quote}` });

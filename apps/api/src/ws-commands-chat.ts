@@ -24,6 +24,7 @@ export const CHAT_COMMANDS = new Set([
   "/timer",
   "/story",
   "/speak",
+  "/trivia",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -209,14 +210,27 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         return;
       }
 
-      case "/personas":
-        send(ws, {
-          type: "system",
-          text: getPersonas()
-            .map((persona) => `  ${persona.nick} (${persona.model}) \u2014 ${persona.systemPrompt.slice(0, 60)}...`)
-            .join("\n"),
-        });
+      case "/personas": {
+        const personas = getPersonas();
+        const categories: Record<string, typeof personas> = {};
+        for (const p of personas) {
+          const sp = p.systemPrompt.toLowerCase();
+          const cat = sp.includes("musique") || sp.includes("son") || sp.includes("compositr") ? "Musique/Son"
+            : sp.includes("philoso") || sp.includes("theori") || sp.includes("pensee") ? "Philosophie"
+            : sp.includes("scien") || sp.includes("code") || sp.includes("logic") ? "Science/Tech"
+            : sp.includes("art") || sp.includes("cinema") || sp.includes("visual") ? "Arts"
+            : sp.includes("scene") || sp.includes("theatre") || sp.includes("cirque") || sp.includes("danse") ? "Scene/Corps"
+            : "Transversal";
+          (categories[cat] ||= []).push(p);
+        }
+        const lines = [`=== ${personas.length} Personas ===`];
+        for (const [cat, ps] of Object.entries(categories)) {
+          lines.push(`\n[${cat}] (${ps.length})`);
+          for (const p of ps) lines.push(`  ${p.nick} \u2014 ${p.model}`);
+        }
+        send(ws, { type: "system", text: lines.join("\n") });
         return;
+      }
 
       case "/web": {
         const query = text.slice(4).trim();
@@ -819,6 +833,27 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
           info.channel,
           `@${storytellers[0].nick} Ecris le premier paragraphe d'une histoire courte sur: ${theme}. @${storytellers[1].nick} continuera apres toi, puis @${storytellers[2].nick} conclura. Maximum 3 phrases.`,
         );
+        return;
+      }
+
+      case "/trivia": {
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "qwen3.5:9b",
+              messages: [{ role: "user", content: "Pose une question de culture generale interessante avec 4 choix (A, B, C, D) et donne la reponse. Format:\nQuestion: ...\nA) ...\nB) ...\nC) ...\nD) ...\nReponse: X" }],
+              stream: false, options: { num_predict: 300 }, keep_alive: "30m", think: false,
+            }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as { message?: { content?: string } };
+            const trivia = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            broadcast(info.channel, { type: "system", text: `\u{1F9E0} TRIVIA\n${trivia || "Indisponible."}` });
+          }
+        } catch { broadcast(info.channel, { type: "system", text: "Trivia indisponible." }); }
         return;
       }
 

@@ -4,7 +4,7 @@ Updated: 2026-03-21T12:00:00Z
 
 ## Summary
 
-- **310+ lots executed** (24-286) in sessions 2026-03-19/20/21
+- **315+ lots executed** (24-286) in sessions 2026-03-19/20/21
 - **425 tests**, 0 fail
 - **55 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
@@ -870,3 +870,10 @@ Updated: 2026-03-20T12:00:00Z
 
 ## lot-305-compose-simple [done]
 - Summary: ComposePage simple 4-track (MUSIQUE/VOIX/TEXTURE/EFFET), timeline, mix/master
+
+
+## lot-310-mini-daw-ia [done]
+- Summary: Mini DAW IA natif -- 4 pistes, timeline drag/resize/dup, AI suggest, auto-compose, generate-all, 10 FX context menu, /api/v2/ai/suggest-prompt
+
+## lot-315-session-final [done]
+- Summary: 315+ lots, 90 commands, 14 services, E2E 10/10, responsive verified

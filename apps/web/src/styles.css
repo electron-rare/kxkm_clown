@@ -1073,7 +1073,7 @@ code {
   padding: 10px 12px 4px;
   position: relative;
   display: grid;
-  grid-template-columns: 1fr 80px;
+  grid-template-columns: minmax(0, 1fr) 80px;
   grid-template-rows: 1fr 32px 40px;
   gap: 0;
   overflow: hidden;
@@ -1100,6 +1100,7 @@ code {
 /* ── CRT Screen — fills available space ── */
 .minitel-screen {
   background: var(--minitel-black);
+  min-width: 0;
   border-radius: 6px;
   overflow: hidden;
   position: relative;
@@ -1440,6 +1441,7 @@ code {
 /* ── Content area (chat goes here) ── */
 .minitel-content {
   flex: 1;
+  min-width: 0;
   position: relative;
   z-index: 5;
   display: flex;

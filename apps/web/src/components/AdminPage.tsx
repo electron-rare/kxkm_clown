@@ -61,7 +61,7 @@ function ServiceHealth() {
             className={`admin-health-card ${s.ok ? "admin-health-ok" : "admin-health-fail"}`}
           >
             <div className="admin-health-name">{name.toUpperCase()}</div>
-            <div className="admin-health-status">{s.ok ? "\u25CF" : "\u25CB"}</div>
+            <div className="admin-health-status">{s.ok ? "\u{1F7E2}" : "\u{1F534}"}</div>
             {s.detail && <div className="admin-health-detail">{s.detail}</div>}
           </div>
         ))}

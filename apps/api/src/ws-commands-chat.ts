@@ -23,6 +23,7 @@ export const CHAT_COMMANDS = new Set([
   "/haiku",
   "/timer",
   "/story",
+  "/speak",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -818,6 +819,19 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
           info.channel,
           `@${storytellers[0].nick} Ecris le premier paragraphe d'une histoire courte sur: ${theme}. @${storytellers[1].nick} continuera apres toi, puis @${storytellers[2].nick} conclura. Maximum 3 phrases.`,
         );
+        return;
+      }
+
+      case "/speak": {
+        // /speak <persona> <texte> — force TTS for text as persona
+        const speakMatch = text.match(/^\/speak\s+(\S+)\s+(.+)$/);
+        if (!speakMatch) { send(ws, { type: "system", text: "Usage: /speak <persona> <texte>" }); return; }
+        const [, speakNick, speakText] = speakMatch;
+        const persona = getPersonas().find(p => p.nick.toLowerCase() === speakNick.toLowerCase());
+        if (!persona) { send(ws, { type: "system", text: `Persona "${speakNick}" inconnue.` }); return; }
+
+        const { synthesizeTTS } = await import("./ws-multimodal.js");
+        await synthesizeTTS(persona.nick, speakText, info.channel, broadcast);
         return;
       }
 

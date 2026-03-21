@@ -65,6 +65,7 @@ export const INFO_COMMANDS = new Set([
   "/about",
   "/benchmark",
   "/ping",
+  "/count",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -618,14 +619,34 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
       }
 
       case "/flip": {
-        const result = Math.random() < 0.5 ? "pile" : "face";
-        broadcast(info.channel, { type: "system", text: `\u{1FA99} ${info.nick}: ${result}!` });
+        const result = Math.random() < 0.5 ? "PILE" : "FACE";
+        const emoji = result === "PILE" ? "\u{1FA99}" : "\u{1F451}";
+        broadcast(info.channel, { type: "system", text: `${emoji} ${info.nick} lance une piece: ${result}!` });
         return;
       }
 
       case "/ping": {
         const start = Date.now();
         send(ws, { type: "system", text: `Pong! ${Date.now() - start}ms (serveur)` });
+        return;
+      }
+
+      case "/count": {
+        const fs = await import("node:fs");
+        const countFiles = (dir: string) => {
+          try { return fs.readdirSync(path.join(process.cwd(), "data", dir)).filter((f: string) => !f.startsWith(".")).length; } catch { return 0; }
+        };
+        const lines = [
+          "=== COMPTEURS ===",
+          `  Personas: ${getPersonas().length}`,
+          `  Images: ${countFiles("media/images")}`,
+          `  Audio: ${countFiles("media/audio")}`,
+          `  Samples DAW: ${countFiles("daw-samples")}`,
+          `  Compositions: ${countFiles("compositions")}`,
+          `  Exports: ${countFiles("exports")}`,
+          `  Feedback: ${countFiles("feedback")}`,
+        ];
+        send(ws, { type: "system", text: lines.join("\n") });
         return;
       }
 

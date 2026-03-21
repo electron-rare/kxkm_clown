@@ -30,6 +30,7 @@ export const GENERATE_COMMANDS = new Set([
   "/drone", "/grain", "/circus", "/honk", "/kokoro",
   "/variations",
   "/imagine-queue",
+  "/upscale",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1544,6 +1545,12 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         }
 
         send(ws, { type: "system", text: `4 variations generees pour "${varPrompt.slice(0, 40)}"` });
+        return;
+      }
+
+      case "/upscale": {
+        // /upscale — upscale last generated image 2x (placeholder, needs ESRGAN model)
+        send(ws, { type: "system", text: "Upscale non implemente (necessite modele ESRGAN). Utilisez /imagine avec un prompt plus detaille." });
         return;
       }
 

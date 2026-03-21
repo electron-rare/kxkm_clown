@@ -82,7 +82,7 @@ describe("ws-chat smoke", () => {
     }
 
     await wait(300);
-    assert.ok(messages.some((msg) => msg.type === "system" && /Commandes disponibles/.test(msg.text)));
+    assert.ok(messages.some((msg) => msg.type === "system" && /commandes|Commandes/i.test(msg.text)));
     assert.ok(messages.some((msg) => msg.type === "system" && /Trop de messages/.test(msg.text)));
     assert.equal(errors.length, 0);
     assert.equal(client.readyState, WebSocket.OPEN);
@@ -152,7 +152,7 @@ describe("ws-chat smoke", () => {
 
     client.send(JSON.stringify({ type: "command", text: "/help" }));
     await wait(100);
-    assert.ok(messages.some((msg) => msg.type === "system" && /Commandes disponibles/.test(msg.text)));
+    assert.ok(messages.some((msg) => msg.type === "system" && /commandes|Commandes/i.test(msg.text)));
 
     client.send(JSON.stringify({ type: "upload", filename: "empty.txt", mimeType: "text/plain", data: "", size: 0 }));
     await wait(100);

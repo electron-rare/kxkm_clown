@@ -56,6 +56,9 @@ export function useChatState(): UseChatStateReturn {
   const [sidebarCollapsed, setSidebarCollapsed] = useState({ personas: true, users: true });
   const [typingPersona, setTypingPersona] = useState<string | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track multiple typing personas for richer indicator
+  const [typingPersonas, setTypingPersonas] = useState<Set<string>>(new Set());
+  const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
@@ -212,12 +215,32 @@ export function useChatState(): UseChatStateReturn {
         }
 
         if (type === "system" && typeof msg.text === "string") {
-          const typingMatch = msg.text.match(/^(.+) est en train d'ecrire/);
+          const typingMatch = msg.text.match(/^(.+?) (?:est en train d'ecrire|reflechit)/);
           if (typingMatch) {
-            setTypingPersona(typingMatch[1]);
-            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-            typingTimerRef.current = setTimeout(() => setTypingPersona(null), 8000);
+            const nick = typingMatch[1];
+            // Track multiple typing personas
+            setTypingPersonas(prev => new Set(prev).add(nick));
+            setTypingPersona(nick); // backward compat
+            // Clear after 8s
+            const prevTimer = typingTimersRef.current.get(nick);
+            if (prevTimer) clearTimeout(prevTimer);
+            typingTimersRef.current.set(nick, setTimeout(() => {
+              setTypingPersonas(prev => { const next = new Set(prev); next.delete(nick); return next; });
+              setTypingPersona(prev => prev === nick ? null : prev);
+              typingTimersRef.current.delete(nick);
+            }, 8000));
             return;
+          }
+        }
+
+        // Clear typing when persona sends a message
+        if ((msg.type === "message" || msg.type === "chunk") && typeof msg.nick === "string") {
+          const nick = msg.nick as string;
+          if (typingTimersRef.current.has(nick)) {
+            clearTimeout(typingTimersRef.current.get(nick)!);
+            typingTimersRef.current.delete(nick);
+            setTypingPersonas(prev => { const next = new Set(prev); next.delete(nick); return next; });
+            setTypingPersona(prev => prev === nick ? null : prev);
           }
         }
 

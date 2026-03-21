@@ -67,6 +67,17 @@ const STYLE_OPTIONS = [
   "minimal",
 ];
 
+const TXT2IMG_PRESETS: { label: string; suffix: string }[] = [
+  { label: "PHOTO REALISTE", suffix: ", ultra realistic photograph, 8k, cinematic lighting, sharp focus" },
+  { label: "ANIME", suffix: ", anime style, studio ghibli, cel shading, vibrant colors" },
+  { label: "CYBERPUNK", suffix: ", cyberpunk aesthetic, neon lights, rain, blade runner, dark city" },
+  { label: "PEINTURE", suffix: ", oil painting, masterful brushwork, rich textures, gallery quality" },
+  { label: "PIXEL ART", suffix: ", pixel art, 16-bit retro style, clean pixels, nostalgic" },
+  { label: "GLITCH", suffix: ", glitch art, databending, corrupted signal, VHS distortion" },
+  { label: "MINITEL", suffix: ", green phosphor CRT screen, vintage minitel terminal, scanlines" },
+  { label: "ABSTRAIT", suffix: ", abstract art, geometric shapes, bold colors, kandinsky style" },
+];
+
 /* ------------------------------------------------------------------ */
 /*  ImageUpload — reusable drag-drop + preview                        */
 /* ------------------------------------------------------------------ */
@@ -164,8 +175,39 @@ function Txt2ImgForm({
   elapsed: number;
   onSubmit: (e: React.FormEvent) => void;
 }) {
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+
+  const togglePreset = (preset: typeof TXT2IMG_PRESETS[number]) => {
+    if (activePreset === preset.label) {
+      // Remove suffix from prompt
+      setPrompt(prompt.replace(preset.suffix, ""));
+      setActivePreset(null);
+    } else {
+      // Remove previous preset suffix if any
+      let cleaned = prompt;
+      if (activePreset) {
+        const prev = TXT2IMG_PRESETS.find((p) => p.label === activePreset);
+        if (prev) cleaned = cleaned.replace(prev.suffix, "");
+      }
+      setPrompt(cleaned + preset.suffix);
+      setActivePreset(preset.label);
+    }
+  };
+
   return (
     <form onSubmit={onSubmit} className="img-form">
+      <div className="img-presets">
+        {TXT2IMG_PRESETS.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            className={`img-preset ${activePreset === p.label ? "img-preset-active" : ""}`}
+            onClick={() => togglePreset(p)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
       <textarea
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}

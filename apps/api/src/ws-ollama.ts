@@ -286,6 +286,43 @@ export async function executeToolCall(
       const results = await rag.search(query);
       return results.map(r => r.text).join("\n---\n") || "(Aucun résultat)";
     }
+    case "music_generate": {
+      const AI_BRIDGE = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+      const type = String(args.type || "noise");
+      const duration = Math.min(60, Math.max(3, Number(args.duration) || 15));
+      const prompt = String(args.prompt || "");
+      const instruments = ["drone", "grain", "glitch", "circus", "honk"];
+      const endpoint = instruments.includes(type)
+        ? `/instrument/${type}`
+        : type === "music" ? "/generate/music" : "/generate/noise";
+      const body = instruments.includes(type)
+        ? { duration }
+        : type === "music" ? { prompt: prompt || "ambient", duration, style: "experimental" }
+        : { type: prompt || "pink", duration };
+      try {
+        const resp = await fetch(`${AI_BRIDGE}${endpoint}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body), signal: AbortSignal.timeout(60_000),
+        });
+        return resp.ok ? `[Audio généré: ${type} ${duration}s]` : `[Erreur génération: HTTP ${resp.status}]`;
+      } catch { return "[AI Bridge indisponible]"; }
+    }
+    case "voice_synthesize": {
+      const AI_BRIDGE = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+      const text = String(args.text || "Bonjour");
+      const voice = String(args.voice || "af_heart");
+      try {
+        const resp = await fetch(`${AI_BRIDGE}/generate/voice-fast`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, voice, speed: 1.0 }), signal: AbortSignal.timeout(30_000),
+        });
+        return resp.ok ? `[Voix synthétisée: ${voice}, "${text.slice(0, 50)}"]` : `[Erreur TTS: HTTP ${resp.status}]`;
+      } catch { return "[Kokoro TTS indisponible]"; }
+    }
+    case "audio_analyze": {
+      const desc = String(args.description || "analyse générale");
+      return `[Analyse audio: ${desc} — utilise /stem pour séparer les stems, /fx pour appliquer des effets]`;
+    }
     default:
       return `(Outil inconnu: ${toolName})`;
   }

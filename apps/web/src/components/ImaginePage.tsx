@@ -513,6 +513,7 @@ function FaceSwapForm({
   const [target, setTarget] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [liveMode, setLiveMode] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -546,16 +547,32 @@ function FaceSwapForm({
     }
   };
 
+  // Auto-submit when both images are ready in live mode
+  useEffect(() => {
+    if (liveMode && source && target && !busy) {
+      handleSubmit(new Event("submit") as any);
+      setLiveMode(false);
+    }
+  }, [liveMode, source, target, busy]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Swap source <-> target
+  const swapImages = () => {
+    const tmp = source;
+    setSource(target);
+    setTarget(tmp);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="img-mode-form">
       <div className="img-upload-pair">
         <div>
           <ImageUpload label="Source face" value={source} onChange={setSource} />
-          <WebcamCapture onCapture={setSource} />
+          <WebcamCapture onCapture={(b64) => { setSource(b64); if (target) setLiveMode(true); }} />
         </div>
+        <button type="button" className="img-swap-btn" onClick={swapImages} title="Echanger">{"\u21C4"}</button>
         <div>
           <ImageUpload label="Target image" value={target} onChange={setTarget} />
-          <WebcamCapture onCapture={setTarget} />
+          <WebcamCapture onCapture={(b64) => { setTarget(b64); if (source) setLiveMode(true); }} />
         </div>
       </div>
       {error && <div className="img-error">{error}</div>}

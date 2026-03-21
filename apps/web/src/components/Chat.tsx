@@ -71,6 +71,24 @@ export default function Chat() {
   const autoScrollRef = useRef(true);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
+  // --- Permissions manager (mic + camera) ---
+  const [permissions, setPermissions] = useState<{ mic: string; cam: string }>({ mic: "?", cam: "?" });
+
+  useEffect(() => {
+    const checkPerms = async () => {
+      try {
+        const mic = await navigator.permissions.query({ name: "microphone" as PermissionName });
+        const cam = await navigator.permissions.query({ name: "camera" as PermissionName });
+        setPermissions({ mic: mic.state, cam: cam.state });
+        mic.onchange = () => setPermissions(p => ({ ...p, mic: mic.state }));
+        cam.onchange = () => setPermissions(p => ({ ...p, cam: cam.state }));
+      } catch {
+        // Permissions API not supported in this browser
+      }
+    };
+    checkPerms();
+  }, []);
+
   // Ctrl+F search overlay
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -221,6 +239,8 @@ export default function Chat() {
         <button className="chat-theme-toggle" onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>
           {theme === "dark" ? "\u2600" : "\u263E"}
         </button>
+        {permissions.mic === "denied" && <span className="chat-perm-denied" title="Micro bloque">{"\uD83C\uDFA4\u274C"}</span>}
+        {permissions.cam === "denied" && <span className="chat-perm-denied" title="Camera bloquee">{"\uD83D\uDCF7\u274C"}</span>}
       </div>
 
       {ws.connectionStatus === "reconnecting" && (

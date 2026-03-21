@@ -1,5 +1,7 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, lazy, Suspense } from "react";
 import type { UseWebSocketReturn } from "../hooks/useWebSocket";
+
+const BrowserSTT = lazy(() => import("./BrowserSTT").then(m => ({ default: m.BrowserSTT })));
 
 const ALL_COMMANDS = [
   "/help", "/nick", "/who", "/clear", "/join", "/channels", "/topic", "/pin",
@@ -40,6 +42,49 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [cmdQuery, setCmdQuery] = useState<string | null>(null);
   const [mentionIdx, setMentionIdx] = useState(0);
+
+  // --- STT (Speech-to-Text) via Web Speech API ---
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const inputValueRef = useRef(input);
+  inputValueRef.current = input;
+
+  const toggleSTT = useCallback(() => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition non supporte par ce navigateur");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "fr-FR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event: any) => {
+      let transcript = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      if (event.results[event.results.length - 1].isFinal) {
+        const prev = inputValueRef.current;
+        setInput(prev + (prev ? " " : "") + transcript);
+      }
+    };
+
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }, [listening, setInput]);
 
   // Filter personas matching the typed prefix
   const mentionSuggestions = mentionQuery !== null
@@ -217,9 +262,20 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
           disabled={!ws.connected}
         />
       </label>
+      <Suspense fallback={null}>
+        <BrowserSTT onTranscript={(text) => setInput(input ? `${input} ${text}` : text)} />
+      </Suspense>
       {input.length > 100 && (
         <span className="chat-input-counter" style={{ color: "#666", fontSize: "9px", marginRight: "4px" }}>{input.length}/8192</span>
       )}
+      <button
+        type="button"
+        className={`chat-mic-btn ${listening ? "chat-mic-active" : ""}`}
+        onClick={toggleSTT}
+        title={listening ? "Arreter l'ecoute" : "Dicter (micro)"}
+      >
+        {listening ? "\uD83D\uDD34" : "\uD83C\uDFA4"}
+      </button>
       <button
         className="btn btn-primary"
         onClick={onSend}

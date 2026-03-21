@@ -40,7 +40,29 @@ async function main() {
     res.sendFile(path.join(dawDistPath, "index.html"));
   });
 
-
+  // AI Bridge proxy — forward /api/v2/ai-bridge/* to localhost:8301/*
+  const AI_BRIDGE_URL = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+  app.all("/api/v2/ai-bridge/*", async (req, res) => {
+    const targetPath = req.path.replace("/api/v2/ai-bridge", "");
+    const targetUrl = `${AI_BRIDGE_URL}${targetPath}`;
+    try {
+      const headers: Record<string, string> = { "Content-Type": req.headers["content-type"] || "application/json" };
+      const resp = await fetch(targetUrl, {
+        method: req.method,
+        headers,
+        body: req.method !== "GET" ? JSON.stringify(req.body) : undefined,
+        signal: AbortSignal.timeout(300_000),
+      });
+      // Forward content-type and binary body
+      const ct = resp.headers.get("content-type") || "application/octet-stream";
+      res.setHeader("Content-Type", ct);
+      res.status(resp.status);
+      const buf = Buffer.from(await resp.arrayBuffer());
+      res.send(buf);
+    } catch (err) {
+      res.status(502).json({ error: `AI Bridge unavailable: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  });
 
   // Local proxy for openDAW API calls (replaces api.opendaw.studio)
   app.all("/api/opendaw/*", (req, res) => {

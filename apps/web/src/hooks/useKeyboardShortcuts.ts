@@ -14,6 +14,7 @@ export function useKeyboardShortcuts(onNavigate: (page: string) => void) {
         F5: "imagine-mode",
         F6: "media",
         F7: "admin",
+        F8: "daw-ai",
       };
 
       const page = map[e.key];

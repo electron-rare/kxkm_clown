@@ -286,7 +286,7 @@ export default function ComposePage() {
     <div className="cmp">
       {/* HEADER */}
       <div className="cmp-header">
-        <VideotexPageHeader title="COMPOSE" subtitle={tracks.length + " pistes"} color="magenta" />
+        <VideotexPageHeader title="COMPOSE" subtitle={tracks.length + " pistes"} color="pink" />
         <div className="cmp-name-row">
           <input className="cmp-name" value={compName} onChange={e => setCompName(e.target.value)} placeholder="Nom..." />
           <select className="cmp-style" value={style} onChange={e => setStyle(e.target.value)}>

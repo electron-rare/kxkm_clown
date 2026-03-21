@@ -3,6 +3,7 @@ import { useGenerationCommand } from "../hooks/useGenerationCommand";
 import { VideotexPageHeader } from "./VideotexMosaic";
 
 interface ImageResult {
+  [key: string]: unknown;
   prompt: string;
   imageData?: string;
   imageMime?: string;

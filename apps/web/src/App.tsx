@@ -25,6 +25,7 @@ const Collectif = lazy(() => import("./components/Collectif"));
 const UllaPage = lazy(() => import("./components/UllaPage"));
 const ComposePage = lazy(() => import("./components/ComposePage"));
 const ImaginePage = lazy(() => import("./components/ImaginePage"));
+const DawAIPanel = lazy(() => import("./components/DawAIPanel"));
 const AdminPage = lazy(() => import("./components/AdminPage"));
 const MediaExplorer = lazy(() => import("./components/MediaExplorer"));
 
@@ -157,6 +158,9 @@ export default function App() {
 
       case "imagine-mode":
         return <ImaginePage />;
+
+      case "daw-ai":
+        return <DawAIPanel />;
 
       case "media":
         return <MediaExplorer />;

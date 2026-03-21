@@ -77,6 +77,8 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "/master                              \u2014 mastering final (loudnorm+compressor+limiter)",
             "/concat <piste#> <piste#>            \u2014 concatener piste B apres piste A",
             "/silence [duree]                     \u2014 inserer un silence (1-60s, defaut 5s)",
+            "/template <nom>                    \u2014 preset: ambient-4, noise-art, spoken-word",
+            "/marker <label> [at Ns]            \u2014 ajouter un marqueur timeline",
             "/status                            \u2014 etat du systeme (VRAM, modeles, perf)",
             "/responders <1-5>                  \u2014 nombre de personas qui repondent",
             "/model                             \u2014 modele actif",

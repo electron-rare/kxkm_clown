@@ -20,7 +20,7 @@ export const GENERATE_COMMANDS = new Set([
   "/undo", "/solo", "/unsolo", "/rename", "/duplicate", "/dup", "/bpm", "/clear-comp",
   "/loop", "/swap", "/info", "/normalize", "/crossfade", "/trim",
   "/stutter", "/pan", "/master", "/concat", "/silence",
-  "/play", "/stop-all",
+  "/play", "/stop-all", "/template", "/marker",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -841,6 +841,97 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
 
       case "/stop-all": {
         broadcast(info.channel, { type: "system", text: `__playback__stop__${info.nick}` } as any);
+        return;
+      }
+
+      case "/template": {
+        const templates: Record<string, Array<{ type: string; prompt: string; duration: number }>> = {
+          "ambient-4": [
+            { type: "noise", prompt: "drone 30", duration: 30 },
+            { type: "noise", prompt: "pink 30", duration: 30 },
+            { type: "layer", prompt: "ambient drone with deep reverb, ambient", duration: 30 },
+            { type: "voice", prompt: "Le son est notre matiere premiere", duration: 10 },
+          ],
+          "noise-art": [
+            { type: "noise", prompt: "brown 15", duration: 15 },
+            { type: "noise", prompt: "sine 15", duration: 15 },
+            { type: "noise", prompt: "drone 15", duration: 15 },
+          ],
+          "spoken-word": [
+            { type: "voice", prompt: "Bienvenue dans le chaos sonore", duration: 10 },
+            { type: "noise", prompt: "drone 20", duration: 20 },
+            { type: "voice", prompt: "Le bruit revele ce que le silence cache", duration: 10 },
+          ],
+        };
+
+        const name = text.slice(10).trim().toLowerCase();
+        if (!name || !templates[name]) {
+          const list = Object.keys(templates).map(k => `  ${k} (${templates[k].length} pistes)`).join("\n");
+          send(ws, { type: "system", text: `Templates:\n${list}\nUsage: /template <nom>` });
+          return;
+        }
+
+        let comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) comp = createComposition(info.nick, info.channel, name);
+
+        broadcast(info.channel, { type: "system", text: `\ud83d\udccb Template "${name}" \u2014 ${templates[name].length} pistes en generation...` });
+
+        // Generate each track sequentially
+        for (const t of templates[name]) {
+          if (t.type === "noise") {
+            const [noiseType, dur] = t.prompt.split(" ");
+            // Generate noise inline
+            const track = addTrack(comp.id, { type: "noise" as any, prompt: `${noiseType} noise ${dur}s`, duration: parseInt(dur), volume: 100, startMs: 0 });
+            if (track) {
+              const { execFileSync } = await import("node:child_process");
+              const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
+              fs.mkdirSync(trackDir, { recursive: true });
+              const trackPath = path.join(trackDir, `${track.id}.wav`);
+              const types: Record<string, string> = { white: "anoisesrc=d=DUR:c=white", pink: "anoisesrc=d=DUR:c=pink", brown: "anoisesrc=d=DUR:c=brown", sine: "sine=frequency=220:duration=DUR", drone: "sine=frequency=55:duration=DUR,tremolo=f=0.1:d=0.7" };
+              const filter = (types[noiseType] || types.white).replace(/DUR/g, dur);
+              execFileSync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", dur, "-ar", "32000", "-ac", "1", trackPath], { timeout: 15000 });
+              track.filePath = trackPath;
+            }
+          } else if (t.type === "voice") {
+            // TTS
+            try {
+              const ttsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
+              const resp = await fetch(`${ttsUrl}/synthesize`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: t.prompt, persona: "pharmacius" }), signal: AbortSignal.timeout(30000) });
+              if (resp.ok) {
+                const buf = Buffer.from(await resp.arrayBuffer());
+                const track = addTrack(comp.id, { type: "voice" as any, prompt: `Pharmacius: "${t.prompt}"`, duration: t.duration, volume: 100, startMs: 0 });
+                if (track) {
+                  const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
+                  fs.mkdirSync(trackDir, { recursive: true });
+                  const trackPath = path.join(trackDir, `${track.id}.wav`);
+                  fs.writeFileSync(trackPath, buf);
+                  track.filePath = trackPath;
+                }
+              }
+            } catch { /* TTS unavailable, skip voice track */ }
+          }
+          // Skip /layer type for now (requires GPU, too slow for template)
+        }
+
+        send(ws, { type: "system", text: `\u2705 Template "${name}" charge: ${comp.tracks.length} pistes. /mix pour mixer.` });
+        return;
+      }
+
+      case "/marker": {
+        const markerText = text.slice(8).trim();
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition." }); return; }
+        if (!markerText) {
+          const markers = (comp as any).markers || [];
+          send(ws, { type: "system", text: markers.length ? `Markers:\n${markers.map((m: any, i: number) => `  ${i+1}. [${m.time}s] ${m.label}`).join("\n")}` : "Aucun marker. /marker <label> [at Ns]" });
+          return;
+        }
+        const atMatch = markerText.match(/(.+?)\s+at\s+(\d+)s?$/);
+        const label = atMatch ? atMatch[1] : markerText;
+        const time = atMatch ? parseInt(atMatch[2]) : 0;
+        if (!(comp as any).markers) (comp as any).markers = [];
+        (comp as any).markers.push({ label, time });
+        send(ws, { type: "system", text: `\ud83d\udccd Marker ajoute: "${label}" a ${time}s` });
         return;
       }
 

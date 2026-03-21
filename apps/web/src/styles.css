@@ -3774,3 +3774,45 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Compose — button rows (lot-230) */
+.compose-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin: 4px 0;
+}
+.compose-btn-label {
+  color: var(--muted, #666);
+  font-size: 0.8em;
+  width: 60px;
+  flex-shrink: 0;
+}
+
+/* Compose — per-track actions (lot-231) */
+.compose-track-actions { display: flex; gap: 2px; }
+.compose-track-btn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid var(--border, #333);
+  color: var(--fg, #ccc);
+  font-size: 0.7em;
+  padding: 2px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.compose-track-btn:hover { background: rgba(255,255,255,0.2); }
+
+/* Compose — status bar (lot-232) */
+.compose-status-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg, #000);
+  border-top: 1px solid var(--border, #333);
+  padding: 4px 8px;
+  font-size: 0.8em;
+  color: var(--muted, #666);
+  display: flex;
+  justify-content: space-between;
+}
+.compose-status-msg { color: var(--accent, #c84c0c); }

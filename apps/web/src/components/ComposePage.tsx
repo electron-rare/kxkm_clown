@@ -192,23 +192,38 @@ export default function ComposePage() {
             <option value={120}>2min</option>
           </select>
         </div>
-        <div className="compose-buttons">
-          <button type="submit" className="minitel-login-btn" disabled={generating || !prompt.trim()}>
-            {generating ? "..." : "Musique"}
-          </button>
-          <button type="button" className="minitel-nav-btn" onClick={handleAddVoice} disabled={generating || !prompt.trim()}>
-            Voix
-          </button>
-          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("drone")} disabled={generating}>
-            Drone
-          </button>
-          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("pink")} disabled={generating}>
-            Pink
-          </button>
-          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("white")} disabled={generating}>
-            White
-          </button>
+        <div className="compose-btn-row">
+          <span className="compose-btn-label">Generer:</span>
+          <button type="submit" className="minitel-nav-btn" disabled={generating || !prompt.trim()}>Musique</button>
+          <button type="button" className="minitel-nav-btn" onClick={handleAddVoice} disabled={generating || !prompt.trim()}>Voix</button>
+          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("drone")} disabled={generating}>Drone</button>
+          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("pink")} disabled={generating}>Pink</button>
+          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("white")} disabled={generating}>White</button>
+          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("sine")} disabled={generating}>Sine</button>
+          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("brown")} disabled={generating}>Brown</button>
         </div>
+        {tracks.length > 0 && (
+          <div className="compose-btn-row">
+            <span className="compose-btn-label">Edition:</span>
+            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd("/undo")}>Undo</button>
+            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd("/tracks")}>Tracks</button>
+            <button type="button" className="minitel-nav-btn" onClick={() => { const n = prompt.trim() || "1"; sendCmd(`/fx ${n} reverse`); }}>Reverse</button>
+            <button type="button" className="minitel-nav-btn" onClick={() => { const n = prompt.trim() || "1"; sendCmd(`/fx ${n} reverb`); }}>Reverb</button>
+            <button type="button" className="minitel-nav-btn" onClick={() => { const n = prompt.trim() || "1"; sendCmd(`/fx ${n} echo`); }}>Echo</button>
+            <button type="button" className="minitel-nav-btn" onClick={() => { const n = prompt.trim() || "1"; sendCmd(`/fx ${n} distortion`); }}>Distort</button>
+            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd(`/stutter ${tracks.length} 8`)}>Stutter</button>
+          </div>
+        )}
+        {tracks.length > 1 && (
+          <div className="compose-btn-row">
+            <span className="compose-btn-label">Sortie:</span>
+            <button type="button" className="minitel-login-btn" onClick={handleMix} disabled={mixing}>
+              {mixing ? "Mixage..." : `Mix ${tracks.length}p`}
+            </button>
+            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd("/master")}>Master</button>
+            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd("/export")}>Export</button>
+          </div>
+        )}
       </form>
 
       {/* Timeline */}
@@ -252,26 +267,25 @@ export default function ComposePage() {
           {tracks.map((track, i) => (
             <div key={track.id} className="compose-track">
               <span className="compose-track-num">#{i + 1}</span>
-              <span className="compose-track-prompt">{track.prompt.slice(0, 40)}</span>
-              <input type="range" min={0} max={100} value={track.volume} onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, volume: +e.target.value } : t))} className="compose-volume" />
-              {track.audioData && <audio controls src={"data:" + track.audioMime + ";base64," + track.audioData} className="compose-audio" />}
+              <span className="compose-track-prompt">{track.prompt.slice(0, 30)}</span>
+              <input type="range" min={0} max={100} value={track.volume} onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, volume: +e.target.value } : t))} className="compose-volume" title={`Vol: ${track.volume}%`} />
+              <div className="compose-track-actions">
+                <button className="compose-track-btn" onClick={() => sendCmd(`/solo ${i+1}`)} title="Solo">S</button>
+                <button className="compose-track-btn" onClick={() => sendCmd(`/loop ${i+1} 2`)} title="Loop x2">{"\u27f3"}</button>
+                <button className="compose-track-btn" onClick={() => sendCmd(`/fx ${i+1} reverse`)} title="Reverse">{"\u21c6"}</button>
+              </div>
+              {track.audioData && <audio controls src={`data:${track.audioMime};base64,${track.audioData}`} className="compose-audio" />}
               <button className="compose-track-del" onClick={() => setTracks(prev => prev.filter((_, j) => j !== i))}>X</button>
             </div>
           ))}
         </>
       )}
 
-      {/* Mix */}
-      {tracks.length > 1 && (
-        <>
-          <VideotexSeparator color="green" />
-          <div className="compose-mix-controls">
-            <button className="minitel-login-btn" onClick={handleMix} disabled={mixing}>
-              {mixing ? "Mixage..." : ">>> Mixer " + tracks.length + " pistes <<<"}
-            </button>
-          </div>
-        </>
-      )}
+      {/* Status Bar */}
+      <div className="compose-status-bar">
+        <span>{compName} | {tracks.length}p | {tracks.reduce((s, t) => s + t.duration, 0)}s total</span>
+        {status && <span className="compose-status-msg">{status}</span>}
+      </div>
     </div>
   );
 }

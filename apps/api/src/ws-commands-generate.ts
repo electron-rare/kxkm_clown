@@ -2,7 +2,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import type { WebSocket } from "ws";
-import { generateImage } from "./comfyui.js";
+import { generateImage, type ImageProgress } from "./comfyui.js";
 import { saveImage, saveAudio } from "./media-store.js";
 import type { OutboundMessage } from "./chat-types.js";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
@@ -1355,20 +1355,25 @@ async function handleImagineCommand({
 
   broadcast(info.channel, {
     type: "system",
-    text: `${info.nick} genere une image: "${imagePrompt}"... (generation ~10-30s)`,
+    text: `${info.nick} genere une image: "${imagePrompt}"...`,
   });
 
-  const startTime = Date.now();
-  const progressInterval = setInterval(() => {
-    const elapsed = Math.round((Date.now() - startTime) / 1000);
-    const spinnerImg = ["\u280b","\u2819","\u2839","\u2838","\u283c","\u2834","\u2826","\u2827","\u2807","\u280f"][elapsed % 10];
-    const dotsImg = "\u00b7".repeat(Math.min(elapsed, 20));
-    broadcast(info.channel, { type: "system", text: `\u{1F3A8} ${spinnerImg} Generation image ${dotsImg} ${elapsed}s` });
-  }, 5000);
+  // Send real progress from ComfyUI WebSocket
+  const onProgress = (p: ImageProgress) => {
+    send(ws, {
+      type: "image_progress",
+      step: p.step,
+      totalSteps: p.totalSteps,
+      percent: p.percent,
+      phase: p.phase,
+      model: p.model,
+      lora: p.lora,
+      elapsed: p.elapsed,
+    } as any);
+  };
 
   try {
-    const result = await generateImage(imagePrompt);
-    clearInterval(progressInterval);
+    const result = await generateImage(imagePrompt, { onProgress });
     if (!result) {
       broadcast(info.channel, { type: "system", text: "\u{1F3A8} Generation echouee \u2014 verifiez ComfyUI" });
       return;

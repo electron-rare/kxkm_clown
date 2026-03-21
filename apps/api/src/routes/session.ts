@@ -11,6 +11,7 @@ import {
 import { validateLoginInput } from "@kxkm/auth";
 import { buildChatChannels } from "@kxkm/chat-domain";
 import { getRecentErrors, getErrorCounts } from "../error-tracker.js";
+import { scheduler, getGPUUtilization } from "../inference-scheduler.js";
 import type { PersonaRecord } from "@kxkm/persona-domain";
 import type { ModelRegistryRecord, NodeGraphRecord, NodeRunRecord } from "@kxkm/node-engine";
 
@@ -118,6 +119,16 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
       ollama,
       database: db,
       health_check_ms: Date.now() - startMs,
+    }));
+  });
+
+  // Scheduler metrics — GPU/CPU task management
+  router.get("/api/v2/scheduler", (_req, res) => {
+    const metrics = scheduler.getMetrics();
+    const gpuUtil = getGPUUtilization();
+    res.json(asApiData({
+      ...metrics,
+      gpuUtilization: gpuUtil,
     }));
   });
 

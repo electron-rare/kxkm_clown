@@ -1,16 +1,35 @@
+import WebSocket from "ws";
 import logger from "./logger.js";
 import { getComfyUIModels, selectModel } from "./comfyui-models.js";
 
 // ---------------------------------------------------------------------------
-// ComfyUI image generation with smart model/LoRA selection
+// ComfyUI image generation with smart model/LoRA selection + real progress
 // ---------------------------------------------------------------------------
 
 export const COMFYUI_URL = process.env.COMFYUI_URL || "http://localhost:8188";
 
-export async function generateImage(prompt: string): Promise<{ imageBase64: string; seed: number; model?: string; lora?: string } | null> {
-  const seed = Math.floor(Math.random() * 2 ** 32);
+export interface ImageProgress {
+  step: number;
+  totalSteps: number;
+  percent: number;
+  phase: "queued" | "loading" | "sampling" | "decoding" | "saving" | "done";
+  model?: string;
+  lora?: string;
+  elapsed: number; // ms since start
+}
 
-  // Smart model selection: discover available models and pick best match
+export interface GenerateImageOptions {
+  onProgress?: (p: ImageProgress) => void;
+}
+
+export async function generateImage(
+  prompt: string,
+  opts?: GenerateImageOptions,
+): Promise<{ imageBase64: string; seed: number; model?: string; lora?: string } | null> {
+  const seed = Math.floor(Math.random() * 2 ** 32);
+  const startTime = Date.now();
+
+  // Smart model selection
   const models = await getComfyUIModels();
   const selection = models.length > 0
     ? selectModel(prompt, models)
@@ -23,7 +42,6 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
   const isTurbo = ckLower.includes("turbo");
   const isLCM = ckLower.includes("lcm");
 
-  // Adapt workflow parameters based on model type
   let steps: number, cfg: number, sampler: string, scheduler: string;
   if (isFlux) {
     steps = 20; cfg = 3.5; sampler = "euler"; scheduler = "normal";
@@ -34,36 +52,36 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
   } else if (isTurbo) {
     steps = 6; cfg = 1.8; sampler = "dpmpp_sde"; scheduler = "karras";
   } else {
-    // Standard SD 1.5 / SDXL models need more steps
     steps = 25; cfg = 7; sampler = "euler_ancestral"; scheduler = "normal";
   }
 
   logger.info({ checkpoint, lora: selection.lora, steps, cfg, sampler }, "[comfyui] Generating with smart selection");
 
-  // Build workflow — model output is node "4", slot 0=model, 1=clip, 2=vae
+  const emitProgress = (phase: ImageProgress["phase"], step = 0) => {
+    opts?.onProgress?.({
+      step,
+      totalSteps: steps,
+      percent: phase === "done" ? 100 : Math.round((step / steps) * 100),
+      phase,
+      model: checkpoint,
+      lora: selection.lora,
+      elapsed: Date.now() - startTime,
+    });
+  };
+
+  emitProgress("queued");
+
+  // Build workflow
   let modelOutput: [string, number] = ["4", 0];
   let clipOutput: [string, number] = ["4", 1];
 
   const workflow: Record<string, any> = {
-    "4": {
-      class_type: "CheckpointLoaderSimple",
-      inputs: { ckpt_name: checkpoint },
-    },
-    "5": {
-      class_type: "EmptyLatentImage",
-      inputs: { width: 1024, height: 1024, batch_size: 1 },
-    },
-    "8": {
-      class_type: "VAEDecode",
-      inputs: { samples: ["3", 0], vae: ["4", 2] },
-    },
-    "9": {
-      class_type: "SaveImage",
-      inputs: { filename_prefix: "kxkm", images: ["8", 0] },
-    },
+    "4": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: checkpoint } },
+    "5": { class_type: "EmptyLatentImage", inputs: { width: 1024, height: 1024, batch_size: 1 } },
+    "8": { class_type: "VAEDecode", inputs: { samples: ["3", 0], vae: ["4", 2] } },
+    "9": { class_type: "SaveImage", inputs: { filename_prefix: "kxkm", images: ["8", 0] } },
   };
 
-  // Insert LoRA node if selected
   if (selection.lora) {
     workflow["10"] = {
       class_type: "LoraLoader",
@@ -79,31 +97,11 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
     clipOutput = ["10", 1];
   }
 
-  // CLIP encode nodes use the (possibly LoRA-modified) clip output
-  workflow["6"] = {
-    class_type: "CLIPTextEncode",
-    inputs: { text: prompt, clip: clipOutput },
-  };
-  workflow["7"] = {
-    class_type: "CLIPTextEncode",
-    inputs: { text: "ugly, blurry, low quality, deformed", clip: clipOutput },
-  };
-
-  // KSampler uses the (possibly LoRA-modified) model output
+  workflow["6"] = { class_type: "CLIPTextEncode", inputs: { text: prompt, clip: clipOutput } };
+  workflow["7"] = { class_type: "CLIPTextEncode", inputs: { text: "ugly, blurry, low quality, deformed", clip: clipOutput } };
   workflow["3"] = {
     class_type: "KSampler",
-    inputs: {
-      seed,
-      steps,
-      cfg,
-      sampler_name: sampler,
-      scheduler,
-      denoise: 1,
-      model: modelOutput,
-      positive: ["6", 0],
-      negative: ["7", 0],
-      latent_image: ["5", 0],
-    },
+    inputs: { seed, steps, cfg, sampler_name: sampler, scheduler, denoise: 1, model: modelOutput, positive: ["6", 0], negative: ["7", 0], latent_image: ["5", 0] },
   };
 
   try {
@@ -120,36 +118,131 @@ export async function generateImage(prompt: string): Promise<{ imageBase64: stri
     const promptId = queueData.prompt_id;
     if (!promptId) return null;
 
-    // Poll for completion (up to 120 s)
-    for (let i = 0; i < 120; i++) {
-      await new Promise((r) => setTimeout(r, 1000));
+    emitProgress("loading");
 
-      const histRes = await fetch(`${COMFYUI_URL}/history/${promptId}`);
-      if (!histRes.ok) continue;
+    // Use ComfyUI WebSocket for real-time progress
+    const comfyWsUrl = COMFYUI_URL.replace(/^http/, "ws") + "/ws?clientId=kxkm_" + promptId.slice(0, 8);
 
-      const history = (await histRes.json()) as Record<string, any>;
-      const entry = history[promptId];
-      if (!entry?.outputs) continue;
+    const result = await new Promise<{ imageBase64: string; seed: number; model?: string; lora?: string } | null>((resolve) => {
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) { resolved = true; ws.close(); resolve(null); }
+      }, 120_000);
 
-      // Find the SaveImage output
-      for (const nodeId of Object.keys(entry.outputs)) {
-        const output = entry.outputs[nodeId];
-        if (output.images && output.images.length > 0) {
-          const img = output.images[0];
-          const imgRes = await fetch(
-            `${COMFYUI_URL}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=${encodeURIComponent(img.type || "output")}`,
-          );
-          if (!imgRes.ok) continue;
+      const ws = new WebSocket(comfyWsUrl);
 
-          const buffer = Buffer.from(await imgRes.arrayBuffer());
-          return { imageBase64: buffer.toString("base64"), seed, model: checkpoint, lora: selection.lora };
+      ws.on("message", async (data: WebSocket.Data) => {
+        try {
+          // ComfyUI sends binary preview frames — skip them
+          if (typeof data !== "string" && !Buffer.isBuffer(data)) return;
+          const raw = typeof data === "string" ? data : data.toString("utf8");
+          // Skip binary-looking data
+          if (raw.charCodeAt(0) > 127) return;
+
+          const msg = JSON.parse(raw) as Record<string, any>;
+
+          if (msg.type === "progress" && msg.data) {
+            const { value, max } = msg.data;
+            emitProgress("sampling", value);
+          }
+
+          if (msg.type === "executing" && msg.data) {
+            const nodeId = msg.data.node;
+            if (nodeId === "8") emitProgress("decoding", steps);
+            if (nodeId === "9") emitProgress("saving", steps);
+            // null node = execution done
+            if (nodeId === null && msg.data.prompt_id === promptId) {
+              emitProgress("done", steps);
+              // Fetch the result image from history
+              ws.close();
+              clearTimeout(timeout);
+              if (resolved) return;
+              resolved = true;
+
+              // Small delay to let ComfyUI write the output
+              await new Promise(r => setTimeout(r, 300));
+              const img = await fetchResultImage(promptId);
+              if (img) {
+                resolve({ imageBase64: img, seed, model: checkpoint, lora: selection.lora });
+              } else {
+                resolve(null);
+              }
+            }
+          }
+        } catch { /* ignore parse errors on binary frames */ }
+      });
+
+      ws.on("error", (err) => {
+        logger.warn({ err: err.message }, "[comfyui] WS error, falling back to polling");
+        ws.close();
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          // Fallback: poll for result
+          pollForResult(promptId, steps, emitProgress).then(img => {
+            resolve(img ? { imageBase64: img, seed, model: checkpoint, lora: selection.lora } : null);
+          });
         }
-      }
-    }
+      });
 
-    return null;
+      ws.on("close", () => {
+        // If closed before resolving, fall back to polling
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          pollForResult(promptId, steps, emitProgress).then(img => {
+            resolve(img ? { imageBase64: img, seed, model: checkpoint, lora: selection.lora } : null);
+          });
+        }
+      });
+    });
+
+    return result;
   } catch (err) {
     logger.error({ err: err instanceof Error ? err.message : String(err) }, "[comfyui] Error");
     return null;
   }
+}
+
+// Fetch result image from ComfyUI history
+async function fetchResultImage(promptId: string): Promise<string | null> {
+  try {
+    const histRes = await fetch(`${COMFYUI_URL}/history/${promptId}`);
+    if (!histRes.ok) return null;
+    const history = (await histRes.json()) as Record<string, any>;
+    const entry = history[promptId];
+    if (!entry?.outputs) return null;
+
+    for (const nodeId of Object.keys(entry.outputs)) {
+      const output = entry.outputs[nodeId];
+      if (output.images?.length > 0) {
+        const img = output.images[0];
+        const imgRes = await fetch(
+          `${COMFYUI_URL}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=${encodeURIComponent(img.type || "output")}`,
+        );
+        if (!imgRes.ok) continue;
+        return Buffer.from(await imgRes.arrayBuffer()).toString("base64");
+      }
+    }
+    return null;
+  } catch { return null; }
+}
+
+// Fallback polling (if WS connection fails)
+async function pollForResult(
+  promptId: string,
+  totalSteps: number,
+  emitProgress: (phase: ImageProgress["phase"], step?: number) => void,
+): Promise<string | null> {
+  for (let i = 0; i < 120; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    // Simulate progress in polling mode
+    if (i < totalSteps) emitProgress("sampling", i + 1);
+    const img = await fetchResultImage(promptId);
+    if (img) {
+      emitProgress("done", totalSteps);
+      return img;
+    }
+  }
+  return null;
 }

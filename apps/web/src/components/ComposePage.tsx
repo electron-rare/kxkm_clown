@@ -13,8 +13,24 @@ interface Track {
   audioData?: string;
   audioMime?: string;
   generating: boolean;
+  genStart?: number; // timestamp when generation started
+  genElapsed?: number; // elapsed seconds (updated by timer)
   persona?: string;
 }
+
+const TRACK_TYPES = ["music", "voice", "noise", "fx"] as const;
+const TYPE_COLORS: Record<string, string> = {
+  music: "#c84c0c",
+  voice: "#2c6e49",
+  noise: "#7c3aed",
+  fx: "#0f766e",
+};
+const TYPE_LABELS: Record<string, string> = {
+  music: "MUSIQUE",
+  voice: "VOIX",
+  noise: "TEXTURE",
+  fx: "EFFET",
+};
 
 const DEFAULT_TRACKS: Track[] = [
   { id: 1, label: "MUSIQUE", type: "music", prompt: "", duration: 30, volume: 100, color: "#c84c0c", startOffset: 0, generating: false },
@@ -25,6 +41,7 @@ const DEFAULT_TRACKS: Track[] = [
 
 const NOISE_TYPES = ["drone", "pink", "white", "brown", "sine"];
 const STYLES = ["experimental", "ambient", "drone", "noise", "glitch", "industrial", "techno", "minimal", "concrete", "jazz", "classical", "dark", "lo-fi", "post-rock"];
+const PERSONAS = ["Pharmacius", "Docteur Maboul", "Gargantua", "Nostradamus", "Piaf"];
 
 export default function ComposePage() {
   const [tracks, setTracks] = useState<Track[]>(DEFAULT_TRACKS);
@@ -32,10 +49,28 @@ export default function ComposePage() {
   const [style, setStyle] = useState("experimental");
   const [mixing, setMixing] = useState(false);
   const [status, setStatus] = useState("");
+  const [parallelMode, setParallelMode] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const [dragging, setDragging] = useState<{ trackIdx: number; mode: "move" | "resize"; startX: number; origOffset: number; origDur: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; trackIdx: number } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const genTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Generation elapsed timer — update all generating tracks every second
+  useEffect(() => {
+    genTimerRef.current = setInterval(() => {
+      setTracks(prev => {
+        const hasGen = prev.some(t => t.generating);
+        if (!hasGen) return prev;
+        return prev.map(t =>
+          t.generating && t.genStart
+            ? { ...t, genElapsed: Math.round((Date.now() - t.genStart) / 1000) }
+            : t
+        );
+      });
+    }, 1000);
+    return () => { if (genTimerRef.current) clearInterval(genTimerRef.current); };
+  }, []);
 
   useEffect(() => {
     const nick = sessionStorage.getItem("kxkm-nick") || "composer";
@@ -48,10 +83,10 @@ export default function ComposePage() {
         const m = JSON.parse(e.data);
         if (m.type === "music" && m.audioData) {
           setTracks(prev => {
-            const idx = prev.findIndex(t => t.generating);
+            const idx = prev.findIndex(t => t.generating && (t.type === "music"));
             if (idx < 0) return prev;
             const updated = [...prev];
-            updated[idx] = { ...updated[idx], audioData: m.audioData, audioMime: m.audioMime || "audio/wav", generating: false };
+            updated[idx] = { ...updated[idx], audioData: m.audioData, audioMime: m.audioMime || "audio/wav", generating: false, genStart: undefined, genElapsed: undefined };
             return updated;
           });
           setStatus("");
@@ -61,7 +96,7 @@ export default function ComposePage() {
             const idx = prev.findIndex(t => t.generating);
             if (idx < 0) return prev;
             const updated = [...prev];
-            updated[idx] = { ...updated[idx], audioData: m.data, audioMime: m.mimeType || "audio/wav", generating: false };
+            updated[idx] = { ...updated[idx], audioData: m.data, audioMime: m.mimeType || "audio/wav", generating: false, genStart: undefined, genElapsed: undefined };
             return updated;
           });
           setStatus("");
@@ -72,7 +107,7 @@ export default function ComposePage() {
             setStatus("Mix OK!");
           }
           if (m.text.includes("Erreur")) {
-            setTracks(prev => prev.map(t => t.generating ? { ...t, generating: false } : t));
+            setTracks(prev => prev.map(t => t.generating ? { ...t, generating: false, genStart: undefined, genElapsed: undefined } : t));
             setMixing(false);
             setStatus(m.text.slice(0, 60));
           }
@@ -141,19 +176,48 @@ export default function ComposePage() {
     setCtxMenu(null);
   }
 
+  function addTrack() {
+    const nextId = Date.now();
+    const type = TRACK_TYPES[tracks.length % TRACK_TYPES.length];
+    setTracks(prev => [...prev, {
+      id: nextId,
+      label: TYPE_LABELS[type] + " " + (prev.filter(t => t.type === type).length + 1),
+      type,
+      prompt: "",
+      duration: type === "voice" ? 10 : 30,
+      volume: 80,
+      color: TYPE_COLORS[type],
+      startOffset: 0,
+      generating: false,
+    }]);
+  }
+
+  function removeTrack(idx: number) {
+    if (tracks.length <= 1) return;
+    setTracks(prev => prev.filter((_, j) => j !== idx));
+    setCtxMenu(null);
+  }
+
+  function changeTrackType(idx: number, newType: typeof TRACK_TYPES[number]) {
+    setTracks(prev => prev.map((t, i) =>
+      i === idx ? { ...t, type: newType, label: TYPE_LABELS[newType], color: TYPE_COLORS[newType], prompt: "" } : t
+    ));
+  }
+
   function generate(trackIdx: number) {
     const track = tracks[trackIdx];
     if (!track.prompt.trim() && track.type !== "noise") return;
 
-    setTracks(prev => prev.map((t, i) => i === trackIdx ? { ...t, generating: true, audioData: undefined } : t));
+    setTracks(prev => prev.map((t, i) => i === trackIdx ? { ...t, generating: true, audioData: undefined, genStart: Date.now(), genElapsed: 0 } : t));
     setStatus("Generation " + track.label + "...");
 
+    const persona = track.persona || "Pharmacius";
     switch (track.type) {
       case "music":
         cmd("/layer " + track.prompt.trim() + ", " + style + ", " + track.duration + "s");
         break;
       case "voice":
-        cmd("/voice " + (track.persona || "Pharmacius") + " \"" + track.prompt.trim() + "\"");
+        cmd(`/voice ${persona} "${track.prompt.trim()}"`);
         break;
       case "noise":
         cmd("/noise " + (track.prompt.trim() || "drone") + " " + track.duration);
@@ -172,7 +236,7 @@ export default function ComposePage() {
   }
 
   async function autoCompose() {
-    setStatus("IA compose 4 pistes...");
+    setStatus("IA compose " + tracks.length + " pistes...");
     for (let i = 0; i < tracks.length; i++) {
       try {
         const resp = await fetch("/api/v2/ai/suggest-prompt", {
@@ -186,56 +250,87 @@ export default function ComposePage() {
         }
       } catch {}
     }
-    setStatus("Prompts générés — clique \u25b6 sur chaque piste");
+    setStatus("Prompts generes — clique \u25b6 sur chaque piste");
   }
 
   async function generateAll() {
-    for (let i = 0; i < tracks.length; i++) {
-      if (tracks[i].prompt.trim() || tracks[i].type === "noise") {
+    if (parallelMode) {
+      // Launch all tracks simultaneously — GPU handles music, CPU handles noise/fx
+      const eligible = tracks.map((t, i) => ({ t, i })).filter(({ t }) => t.prompt.trim() || t.type === "noise");
+      // GPU tasks (music) go first, CPU tasks (noise/fx/voice) can run alongside
+      const gpuTasks = eligible.filter(({ t }) => t.type === "music");
+      const cpuTasks = eligible.filter(({ t }) => t.type !== "music");
+
+      // Launch CPU tasks immediately (they use ffmpeg, not GPU)
+      for (const { i } of cpuTasks) generate(i);
+      // Stagger GPU tasks by 500ms to avoid VRAM spike
+      for (const { i } of gpuTasks) {
         generate(i);
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 500));
+      }
+    } else {
+      // Sequential: one at a time
+      for (let i = 0; i < tracks.length; i++) {
+        if (tracks[i].prompt.trim() || tracks[i].type === "noise") {
+          generate(i);
+          await new Promise(r => setTimeout(r, 2000));
+        }
       }
     }
   }
 
   const hasAudio = tracks.some(t => t.audioData);
+  const generatingCount = tracks.filter(t => t.generating).length;
 
   return (
     <div className="cmp">
       {/* HEADER */}
       <div className="cmp-header">
-        <VideotexPageHeader title="COMPOSE" subtitle={`${tracks.length} pistes`} color="magenta" />
+        <VideotexPageHeader title="COMPOSE" subtitle={tracks.length + " pistes"} color="magenta" />
         <div className="cmp-name-row">
           <input className="cmp-name" value={compName} onChange={e => setCompName(e.target.value)} placeholder="Nom..." />
           <select className="cmp-style" value={style} onChange={e => setStyle(e.target.value)}>
             {STYLES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button className="cmp-auto-btn" onClick={autoCompose} disabled={tracks.some(t => t.generating)}>
-            🤖 Auto-compose
+          <label className="cmp-parallel-label" title="Lance noise/voice/fx en parallele (CPU) pendant music (GPU)">
+            <input type="checkbox" checked={parallelMode} onChange={e => setParallelMode(e.target.checked)} />
+            <span className="cmp-parallel-text">{"\u26A1"} Par.</span>
+          </label>
+          <button className="cmp-auto-btn" onClick={autoCompose} disabled={generatingCount > 0}>
+            {"\u{1F916}"} Auto
           </button>
-          <button className="cmp-genall-btn" onClick={generateAll} disabled={tracks.some(t => t.generating)}>
-            ▶▶ Tout générer
+          <button className="cmp-genall-btn" onClick={generateAll} disabled={generatingCount > 0}>
+            {"\u25B6\u25B6"} Tout
           </button>
+          <button className="cmp-add-track-btn" onClick={addTrack} title="Ajouter une piste">+</button>
         </div>
       </div>
 
-      {/* 4 TRACKS */}
+      {/* TRACKS */}
       <div className="cmp-tracks">
         {tracks.map((track, i) => (
           <div key={track.id} className={"cmp-track" + (track.generating ? " cmp-track-gen" : "")}>
             {/* Track header */}
             <div className="cmp-track-head" style={{ borderLeftColor: track.color }}>
               <select
-                className="cmp-track-type"
+                className="cmp-type-sel"
                 value={track.type}
-                onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, type: e.target.value as Track["type"], label: e.target.value.toUpperCase() } : t))}
+                onChange={e => changeTrackType(i, e.target.value as typeof TRACK_TYPES[number])}
                 style={{ color: track.color }}
               >
-                <option value="music">MUSIQUE</option>
-                <option value="voice">VOIX</option>
-                <option value="noise">TEXTURE</option>
-                <option value="fx">EFFET</option>
+                {TRACK_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
               </select>
+
+              {track.type === "voice" && (
+                <select
+                  className="cmp-persona-sel"
+                  value={track.persona || "Pharmacius"}
+                  onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, persona: e.target.value } : t))}
+                >
+                  {PERSONAS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              )}
+
               <input
                 type="range" min={0} max={100} value={track.volume}
                 className="cmp-vol"
@@ -254,9 +349,9 @@ export default function ComposePage() {
               </select>
               <button
                 className="cmp-ai-btn"
-                title="IA suggère un prompt"
+                title="IA suggere un prompt"
                 onClick={async () => {
-                  setStatus(`IA réfléchit pour ${track.label}...`);
+                  setStatus(`IA reflechit pour ${track.label}...`);
                   try {
                     const resp = await fetch("/api/v2/ai/suggest-prompt", {
                       method: "POST",
@@ -270,25 +365,13 @@ export default function ComposePage() {
                     setStatus("");
                   } catch { setStatus("IA indisponible"); }
                 }}
-              >✨</button>
+              >{"\u2728"}</button>
+              <button className="cmp-del-btn" title="Supprimer" onClick={() => removeTrack(i)}>{"\u2715"}</button>
             </div>
 
             {/* Prompt + generate */}
             <div className="cmp-track-body">
-              {track.type === "voice" ? (
-                <div className="cmp-voice-row">
-                  <select
-                    className="cmp-persona"
-                    value={track.persona || "Pharmacius"}
-                    onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, persona: e.target.value } : t))}
-                  >
-                    {["Pharmacius","Schaeffer","Merzbow","Cage","Radigue","SunRa","Haraway","Batty","Deleuze","Turing"].map(p => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
-                  <input className="cmp-prompt" value={track.prompt} onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, prompt: e.target.value } : t))} placeholder="Texte à dire..." />
-                </div>
-              ) : track.type === "noise" ? (
+              {track.type === "noise" ? (
                 <select
                   className="cmp-prompt"
                   value={track.prompt || "drone"}
@@ -301,7 +384,7 @@ export default function ComposePage() {
                   className="cmp-prompt"
                   value={track.prompt}
                   onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, prompt: e.target.value } : t))}
-                  placeholder={track.type === "music" ? "dark ambient drone..." : "pink noise..."}
+                  placeholder={track.type === "music" ? "dark ambient drone..." : track.type === "voice" ? "Le son est notre matiere..." : "pink noise..."}
                 />
               )}
               <button
@@ -310,9 +393,19 @@ export default function ComposePage() {
                 disabled={track.generating || (!track.prompt.trim() && track.type !== "noise")}
                 onClick={() => generate(i)}
               >
-                {track.generating ? "..." : "\u25B6"}
+                {track.generating ? `${track.genElapsed || 0}s` : "\u25B6"}
               </button>
             </div>
+
+            {/* Per-track progress bar */}
+            {track.generating && (
+              <div className="cmp-track-progress">
+                <div className="cmp-track-progress-bar" style={{ backgroundColor: track.color }}>
+                  <div className="cmp-track-progress-fill" style={{ backgroundColor: track.color }} />
+                </div>
+                <span className="cmp-track-progress-label">{track.genElapsed || 0}s</span>
+              </div>
+            )}
 
             {/* Timeline block + audio */}
             <div className="cmp-track-timeline">
@@ -333,23 +426,6 @@ export default function ComposePage() {
             </div>
           </div>
         ))}
-        <button className="cmp-add-track" onClick={() => {
-          const types: Array<Track["type"]> = ["music", "voice", "noise", "fx"];
-          const colors = ["#b45309", "#1d4ed8", "#be185d", "#0f5b78", "#9333ea", "#dc2626"];
-          const newId = Date.now();
-          const idx = tracks.length;
-          setTracks(prev => [...prev, {
-            id: newId,
-            label: `PISTE ${idx + 1}`,
-            type: types[idx % types.length],
-            prompt: "",
-            duration: 15,
-            volume: 80,
-            color: colors[idx % colors.length],
-            startOffset: 0,
-            generating: false,
-          }]);
-        }}>+ Ajouter piste</button>
       </div>
 
       {/* TIMELINE */}
@@ -384,6 +460,19 @@ export default function ComposePage() {
                   <div className="cmp-tl-resize" onPointerDown={e => { e.stopPropagation(); startResize(e, i); }} />
                 </div>
               )}
+              {/* Show generating pulse on lane */}
+              {track.generating && !track.audioData && (
+                <div
+                  className="cmp-tl-generating"
+                  style={{
+                    left: `${((track.startOffset || 0) / maxDur) * 100}%`,
+                    width: `${Math.max((track.duration / maxDur) * 100, 5)}%`,
+                    borderColor: track.color,
+                  }}
+                >
+                  <span className="cmp-tl-gen-text">{track.genElapsed || 0}s...</span>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -392,16 +481,18 @@ export default function ComposePage() {
       {/* Context menu */}
       {ctxMenu && (
         <div className="cmp-ctx" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
-          <button onClick={() => { duplicateTrack(ctxMenu.trackIdx); setCtxMenu(null); }}>📋 Dupliquer</button>
-          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} reverse`); setCtxMenu(null); }}>⏪ Reverse</button>
-          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} reverb`); setCtxMenu(null); }}>🌊 Reverb</button>
-          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} echo`); setCtxMenu(null); }}>🔁 Echo</button>
-          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} distortion`); setCtxMenu(null); }}>💥 Distortion</button>
-          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} pitch 3`); setCtxMenu(null); }}>🔼 Pitch+</button>
-          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} pitch -3`); setCtxMenu(null); }}>🔽 Pitch-</button>
-          <button onClick={() => { cmd(`/stutter ${ctxMenu.trackIdx+1} 8`); setCtxMenu(null); }}>⚡ Stutter</button>
+          <button onClick={() => { duplicateTrack(ctxMenu.trackIdx); setCtxMenu(null); }}>{"\u{1F4CB}"} Dupliquer</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} reverse`); setCtxMenu(null); }}>{"\u23EA"} Reverse</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} reverb`); setCtxMenu(null); }}>{"\u{1F30A}"} Reverb</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} echo`); setCtxMenu(null); }}>{"\u{1F501}"} Echo</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} distortion`); setCtxMenu(null); }}>{"\u{1F4A5}"} Distortion</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} pitch 3`); setCtxMenu(null); }}>{"\u{1F53C}"} Pitch+</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} pitch -3`); setCtxMenu(null); }}>{"\u{1F53D}"} Pitch-</button>
+          <button onClick={() => { cmd(`/stutter ${ctxMenu.trackIdx+1} 8`); setCtxMenu(null); }}>{"\u26A1"} Stutter</button>
+          <button onClick={() => { cmd(`/glitch ${ctxMenu.trackIdx+1}`); setCtxMenu(null); }}>{"\u{1F300}"} Glitch</button>
+          <button onClick={() => { cmd(`/stretch ${ctxMenu.trackIdx+1} 1.5`); setCtxMenu(null); }}>{"\u23E9"} Stretch</button>
           <hr className="cmp-ctx-sep" />
-          <button onClick={() => { setTracks(prev => prev.filter((_, j) => j !== ctxMenu.trackIdx)); setCtxMenu(null); }} style={{color:"#e53935"}}>🗑 Supprimer</button>
+          <button onClick={() => removeTrack(ctxMenu.trackIdx)} style={{color:"#e53935"}}>{"\u{1F5D1}"} Supprimer</button>
         </div>
       )}
 
@@ -418,7 +509,12 @@ export default function ComposePage() {
       )}
 
       {/* STATUS */}
-      {status && <div className="cmp-status">{status}</div>}
+      {(status || generatingCount > 0) && (
+        <div className="cmp-status">
+          {generatingCount > 0 && <span className="cmp-gen-count">{generatingCount} generation{generatingCount > 1 ? "s" : ""} en cours</span>}
+          {status && <span>{status}</span>}
+        </div>
+      )}
     </div>
   );
 }

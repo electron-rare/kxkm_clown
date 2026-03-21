@@ -4025,3 +4025,78 @@ html, body {
   max-width: 100%;
   overflow-x: hidden;
 }
+
+
+/* ═══ RESPONSIVE MASTER ═══ */
+
+/* All screens: force viewport bounds */
+html { height: 100%; overflow: hidden; }
+body { height: 100%; overflow: hidden; margin: 0; }
+#root { height: 100%; overflow: hidden; }
+
+/* Minitel frame must fill viewport exactly */
+.minitel-terminal { width: 100vw; max-width: 100vw; height: 100vh; overflow: hidden; }
+.minitel-body { max-width: 100vw; height: 100vh; overflow: hidden; box-sizing: border-box; }
+.minitel-screen-bezel { overflow: hidden; min-height: 0; }
+.minitel-screen { overflow: hidden; min-height: 0; }
+.minitel-content { overflow-y: auto; overflow-x: hidden; min-height: 0; }
+
+/* Tablet (< 1024px): reduce padding, smaller fonts */
+@media (max-width: 1024px) {
+  .minitel-body { padding: 6px 8px 4px; }
+  .minitel-speaker { width: 60px; }
+  .minitel-speaker-grille { gap: 4px; padding: 8px 6px; }
+  .minitel-speaker-hole { width: 6px; height: 6px; }
+  .minitel-bottom-bar { font-size: 11px; }
+  .minitel-bottom-bar button { padding: 4px 6px; font-size: 10px; }
+}
+
+/* Mobile landscape / small tablet (< 768px) */
+@media (max-width: 768px) {
+  .minitel-body {
+    padding: 4px;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto auto;
+  }
+  .minitel-speaker { display: none; }
+  .minitel-screen-bezel { grid-column: 1 / -1; padding: 4px; border-radius: 6px; }
+  .minitel-keyboard { display: none; }
+  .minitel-bottom-bar {
+    font-size: 10px;
+    padding: 2px 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 2px;
+  }
+  .minitel-bottom-bar button {
+    padding: 3px 5px;
+    font-size: 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .minitel-nav-panel {
+    width: 100vw;
+    max-width: 100vw;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+  }
+  .minitel-service-bar { font-size: 10px; padding: 2px 6px; }
+  .minitel-brand { font-size: 12px; }
+  .chat-container { font-size: 12px; }
+  .chat-msg { padding: 1px 2px; font-size: 11px; }
+  .chat-ts { display: none; }
+  .chat-input { font-size: 16px; } /* prevent iOS zoom */
+}
+
+/* Phone portrait (< 480px) */
+@media (max-width: 480px) {
+  .minitel-body { padding: 2px; }
+  .minitel-screen-bezel { padding: 2px; border-radius: 4px; }
+  .minitel-bottom-bar button { padding: 2px 4px; font-size: 8px; }
+  .minitel-content { font-size: 11px; }
+  .chat-nick { font-size: 10px; }
+  .admin-grid { grid-template-columns: 1fr; }
+  .media-grid { grid-template-columns: 1fr; }
+}

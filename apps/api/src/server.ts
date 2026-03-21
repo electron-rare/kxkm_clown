@@ -33,11 +33,25 @@ async function main() {
   }, express.static(dawDistPath));
   // SPA fallback for /daw (only for paths without file extension)
   app.get("/daw/*", (req, res, next) => {
-    if (path.extname(req.path)) return next(); // let static middleware handle files
+    if (path.extname(req.path)) return next();
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     res.sendFile(path.join(dawDistPath, "index.html"));
+  });
+
+  // openDAW internal imports use absolute paths (/) — serve daw files at root too
+  // Only serves if file exists in daw dist (won't conflict with web app)
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/") || req.path === "/ws") return next();
+    const dawFile = path.join(dawDistPath, req.path);
+    if (require("fs").existsSync(dawFile) && require("fs").statSync(dawFile).isFile()) {
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+      res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      return res.sendFile(dawFile);
+    }
+    next();
   });
 
   const webDistPath = process.env.WEB_DIST_PATH || path.resolve(process.cwd(), "apps/web/dist");

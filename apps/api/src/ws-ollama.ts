@@ -1,3 +1,4 @@
+import http from "node:http";
 import pLimit from "p-limit";
 import { generateImage } from "./comfyui.js";
 import { searchWeb } from "./web-search.js";
@@ -7,6 +8,32 @@ import type { ToolDefinition } from "./mcp-tools.js";
 import type { ChatPersona } from "./chat-types.js";
 
 const FALLBACK_MODEL = process.env.OLLAMA_FALLBACK_MODEL || "qwen3:4b";
+
+// HTTP keep-alive agent: reuses TCP connections to Ollama (saves ~5-20ms per request)
+const ollamaAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 10,
+  keepAliveMsecs: 30_000,
+});
+
+// Dispatcher helper for Node fetch with keep-alive
+const ollamaFetchOpts = { dispatcher: undefined as unknown } as Record<string, unknown>;
+try {
+  // Node 18+ supports { dispatcher } for undici-based fetch
+  const { Agent: UndiciAgent } = await import("undici");
+  ollamaFetchOpts.dispatcher = new UndiciAgent({
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 60_000,
+    connections: 10,
+  });
+} catch {
+  // undici not available — fall back to default fetch (still OK, just no keep-alive)
+}
+
+/** Fetch with keep-alive connection pooling to Ollama */
+function ollamaFetch(url: string, init: RequestInit): Promise<Response> {
+  return fetch(url, { ...init, ...ollamaFetchOpts } as RequestInit);
+}
 
 // Dynamic context sizing based on prompt length
 // Rough estimate: 1 token ≈ 4 chars for French text
@@ -19,6 +46,15 @@ function estimateNumCtx(systemPrompt: string, userMessage: string, _baseCtx = 81
   // Round up to nearest 2048
   const ctx = Math.ceil(needed / 2048) * 2048;
   return Math.max(2048, Math.min(ctx, 32768)); // clamp 2k-32k
+}
+
+/** Adaptive num_predict: short for trivial, full for complex */
+function estimateMaxTokens(userMessage: string, personaMax: number | undefined): number {
+  const base = personaMax || 800;
+  const len = userMessage.length;
+  if (len < 20) return Math.min(base, 200);   // "oui", "salut" → 200 max
+  if (len < 60) return Math.min(base, 400);   // Short question → 400 max
+  return base;
 }
 
 // Adaptive thinking: enable for complex prompts, disable for simple ones
@@ -86,7 +122,7 @@ export async function streamOllamaChat(
     const timeout = setTimeout(() => controller.abort(), 45_000);
 
     try {
-      const response = await fetch(`${ollamaUrl}/api/chat`, {
+      const response = await ollamaFetch(`${ollamaUrl}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -96,7 +132,7 @@ export async function streamOllamaChat(
             { role: "user", content: userMessage },
           ],
           stream: true,
-          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 }, keep_alive: "30m", think: false,
+          options: { num_predict: estimateMaxTokens(userMessage, persona.maxTokens), num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 }, keep_alive: "30m", think: false,
         }),
         signal: controller.signal,
       });
@@ -150,7 +186,7 @@ export async function streamOllamaChat(
           const fallbackController = new AbortController();
           const fallbackTimeout = setTimeout(() => fallbackController.abort(), 45_000);
           try {
-            const fallbackResp = await fetch(`${ollamaUrl}/api/chat`, {
+            const fallbackResp = await ollamaFetch(`${ollamaUrl}/api/chat`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -160,7 +196,7 @@ export async function streamOllamaChat(
                   { role: "user", content: userMessage },
                 ],
                 stream: true,
-                options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 },
+                options: { num_predict: estimateMaxTokens(userMessage, persona.maxTokens), num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 },
                 keep_alive: "30m",
               }),
               signal: fallbackController.signal,
@@ -302,7 +338,7 @@ export async function streamOllamaChatWithTools(
       ];
 
       // Step 1: Non-streaming probe with tools (only for tool-like messages)
-      const probeResp = await fetch(`${ollamaUrl}/api/chat`, {
+      const probeResp = await ollamaFetch(`${ollamaUrl}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -310,7 +346,7 @@ export async function streamOllamaChatWithTools(
           messages,
           tools: tools.map(t => t),
           stream: false,
-          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 }, keep_alive: "30m", think: shouldThink(userMessage, persona.model) ? undefined : false,
+          options: { num_predict: estimateMaxTokens(userMessage, persona.maxTokens), num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 }, keep_alive: "30m", think: shouldThink(userMessage, persona.model) ? undefined : false,
         }),
         signal: controller.signal,
       });
@@ -374,14 +410,14 @@ export async function streamOllamaChatWithTools(
       }
 
       // Step 3: Stream the final response with tool context
-      const streamResp = await fetch(`${ollamaUrl}/api/chat`, {
+      const streamResp = await ollamaFetch(`${ollamaUrl}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: persona.model,
           messages,
           stream: true,
-          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 }, keep_alive: "30m", think: false,
+          options: { num_predict: estimateMaxTokens(userMessage, persona.maxTokens), num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 }, keep_alive: "30m", think: false,
         }),
         signal: controller.signal,
       });

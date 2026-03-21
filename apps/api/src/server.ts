@@ -114,6 +114,27 @@ async function main() {
   const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
 
   // -----------------------------------------------------------------------
+  // Pre-warm Ollama: load primary model into VRAM (non-blocking)
+  // First inference is ~1-2s slower without this.
+  // -----------------------------------------------------------------------
+  const primaryModel = process.env.OLLAMA_MODEL || "qwen3.5:9b";
+  fetch(`${ollamaUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: primaryModel,
+      messages: [{ role: "user", content: "ping" }],
+      stream: false,
+      options: { num_predict: 1, num_ctx: 512 },
+      keep_alive: "30m",
+    }),
+  }).then(() => {
+    if (DEBUG) console.log(`[ollama] Pre-warmed ${primaryModel}`);
+  }).catch(() => {
+    // Ollama not ready yet — model will load on first real request
+  });
+
+  // -----------------------------------------------------------------------
   // Initialize local RAG (embeddings via Ollama)
   // -----------------------------------------------------------------------
   const rag = new LocalRAG({ ollamaUrl, lightragUrl: process.env.LIGHTRAG_URL, rerankerUrl: process.env.RERANKER_URL });

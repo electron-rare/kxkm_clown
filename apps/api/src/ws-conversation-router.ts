@@ -106,12 +106,20 @@ function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<Load
   };
 }
 
+// Trivial messages that don't need context enrichment
+const TRIVIAL_PATTERN = /^(oui|non|ok|lol|mdr|haha|merci|thanks|yes|no|yep|nope|cool|nice|wtf|omg|ah|oh|hmm|re|yo|hey|salut|coucou|bonjour|bonsoir|bonne nuit)\s*[.!?]*$/i;
+
 export async function buildConversationInput(
   text: string,
   channel: string,
   getContextString: (channel: string) => Promise<string>,
   rag?: ConversationRAG,
 ): Promise<string> {
+  // Fast path: trivial messages skip all enrichment (saves 50-500ms)
+  if (TRIVIAL_PATTERN.test(text.trim())) {
+    return text;
+  }
+
   const sections = [text];
 
   // Run context + RAG in PARALLEL (saves 100-500ms vs sequential)

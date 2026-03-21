@@ -57,8 +57,11 @@
   box-sizing: border-box;
 }
 
+*, *::before, *::after { box-sizing: border-box; }
+
 body {
   margin: 0;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), transparent 35%),
     linear-gradient(180deg, #d5b892 0%, var(--bg) 100%);
@@ -1046,6 +1049,8 @@ code {
   min-height: 100vh;
   height: 100vh;
   padding: 0;
+  max-width: 100vw;
+  box-sizing: border-box;
   background:
     radial-gradient(ellipse at 50% 30%, rgba(60, 50, 40, 0.15), transparent 70%),
     linear-gradient(180deg, #2a2420 0%, #1a1614 100%);
@@ -1055,7 +1060,9 @@ code {
 /* ── Physical Minitel body — fills viewport ── */
 .minitel-body {
   width: 100%;
+  max-width: 100vw;
   height: 100vh;
+  box-sizing: border-box;
   background:
     linear-gradient(180deg,
       var(--minitel-body-highlight) 0%,
@@ -1468,6 +1475,8 @@ code {
   grid-row: 1 / 2;
   width: 80px;
   margin-left: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;

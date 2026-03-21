@@ -67,6 +67,8 @@ export const INFO_COMMANDS = new Set([
   "/ping",
   "/count",
   "/leaderboard",
+  "/tts-voices",
+  "/persona-voice",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -305,12 +307,26 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
       }
 
       case "/changelog": {
-        try {
-          const log = execFileSync("git", ["log", "--oneline", "-10"], { cwd: process.cwd(), timeout: 5000 }).toString().trim();
-          send(ws, { type: "system", text: `Changelog:\n${log}` });
-        } catch {
-          send(ws, { type: "system", text: "Changelog indisponible" });
-        }
+        send(ws, { type: "system", text: [
+          "=== CHANGELOG RECENT ===",
+          "",
+          "Lot 445-449: --seed, --style, tts-voices, persona-voice, changelog+",
+          "Lot 440-444: aspect ratio, leaderboard, echo, scroll btn",
+          "Lot 435-439: personas categories, trivia, fortune+",
+          "Lot 430-434: /speak, /count, emoji health",
+          "Lot 425-429: TTS clean, --no prompt, /story",
+          "Lot 419-423: imagine-queue, haiku, timer",
+          "Lot 414-418: /summarize, /translate, /benchmark",
+          "Lot 408-413: variations, collab, radio, persona-create",
+          "Lot 400: MILESTONE — 100+ commandes",
+          "Lot 390-399: debate, quote, weather, ascii",
+          "Lot 370-378: PWA, MP3, @mention, webcam",
+          "Lot 355-360: FR voices, date separators, health monitor",
+          "Lot 334: ComfyUI 5 workflows",
+          "Lot 327: mascarade integration",
+          "",
+          `Total: 449+ lots, ${INFO_COMMANDS.size + GENERATE_COMMANDS.size + CHAT_COMMANDS.size}+ commandes`,
+        ].join("\n") });
         return;
       }
 
@@ -780,6 +796,41 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
 
         const results = await Promise.all(tests.map(async t => ({ name: t.name, ms: await t.promise })));
         const lines = ["=== BENCHMARK ===", ...results.map(r => `  ${r.name}: ${r.ms < 0 ? "TIMEOUT" : r.ms + "ms"}`)];
+        send(ws, { type: "system", text: lines.join("\n") });
+        return;
+      }
+
+      case "/tts-voices": {
+        const lines = [
+          "=== Voix TTS disponibles ===",
+          "",
+          "[Piper FR]",
+          "  fr_FR-siwis-medium (femme, chaud)",
+          "  fr_FR-siwis-low (femme, leger)",
+          "  fr_FR-upmc-medium (homme, academique)",
+          "  fr_FR-tom-medium (homme, naturel)",
+          "  fr_FR-gilles-low (homme, casual)",
+          "",
+          "[Kokoro EN]",
+          "  af_heart, af_bella, af_nicole, af_sarah, af_sky (femme US)",
+          "  am_adam, am_michael (homme US)",
+          "  bf_emma, bm_george, bm_lewis (GB)",
+          "",
+          "/voice-test <persona> pour ecouter",
+          "/speak <persona> <texte> pour forcer",
+        ];
+        send(ws, { type: "system", text: lines.join("\n") });
+        return;
+      }
+
+      case "/persona-voice": {
+        const { getPersonaVoice } = await import("./persona-voices.js");
+        const personas = getPersonas();
+        const lines = ["=== Voix par persona ==="];
+        for (const p of personas) {
+          const v = getPersonaVoice(p.nick);
+          lines.push(`  ${p.nick}: ${v.speaker} (${v.language})`);
+        }
         send(ws, { type: "system", text: lines.join("\n") });
         return;
       }

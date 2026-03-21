@@ -326,3 +326,46 @@ Fait sur ce lot:
 - [x] qwen3.5:9b migration (256K ctx, adaptive thinking)
 - [x] ComfyUI local :8189
 - [x] Auto-detect image/music generation in natural language
+
+## Lot 424-427 — Deep Analysis Fixes (session 2026-03-21)
+
+- [x] Persona memory cache (30s TTL, LRU 50 entries) — ws-conversation-router.ts
+- [x] RAG reranker circuit breaker (2s timeout, skip after 2 consecutive fails for 60s)
+- [x] Silent catch → logger.warn on channel state save
+- [x] Upload binary detection (null bytes in first 512 bytes)
+- [x] JSON streaming chunk size guard (100KB max)
+- [x] Mention regex depth limit (10 max per message)
+- [x] Mascarade circuit breaker exponential backoff (5s/15s/60s)
+- [x] Accessibility: aria-labels on vote/reaction/copy/pin buttons
+- [x] Accessibility: role="listbox" + role="option" on autocomplete dropdowns
+- [x] VoiceChat audio queue cap (10 max, prevents memory leak)
+- [x] Reconnect countdown UX ("dans Xs, tentative N/20")
+- [x] Wavesurfer.js waveform player in chat audio messages
+- [x] Tab completion V2 (fuzzy match 108+ commands + @mentions)
+- [x] Mobile responsive deep pass (touch targets 44px, 360px breakpoint)
+- [x] E2E Playwright tests (commands + DAW)
+- [x] Feature map + Architecture Mermaid updated with DAW/AI Bridge
+- [x] TTS sentence-boundary chunking + cleanForTTS
+- [x] /translate /tr /collab /persona-create /radio /summarize /mood commands
+- [x] openDIAW.be: 9 instruments (Drone/Grain/Glitch/Circus/Honk/Magenta/AceStep/KokoroTTS/Piper)
+- [x] AI Bridge: 5 new ffmpeg instrument endpoints
+- [x] DawAIPanel: Kokoro TTS + Instruments AI sections
+
+## Backlog (from analysis)
+
+- [ ] Chat virtualization (react-window for 500+ messages)
+- [ ] Route prefetch hints (webpackPrefetch on hover)
+- [ ] WS message handler batching
+- [ ] Form label associations (htmlFor)
+- [ ] Admin health error details
+- [ ] AI suggestion ranking by frequency
+- [ ] Media semantic search (CLIP + vector DB)
+- [ ] Unbounded in-memory maps LRU (userStats, channelSeq)
+- [ ] Context store single-pass read (summary + recent in one disk read)
+- [ ] ws-chat.ts extraction (1449 LOC → 4×350)
+- [ ] Chatterbox TTS upgrade (MIT, 24K stars, beats ElevenLabs)
+- [ ] Transformers.js v4 browser STT (client-side Whisper)
+- [ ] Stable Audio Open integration (fine-tunable sound design)
+- [ ] Claude Agent SDK (TypeScript, native MCP)
+- [ ] IndexTTS-2 emotion control (theater-grade expressiveness)
+- [ ] RAVE real-time audio style transfer (IRCAM)

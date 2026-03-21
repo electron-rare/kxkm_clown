@@ -1751,6 +1751,28 @@ async function handleImagineCommand({
     cleanPrompt = cleanPrompt.replace(/\s*--ar\s+[\d:]+/i, "").trim();
   }
 
+  // Parse --seed for reproducible generation (Lot 445)
+  let userSeed: number | undefined;
+  const seedMatch = cleanPrompt.match(/\s*--seed\s+(\d+)/i);
+  if (seedMatch) {
+    userSeed = parseInt(seedMatch[1]);
+    cleanPrompt = cleanPrompt.replace(/\s*--seed\s+\d+/i, "").trim();
+  }
+
+  // Parse --style for quick style presets (Lot 446)
+  const stylePresets: Record<string, string> = {
+    "photo": ", ultra realistic photograph, 8k, cinematic lighting",
+    "anime": ", anime style, studio ghibli, cel shading",
+    "cyberpunk": ", cyberpunk aesthetic, neon lights, blade runner",
+    "painting": ", oil painting, masterful brushwork, gallery quality",
+    "pixel": ", pixel art, 16-bit retro style",
+    "minitel": ", green phosphor CRT screen, vintage terminal, scanlines",
+  };
+  const styleMatch = cleanPrompt.match(/\s*--style\s+(\w+)/i);
+  if (styleMatch && stylePresets[styleMatch[1]]) {
+    cleanPrompt = cleanPrompt.replace(/\s*--style\s+\w+/i, "").trim() + stylePresets[styleMatch[1]];
+  }
+
   // Parse --no for negative prompt (Lot 426)
   let negativePrompt = "ugly, blurry, low quality, deformed";
   const noMatch = cleanPrompt.match(/\s*--no\s+(.+)$/i);
@@ -1786,7 +1808,7 @@ async function handleImagineCommand({
       priority: "normal",
       label: `/imagine "${cleanPrompt.slice(0, 40)}"`,
       vramMB: VRAM_BUDGETS.comfyui,
-      execute: () => generateImage(cleanPrompt, { onProgress, aspectRatio: aspectRatio as any }),
+      execute: () => generateImage(cleanPrompt, { onProgress, aspectRatio: aspectRatio as any, seed: userSeed }),
     });
     if (!result) {
       broadcast(info.channel, { type: "system", text: "\u{1F3A8} Generation echouee \u2014 verifiez ComfyUI" });

@@ -22,13 +22,14 @@ export interface ImageProgress {
 export interface GenerateImageOptions {
   onProgress?: (p: ImageProgress) => void;
   aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+  seed?: number;
 }
 
 export async function generateImage(
   prompt: string,
   opts?: GenerateImageOptions,
 ): Promise<{ imageBase64: string; seed: number; model?: string; lora?: string } | null> {
-  const seed = Math.floor(Math.random() * 2 ** 32);
+  const seed = opts?.seed ?? Math.floor(Math.random() * 2 ** 32);
   const startTime = Date.now();
 
   // Smart model selection

@@ -39,9 +39,11 @@ export interface DAWState {
   loopEnabled: boolean;
   loopStart: number;
   loopEnd: number;
-  tool: "select" | "move" | "trim";
+  tool: "select" | "move" | "trim" | "split";
   panelCollapsed: boolean;
   recording: boolean;
+  timeDisplay: "time" | "bars";
+  signature: [number, number];
 }
 
 export type DAWAction =
@@ -68,7 +70,9 @@ export type DAWAction =
   | { type: "SET_LOOP"; enabled: boolean; start?: number; end?: number }
   | { type: "SET_TOOL"; tool: DAWState["tool"] }
   | { type: "SET_PANEL_COLLAPSED"; collapsed: boolean }
-  | { type: "SET_RECORDING"; recording: boolean };
+  | { type: "SET_RECORDING"; recording: boolean }
+  | { type: "SET_TIME_DISPLAY"; mode: "time" | "bars" }
+  | { type: "SET_SIGNATURE"; signature: [number, number] };
 
 export function dawReducer(state: DAWState, action: DAWAction): DAWState {
   switch (action.type) {
@@ -78,7 +82,7 @@ export function dawReducer(state: DAWState, action: DAWAction): DAWState {
     case "REMOVE_TRACK": return { ...state, tracks: state.tracks.filter((_, i) => i !== action.index) };
     case "SET_PLAYING": return { ...state, playing: action.playing };
     case "SET_POSITION": return { ...state, position: action.position };
-    case "SET_ZOOM": return { ...state, zoom: Math.max(2, Math.min(30, action.zoom)) };
+    case "SET_ZOOM": return { ...state, zoom: Math.max(2, Math.min(60, action.zoom)) };
     case "SET_SELECTED": return { ...state, selectedTrack: action.index };
     case "SET_STATUS": return { ...state, status: action.status };
     case "SET_GENERATING": return { ...state, generating: action.generating };
@@ -96,11 +100,13 @@ export function dawReducer(state: DAWState, action: DAWAction): DAWState {
     case "SET_TOOL": return { ...state, tool: action.tool };
     case "SET_PANEL_COLLAPSED": return { ...state, panelCollapsed: action.collapsed };
     case "SET_RECORDING": return { ...state, recording: action.recording };
+    case "SET_TIME_DISPLAY": return { ...state, timeDisplay: action.mode };
+    case "SET_SIGNATURE": return { ...state, signature: action.signature };
     default: return state;
   }
 }
 
-export const COLORS = ["#c84c0c","#2c6e49","#7c3aed","#0f766e","#b45309","#1d4ed8","#be185d","#0f5b78","#9333ea","#dc2626","#059669","#d97706"];
+export const COLORS = ["#e06030","#2ea060","#8855ee","#10907a","#c07020","#3060e0","#d03070","#1080a0","#a050f0","#e03030","#10b080","#e0a020"];
 
 export const STYLES = [
   { group: "Electronique", items: ["experimental","ambient","drone","noise","glitch","industrial","techno","minimal","synthwave","idm","breakbeat","drum-n-bass","dubstep","house"] },
@@ -126,21 +132,30 @@ export const FX_LIST = [
 ];
 
 export const CTX_ACTIONS = [
+  { label: "Copy", fn: (i: number) => "/dup " + i },
+  { label: "Delete", fn: (i: number) => "/delete " + i },
+  { label: "Duplicate", fn: (i: number) => "/dup " + i },
   { label: "Reverse", fn: (i: number) => "/fx " + i + " reverse" },
   { label: "Reverb", fn: (i: number) => "/fx " + i + " reverb" },
   { label: "Echo", fn: (i: number) => "/fx " + i + " echo" },
   { label: "Distortion", fn: (i: number) => "/fx " + i + " distortion" },
-  { label: "Pitch +3", fn: (i: number) => "/fx " + i + " pitch 3" },
-  { label: "Pitch -3", fn: (i: number) => "/fx " + i + " pitch -3" },
-  { label: "Fade In 3s", fn: (i: number) => "/fx " + i + " fade-in 3" },
-  { label: "Fade Out 3s", fn: (i: number) => "/fx " + i + " fade-out 3" },
-  { label: "Stutter x8", fn: (i: number) => "/stutter " + i + " 8" },
   { label: "Normalize", fn: (i: number) => "/normalize " + i },
-  { label: "Loop x2", fn: (i: number) => "/loop " + i + " 2" },
-  { label: "Duplicate", fn: (i: number) => "/dup " + i },
-  { label: "Remix", fn: (i: number) => "/remix " + i },
 ];
 
 export function typeIcon(t: Track): string {
-  return t.type === "voice" ? "\u{1F3A4}" : t.type === "noise" ? "\u{1F50A}" : "\u{1F3B5}";
+  return t.type === "voice" ? "\u266A" : t.type === "noise" ? "\u223F" : "\u266B";
+}
+
+export function formatBars(sec: number, bpm: number, sig: [number, number]): string {
+  const beatDur = 60 / bpm;
+  const barDur = beatDur * sig[0];
+  const bar = Math.floor(sec / barDur) + 1;
+  const beat = Math.floor((sec % barDur) / beatDur) + 1;
+  return String(bar) + "." + String(beat);
+}
+
+export function volToDb(vol: number): string {
+  if (vol <= 0) return "-inf";
+  const db = 20 * Math.log10(vol / 100);
+  return db >= 0 ? "+" + db.toFixed(1) : db.toFixed(1);
 }

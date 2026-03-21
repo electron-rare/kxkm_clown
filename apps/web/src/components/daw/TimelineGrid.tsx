@@ -9,19 +9,19 @@ interface Props {
 }
 
 export default function TimelineGrid({ state, dispatch, onCmd }: Props) {
-  const { tracks, selectedTrack, zoom, bpm, dragging, contextMenu, loopEnabled, loopStart, loopEnd } = state;
+  const { tracks, selectedTrack, zoom, bpm, dragging, contextMenu, loopEnabled, loopStart, loopEnd, signature } = state;
   const timelineRef = useRef<HTMLDivElement>(null);
   const pxPerSec = zoom;
 
   const maxDur = Math.max(30, ...tracks.map(t => t.startOffset + t.duration));
-  const timelineWidth = maxDur * zoom;
+  const timelineWidth = maxDur * zoom + 200;
   const beatInterval = 60 / bpm;
+  const barInterval = beatInterval * signature[0];
+  const totalBars = Math.ceil(maxDur / barInterval) + 1;
   const totalBeats = Math.ceil(maxDur / beatInterval);
 
-  // Snap to grid helper
   const snapToGrid = useCallback((sec: number): number => {
-    const snapInterval = beatInterval; // snap to beats
-    return Math.round(sec / snapInterval) * snapInterval;
+    return Math.round(sec / beatInterval) * beatInterval;
   }, [beatInterval]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent, trackIdx: number, mode: "move" | "resize") => {
@@ -37,12 +37,10 @@ export default function TimelineGrid({ state, dispatch, onCmd }: Props) {
     const dSec = dx / pxPerSec;
     if (dragging.mode === "move") {
       const raw = dragging.origOffset + dSec;
-      const snapped = snapToGrid(Math.max(0, raw));
-      dispatch({ type: "UPDATE_TRACK", index: dragging.trackIdx, updates: { startOffset: snapped } });
+      dispatch({ type: "UPDATE_TRACK", index: dragging.trackIdx, updates: { startOffset: snapToGrid(Math.max(0, raw)) } });
     } else {
       const raw = dragging.origDuration + dSec;
-      const snapped = Math.max(1, snapToGrid(raw));
-      dispatch({ type: "UPDATE_TRACK", index: dragging.trackIdx, updates: { duration: snapped } });
+      dispatch({ type: "UPDATE_TRACK", index: dragging.trackIdx, updates: { duration: Math.max(1, snapToGrid(raw)) } });
     }
   }, [dragging, pxPerSec, dispatch, snapToGrid]);
 
@@ -50,128 +48,112 @@ export default function TimelineGrid({ state, dispatch, onCmd }: Props) {
     if (dragging) {
       const t = tracks[dragging.trackIdx];
       if (dragging.mode === "resize" && t.duration !== dragging.origDuration) {
-        onCmd(`/trim ${dragging.trackIdx + 1} 0 ${t.duration}`);
+        onCmd("/trim " + (dragging.trackIdx + 1) + " 0 " + t.duration);
       }
       dispatch({ type: "SET_DRAGGING", dragging: null });
     }
   }, [dragging, tracks, onCmd, dispatch]);
 
-  // Click on ruler to seek
   const handleRulerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const pos = Math.max(0, x / zoom);
-    dispatch({ type: "SET_POSITION", position: pos });
+    dispatch({ type: "SET_POSITION", position: Math.max(0, (e.clientX - rect.left) / zoom) });
   };
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest(".daw-ruler")) return; // handled by ruler
+  const handleLaneClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest(".daw-ruler")) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left + e.currentTarget.scrollLeft;
-    dispatch({ type: "SET_POSITION", position: Math.max(0, (x / timelineWidth) * maxDur) });
+    dispatch({ type: "SET_POSITION", position: Math.max(0, x / zoom) });
   };
 
-  if (tracks.length === 0) return null;
-
   return (
-    <div className="daw-timeline-wrap" onClick={handleTimelineClick}>
+    <div className="daw-timeline-wrap" onClick={handleLaneClick}>
       <div className="daw-timeline" style={{ width: timelineWidth + "px" }} ref={timelineRef}>
-        {/* Ruler */}
+        {/* Ruler -- bar numbers */}
         <div className="daw-ruler" onClick={handleRulerClick}>
-          {Array.from({ length: Math.ceil(maxDur) + 1 }, (_, s) => (
-            <div key={s} className={"daw-ruler-mark" + (s % 5 === 0 ? " daw-ruler-major" : "")} style={{ left: s * zoom }}>
-              {s % 5 === 0 && <span className="daw-ruler-num">{s}s</span>}
-            </div>
-          ))}
-          {/* Playhead triangle marker on ruler */}
-          <div className="daw-playhead-marker" style={{ left: state.position * zoom }} />
+          {Array.from({ length: totalBars }, (_, b) => {
+            const sec = b * barInterval;
+            return (
+              <div key={b} className="daw-ruler-bar" style={{ left: sec * zoom }}>
+                <span className="daw-ruler-num">{b + 1}</span>
+              </div>
+            );
+          })}
+          {Array.from({ length: totalBeats }, (_, b) => {
+            if (b % signature[0] === 0) return null;
+            return <div key={"b" + b} className="daw-ruler-beat" style={{ left: b * beatInterval * zoom }} />;
+          })}
         </div>
 
         {/* Lanes */}
         <div className="daw-lanes">
-          {/* Beat grid lines */}
+          {/* Grid lines */}
           {Array.from({ length: totalBeats + 1 }, (_, b) => (
-            <div key={b} className={"daw-beat-line" + (b % 4 === 0 ? " daw-beat-line-major" : "")} style={{ left: b * beatInterval * zoom }} />
+            <div key={b}
+              className={"daw-grid-line" + (b % signature[0] === 0 ? " daw-grid-major" : "")}
+              style={{ left: b * beatInterval * zoom }} />
           ))}
 
-          {/* Loop region overlay */}
+          {/* Loop region */}
           {loopEnabled && (
-            <div className="daw-loop-region" style={{
-              left: loopStart * zoom,
-              width: (loopEnd - loopStart) * zoom,
-            }} />
+            <div className="daw-loop-region" style={{ left: loopStart * zoom, width: (loopEnd - loopStart) * zoom }} />
           )}
 
-          {/* Playhead line */}
+          {/* Playhead -- clean 1px white line */}
           <div className="daw-playhead" style={{ left: state.position * zoom }} />
 
-          {/* Snap indicator while dragging */}
-          {dragging && (
-            <div className="daw-snap-line" style={{
-              left: dragging.mode === "move"
-                ? tracks[dragging.trackIdx].startOffset * zoom
-                : (tracks[dragging.trackIdx].startOffset + tracks[dragging.trackIdx].duration) * zoom
-            }} />
-          )}
-
-          {tracks.map((track, i) => {
-            const isExpanded = track.expanded !== false;
-            const laneHeight = isExpanded ? 56 : 36;
-
-            return (
-              <div key={track.id}
-                className={"daw-lane" + (selectedTrack === i ? " daw-lane-sel" : "") + (track.muted ? " daw-lane-muted" : "")}
-                style={{ height: laneHeight }}
-                onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED", index: i }); }}
-                onContextMenu={e => {
-                  e.preventDefault(); e.stopPropagation();
-                  dispatch({ type: "SET_CONTEXT_MENU", menu: { x: e.clientX, y: e.clientY, trackIdx: i } });
+          {/* Track lanes */}
+          {tracks.map((track, i) => (
+            <div key={track.id}
+              className={"daw-lane" + (selectedTrack === i ? " daw-lane-sel" : "") + (track.muted ? " daw-lane-muted" : "")}
+              onClick={e => { e.stopPropagation(); dispatch({ type: "SET_SELECTED", index: i }); }}
+              onContextMenu={e => {
+                e.preventDefault(); e.stopPropagation();
+                dispatch({ type: "SET_CONTEXT_MENU", menu: { x: e.clientX, y: e.clientY, trackIdx: i } });
+              }}>
+              <div
+                className={"daw-block" + (selectedTrack === i ? " daw-block-sel" : "") + (dragging?.trackIdx === i ? " daw-block-drag" : "")}
+                style={{
+                  width: Math.max(track.duration * zoom, 20),
+                  left: track.startOffset * zoom,
+                  background: track.color,
+                  opacity: track.muted ? 0.25 : 1,
+                }}
+                onPointerDown={e => handlePointerDown(e, i, "move")}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onContextMenu={ev => {
+                  ev.preventDefault();
+                  dispatch({ type: "SET_CONTEXT_MENU", menu: { x: ev.clientX, y: ev.clientY, trackIdx: i } });
                 }}>
-                <div
-                  className={`daw-block ${dragging?.trackIdx === i ? "daw-block-dragging" : ""}`}
-                  style={{
-                    width: Math.max(track.duration * zoom, 24),
-                    left: track.startOffset * zoom,
-                    ["--block-color" as string]: track.color,
-                    opacity: track.muted ? 0.3 : 0.6 + (track.volume / 300),
-                    height: laneHeight - 12,
-                  }}
-                  title={`${track.prompt} (${track.startOffset}s \u2192 ${track.startOffset + track.duration}s)`}
-                  onPointerDown={e => handlePointerDown(e, i, "move")}
+                {/* Left resize handle */}
+                <div className="daw-resize-l"
+                  onPointerDown={e => { e.stopPropagation(); /* TODO: left resize */ }} />
+                {/* Content */}
+                <span className="daw-block-icon">{typeIcon(track)}</span>
+                <span className="daw-block-text">{track.prompt.slice(0, 50)}</span>
+                <span className="daw-block-dur">{track.duration}s</span>
+                {/* Right resize handle */}
+                <div className="daw-resize-r"
+                  onPointerDown={e => { e.stopPropagation(); handlePointerDown(e, i, "resize"); }}
                   onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onContextMenu={ev => {
-                    ev.preventDefault();
-                    dispatch({ type: "SET_CONTEXT_MENU", menu: { x: ev.clientX, y: ev.clientY, trackIdx: i } });
-                  }}>
-                  {/* Resize handle (right edge) */}
-                  <div className="daw-resize-handle"
-                    onPointerDown={e => { e.stopPropagation(); handlePointerDown(e, i, "resize"); }}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp} />
-                  {/* Block content */}
-                  <span className="daw-block-badge">{typeIcon(track)}</span>
-                  <span className="daw-block-text">{track.prompt.slice(0, 40)}</span>
-                  <span className="daw-block-dur">{track.duration}s</span>
-                </div>
+                  onPointerUp={handlePointerUp} />
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Context Menu */}
+      {/* Context menu -- compact essentials only */}
       {contextMenu && (
-        <div className="daw-context-menu" style={{ top: contextMenu.y, left: contextMenu.x }}>
-          <div className="daw-ctx-title">Track #{contextMenu.trackIdx + 1}</div>
+        <div className="daw-ctx" style={{ top: contextMenu.y, left: contextMenu.x }}>
+          <div className="daw-ctx-head">Track #{contextMenu.trackIdx + 1}</div>
           {CTX_ACTIONS.map(a => (
-            <button key={a.label} onClick={() => { onCmd(a.fn(contextMenu.trackIdx + 1)); dispatch({ type: "SET_CONTEXT_MENU", menu: null }); }}>{a.label}</button>
+            <button key={a.label} className="daw-ctx-item" onClick={() => {
+              onCmd(a.fn(contextMenu.trackIdx + 1));
+              dispatch({ type: "SET_CONTEXT_MENU", menu: null });
+            }}>{a.label}</button>
           ))}
-          <hr />
-          <button className="daw-ctx-danger" onClick={() => {
-            dispatch({ type: "REMOVE_TRACK", index: contextMenu.trackIdx });
-            dispatch({ type: "SET_CONTEXT_MENU", menu: null });
-          }}>Supprimer</button>
         </div>
       )}
     </div>

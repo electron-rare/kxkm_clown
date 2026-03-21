@@ -10,12 +10,13 @@ import { useDAWShortcuts } from "./daw/useDAWShortcuts";
 
 const initialState: DAWState = {
   compId: "", compName: "Ma composition", bpm: 120,
-  tracks: [], playing: false, position: 0, zoom: 8,
+  tracks: [], playing: false, position: 0, zoom: 10,
   selectedTrack: null, status: "", generating: false,
   editingName: null, fxOpen: null, prompt: "", style: "experimental",
   duration: 30, contextMenu: null, dragging: null,
   loopEnabled: false, loopStart: 0, loopEnd: 30,
   tool: "select", panelCollapsed: false, recording: false,
+  timeDisplay: "time", signature: [4, 4],
 };
 
 export default function ComposePage() {
@@ -35,7 +36,6 @@ export default function ComposePage() {
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
-    // Latency ping
     const pingInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         pingRef.current = Date.now();
@@ -46,10 +46,7 @@ export default function ComposePage() {
     ws.onmessage = (event) => {
       try {
         const m = JSON.parse(event.data);
-        if (m.type === "pong") {
-          setLatency(Date.now() - pingRef.current);
-          return;
-        }
+        if (m.type === "pong") { setLatency(Date.now() - pingRef.current); return; }
         if (m.type === "music" && m.audioData) {
           dispatch({ type: "ADD_TRACK", track: {
             id: Date.now() + Math.random(),
@@ -58,8 +55,7 @@ export default function ComposePage() {
             volume: 100, pan: 0, muted: false, solo: false,
             type: (m.text || "").match(/noise|silence|drone|pink|white|sine|brown/i) ? "noise" as const : "music" as const,
             color: COLORS[state.tracks.length % COLORS.length], startOffset: 0,
-            audioData: m.audioData, audioMime: m.audioMime || "audio/wav",
-            fxCount: 0,
+            audioData: m.audioData, audioMime: m.audioMime || "audio/wav", fxCount: 0,
           }});
           dispatch({ type: "SET_GENERATING", generating: false });
           dispatch({ type: "SET_STATUS", status: "" });
@@ -72,8 +68,7 @@ export default function ComposePage() {
             style: "voice", duration: 10, volume: 100, pan: 0,
             muted: false, solo: false, type: "voice" as const,
             color: COLORS[state.tracks.length % COLORS.length], startOffset: 0,
-            audioData: m.data, audioMime: m.mimeType || "audio/wav",
-            fxCount: 0,
+            audioData: m.data, audioMime: m.mimeType || "audio/wav", fxCount: 0,
           }});
           dispatch({ type: "SET_GENERATING", generating: false });
           dispatch({ type: "SET_STATUS", status: "" });
@@ -81,36 +76,25 @@ export default function ComposePage() {
         if (m.type === "system" && m.text?.startsWith("__comp_update__")) {
           try {
             const update = JSON.parse(m.text.slice(15));
-            dispatch({ type: "SET_STATUS", status: `[collab] ${update.action} (${update.trackCount || ""}p)` });
+            dispatch({ type: "SET_STATUS", status: "[collab] " + update.action + " (" + (update.trackCount || "") + "p)" });
             if (update.compId && (update.action === "track_added" || update.action === "track_removed" || update.action === "fx_applied")) {
               loadCompRef.current(update.compId);
             }
           } catch {}
           return;
         }
-        // Comp loaded via /comp load — reload full composition
         if (m.type === "system" && m.text?.startsWith("__comp_loaded__")) {
-          try {
-            const parsed = JSON.parse(m.text.slice(15));
-            if (parsed.compId) loadCompRef.current(parsed.compId);
-          } catch {}
+          try { const parsed = JSON.parse(m.text.slice(15)); if (parsed.compId) loadCompRef.current(parsed.compId); } catch {}
           return;
         }
         if (m.type === "system" && m.text?.startsWith("__playback__play__")) {
-          play();
-          dispatch({ type: "SET_STATUS", status: `[collab] ${m.text.split("__")[4]} a lance la lecture` });
-          return;
+          play(); dispatch({ type: "SET_STATUS", status: "[collab] " + m.text.split("__")[4] + " a lance la lecture" }); return;
         }
         if (m.type === "system" && m.text?.startsWith("__playback__stop__")) {
-          stop();
-          dispatch({ type: "SET_STATUS", status: `[collab] ${m.text.split("__")[4]} a arrete` });
-          return;
+          stop(); dispatch({ type: "SET_STATUS", status: "[collab] " + m.text.split("__")[4] + " a arrete" }); return;
         }
         if (m.type === "system" && m.text?.startsWith("__userlist__")) {
-          try {
-            const users = JSON.parse(m.text.slice(12));
-            setConnectedUsers(users);
-          } catch {}
+          try { const users = JSON.parse(m.text.slice(12)); setConnectedUsers(users); } catch {}
           return;
         }
         if (m.type === "system" && m.text) {
@@ -148,10 +132,10 @@ export default function ComposePage() {
     }
   }, []);
 
-  // Load composition from server (tracks + audio)
+  // Load composition from server
   const loadComposition = useCallback(async (compId: string) => {
     try {
-      const resp = await fetch(`/api/v2/media/compositions/${compId}`);
+      const resp = await fetch("/api/v2/media/compositions/" + compId);
       const data = await resp.json();
       if (!data.ok || !data.data) return;
       const comp = data.data;
@@ -164,23 +148,15 @@ export default function ComposePage() {
         const track: typeof initialState.tracks[0] = {
           id: t.id ? Number(t.id.replace(/\D/g, "").slice(-10)) || Date.now() + Math.random() : Date.now() + Math.random(),
           name: (t.prompt || "Track").slice(0, 30),
-          prompt: t.prompt || "",
-          style: "",
-          duration: t.duration || 10,
-          startOffset: (t.startMs || 0) / 1000,
-          volume: t.volume ?? 100,
-          pan: 0,
-          muted: false,
-          solo: false,
+          prompt: t.prompt || "", style: "", duration: t.duration || 10,
+          startOffset: (t.startMs || 0) / 1000, volume: t.volume ?? 100, pan: 0,
+          muted: false, solo: false,
           type: t.type === "voice" ? "voice" as const : t.type === "sfx" || t.type === "noise" ? "noise" as const : "music" as const,
-          color: COLORS[loadedTracks.length % COLORS.length],
-          fxCount: 0,
+          color: COLORS[loadedTracks.length % COLORS.length], fxCount: 0,
         };
-
-        // Try to load audio from track file
         if (t.id && comp.id) {
           try {
-            const audioResp = await fetch(`/api/v2/media/compositions/${comp.id}/tracks/${t.id}`);
+            const audioResp = await fetch("/api/v2/media/compositions/" + comp.id + "/tracks/" + t.id);
             if (audioResp.ok) {
               const buf = await audioResp.arrayBuffer();
               const bytes = new Uint8Array(buf);
@@ -191,12 +167,10 @@ export default function ComposePage() {
             }
           } catch { /* track file may not exist */ }
         }
-
         loadedTracks.push(track);
       }
-
       dispatch({ type: "SET_TRACKS", tracks: loadedTracks });
-      dispatch({ type: "SET_STATUS", status: `Loaded: ${comp.name} (${loadedTracks.length} tracks)` });
+      dispatch({ type: "SET_STATUS", status: "Loaded: " + comp.name + " (" + loadedTracks.length + " tracks)" });
     } catch { /* network error */ }
   }, []);
   loadCompRef.current = loadComposition;
@@ -207,9 +181,7 @@ export default function ComposePage() {
     dispatch({ type: "SET_STATUS", status: "Nouveau" });
   }, [cmd, state.compName]);
 
-  const handleSave = useCallback(() => {
-    cmd("/comp save");
-  }, [cmd]);
+  const handleSave = useCallback(() => { cmd("/comp save"); }, [cmd]);
 
   useDAWShortcuts(state, dispatch, { play, pause, stop, cmd });
 
@@ -218,10 +190,8 @@ export default function ComposePage() {
       <TransportBar state={state} dispatch={dispatch} onCmd={cmd}
         onPlay={play} onPause={pause} onStop={stop} onSeek={seek}
         onNew={handleNew} onSave={handleSave} />
-      <div className="daw-body">
-        <TrackHeaders state={state} dispatch={dispatch} onCmd={cmd} />
-        <TimelineGrid state={state} dispatch={dispatch} onCmd={cmd} />
-      </div>
+      <TrackHeaders state={state} dispatch={dispatch} onCmd={cmd} />
+      <TimelineGrid state={state} dispatch={dispatch} onCmd={cmd} />
       <GeneratorPanel state={state} dispatch={dispatch} onCmd={cmd} />
       <StatusBar state={state} users={connectedUsers} latency={latency} />
     </div>

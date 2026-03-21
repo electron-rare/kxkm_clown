@@ -11,7 +11,6 @@ export default function StatusBar({ state, users = [], latency = 0 }: Props) {
   const totalDur = state.tracks.reduce((s, t) => Math.max(s, t.startOffset + t.duration), 0);
   const [statusVisible, setStatusVisible] = useState(true);
 
-  // Fade out status after 5s
   useEffect(() => {
     if (state.status) {
       setStatusVisible(true);
@@ -20,38 +19,38 @@ export default function StatusBar({ state, users = [], latency = 0 }: Props) {
     }
   }, [state.status]);
 
-  const latencyColor = latency < 100 ? "#33ff33" : latency < 300 ? "#ffaa00" : "#ff3333";
+  const durMin = Math.floor(totalDur / 60);
+  const durSec = Math.floor(totalDur % 60);
+  const latencyColor = latency < 100 ? "#4a4" : latency < 300 ? "#aa6" : "#a44";
 
   return (
-    <div className="daw-status">
-      {/* Left: composition info */}
-      <div className="daw-status-left">
-        <span className="daw-status-name">{state.compName}</span>
-        <span className="daw-status-sep">{"\u2502"}</span>
-        <span>{state.tracks.length} pistes</span>
-        <span className="daw-status-sep">{"\u2502"}</span>
-        <span>{Math.floor(totalDur)}s</span>
-        <span className="daw-status-sep">{"\u2502"}</span>
-        <span>{state.bpm} BPM</span>
+    <div className="daw-status" role="status">
+      <div className="daw-status-l">
+        <span>{state.compName}</span>
+        <span className="daw-status-dim">|</span>
+        <span>{state.tracks.length} tracks</span>
+        <span className="daw-status-dim">|</span>
+        <span>{String(durMin).padStart(2, "0")}:{String(durSec).padStart(2, "0")}</span>
       </div>
-
-      {/* Center: status message with fade */}
-      <div className={"daw-status-center" + (statusVisible ? "" : " daw-status-fade")}>
+      <div className={"daw-status-c" + (statusVisible ? "" : " daw-status-hidden")}>
         {state.status}
         {state.generating && <span className="daw-spinner" />}
       </div>
-
-      {/* Right: users + latency */}
-      <div className="daw-status-right">
+      <div className="daw-status-r">
+        <span>{state.bpm} BPM</span>
+        <span className="daw-status-dim">|</span>
+        <span>44.1kHz</span>
         {users.length > 0 && (
-          <span className="daw-status-users" title={users.join(", ")}>
-            {"\u{1F464}"} {users.length}
-          </span>
+          <>
+            <span className="daw-status-dim">|</span>
+            <span title={users.join(", ")}>{users.length} user{users.length > 1 ? "s" : ""}</span>
+          </>
         )}
         {latency > 0 && (
-          <span className="daw-status-latency" style={{ color: latencyColor }}>
-            {"\u25CF"} {latency}ms
-          </span>
+          <>
+            <span className="daw-status-dim">|</span>
+            <span style={{ color: latencyColor }}>{latency}ms</span>
+          </>
         )}
       </div>
     </div>

@@ -194,16 +194,24 @@ class InferenceScheduler {
   }
 }
 
+// Cache VRAM info (nvidia-smi is expensive, cache 5s)
+let vramCache: { value: number | null; ts: number } = { value: null, ts: 0 };
+const VRAM_CACHE_TTL = 5000;
+
 /** Query nvidia-smi for free VRAM in MB. Returns null if unavailable. */
 function getVRAMFreeMB(): number | null {
+  if (Date.now() - vramCache.ts < VRAM_CACHE_TTL) return vramCache.value;
   try {
     const output = execFileSync("nvidia-smi", [
       "--query-gpu=memory.free",
       "--format=csv,noheader,nounits",
     ], { timeout: 3000, encoding: "utf8" });
     const free = parseInt(output.trim().split("\n")[0], 10);
-    return isNaN(free) ? null : free;
+    vramCache = { value: isNaN(free) ? null : free, ts: Date.now() };
+    return vramCache.value;
   } catch {
+    // nvidia-smi not available (Docker container) — return null
+    vramCache = { value: null, ts: Date.now() };
     return null;
   }
 }

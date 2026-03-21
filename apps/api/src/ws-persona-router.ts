@@ -9,13 +9,25 @@ import type { ChatPersona, PersonaMemory } from "./chat-types.js";
 
 const PERSONA_MEMORY_DIR = path.resolve(process.cwd(), "data/persona-memory");
 
+// RAM cache for persona memory (avoids disk I/O on every message)
+const memoryCache = new Map<string, { data: PersonaMemory; loadedAt: number }>();
+const MEMORY_CACHE_TTL = 30_000; // 30s TTL
+
 export async function loadPersonaMemory(nick: string): Promise<PersonaMemory> {
+  const cached = memoryCache.get(nick);
+  if (cached && Date.now() - cached.loadedAt < MEMORY_CACHE_TTL) {
+    return cached.data;
+  }
   const memPath = path.join(PERSONA_MEMORY_DIR, `${nick}.json`);
   try {
     const data = await fs.promises.readFile(memPath, "utf-8");
-    return JSON.parse(data) as PersonaMemory;
+    const memory = JSON.parse(data) as PersonaMemory;
+    memoryCache.set(nick, { data: memory, loadedAt: Date.now() });
+    return memory;
   } catch { /* missing or corrupted file — start fresh */ }
-  return { nick, facts: [], summary: "", lastUpdated: "" };
+  const fresh: PersonaMemory = { nick, facts: [], summary: "", lastUpdated: "" };
+  memoryCache.set(nick, { data: fresh, loadedAt: Date.now() });
+  return fresh;
 }
 
 export async function savePersonaMemory(memory: PersonaMemory): Promise<void> {
@@ -25,6 +37,8 @@ export async function savePersonaMemory(memory: PersonaMemory): Promise<void> {
     path.join(PERSONA_MEMORY_DIR, `${memory.nick}.json`),
     JSON.stringify(memory, null, 2),
   );
+  // Invalidate cache so next load picks up the new data
+  memoryCache.set(memory.nick, { data: memory, loadedAt: Date.now() });
 }
 
 export async function updatePersonaMemory(

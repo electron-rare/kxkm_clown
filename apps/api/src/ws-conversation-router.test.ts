@@ -116,7 +116,7 @@ function createHarness(overrides: Partial<ConversationRouterDeps> = {}): TestHar
 describe("ws-conversation-router", () => {
   it("combines context store and RAG results in the enriched input", async () => {
     const enriched = await buildConversationInput(
-      "Question utilisateur assez longue pour activer le RAG",
+      "Question utilisateur assez longue pour activer le RAG, avec plus de contexte ici",
       "#general",
       async () => "Historique compact",
       {

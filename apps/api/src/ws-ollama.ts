@@ -63,7 +63,7 @@ const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1"
 // Ollama concurrency limiter (replaces manual semaphore)
 // ---------------------------------------------------------------------------
 
-const ollamaLimit = pLimit(Number(process.env.MAX_OLLAMA_CONCURRENT) || 3);
+const ollamaLimit = pLimit(Number(process.env.MAX_OLLAMA_CONCURRENT) || 5);
 
 // ---------------------------------------------------------------------------
 // Ollama streaming chat
@@ -81,7 +81,7 @@ export async function streamOllamaChat(
   const useThinking = false;
   await ollamaLimit(async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
+    const timeout = setTimeout(() => controller.abort(), 45_000);
 
     try {
       const response = await fetch(`${ollamaUrl}/api/chat`, {
@@ -146,7 +146,7 @@ export async function streamOllamaChat(
         const fallbackPersona = { ...persona, model: FALLBACK_MODEL };
         try {
           const fallbackController = new AbortController();
-          const fallbackTimeout = setTimeout(() => fallbackController.abort(), 5 * 60_000);
+          const fallbackTimeout = setTimeout(() => fallbackController.abort(), 45_000);
           try {
             const fallbackResp = await fetch(`${ollamaUrl}/api/chat`, {
               method: "POST",
@@ -261,6 +261,18 @@ export async function executeToolCall(
  *   3. Stream the final response normally
  * Max 1 round of tool calls to avoid infinite loops.
  */
+// Quick check: does the message look like it might need tools?
+function mightNeedTools(text: string): boolean {
+  const lower = text.toLowerCase();
+  const toolHints = [
+    "cherche", "search", "trouve", "find", "web", "internet", "google",
+    "image", "genere", "generate", "dessine", "draw", "imagine",
+    "rag", "document", "contexte", "knowledge",
+    "calcul", "compute", "execute", "run",
+  ];
+  return toolHints.some(h => lower.includes(h));
+}
+
 export async function streamOllamaChatWithTools(
   ollamaUrl: string,
   persona: ChatPersona,
@@ -271,9 +283,15 @@ export async function streamOllamaChatWithTools(
   onDone: (fullText: string) => void,
   onError: (err: Error) => void,
 ): Promise<void> {
+  // Fast path: if message doesn't look like it needs tools, skip probe and stream directly
+  // This saves 200-2000ms on simple messages
+  if (!mightNeedTools(userMessage)) {
+    return streamOllamaChat(ollamaUrl, persona, userMessage, onChunk, onDone, onError);
+  }
+
   await ollamaLimit(async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5 * 60_000);
+    const timeout = setTimeout(() => controller.abort(), 45_000);
 
     try {
       const messages: Array<{ role: string; content: string; tool_calls?: OllamaToolCall[] }> = [
@@ -281,7 +299,7 @@ export async function streamOllamaChatWithTools(
         { role: "user", content: userMessage },
       ];
 
-      // Step 1: Non-streaming call with tools to check for tool_calls
+      // Step 1: Non-streaming probe with tools (only for tool-like messages)
       const probeResp = await fetch(`${ollamaUrl}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

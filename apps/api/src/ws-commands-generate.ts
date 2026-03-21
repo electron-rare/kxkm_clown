@@ -32,6 +32,8 @@ export const GENERATE_COMMANDS = new Set([
   "/imagine-queue",
   "/upscale",
   "/imagine-gallery",
+  "/imagine-redo",
+  "/help-imagine",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1601,6 +1603,59 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         } catch {
           send(ws, { type: "system", text: "Galerie non disponible." });
         }
+        return;
+      }
+
+      case "/imagine-redo": {
+        // Regenerate last image with new seed
+        try {
+          const imagesDir = path.join(process.cwd(), "data", "media", "images");
+          const files = fs.readdirSync(imagesDir).filter(f => f.endsWith(".json")).sort().reverse();
+          if (files.length === 0) { send(ws, { type: "system", text: "Aucune image precedente." }); return; }
+          const meta = JSON.parse(fs.readFileSync(path.join(imagesDir, files[0]), "utf-8"));
+          const prompt = meta.prompt;
+          if (!prompt) { send(ws, { type: "system", text: "Prompt introuvable." }); return; }
+          broadcast(info.channel, { type: "system", text: `Redo: "${prompt.slice(0, 50)}..." (nouveau seed)` });
+          const result = await scheduler.submit({
+            id: crypto.randomUUID(), device: "gpu", priority: "normal",
+            label: "imagine-redo", vramMB: VRAM_BUDGETS.comfyui,
+            execute: () => generateImage(prompt),
+          });
+          if (result) {
+            broadcast(info.channel, { type: "image", nick: info.nick, text: `[Redo: "${prompt}" seed:${result.seed}]`, imageData: result.imageBase64, imageMime: "image/png" } as OutboundMessage);
+            saveImage({ base64: result.imageBase64, prompt, nick: info.nick, channel: info.channel, seed: result.seed }).catch(() => {});
+          }
+        } catch (err) { send(ws, { type: "system", text: `Erreur redo: ${(err as Error).message}` }); }
+        return;
+      }
+
+      case "/help-imagine": {
+        send(ws, { type: "system", text: [
+          "=== /imagine — Guide complet ===",
+          "",
+          "Usage: /imagine <prompt> [options]",
+          "",
+          "Options:",
+          "  --ar 16:9|9:16|4:3|3:4    Aspect ratio (defaut: 1:1)",
+          "  --style photo|anime|cyberpunk|painting|pixel|minitel",
+          "  --no <negative>            Negative prompt",
+          "  --seed <number>            Seed reproductible",
+          "  --steps <1-50>             Nombre de steps",
+          "  --model <checkpoint>       Forcer un modele",
+          "",
+          "Exemples:",
+          "  /imagine a cat in space --ar 16:9 --style cyberpunk",
+          "  /imagine portrait --no glasses,hat --seed 42",
+          "  /imagine forest --steps 30 --model dreamshaperXL_lightningDPMSDE",
+          "",
+          "Commandes liees:",
+          "  /imagine-queue p1|p2|p3    Batch generation",
+          "  /variations <prompt>       4 variations",
+          "  /imagine-redo              Refaire avec nouveau seed",
+          "  /imagine-history           Historique des prompts",
+          "  /imagine-gallery           Galerie sauvegardee",
+          "  /imagine-models            Modeles disponibles",
+        ].join("\n") });
         return;
       }
 

@@ -13,7 +13,7 @@ import { trackError } from "./error-tracker.js";
 const RAG_CHUNK_SIZE = Number(process.env.RAG_CHUNK_SIZE) || 500;
 const RAG_MIN_SIMILARITY = Number(process.env.RAG_MIN_SIMILARITY) || 0.3;
 const RAG_MAX_RESULTS = Number(process.env.RAG_MAX_RESULTS) || 3;
-const RAG_EMBEDDING_MODEL = process.env.RAG_EMBEDDING_MODEL || "nomic-embed-text";
+const RAG_EMBEDDING_MODEL = process.env.RAG_EMBEDDING_MODEL || "bge-m3";
 
 interface DocumentChunk {
   id: string;

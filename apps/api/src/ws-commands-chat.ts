@@ -30,6 +30,8 @@ export const CHAT_COMMANDS = new Set([
   "/whoami",
   "/persona-disable",
   "/persona-enable",
+  "/shout",
+  "/define",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -920,6 +922,36 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         if (!persona) { send(ws, { type: "system", text: `Persona "${nick}" inconnue.` }); return; }
         (persona as any).enabled = true;
         send(ws, { type: "system", text: `${persona.nick} reactivee.` });
+        return;
+      }
+
+      case "/shout": {
+        const msg = text.slice(7).trim().toUpperCase();
+        if (!msg) { send(ws, { type: "system", text: "Usage: /shout <message>" }); return; }
+        broadcast(info.channel, { type: "system", text: `📢 ${info.nick}: ${msg} 📢` });
+        return;
+      }
+
+      case "/define": {
+        const word = text.slice(8).trim();
+        if (!word) { send(ws, { type: "system", text: "Usage: /define <mot>" }); return; }
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "qwen3.5:9b",
+              messages: [{ role: "user", content: `Definis "${word}" en 2-3 phrases simples en francais.` }],
+              stream: false, options: { num_predict: 200 }, keep_alive: "30m", think: false,
+            }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as any;
+            const def = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            send(ws, { type: "system", text: `📖 ${word}: ${def || "Definition indisponible."}` });
+          }
+        } catch { send(ws, { type: "system", text: "Definition indisponible." }); }
         return;
       }
 

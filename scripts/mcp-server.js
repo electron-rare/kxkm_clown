@@ -152,6 +152,66 @@ function createServer() {
     executeStatus,
   );
 
+  // --- Music / DAW tools ---
+
+  server.registerTool(
+    "kxkm_music_generate",
+    {
+      title: "KXKM Music Generate",
+      description: "Genere de l'audio via AI Bridge: musique, bruit, instruments (drone, grain, glitch, circus, honk), voix (kokoro).",
+      inputSchema: {
+        type: z.enum(["music", "noise", "drone", "grain", "glitch", "circus", "honk", "voice-fast", "sound-design"]),
+        prompt: z.string().optional(),
+        duration: z.number().min(1).max(60).optional(),
+      },
+    },
+    async ({ type, prompt, duration }) => {
+      const AI_BRIDGE = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+      const instruments = ["drone", "grain", "glitch", "circus", "honk"];
+      const endpoint = instruments.includes(type)
+        ? `/instrument/${type}`
+        : type === "music" ? "/generate/music"
+        : type === "voice-fast" ? "/generate/voice-fast"
+        : type === "sound-design" ? "/generate/sound-design"
+        : "/generate/noise";
+      const body = { duration: duration || 15 };
+      if (prompt) body.prompt = prompt;
+      if (type === "voice-fast") { body.text = prompt || "Bonjour"; body.voice = "af_heart"; }
+      try {
+        const resp = await fetch(`${AI_BRIDGE}${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (resp.ok) {
+          const contentType = resp.headers.get("content-type") || "";
+          return textResult(`Audio genere: ${type} (${duration || 15}s). Content-Type: ${contentType}`);
+        }
+        return textResult(`Erreur generation: HTTP ${resp.status}`, { isError: true });
+      } catch (err) {
+        return textResult(`AI Bridge indisponible: ${err.message}`, { isError: true });
+      }
+    },
+  );
+
+  server.registerTool(
+    "kxkm_ai_bridge_health",
+    {
+      title: "KXKM AI Bridge Health",
+      description: "Statut du AI Bridge audio: backends disponibles, services actifs.",
+    },
+    async () => {
+      const AI_BRIDGE = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+      try {
+        const data = await fetchJSON(`${AI_BRIDGE}/health`);
+        return textResult(`AI Bridge: ${data.backends?.length || 0} backends\n${(data.backends || []).join(", ")}`);
+      } catch (err) {
+        return textResult(`AI Bridge unreachable: ${err.message}`, { isError: true });
+      }
+    },
+  );
+
   return server;
 }
 

@@ -66,13 +66,12 @@ export default function Chat() {
   const lastAudioIdRef = useRef<number>(0);
   useEffect(() => {
     if (!voiceChat) return;
-    // Find newest audio message
-    for (let i = messages.length - 1; i >= 0; i--) {
+    // Enqueue ALL new audio messages since lastAudioIdRef (not just the last one)
+    for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
-      if (msg.type === "audio" && msg.id !== lastAudioIdRef.current && (msg as any).data && (msg as any).mimeType) {
+      if (msg.type === "audio" && msg.id > lastAudioIdRef.current && msg.audioData && msg.audioMime) {
         lastAudioIdRef.current = msg.id;
-        enqueueAudio(`data:${(msg as any).mimeType};base64,${(msg as any).data}`);
-        break;
+        enqueueAudio(`data:${msg.audioMime};base64,${msg.audioData}`);
       }
     }
   }, [messages, voiceChat, enqueueAudio]);

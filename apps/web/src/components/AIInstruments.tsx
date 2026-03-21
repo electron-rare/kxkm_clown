@@ -1,5 +1,7 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, lazy, Suspense } from "react";
 import { VideotexPageHeader } from "./VideotexMosaic";
+
+const MidiGenerator = lazy(() => import("./MidiGenerator"));
 
 const AI_BRIDGE = "/api/v2/ai-bridge/instrument";
 const DAW_SAMPLES = "/api/v2/daw/samples";
@@ -466,19 +468,43 @@ function AIFX() {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  6. AI MIDI (Magenta.js)
+// ══════════════════════════════════════════════════════════════
+
+function AIMidi() {
+  return (
+    <div className="ai-inst ai-inst-midi" style={{ borderLeft: "4px solid #00bcd4" }}>
+      <div className="ai-inst-header" style={{ color: "#00bcd4" }}>
+        AI MIDI
+      </div>
+      <div className="ai-inst-controls">
+        <Suspense
+          fallback={
+            <span style={{ color: "#00bcd4", opacity: 0.6 }}>LOADING MAGENTA.JS...</span>
+          }
+        >
+          <MidiGenerator />
+        </Suspense>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 //  RACK — main export
 // ══════════════════════════════════════════════════════════════
 
 export default function AIInstruments() {
   return (
     <div className="ai-rack">
-      <VideotexPageHeader title="AI INSTRUMENT RACK" subtitle="5 instruments natifs" color="cyan" />
+      <VideotexPageHeader title="AI INSTRUMENT RACK" subtitle="6 instruments natifs" color="cyan" />
 
       <AIDrums />
       <AIBass />
       <AIPad />
       <AIChoir />
       <AIFX />
+      <AIMidi />
 
       <style>{`
         .ai-rack {
@@ -625,6 +651,7 @@ export default function AIInstruments() {
         .ai-inst-pad .ai-ctrl input[type="range"] { accent-color: #4488ff; }
         .ai-inst-choir .ai-ctrl input[type="range"] { accent-color: #aa44ff; }
         .ai-inst-fx .ai-ctrl input[type="range"] { accent-color: #44cc44; }
+        .ai-inst-midi .ai-ctrl input[type="range"] { accent-color: #00bcd4; }
 
         @media (max-width: 600px) {
           .ai-inst-controls {

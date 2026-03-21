@@ -186,7 +186,7 @@ export default function ComposePage() {
   useDAWShortcuts(state, dispatch, { play, pause, stop, cmd });
 
   return (
-    <div className="daw">
+    <div className="daw-root">
       <TransportBar state={state} dispatch={dispatch} onCmd={cmd}
         onPlay={play} onPause={pause} onStop={stop} onSeek={seek}
         onNew={handleNew} onSave={handleSave} />

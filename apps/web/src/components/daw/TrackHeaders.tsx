@@ -31,7 +31,7 @@ function PanKnob({ value, onChange }: { value: number; onChange: (v: number) => 
         <line x1="11" y1="11"
           x2={11 + 6 * Math.sin(angle * Math.PI / 180)}
           y2={11 - 6 * Math.cos(angle * Math.PI / 180)}
-          stroke="var(--daw-accent)" strokeWidth="2" strokeLinecap="round" />
+          stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" />
       </svg>
       <span className="daw-th-pan-lr">
         <span style={{ opacity: value < -0.01 ? 1 : 0.3 }}>L</span>

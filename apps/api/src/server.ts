@@ -8,6 +8,7 @@ import { attachWebSocketChat } from "./ws-chat.js";
 import { DEFAULT_PERSONAS } from "./personas-default.js";
 import { LocalRAG } from "./rag.js";
 import { ContextStore } from "./context-store.js";
+import crypto from "node:crypto";
 import logger from "./logger.js";
 
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
@@ -20,6 +21,57 @@ async function main() {
   // -----------------------------------------------------------------------
   // Serve V2 web build (Vite output) as static files
   // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Serve AI-generated samples for openDAW import
+  // -----------------------------------------------------------------------
+  const dawSamplesDir = path.join(process.cwd(), "data", "daw-samples");
+  fs.mkdirSync(dawSamplesDir, { recursive: true });
+  app.use("/daw/samples", express.static(dawSamplesDir, {
+    setHeaders: (res) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+  }));
+
+  // POST /api/v2/daw/samples — upload a generated sample
+  app.post("/api/v2/daw/samples", express.raw({ type: "audio/*", limit: "50mb" }), (req, res) => {
+    const id = crypto.randomUUID();
+    const name = (req.query.name as string) || id;
+    const type = (req.query.type as string) || "music";
+    const duration = parseFloat(req.query.duration as string) || 0;
+    const filename = `${id}.wav`;
+    fs.writeFileSync(path.join(dawSamplesDir, filename), req.body);
+    // Save metadata
+    const meta = { id, name, type, duration, filename, url: `/daw/samples/${filename}`, createdAt: new Date().toISOString() };
+    fs.appendFileSync(path.join(dawSamplesDir, "index.jsonl"), JSON.stringify(meta) + "\n");
+    res.json({ ok: true, data: meta });
+  });
+
+  // GET /api/v2/daw/samples — list all available samples
+  app.get("/api/v2/daw/samples", (req, res) => {
+    const indexPath = path.join(dawSamplesDir, "index.jsonl");
+    if (!fs.existsSync(indexPath)) return res.json({ ok: true, data: [] });
+    const lines = fs.readFileSync(indexPath, "utf-8").trim().split("\n").filter(Boolean);
+    const samples = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    res.json({ ok: true, data: samples });
+  });
+
+  // DELETE /api/v2/daw/samples/:id — delete a sample
+  app.delete("/api/v2/daw/samples/:id", (req, res) => {
+    const indexPath = path.join(dawSamplesDir, "index.jsonl");
+    if (!fs.existsSync(indexPath)) return res.json({ ok: true });
+    const lines = fs.readFileSync(indexPath, "utf-8").trim().split("\n").filter(Boolean);
+    const entries = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    const entry = entries.find((e: any) => e.id === req.params.id);
+    if (entry?.filename) {
+      const filepath = path.join(dawSamplesDir, entry.filename);
+      if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
+    }
+    const remaining = entries.filter((e: any) => e.id !== req.params.id);
+    fs.writeFileSync(indexPath, remaining.map((e: any) => JSON.stringify(e)).join("\n") + (remaining.length ? "\n" : ""));
+    res.json({ ok: true });
+  });
+
   // -----------------------------------------------------------------------
   // Serve openDAW studio at /daw with COOP/COEP headers
   // -----------------------------------------------------------------------

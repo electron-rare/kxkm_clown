@@ -1,23 +1,59 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { VideotexPageHeader } from "./VideotexMosaic";
 
 const AI_BRIDGE = "/api/v2/ai-bridge";
+const DAW_API = "/api/v2/daw";
 
 interface GeneratedTrack {
   id: string;
   type: "music" | "voice" | "noise";
   prompt: string;
   blobUrl: string;
+  serverUrl?: string;
   duration: number;
   createdAt: number;
+  saved: boolean;
+}
+
+interface SavedSample {
+  id: string;
+  name: string;
+  type: string;
+  duration: number;
+  filename: string;
+  url: string;
+  createdAt: string;
+}
+
+interface AISuggestion {
+  text: string;
+  type?: "music" | "voice" | "noise";
+  prompt?: string;
+  style?: string;
+  duration?: number;
 }
 
 type GenStatus = "idle" | "generating" | "error";
+
+function formatElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m${s % 60}s`;
+}
 
 export default function DawAIPanel() {
   const [tracks, setTracks] = useState<GeneratedTrack[]>([]);
   const [status, setStatus] = useState<GenStatus>("idle");
   const [error, setError] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Saved samples from server
+  const [samples, setSamples] = useState<SavedSample[]>([]);
+  const [samplesLoading, setSamplesLoading] = useState(false);
+
+  // AI Suggest
+  const [suggestion, setSuggestion] = useState<AISuggestion | null>(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
 
   // Music generation
   const [musicPrompt, setMusicPrompt] = useState("");
@@ -39,6 +75,72 @@ export default function DawAIPanel() {
   const NOISE_TYPES = ["white", "pink", "brown", "sine", "drone"];
   const STYLES = ["experimental", "ambient", "electronic", "classical", "jazz", "industrial", "drone", "glitch"];
 
+  // --- Load saved samples on mount ---
+  const loadSamples = useCallback(async () => {
+    setSamplesLoading(true);
+    try {
+      const resp = await fetch(`${DAW_API}/samples`);
+      if (resp.ok) {
+        const data = await resp.json();
+        setSamples(Array.isArray(data) ? data : data.samples || []);
+      }
+    } catch {
+      // silent — server may not support this yet
+    } finally {
+      setSamplesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSamples();
+  }, [loadSamples]);
+
+  // --- Elapsed timer ---
+  const startTimer = useCallback(() => {
+    setElapsed(0);
+    timerRef.current = setInterval(() => setElapsed(prev => prev + 100), 100);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => stopTimer();
+  }, [stopTimer]);
+
+  // --- Auto-save generated track to server ---
+  const saveToServer = useCallback(async (
+    blobUrl: string,
+    name: string,
+    type: string,
+    duration: number,
+  ): Promise<{ serverUrl?: string }> => {
+    try {
+      const resp = await fetch(blobUrl);
+      const blob = await resp.blob();
+      const params = new URLSearchParams({ name, type, duration: String(duration) });
+      const saveResp = await fetch(`${DAW_API}/samples?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "audio/wav" },
+        body: blob,
+      });
+      if (saveResp.ok) {
+        const data = await saveResp.json();
+        // Reload samples list
+        loadSamples();
+        return { serverUrl: data.url || `/daw/samples/${data.filename}` };
+      }
+    } catch {
+      // silent — save failed, track still available locally
+    }
+    return {};
+  }, [loadSamples]);
+
+  // --- Generate track ---
   const generateTrack = useCallback(async (
     endpoint: string,
     body: Record<string, unknown>,
@@ -48,6 +150,7 @@ export default function DawAIPanel() {
   ) => {
     setStatus("generating");
     setError("");
+    startTimer();
     try {
       const resp = await fetch(`${AI_BRIDGE}/${endpoint}`, {
         method: "POST",
@@ -67,15 +170,86 @@ export default function DawAIPanel() {
         blobUrl,
         duration,
         createdAt: Date.now(),
+        saved: false,
       };
       setTracks(prev => [track, ...prev]);
       setStatus("idle");
+      stopTimer();
+
+      // Auto-save to server in background
+      const { serverUrl } = await saveToServer(blobUrl, prompt, type, duration);
+      setTracks(prev => prev.map(t =>
+        t.id === track.id ? { ...t, saved: true, serverUrl } : t
+      ));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setStatus("error");
+      stopTimer();
     }
-  }, []);
+  }, [startTimer, stopTimer, saveToServer]);
 
+  // --- AI Suggest ---
+  const handleSuggest = useCallback(async () => {
+    setSuggestLoading(true);
+    setSuggestion(null);
+    try {
+      const trackSummary = tracks.map(t => ({
+        type: t.type,
+        prompt: t.prompt,
+        duration: t.duration,
+      }));
+      const resp = await fetch(`${AI_BRIDGE}/generate/suggest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tracks: trackSummary }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setSuggestion(data);
+      } else {
+        setSuggestion({ text: "Pas de suggestion disponible." });
+      }
+    } catch {
+      setSuggestion({ text: "Erreur de connexion au serveur AI." });
+    } finally {
+      setSuggestLoading(false);
+    }
+  }, [tracks]);
+
+  const applySuggestion = useCallback(() => {
+    if (!suggestion) return;
+    const t = suggestion.type || "music";
+    const p = suggestion.prompt || "";
+    const d = suggestion.duration || 30;
+    if (t === "music" && p) {
+      setMusicPrompt(p);
+      if (suggestion.style) setMusicStyle(suggestion.style);
+      setMusicDuration(d);
+    } else if (t === "voice" && p) {
+      setVoiceText(p);
+    } else if (t === "noise") {
+      setNoiseDuration(d);
+    }
+    setSuggestion(null);
+  }, [suggestion]);
+
+  const generateFromSuggestion = useCallback(() => {
+    if (!suggestion) return;
+    const t = suggestion.type || "music";
+    const p = suggestion.prompt || "AI suggestion";
+    const d = suggestion.duration || 30;
+    const s = suggestion.style || musicStyle;
+    if (t === "music") {
+      generateTrack("generate/music", { prompt: p, duration: d, style: s }, "music", `${p} (${s})`, d);
+    } else if (t === "voice") {
+      generateTrack("generate/voice", { text: p, persona: voicePersona }, "voice", `${voicePersona}: "${p}"`, 10);
+    } else if (t === "noise") {
+      generateTrack("generate/noise", { type: "pink", duration: d }, "noise", `pink ${d}s`, d);
+    }
+    setSuggestion(null);
+  }, [suggestion, musicStyle, voicePersona, generateTrack]);
+
+  // --- Handlers ---
   const handleMusic = (e: React.FormEvent) => {
     e.preventDefault();
     if (!musicPrompt.trim()) return;
@@ -108,6 +282,21 @@ export default function DawAIPanel() {
     });
   };
 
+  const deleteSample = useCallback(async (sample: SavedSample) => {
+    try {
+      const resp = await fetch(`${DAW_API}/samples/${sample.filename}`, { method: "DELETE" });
+      if (resp.ok) {
+        setSamples(prev => prev.filter(s => s.id !== sample.id));
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
+  const copyUrl = (url: string) => {
+    navigator.clipboard.writeText(window.location.origin + url).catch(() => {});
+  };
+
   return (
     <div className="daw-ai-panel">
       <VideotexPageHeader title="DAW AI ASSISTANT" subtitle="openDAW + AI Bridge" color="cyan" />
@@ -117,6 +306,31 @@ export default function DawAIPanel() {
           OUVRIR openDAW
         </a>
         <span className="daw-ai-hint">Generez des pistes ici, puis importez-les dans openDAW</span>
+      </div>
+
+      {/* AI SUGGEST */}
+      <div className="daw-ai-suggest">
+        <button
+          onClick={handleSuggest}
+          className="daw-ai-btn daw-ai-btn-suggest"
+          disabled={suggestLoading}
+        >
+          {suggestLoading ? "REFLEXION..." : "SUGGERER"}
+        </button>
+        {suggestion && (
+          <div className="daw-ai-suggestion">
+            <div className="daw-ai-suggestion-text">{suggestion.text}</div>
+            {suggestion.prompt && (
+              <div className="daw-ai-suggestion-actions">
+                <span className="daw-ai-suggestion-meta">
+                  {suggestion.type?.toUpperCase()} | {suggestion.prompt} | {suggestion.duration}s
+                </span>
+                <button onClick={applySuggestion} className="daw-ai-btn daw-ai-btn-apply">APPLIQUER</button>
+                <button onClick={generateFromSuggestion} className="daw-ai-btn daw-ai-btn-gen">GENERER</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* GENERATORS */}
@@ -143,7 +357,7 @@ export default function DawAIPanel() {
             <span className="daw-ai-unit">s</span>
           </div>
           <button type="submit" className="daw-ai-btn daw-ai-btn-music" disabled={status === "generating" || !musicPrompt.trim()}>
-            {status === "generating" ? "..." : "Generer"}
+            {status === "generating" ? `GENERATION... ${formatElapsed(elapsed)}` : "Generer"}
           </button>
         </form>
 
@@ -161,7 +375,7 @@ export default function DawAIPanel() {
             {PERSONAS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
           <button type="submit" className="daw-ai-btn daw-ai-btn-voice" disabled={status === "generating" || !voiceText.trim()}>
-            {status === "generating" ? "..." : "Synthetiser"}
+            {status === "generating" ? `SYNTHESE... ${formatElapsed(elapsed)}` : "Synthetiser"}
           </button>
         </form>
 
@@ -180,10 +394,18 @@ export default function DawAIPanel() {
             <span className="daw-ai-unit">s</span>
           </div>
           <button type="submit" className="daw-ai-btn daw-ai-btn-noise" disabled={status === "generating"}>
-            {status === "generating" ? "..." : "Generer"}
+            {status === "generating" ? `GENERATION... ${formatElapsed(elapsed)}` : "Generer"}
           </button>
         </form>
       </div>
+
+      {/* STATUS BAR */}
+      {status === "generating" && (
+        <div className="daw-ai-status-bar">
+          <span className="daw-ai-status-dot" />
+          <span>Generation en cours... {formatElapsed(elapsed)}</span>
+        </div>
+      )}
 
       {error && <div className="daw-ai-error">{error}</div>}
 
@@ -197,9 +419,17 @@ export default function DawAIPanel() {
                 <span className="daw-ai-track-type">{t.type.toUpperCase()}</span>
                 <span className="daw-ai-track-prompt">{t.prompt}</span>
                 <span className="daw-ai-track-dur">{t.duration}s</span>
+                {t.saved && <span className="daw-ai-track-saved" title="Sauvegarde serveur">OK</span>}
               </div>
               <div className="daw-ai-track-controls">
                 <audio src={t.blobUrl} controls preload="none" className="daw-ai-audio" />
+                {t.serverUrl && (
+                  <button
+                    onClick={() => copyUrl(t.serverUrl!)}
+                    className="daw-ai-url-btn"
+                    title={`openDAW: ${t.serverUrl}`}
+                  >URL</button>
+                )}
                 <button onClick={() => downloadTrack(t)} className="daw-ai-dl-btn" title="Telecharger WAV">DL</button>
                 <button onClick={() => removeTrack(t.id)} className="daw-ai-rm-btn" title="Supprimer">X</button>
               </div>
@@ -207,6 +437,47 @@ export default function DawAIPanel() {
           ))}
         </div>
       )}
+
+      {/* SAMPLE LIBRARY */}
+      <div className="daw-ai-library">
+        <div className="daw-ai-library-title">
+          SAMPLE LIBRARY
+          <button onClick={loadSamples} className="daw-ai-refresh-btn" disabled={samplesLoading}>
+            {samplesLoading ? "..." : "REFRESH"}
+          </button>
+        </div>
+        {samples.length === 0 && !samplesLoading && (
+          <div className="daw-ai-library-empty">Aucun sample sauvegarde.</div>
+        )}
+        {samplesLoading && samples.length === 0 && (
+          <div className="daw-ai-library-empty">Chargement...</div>
+        )}
+        {samples.map(s => (
+          <div key={s.id || s.filename} className={`daw-ai-sample daw-ai-sample-${s.type}`}>
+            <div className="daw-ai-sample-info">
+              <span className="daw-ai-sample-type">{(s.type || "?").toUpperCase()}</span>
+              <span className="daw-ai-sample-name">{s.name}</span>
+              <span className="daw-ai-sample-dur">{s.duration}s</span>
+            </div>
+            <div className="daw-ai-sample-controls">
+              <audio src={s.url} controls preload="none" className="daw-ai-audio" />
+              <button
+                onClick={() => copyUrl(s.url)}
+                className="daw-ai-url-btn"
+                title={`openDAW import: ${s.url}`}
+              >URL</button>
+              <button
+                onClick={() => deleteSample(s)}
+                className="daw-ai-rm-btn"
+                title="Supprimer du serveur"
+              >X</button>
+            </div>
+            <div className="daw-ai-sample-hint">
+              openDAW: <code>{s.url}</code>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

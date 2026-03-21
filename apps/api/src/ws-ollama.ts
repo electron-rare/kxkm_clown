@@ -10,13 +10,15 @@ const FALLBACK_MODEL = process.env.OLLAMA_FALLBACK_MODEL || "qwen3:4b";
 
 // Dynamic context sizing based on prompt length
 // Rough estimate: 1 token ≈ 4 chars for French text
-function estimateNumCtx(systemPrompt: string, userMessage: string, baseCtx = 8192): number {
-  const promptTokens = Math.ceil((systemPrompt.length + userMessage.length) / 4);
-  const minResponse = 2048; // always leave room for response
+function estimateNumCtx(systemPrompt: string, userMessage: string, _baseCtx = 8192): number {
+  const totalChars = systemPrompt.length + userMessage.length;
+  const promptTokens = Math.ceil(totalChars / 4);
+  // Short messages (< 200 chars user input) get minimal context for fastest TTFT
+  const minResponse = userMessage.length < 200 ? 1024 : 2048;
   const needed = promptTokens + minResponse;
   // Round up to nearest 2048
   const ctx = Math.ceil(needed / 2048) * 2048;
-  return Math.max(4096, Math.min(ctx, 32768)); // clamp 4k-32k
+  return Math.max(2048, Math.min(ctx, 32768)); // clamp 2k-32k
 }
 
 // Adaptive thinking: enable for complex prompts, disable for simple ones
@@ -94,7 +96,7 @@ export async function streamOllamaChat(
             { role: "user", content: userMessage },
           ],
           stream: true,
-          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
+          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 }, keep_alive: "30m", think: false,
         }),
         signal: controller.signal,
       });
@@ -158,7 +160,7 @@ export async function streamOllamaChat(
                   { role: "user", content: userMessage },
                 ],
                 stream: true,
-                options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) },
+                options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 },
                 keep_alive: "30m",
               }),
               signal: fallbackController.signal,
@@ -308,7 +310,7 @@ export async function streamOllamaChatWithTools(
           messages,
           tools: tools.map(t => t),
           stream: false,
-          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: shouldThink(userMessage, persona.model) ? undefined : false,
+          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 }, keep_alive: "30m", think: shouldThink(userMessage, persona.model) ? undefined : false,
         }),
         signal: controller.signal,
       });
@@ -379,7 +381,7 @@ export async function streamOllamaChatWithTools(
           model: persona.model,
           messages,
           stream: true,
-          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage) }, keep_alive: "30m", think: false,
+          options: { num_predict: persona.maxTokens || 800, num_ctx: estimateNumCtx(persona.systemPrompt, userMessage), num_batch: 512 }, keep_alive: "30m", think: false,
         }),
         signal: controller.signal,
       });

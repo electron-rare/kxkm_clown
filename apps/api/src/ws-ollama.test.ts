@@ -333,6 +333,29 @@ describe("ws-ollama", () => {
       },
     };
 
+    it("fast-paths to streaming when message has no tool hints", async () => {
+      fetchMock.mock.mockImplementation(async () => mockStreamResponse(["streamed"]));
+
+      const chunks: string[] = [];
+      let doneText = "";
+
+      await streamOllamaChatWithTools(
+        "http://localhost:11434",
+        makePersona(),
+        "Hi",
+        [sampleTool],
+        undefined,
+        (t) => chunks.push(t),
+        (t) => { doneText = t; },
+        () => {},
+      );
+
+      // Should stream directly (no probe), so 1 fetch call
+      assert.equal(fetchMock.mock.callCount(), 1);
+      assert.deepEqual(chunks, ["streamed"]);
+      assert.equal(doneText, "streamed");
+    });
+
     it("returns direct response when no tool calls", async () => {
       fetchMock.mock.mockImplementation(async () =>
         mockJsonResponse({ message: { role: "assistant", content: "Direct answer" } }),
@@ -344,7 +367,7 @@ describe("ws-ollama", () => {
       await streamOllamaChatWithTools(
         "http://localhost:11434",
         makePersona(),
-        "Hi",
+        "cherche quelque chose",
         [sampleTool],
         undefined,
         (t) => chunks.push(t),
@@ -367,7 +390,7 @@ describe("ws-ollama", () => {
       await streamOllamaChatWithTools(
         "http://localhost:11434",
         makePersona(),
-        "Hi",
+        "cherche une image",
         [sampleTool],
         undefined,
         () => {},
@@ -406,7 +429,7 @@ describe("ws-ollama", () => {
       await streamOllamaChatWithTools(
         "http://localhost:11434",
         makePersona(),
-        "Hi",
+        "search for something",
         [sampleTool],
         undefined,
         (t) => chunks.push(t),
@@ -430,7 +453,7 @@ describe("ws-ollama", () => {
       await streamOllamaChatWithTools(
         "http://localhost:11434",
         makePersona(),
-        "Hi",
+        "search the web",
         [sampleTool],
         undefined,
         () => {},
@@ -451,7 +474,7 @@ describe("ws-ollama", () => {
       await streamOllamaChatWithTools(
         "http://localhost:11434",
         makePersona(),
-        "Hi",
+        "search the internet",
         [sampleTool],
         undefined,
         () => {},
@@ -489,7 +512,7 @@ describe("ws-ollama", () => {
       await streamOllamaChatWithTools(
         "http://localhost:11434",
         makePersona(),
-        "Hi",
+        "search for images",
         [sampleTool],
         undefined,
         () => {},

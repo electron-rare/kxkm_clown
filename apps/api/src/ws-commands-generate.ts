@@ -1,6 +1,8 @@
 import path from "node:path";
+import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import { scheduler, VRAM_BUDGETS } from "./inference-scheduler.js";
 import type { WebSocket } from "ws";
 import { generateImage, type ImageProgress } from "./comfyui.js";
 import { saveImage, saveAudio } from "./media-store.js";
@@ -133,14 +135,23 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
 
         const ttsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
         try {
-          const resp = await fetch(`${ttsUrl}/compose`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt, duration }),
-            signal: AbortSignal.timeout(300_000),
+          const audioBuffer = await scheduler.submit({
+            id: crypto.randomUUID(),
+            device: "gpu",
+            priority: "normal",
+            label: `/layer "${prompt}" ${duration}s`,
+            vramMB: VRAM_BUDGETS.musicgen,
+            execute: async () => {
+              const resp = await fetch(`${ttsUrl}/compose`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prompt, duration }),
+                signal: AbortSignal.timeout(300_000),
+              });
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              return Buffer.from(await resp.arrayBuffer());
+            },
           });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-          const audioBuffer = Buffer.from(await resp.arrayBuffer());
           const track = addTrack(comp.id, { type: "music", prompt, duration, volume: 100, startMs: 0 });
 
           if (track) {
@@ -249,14 +260,21 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
 
         const voiceTtsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
         try {
-          const resp = await fetch(`${voiceTtsUrl}/synthesize`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: voiceText, persona: personaNick.toLowerCase() }),
-            signal: AbortSignal.timeout(30_000),
+          const audioBuffer = await scheduler.submit({
+            id: crypto.randomUUID(),
+            device: "cpu",
+            priority: "normal",
+            label: `/voice ${personaNick}`,
+            execute: async () => {
+              const resp = await fetch(`${voiceTtsUrl}/synthesize`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: voiceText, persona: personaNick.toLowerCase() }),
+                signal: AbortSignal.timeout(30_000),
+              });
+              if (!resp.ok) throw new Error(`TTS HTTP ${resp.status}`);
+              return Buffer.from(await resp.arrayBuffer());
+            },
           });
-          if (!resp.ok) throw new Error(`TTS HTTP ${resp.status}`);
-
-          const audioBuffer = Buffer.from(await resp.arrayBuffer());
           const track = addTrack(comp.id, { type: "voice", prompt: `${personaNick}: "${voiceText}"`, duration: parseInt(durStr || "10"), volume: 100, startMs: 0 });
 
           if (track) {
@@ -556,7 +574,17 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
           fs.mkdirSync(trackDir, { recursive: true });
           const trackPath = path.join(trackDir, `${track.id}.wav`);
-          execFileSync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", String(noiseDur), "-ar", "32000", "-ac", "1", trackPath], { timeout: 30000 });
+
+          await scheduler.submit({
+            id: crypto.randomUUID(),
+            device: "cpu",
+            priority: "low",
+            label: `/noise ${noiseType} ${noiseDur}s`,
+            execute: async () => {
+              execFileSync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", String(noiseDur), "-ar", "32000", "-ac", "1", trackPath], { timeout: 30000 });
+            },
+          });
+
           track.filePath = trackPath;
 
           const audioBuffer = fs.readFileSync(trackPath);
@@ -1373,7 +1401,14 @@ async function handleImagineCommand({
   };
 
   try {
-    const result = await generateImage(imagePrompt, { onProgress });
+    const result = await scheduler.submit({
+      id: crypto.randomUUID(),
+      device: "gpu",
+      priority: "normal",
+      label: `/imagine "${imagePrompt.slice(0, 40)}"`,
+      vramMB: VRAM_BUDGETS.comfyui,
+      execute: () => generateImage(imagePrompt, { onProgress }),
+    });
     if (!result) {
       broadcast(info.channel, { type: "system", text: "\u{1F3A8} Generation echouee \u2014 verifiez ComfyUI" });
       return;

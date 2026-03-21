@@ -25,7 +25,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json --pretty false",
     "check": "tsc -p tsconfig.json --noEmit --pretty false",
-    "test": "node --test dist/*.test.js"
+    "test": "node --experimental-test-module-mocks --test dist/*.test.js"
   },
   "devDependencies": {
     "@types/pino": "^7.0.4"

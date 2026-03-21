@@ -181,11 +181,19 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
 
   function broadcast(channel: string, msg: OutboundMessage, exclude?: WebSocket): void {
     const stamped = { ...msg, seq: nextSeq(channel), timestamp: Date.now() };
+    // Pre-serialize once for all clients (avoids N × JSON.stringify for N clients)
+    const hasMuteCheck = 'nick' in stamped;
+    const muteKey = hasMuteCheck ? (stamped as any).nick?.toLowerCase() : undefined;
+    let serialized: string | undefined;
     for (const [ws, info] of clients) {
       if (info.channel === channel && ws !== exclude) {
-        // Skip if persona is muted for this client
-        if ('nick' in stamped && info.mutedPersonas?.has((stamped as any).nick?.toLowerCase())) continue;
-        send(ws, stamped);
+        if (muteKey && info.mutedPersonas?.has(muteKey)) continue;
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            if (!serialized) serialized = JSON.stringify(stamped);
+            ws.send(serialized);
+          } catch { /* connection closed */ }
+        }
       }
     }
   }

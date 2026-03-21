@@ -13,6 +13,9 @@ export interface Track {
   startOffset: number;
   audioData?: string;
   audioMime?: string;
+  fxCount?: number;
+  recordArmed?: boolean;
+  expanded?: boolean;
 }
 
 export interface DAWState {
@@ -33,6 +36,12 @@ export interface DAWState {
   duration: number;
   contextMenu: { x: number; y: number; trackIdx: number } | null;
   dragging: { trackIdx: number; mode: "move" | "resize"; startX: number; origOffset: number; origDuration: number } | null;
+  loopEnabled: boolean;
+  loopStart: number;
+  loopEnd: number;
+  tool: "select" | "move" | "trim";
+  panelCollapsed: boolean;
+  recording: boolean;
 }
 
 export type DAWAction =
@@ -55,7 +64,11 @@ export type DAWAction =
   | { type: "SET_STYLE"; style: string }
   | { type: "SET_DURATION"; duration: number }
   | { type: "SET_CONTEXT_MENU"; menu: DAWState["contextMenu"] }
-  | { type: "SET_DRAGGING"; dragging: DAWState["dragging"] };
+  | { type: "SET_DRAGGING"; dragging: DAWState["dragging"] }
+  | { type: "SET_LOOP"; enabled: boolean; start?: number; end?: number }
+  | { type: "SET_TOOL"; tool: DAWState["tool"] }
+  | { type: "SET_PANEL_COLLAPSED"; collapsed: boolean }
+  | { type: "SET_RECORDING"; recording: boolean };
 
 export function dawReducer(state: DAWState, action: DAWAction): DAWState {
   switch (action.type) {
@@ -79,6 +92,10 @@ export function dawReducer(state: DAWState, action: DAWAction): DAWState {
     case "SET_DURATION": return { ...state, duration: action.duration };
     case "SET_CONTEXT_MENU": return { ...state, contextMenu: action.menu };
     case "SET_DRAGGING": return { ...state, dragging: action.dragging };
+    case "SET_LOOP": return { ...state, loopEnabled: action.enabled, loopStart: action.start ?? state.loopStart, loopEnd: action.end ?? state.loopEnd };
+    case "SET_TOOL": return { ...state, tool: action.tool };
+    case "SET_PANEL_COLLAPSED": return { ...state, panelCollapsed: action.collapsed };
+    case "SET_RECORDING": return { ...state, recording: action.recording };
     default: return state;
   }
 }
@@ -125,5 +142,5 @@ export const CTX_ACTIONS = [
 ];
 
 export function typeIcon(t: Track): string {
-  return t.type === "voice" ? "V" : t.type === "noise" ? "N" : "M";
+  return t.type === "voice" ? "\u{1F3A4}" : t.type === "noise" ? "\u{1F50A}" : "\u{1F3B5}";
 }

@@ -14,12 +14,16 @@ const initialState: DAWState = {
   selectedTrack: null, status: "", generating: false,
   editingName: null, fxOpen: null, prompt: "", style: "experimental",
   duration: 30, contextMenu: null, dragging: null,
+  loopEnabled: false, loopStart: 0, loopEnd: 30,
+  tool: "select", panelCollapsed: false, recording: false,
 };
 
 export default function ComposePage() {
   const [state, dispatch] = useReducer(dawReducer, initialState);
   const [connectedUsers, setConnectedUsers] = useState<string[]>([]);
+  const [latency, setLatency] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
+  const pingRef = useRef(0);
 
   const { play, pause, stop, seek } = usePlayback(state.tracks, dispatch);
 
@@ -30,9 +34,21 @@ export default function ComposePage() {
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
+    // Latency ping
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        pingRef.current = Date.now();
+        ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 5000);
+
     ws.onmessage = (event) => {
       try {
         const m = JSON.parse(event.data);
+        if (m.type === "pong") {
+          setLatency(Date.now() - pingRef.current);
+          return;
+        }
         if (m.type === "music" && m.audioData) {
           dispatch({ type: "ADD_TRACK", track: {
             id: Date.now() + Math.random(),
@@ -42,6 +58,7 @@ export default function ComposePage() {
             type: (m.text || "").match(/noise|silence|drone|pink|white|sine|brown/i) ? "noise" as const : "music" as const,
             color: COLORS[state.tracks.length % COLORS.length], startOffset: 0,
             audioData: m.audioData, audioMime: m.audioMime || "audio/wav",
+            fxCount: 0,
           }});
           dispatch({ type: "SET_GENERATING", generating: false });
           dispatch({ type: "SET_STATUS", status: "" });
@@ -55,11 +72,11 @@ export default function ComposePage() {
             muted: false, solo: false, type: "voice" as const,
             color: COLORS[state.tracks.length % COLORS.length], startOffset: 0,
             audioData: m.data, audioMime: m.mimeType || "audio/wav",
+            fxCount: 0,
           }});
           dispatch({ type: "SET_GENERATING", generating: false });
           dispatch({ type: "SET_STATUS", status: "" });
         }
-        // Multi-user collaboration: comp_update sync
         if (m.type === "system" && m.text?.startsWith("__comp_update__")) {
           try {
             const update = JSON.parse(m.text.slice(15));
@@ -70,7 +87,6 @@ export default function ComposePage() {
           } catch {}
           return;
         }
-        // Shared playback sync
         if (m.type === "system" && m.text?.startsWith("__playback__play__")) {
           play();
           dispatch({ type: "SET_STATUS", status: `[collab] ${m.text.split("__")[4]} a lance la lecture` });
@@ -81,7 +97,6 @@ export default function ComposePage() {
           dispatch({ type: "SET_STATUS", status: `[collab] ${m.text.split("__")[4]} a arrete` });
           return;
         }
-        // User presence tracking
         if (m.type === "system" && m.text?.startsWith("__userlist__")) {
           try {
             const users = JSON.parse(m.text.slice(12));
@@ -105,7 +120,7 @@ export default function ComposePage() {
       } catch { /* ignore */ }
     };
 
-    return () => { ws.close(); };
+    return () => { clearInterval(pingInterval); ws.close(); };
   }, []);
 
   // Close menus on click
@@ -146,7 +161,7 @@ export default function ComposePage() {
         <TimelineGrid state={state} dispatch={dispatch} onCmd={cmd} />
       </div>
       <GeneratorPanel state={state} dispatch={dispatch} onCmd={cmd} />
-      <StatusBar state={state} users={connectedUsers} />
+      <StatusBar state={state} users={connectedUsers} latency={latency} />
     </div>
   );
 }

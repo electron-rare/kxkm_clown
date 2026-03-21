@@ -4,7 +4,7 @@ Updated: 2026-03-21T12:00:00Z
 
 ## Summary
 
-- **205+ lots executed** (24-205) in sessions 2026-03-19/20/21
+- **236 lots executed** (24-205) in sessions 2026-03-19/20/21
 - **425 tests**, 0 fail
 - **55 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
@@ -806,3 +806,15 @@ Updated: 2026-03-20T12:00:00Z
 - Description: Spectral view (canvas visualization)
 - Owner: Frontend
 - Priority: P3
+
+## lot-226-stutter [done]
+- Summary: /stutter glitch effect, /pan stereo, /master mastering chain
+
+## lot-230-compose-ui [done]
+- Summary: ComposePage 3 button rows, per-track Solo/Loop/Reverse, status bar
+
+## lot-234-imagine-ui [done]
+- Summary: ImaginePage upgrade, MediaExplorer compositions tab
+
+## lot-236-plan-docs [done]
+- Summary: PLAN + docs update to 236 lots

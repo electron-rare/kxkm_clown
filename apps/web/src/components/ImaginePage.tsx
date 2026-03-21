@@ -6,6 +6,7 @@ interface ImageResult {
   prompt: string;
   imageData?: string;
   imageMime?: string;
+  model?: string;
 }
 
 export default function ImaginePage() {
@@ -16,7 +17,12 @@ export default function ImaginePage() {
     responseType: "image",
     extractResult: (msg) =>
       msg.imageData
-        ? { prompt: (msg.text as string) || prompt, imageData: msg.imageData as string, imageMime: (msg.imageMime as string) || "image/png" }
+        ? {
+            prompt: (msg.text as string) || prompt,
+            imageData: msg.imageData as string,
+            imageMime: (msg.imageMime as string) || "image/png",
+            model: (msg.model as string) || "SDXL Lightning",
+          }
         : null,
     errorMatch: "echoue",
     progressInterval: 100,
@@ -45,7 +51,7 @@ export default function ImaginePage() {
           <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="a cyberpunk terminal glowing green, dark room, phosphor CRT aesthetic..." className="minitel-input compose-textarea" rows={3} maxLength={500} />
         </div>
         <button type="submit" className="minitel-login-btn" disabled={generating || !prompt.trim()}>
-          {generating ? "Generation en cours..." : ">>> Imaginer <<<"}
+          {generating ? "Generation en cours..." : ">>> Generer <<<"}
         </button>
       </form>
 
@@ -66,6 +72,7 @@ export default function ImaginePage() {
           <div className="vtx-viewer-frame" onClick={(e) => e.stopPropagation()}>
             <img src={`data:${results[viewIdx].imageMime};base64,${results[viewIdx].imageData}`} alt={results[viewIdx].prompt} className="vtx-viewer-img" />
             <div className="vtx-viewer-caption">{results[viewIdx].prompt}</div>
+            <div className="vtx-viewer-model">Modele: {results[viewIdx].model || "SDXL Lightning"}</div>
             <div className="vtx-viewer-nav">
               {viewIdx < results.length - 1 && <button className="vtx-viewer-btn" onClick={() => setViewIdx(viewIdx + 1)}>{"\u25C0"} Prec</button>}
               <button className="vtx-viewer-btn vtx-viewer-close" onClick={() => setViewIdx(null)}>{"\u2715"} Fermer</button>
@@ -77,12 +84,13 @@ export default function ImaginePage() {
 
       {results.length > 0 && (
         <div className="imagine-results">
-          <div className="compose-results-title">{"--- Images generees ---"}</div>
+          <div className="compose-results-title">{"--- Images generees (" + results.length + ") ---"}</div>
           <div className="imagine-grid">
             {results.map((r, i) => (
               <div key={i} className="imagine-result" onClick={() => setViewIdx(i)}>
                 {r.imageData && r.imageMime && <img src={`data:${r.imageMime};base64,${r.imageData}`} alt={r.prompt} className="imagine-img" />}
                 <div className="imagine-prompt">{r.prompt}</div>
+                <div className="imagine-model-badge">{r.model || "SDXL Lightning"}</div>
               </div>
             ))}
           </div>

@@ -2,12 +2,22 @@ import { useState, useEffect, useRef } from "react";
 import { api, type MediaMeta } from "../api";
 import { VideotexPageHeader, VideotexSeparator } from "./VideotexMosaic";
 
-type Tab = "images" | "audio";
+type Tab = "images" | "audio" | "compositions";
+
+interface CompositionMeta {
+  id: string;
+  name: string;
+  trackCount: number;
+  hasMix: boolean;
+  mixFilename?: string;
+  createdAt: string;
+}
 
 export default function MediaExplorer() {
   const [tab, setTab] = useState<Tab>("images");
   const [images, setImages] = useState<MediaMeta[]>([]);
   const [audio, setAudio] = useState<MediaMeta[]>([]);
+  const [compositions, setCompositions] = useState<CompositionMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewIdx, setViewIdx] = useState<number | null>(null);
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
@@ -17,14 +27,28 @@ export default function MediaExplorer() {
     loadAll();
   }, []);
 
+  async function fetchCompositions(): Promise<CompositionMeta[]> {
+    try {
+      const base = import.meta.env.VITE_API_BASE_URL || "";
+      const res = await fetch(`${base}/api/v2/media/compositions`, { credentials: "include" });
+      if (!res.ok) return [];
+      const body = await res.json();
+      return body.data || [];
+    } catch {
+      return [];
+    }
+  }
+
   async function loadAll() {
     setLoading(true);
-    const [imgs, auds] = await Promise.all([
+    const [imgs, auds, comps] = await Promise.all([
       api.listImages().catch(() => []),
       api.listAudio().catch(() => []),
+      fetchCompositions(),
     ]);
     setImages(Array.isArray(imgs) ? imgs : []);
     setAudio(Array.isArray(auds) ? auds : []);
+    setCompositions(Array.isArray(comps) ? comps : []);
     setLoading(false);
   }
 
@@ -33,6 +57,25 @@ export default function MediaExplorer() {
       day: "2-digit", month: "2-digit", year: "numeric",
       hour: "2-digit", minute: "2-digit",
     });
+  }
+
+  function playCompositionMix(comp: CompositionMeta) {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    if (!comp.mixFilename) return;
+    const base = import.meta.env.VITE_API_BASE_URL || "";
+    const a = new Audio(`${base}/api/v2/media/compositions/${encodeURIComponent(comp.mixFilename)}`);
+    a.onended = () => setPlayingIdx(null);
+    a.play().catch(() => {});
+    audioRef.current = a;
+  }
+
+  function downloadComposition(comp: CompositionMeta) {
+    if (!comp.mixFilename) return;
+    const base = import.meta.env.VITE_API_BASE_URL || "";
+    const link = document.createElement("a");
+    link.href = `${base}/api/v2/media/compositions/${encodeURIComponent(comp.mixFilename)}`;
+    link.download = comp.mixFilename;
+    link.click();
   }
 
   function playAudio(idx: number) {
@@ -50,7 +93,7 @@ export default function MediaExplorer() {
 
   return (
     <div className="media-explorer">
-      <VideotexPageHeader title="MEDIATHEQUE" subtitle="Images & Audio generes" color="cyan" />
+      <VideotexPageHeader title="MEDIATHEQUE" subtitle="Images, Audio & Compositions" color="cyan" />
 
       {/* Tabs */}
       <div className="media-tabs">
@@ -65,6 +108,12 @@ export default function MediaExplorer() {
           onClick={() => setTab("audio")}
         >
           Audio ({audio.length})
+        </button>
+        <button
+          className={`media-tab${tab === "compositions" ? " media-tab-active" : ""}`}
+          onClick={() => setTab("compositions")}
+        >
+          Compositions ({compositions.length})
         </button>
         <button className="media-tab media-tab-refresh" onClick={loadAll}>
           Rafraichir
@@ -160,6 +209,40 @@ export default function MediaExplorer() {
                   />
                 </div>
               )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* COMPOSITIONS TAB */}
+      {tab === "compositions" && (
+        <>
+          {compositions.length === 0 ? (
+            <div className="media-empty">Aucune composition pour le moment. Utilisez /compose pour creer.</div>
+          ) : (
+            <div className="media-playlist">
+              {compositions.map((comp) => (
+                <div key={comp.id} className="media-track">
+                  <div className="media-track-info" style={{ flex: 1 }}>
+                    <div className="media-track-prompt">{comp.name}</div>
+                    <div className="media-track-meta">
+                      {comp.trackCount} piste{comp.trackCount > 1 ? "s" : ""} — {formatDate(comp.createdAt)}
+                    </div>
+                  </div>
+                  <div className="media-track-actions" style={{ display: "flex", gap: "0.5rem" }}>
+                    {comp.hasMix && (
+                      <button className="vtx-viewer-btn" onClick={() => playCompositionMix(comp)}>
+                        {"\u25B6"} Mix
+                      </button>
+                    )}
+                    {comp.hasMix && (
+                      <button className="vtx-viewer-btn" onClick={() => downloadComposition(comp)}>
+                        {"\u2B07"} DL
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </>

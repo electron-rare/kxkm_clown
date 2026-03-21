@@ -34,6 +34,8 @@ export const GENERATE_COMMANDS = new Set([
   "/imagine-gallery",
   "/imagine-redo",
   "/help-imagine",
+  "/sfx",
+  "/jam",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1656,6 +1658,58 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           "  /imagine-gallery           Galerie sauvegardee",
           "  /imagine-models            Modeles disponibles",
         ].join("\n") });
+        return;
+      }
+
+      case "/sfx": {
+        const sfxType = parts[1] || "impact";
+        const types = ["riser", "drop", "sweep", "impact", "stutter"];
+        if (!types.includes(sfxType)) {
+          send(ws, { type: "system", text: `Usage: /sfx ${types.join("|")}` }); return;
+        }
+        broadcast(info.channel, { type: "system", text: `SFX: ${sfxType}...` });
+        const AI_BRIDGE_SFX = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+        try {
+          const resp = await fetch(`${AI_BRIDGE_SFX}/instrument/fx`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: sfxType, duration: 3 }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (resp.ok) {
+            const buf = Buffer.from(await resp.arrayBuffer());
+            broadcast(info.channel, {
+              type: "music", nick: info.nick,
+              text: `[SFX: ${sfxType}]`,
+              audioData: buf.toString("base64"), audioMime: "audio/wav",
+            } as any);
+          }
+        } catch { send(ws, { type: "system", text: "SFX indisponible." }); }
+        return;
+      }
+
+      case "/jam": {
+        const bpm = parseInt(parts[1]) || 120;
+        broadcast(info.channel, { type: "system", text: `🎶 Jam session a ${bpm} BPM...` });
+        const AI_BRIDGE_JAM = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+        const tasks = [
+          fetch(`${AI_BRIDGE_JAM}/instrument/drums`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bpm, pattern: "kick|snare|hihat", bars: 4 }), signal: AbortSignal.timeout(15_000) }),
+          fetch(`${AI_BRIDGE_JAM}/instrument/bass`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: "C2", waveform: "saw", duration: 10, pattern: "pulse", bpm }), signal: AbortSignal.timeout(15_000) }),
+          fetch(`${AI_BRIDGE_JAM}/instrument/pad`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "warm", duration: 10, chord: "Cm" }), signal: AbortSignal.timeout(15_000) }),
+        ];
+        const results = await Promise.allSettled(tasks);
+        const names = ["Drums", "Bass", "Pad"];
+        for (let i = 0; i < results.length; i++) {
+          const r = results[i];
+          if (r.status === "fulfilled" && r.value.ok) {
+            const buf = Buffer.from(await r.value.arrayBuffer());
+            broadcast(info.channel, {
+              type: "music", nick: info.nick,
+              text: `[Jam: ${names[i]} @ ${bpm}BPM]`,
+              audioData: buf.toString("base64"), audioMime: "audio/wav",
+            } as any);
+          }
+        }
+        broadcast(info.channel, { type: "system", text: `🎶 Jam terminee: ${results.filter(r => r.status === "fulfilled").length}/3 pistes.` });
         return;
       }
 

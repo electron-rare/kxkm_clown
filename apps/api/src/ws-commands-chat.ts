@@ -37,6 +37,9 @@ export const CHAT_COMMANDS = new Set([
   "/math",
   "/emojify",
   "/countdown",
+  "/blind-test",
+  "/lore",
+  "/rate",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -1053,6 +1056,66 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         setTimeout(() => {
           broadcast(info.channel, { type: "system", text: "🎉 GO!" });
         }, seconds * 1000);
+        return;
+      }
+
+      case "/blind-test": {
+        const instruments = ["drums", "bass", "pad", "choir", "fx"];
+        const random = instruments[Math.floor(Math.random() * instruments.length)];
+        const AI_BRIDGE = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+        try {
+          const resp = await fetch(`${AI_BRIDGE}/instrument/${random}`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ duration: 5 }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (resp.ok) {
+            const buf = Buffer.from(await resp.arrayBuffer());
+            broadcast(info.channel, {
+              type: "music", nick: "BlindTest",
+              text: `[Blind Test] Quel est cet instrument ? Repondez dans le chat !`,
+              audioData: buf.toString("base64"), audioMime: "audio/wav",
+            } as any);
+            setTimeout(() => {
+              broadcast(info.channel, { type: "system", text: `🎵 Reponse: ${random.toUpperCase()} !` });
+            }, 15000);
+          }
+        } catch { send(ws, { type: "system", text: "Blind test indisponible." }); }
+        return;
+      }
+
+      case "/lore": {
+        const nick = parts[1];
+        if (!nick) { send(ws, { type: "system", text: "Usage: /lore <persona>" }); return; }
+        const persona = getPersonas().find((p: any) => p.nick.toLowerCase() === nick.toLowerCase());
+        if (!persona) { send(ws, { type: "system", text: `Persona "${nick}" inconnue.` }); return; }
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: persona.model,
+              messages: [
+                { role: "system", content: persona.systemPrompt },
+                { role: "user", content: "Raconte ton histoire personnelle en 3-4 phrases. Qui es-tu vraiment ? D'ou viens-tu ? Quel est ton reve ?" },
+              ],
+              stream: false, options: { num_predict: 300 }, keep_alive: "30m", think: false,
+            }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as any;
+            const lore = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            broadcast(info.channel, { type: "message", nick: persona.nick, text: lore || "...", color: persona.color } as any);
+          }
+        } catch { send(ws, { type: "system", text: "Lore indisponible." }); }
+        return;
+      }
+
+      case "/rate": {
+        const stars = Math.min(5, Math.max(1, parseInt(parts[1]) || 3));
+        const starStr = "★".repeat(stars) + "☆".repeat(5 - stars);
+        broadcast(info.channel, { type: "system", text: `${info.nick} note: ${starStr} (${stars}/5)` });
         return;
       }
 

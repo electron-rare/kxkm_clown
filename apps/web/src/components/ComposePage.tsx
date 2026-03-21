@@ -1,4 +1,4 @@
-import React, { useReducer, useRef, useEffect, useCallback } from "react";
+import React, { useReducer, useRef, useEffect, useCallback, useState } from "react";
 import { dawReducer, COLORS, type DAWState } from "./daw/types";
 import TransportBar from "./daw/TransportBar";
 import TrackHeaders from "./daw/TrackHeaders";
@@ -18,6 +18,7 @@ const initialState: DAWState = {
 
 export default function ComposePage() {
   const [state, dispatch] = useReducer(dawReducer, initialState);
+  const [connectedUsers, setConnectedUsers] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   const { play, pause, stop, seek } = usePlayback(state.tracks, dispatch);
@@ -57,6 +58,36 @@ export default function ComposePage() {
           }});
           dispatch({ type: "SET_GENERATING", generating: false });
           dispatch({ type: "SET_STATUS", status: "" });
+        }
+        // Multi-user collaboration: comp_update sync
+        if (m.type === "system" && m.text?.startsWith("__comp_update__")) {
+          try {
+            const update = JSON.parse(m.text.slice(15));
+            dispatch({ type: "SET_STATUS", status: `[collab] ${update.action} (${update.trackCount || ""}p)` });
+            if (update.action === "track_added" || update.action === "track_removed" || update.action === "fx_applied") {
+              cmd("/tracks");
+            }
+          } catch {}
+          return;
+        }
+        // Shared playback sync
+        if (m.type === "system" && m.text?.startsWith("__playback__play__")) {
+          play();
+          dispatch({ type: "SET_STATUS", status: `[collab] ${m.text.split("__")[4]} a lance la lecture` });
+          return;
+        }
+        if (m.type === "system" && m.text?.startsWith("__playback__stop__")) {
+          stop();
+          dispatch({ type: "SET_STATUS", status: `[collab] ${m.text.split("__")[4]} a arrete` });
+          return;
+        }
+        // User presence tracking
+        if (m.type === "system" && m.text?.startsWith("__userlist__")) {
+          try {
+            const users = JSON.parse(m.text.slice(12));
+            setConnectedUsers(users);
+          } catch {}
+          return;
         }
         if (m.type === "system" && m.text) {
           const t = m.text;
@@ -115,7 +146,7 @@ export default function ComposePage() {
         <TimelineGrid state={state} dispatch={dispatch} onCmd={cmd} />
       </div>
       <GeneratorPanel state={state} dispatch={dispatch} onCmd={cmd} />
-      <StatusBar state={state} />
+      <StatusBar state={state} users={connectedUsers} />
     </div>
   );
 }

@@ -8,12 +8,19 @@ import type { OutboundMessage } from "./chat-types.js";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
 import { createComposition, getComposition, getActiveComposition, addTrack, listCompositions } from "./composition-store.js";
 
+
+type BroadcastFn = (channel: string, msg: import("./chat-types.js").OutboundMessage, exclude?: import("ws").WebSocket) => void;
+function broadcastCompUpdate(broadcast: BroadcastFn, channel: string, compId: string, action: string, data?: Record<string, unknown>) {
+  broadcast(channel, { type: "system", text: "__comp_update__" + JSON.stringify({ compId, action, ...data }) } as any);
+}
+
 export const GENERATE_COMMANDS = new Set([
   "/imagine", "/compose", "/layer", "/mix", "/voice", "/noise",
   "/ambient", "/fx", "/comp", "/imagine-models", "/remix", "/tracks",
   "/undo", "/solo", "/unsolo", "/rename", "/duplicate", "/dup", "/bpm", "/clear-comp",
   "/loop", "/swap", "/info", "/normalize", "/crossfade", "/trim",
   "/stutter", "/pan", "/master", "/concat", "/silence",
+  "/play", "/stop-all",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -146,6 +153,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           } as any);
 
           send(ws, { type: "system", text: `\u2705 Piste ajoutee (${comp.tracks.length} total). /mix pour mixer.` });
+          broadcastCompUpdate(broadcast, info.channel, comp.id, "track_added", { trackCount: comp.tracks.length });
         } catch (err) {
           send(ws, { type: "system", text: `Erreur layer: ${err instanceof Error ? err.message : String(err)}` });
         }
@@ -201,6 +209,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             audioData: mixBuffer.toString("base64"), audioMime: "audio/wav",
           } as any);
           send(ws, { type: "system", text: `\u2705 Mix termine. Download: /api/v2/media/compositions/${comp.id}/mix` });
+          broadcastCompUpdate(broadcast, info.channel, comp.id, "mix_complete");
         } catch (err) {
           send(ws, { type: "system", text: `Erreur mixage: ${err instanceof Error ? err.message : String(err)}` });
         }
@@ -253,6 +262,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           } as any);
 
           send(ws, { type: "system", text: `\u2705 Voix ajoutee (piste ${comp.tracks.length}). /mix pour combiner.` });
+          broadcastCompUpdate(broadcast, info.channel, comp.id, "track_added", { trackCount: comp.tracks.length });
         } catch (err) {
           send(ws, { type: "system", text: `Erreur voix: ${err instanceof Error ? err.message : String(err)}` });
         }
@@ -292,6 +302,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             const vol = Math.min(200, Math.max(0, parseInt(fxParam || "100")));
             targetTrack.volume = vol;
             send(ws, { type: "system", text: `\u{1F50A} Volume piste #${targetNum}: ${vol}%` });
+            broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "volume" });
             return;
           }
           case "fade-in":
@@ -302,6 +313,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
               execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `afade=t=in:d=${fadeDur}`, "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1F50A} Fade-in ${fadeDur}s applique a piste #${targetNum}` });
+              broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "fade-in" });
             }
             return;
           }
@@ -313,6 +325,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
               execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `areverse,afade=t=in:d=${fadeDur},areverse`, "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1F50A} Fade-out ${fadeDur}s applique a piste #${targetNum}` });
+              broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "fade-out" });
             }
             return;
           }
@@ -322,6 +335,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
               execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "areverse", "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1F504} Reverse applique a piste #${targetNum}` });
+              broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "reverse" });
             }
             return;
           }
@@ -331,6 +345,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
               execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "aecho=0.8:0.88:60:0.4", "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1F30A} Reverb applique a piste #${targetNum}` });
+              broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "reverb" });
             }
             return;
           }
@@ -342,6 +357,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
               execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `asetrate=32000*${factor},aresample=32000`, "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1f3b5} Pitch ${semitones > 0 ? "+" : ""}${semitones} demi-tons piste #${targetNum}` });
+              broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "pitch" });
             }
             return;
           }
@@ -352,6 +368,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
               execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `atempo=${Math.min(4, Math.max(0.25, speed))}`, "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u23e9 Speed x${speed} piste #${targetNum}` });
+              broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "speed" });
             }
             return;
           }
@@ -361,6 +378,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
               execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "aecho=0.6:0.3:500|1000:0.3|0.2", "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1f501} Echo applique piste #${targetNum}` });
+              broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "echo" });
             }
             return;
           }
@@ -371,6 +389,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
               execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "acrusher=samples=10:bits=8:mix=0.5", "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1f4a5} Distortion applique piste #${targetNum}` });
+              broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "distortion" });
             }
             return;
           }
@@ -488,6 +507,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
         } as any);
         send(ws, { type: "system", text: `\u2705 Master termine. Download: /api/v2/media/compositions/${comp.id}/master` });
+        broadcastCompUpdate(broadcast, info.channel, comp.id, "mix_complete");
         return;
       }
 
@@ -535,6 +555,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
           } as any);
           send(ws, { type: "system", text: `\u2705 ${noiseType} noise ajoute (piste ${comp.tracks.length}). /mix pour combiner.` });
+          broadcastCompUpdate(broadcast, info.channel, comp.id, "track_added", { trackCount: comp.tracks.length });
         }
         return;
       }
@@ -632,6 +653,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           fs.unlinkSync(removed.filePath);
         }
         send(ws, { type: "system", text: `\u21A9\uFE0F Piste supprimee: "${removed?.prompt?.slice(0, 40)}"` });
+        broadcastCompUpdate(broadcast, info.channel, comp.id, "track_removed", { trackCount: comp.tracks.length });
         return;
       }
 
@@ -809,6 +831,16 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           track.filePath = trackPath;
         }
         send(ws, { type: "system", text: `⏸️ Silence ${dur}s ajoute (piste ${comp.tracks.length})` });
+        return;
+      }
+
+      case "/play": {
+        broadcast(info.channel, { type: "system", text: `__playback__play__${info.nick}` } as any);
+        return;
+      }
+
+      case "/stop-all": {
+        broadcast(info.channel, { type: "system", text: `__playback__stop__${info.nick}` } as any);
         return;
       }
 

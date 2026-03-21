@@ -138,6 +138,8 @@ async function main() {
   // Initialize local RAG (embeddings via Ollama)
   // -----------------------------------------------------------------------
   const rag = new LocalRAG({ ollamaUrl, lightragUrl: process.env.LIGHTRAG_URL, rerankerUrl: process.env.RERANKER_URL });
+  // Expose RAG instance on app for API routes
+  (app as any)._rag = rag;
 
   // Index manifeste files asynchronously (non-blocking)
   // Try multiple paths: relative to cwd (inside container /app) and absolute on host

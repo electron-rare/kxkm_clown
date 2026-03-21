@@ -130,6 +130,99 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
     res.json(asApiData({ mascarade: healthy, providers, fallback: "ollama" }));
   });
 
+  // RAG search endpoint — for mascarade MCP tool integration
+  router.post("/api/v2/rag/search", async (req, res) => {
+    const { query, limit } = req.body as { query?: string; limit?: number };
+    if (!query) return res.status(400).json({ ok: false, error: "query required" });
+    try {
+      // RAG is initialized in server.ts and attached to app
+      const rag = (req.app as any)._rag;
+      if (!rag || rag.size === 0) return res.json(asApiData({ results: [], total: 0 }));
+      const results = await rag.search(query, limit || 5);
+      res.json(asApiData({ results, total: results.length }));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: (err as Error).message });
+    }
+  });
+
+  // Vote/feedback endpoint — stores DPO signals for fine-tuning
+  router.post("/api/v2/feedback", async (req, res) => {
+    const { messageId, personaNick, prompt, response, vote, channel } = req.body as {
+      messageId?: string; personaNick?: string; prompt?: string;
+      response?: string; vote?: "up" | "down"; channel?: string;
+    };
+    if (!personaNick || !vote || !response) {
+      return res.status(400).json({ ok: false, error: "personaNick, vote, response required" });
+    }
+    try {
+      const entry = {
+        ts: new Date().toISOString(),
+        messageId: messageId || crypto.randomUUID(),
+        personaNick,
+        prompt: prompt || "",
+        response,
+        vote,
+        channel: channel || "general",
+      };
+      // Append to feedback JSONL file
+      const feedbackDir = path.join(process.cwd(), "data", "feedback");
+      const fs = await import("node:fs/promises");
+      await fs.mkdir(feedbackDir, { recursive: true });
+      await fs.appendFile(
+        path.join(feedbackDir, `${personaNick.toLowerCase()}.jsonl`),
+        JSON.stringify(entry) + "\n",
+        "utf-8",
+      );
+      res.json(asApiData({ saved: true, id: entry.messageId }));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: (err as Error).message });
+    }
+  });
+
+  // DPO export — extract chosen/rejected pairs from feedback
+  router.get("/api/v2/export/dpo", async (req, res) => {
+    const personaNick = (req.query.persona as string) || "";
+    try {
+      const feedbackDir = path.join(process.cwd(), "data", "feedback");
+      const fs = await import("node:fs/promises");
+      const files = personaNick
+        ? [`${personaNick.toLowerCase()}.jsonl`]
+        : await fs.readdir(feedbackDir).catch(() => [] as string[]);
+
+      const pairs: Array<{ prompt: string; chosen: string; rejected: string; persona: string }> = [];
+      for (const file of files) {
+        if (!file.endsWith(".jsonl")) continue;
+        const raw = await fs.readFile(path.join(feedbackDir, file), "utf-8").catch(() => "");
+        const entries = raw.trim().split("\n").filter(Boolean).map(l => {
+          try { return JSON.parse(l); } catch { return null; }
+        }).filter(Boolean);
+
+        // Group by prompt, find chosen (up) and rejected (down) pairs
+        const byPrompt = new Map<string, { up: string[]; down: string[] }>();
+        for (const e of entries) {
+          const key = (e.prompt || "").slice(0, 200);
+          if (!key) continue;
+          const group = byPrompt.get(key) || { up: [], down: [] };
+          if (e.vote === "up") group.up.push(e.response);
+          else group.down.push(e.response);
+          byPrompt.set(key, group);
+        }
+
+        const persona = file.replace(".jsonl", "");
+        for (const [prompt, { up, down }] of byPrompt) {
+          const count = Math.min(up.length, down.length);
+          for (let i = 0; i < count; i++) {
+            pairs.push({ prompt, chosen: up[i], rejected: down[i], persona });
+          }
+        }
+      }
+
+      res.json(asApiData({ pairs, total: pairs.length }));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: (err as Error).message });
+    }
+  });
+
   // Scheduler metrics — GPU/CPU task management
   router.get("/api/v2/scheduler", (_req, res) => {
     const metrics = scheduler.getMetrics();

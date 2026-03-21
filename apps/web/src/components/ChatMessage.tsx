@@ -61,9 +61,10 @@ export interface ChatMessageProps {
   msg: ChatMsg;
   getNickColor: (nick: string) => string | undefined;
   channel: string;
+  onVote?: (msg: ChatMsg, vote: "up" | "down") => void;
 }
 
-export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, channel }: ChatMessageProps) {
+export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, channel, onVote }: ChatMessageProps) {
   switch (msg.type) {
     case "system":
       return (
@@ -171,6 +172,12 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
           </span>
           <span className="chat-text">{renderText(msg.text || "")}</span>
           {isStreaming && <span className="chat-cursor">▌</span>}
+          {!isStreaming && color && onVote && (
+            <span className="chat-vote-btns">
+              <button className="chat-vote-btn chat-vote-up" title="Bonne reponse" onClick={() => onVote(msg, "up")}>{"\u25B2"}</button>
+              <button className="chat-vote-btn chat-vote-down" title="Mauvaise reponse" onClick={() => onVote(msg, "down")}>{"\u25BC"}</button>
+            </span>
+          )}
         </div>
       );
     }

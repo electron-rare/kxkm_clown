@@ -1,8 +1,9 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useCallback } from "react";
 import { useChatState } from "../hooks/useChatState";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { ChatSidebar } from "./ChatSidebar";
+import type { ChatMsg } from "./chat-types";
 
 export default function Chat() {
   const {
@@ -24,6 +25,21 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+
+  const handleVote = useCallback((msg: ChatMsg, vote: "up" | "down") => {
+    fetch("/api/v2/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messageId: msg.id,
+        personaNick: msg.nick,
+        prompt: "",  // We don't track the original prompt in the message
+        response: msg.text,
+        vote,
+        channel,
+      }),
+    }).catch(() => {});
+  }, [channel]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -55,7 +71,7 @@ export default function Chat() {
       <div className="chat-body">
         <div className="chat-messages" ref={containerRef} role="log" aria-live="polite">
           {messages.map((msg) => (
-            <ChatMessage key={msg.id} msg={msg} getNickColor={getNickColor} channel={channel} />
+            <ChatMessage key={msg.id} msg={msg} getNickColor={getNickColor} channel={channel} onVote={handleVote} />
           ))}
           <div ref={messagesEndRef} />
         </div>

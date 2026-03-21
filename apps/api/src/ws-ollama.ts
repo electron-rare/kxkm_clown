@@ -474,6 +474,29 @@ import { streamChat as llmStreamChat, type ChatMessage } from "./llm-client.js";
 
 const USE_MASCARADE = process.env.USE_MASCARADE !== "0"; // enabled by default
 
+/**
+ * Parse enrichedText to extract RAG/context sections for better system prompt structuring.
+ * enrichedText format:
+ *   <user message>
+ *
+ *   [Contexte conversationnel]
+ *   ...
+ *
+ *   [Contexte pertinent]
+ *   ...
+ */
+function splitEnrichedText(enrichedText: string): { userMsg: string; context: string } {
+  const contextMarker = /\n\n\[Contexte (?:conversationnel|pertinent)\]\n/;
+  const match = enrichedText.match(contextMarker);
+  if (!match || match.index === undefined) {
+    return { userMsg: enrichedText, context: "" };
+  }
+  return {
+    userMsg: enrichedText.slice(0, match.index).trim(),
+    context: enrichedText.slice(match.index).trim(),
+  };
+}
+
 export async function streamLLMChat(
   _ollamaUrl: string,
   persona: ChatPersona,
@@ -488,15 +511,21 @@ export async function streamLLMChat(
 
   await ollamaLimit(async () => {
     try {
+      // Split enriched text: user message vs RAG/context (inject context into system prompt)
+      const { userMsg, context } = splitEnrichedText(userMessage);
+      const systemPrompt = context
+        ? `${persona.systemPrompt}\n\n${context}`
+        : persona.systemPrompt;
+
       const messages: ChatMessage[] = [
-        { role: "system", content: persona.systemPrompt },
-        { role: "user", content: userMessage },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMsg },
       ];
 
       const gen = llmStreamChat(messages, {
         model: persona.model,
-        maxTokens: estimateMaxTokens(userMessage, persona.maxTokens),
-        numCtx: estimateNumCtx(persona.systemPrompt, userMessage),
+        maxTokens: estimateMaxTokens(userMsg, persona.maxTokens),
+        numCtx: estimateNumCtx(systemPrompt, userMsg),
         numBatch: 512,
         keepAlive: "30m",
         think: false,

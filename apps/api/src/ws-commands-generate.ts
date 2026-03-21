@@ -28,6 +28,7 @@ export const GENERATE_COMMANDS = new Set([
   "/glitch", "/stretch", "/bounce", "/stem",
   "/mp3",
   "/drone", "/grain", "/circus", "/honk", "/kokoro",
+  "/variations",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1479,6 +1480,41 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         } catch (err) {
           send(ws, { type: "system", text: `Erreur kokoro: ${err instanceof Error ? err.message : String(err)}` });
         }
+        return;
+      }
+
+      case "/variations": {
+        // /variations <prompt> — generate 4 seed variations of same prompt
+        const varPrompt = text.slice(12).trim();
+        if (!varPrompt) { send(ws, { type: "system", text: "Usage: /variations <prompt> — genere 4 variations" }); return; }
+
+        broadcast(info.channel, { type: "system", text: `Generating 4 variations: "${varPrompt.slice(0, 60)}..."` });
+
+        const seeds = Array.from({ length: 4 }, () => Math.floor(Math.random() * 2 ** 32));
+
+        // Generate sequentially (GPU can only do 1 at a time)
+        for (let i = 0; i < seeds.length; i++) {
+          try {
+            const result = await scheduler.submit({
+              id: crypto.randomUUID(),
+              device: "gpu",
+              priority: "normal",
+              label: `variation-${i + 1}`,
+              vramMB: VRAM_BUDGETS.comfyui,
+              execute: () => generateImage(varPrompt),
+            });
+            if (result) {
+              broadcast(info.channel, {
+                type: "image", nick: info.nick,
+                text: `[Variation ${i + 1}/4: "${varPrompt}" seed:${result.seed}]`,
+                imageData: result.imageBase64,
+                imageMime: "image/png",
+              } as OutboundMessage);
+            }
+          } catch {}
+        }
+
+        send(ws, { type: "system", text: `4 variations generees pour "${varPrompt.slice(0, 40)}"` });
         return;
       }
 

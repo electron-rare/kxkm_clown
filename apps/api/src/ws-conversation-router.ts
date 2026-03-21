@@ -258,8 +258,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     const mentionRegex = /@(\w+)/g;
     let match: RegExpExecArray | null;
     const mentioned = new Set<string>();
+    let matchCount = 0;
 
-    while ((match = mentionRegex.exec(fullText)) !== null) {
+    while ((match = mentionRegex.exec(fullText)) !== null && matchCount++ < 10) {
       const mentionedNick = match[1];
       const mentionedPersona = personas.find(
         (persona) =>

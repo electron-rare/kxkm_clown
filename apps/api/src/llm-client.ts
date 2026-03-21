@@ -24,10 +24,15 @@ const DEFAULT_MODEL = process.env.LLM_DEFAULT_MODEL || "qwen3.5:9b";
 const ROUTELLM_ENABLED = process.env.ROUTELLM_ENABLED === "true";
 const ROUTELLM_THRESHOLD = parseFloat(process.env.ROUTELLM_THRESHOLD || "0.6");
 
-// Track mascarade availability
+// Track mascarade availability with exponential backoff
 let mascaradeAvailable = true;
 let mascaradeLastCheck = 0;
-const MASCARADE_RECHECK_MS = 30_000;
+let mascaradeFailCount = 0;
+function mascaradeRecheckMs(): number {
+  if (mascaradeFailCount <= 1) return 5_000;
+  if (mascaradeFailCount <= 3) return 15_000;
+  return 60_000; // After 3+ failures, check every 60s
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,17 +74,20 @@ export async function checkMascaradeHealth(): Promise<boolean> {
     const resp = await fetch(`${MASCARADE_URL}/health`, { signal: AbortSignal.timeout(3000) });
     mascaradeAvailable = resp.ok;
     mascaradeLastCheck = Date.now();
+    if (resp.ok) mascaradeFailCount = 0;
+    else mascaradeFailCount++;
     return resp.ok;
   } catch {
     mascaradeAvailable = false;
     mascaradeLastCheck = Date.now();
+    mascaradeFailCount++;
     return false;
   }
 }
 
 function shouldTryMascarade(): boolean {
   if (mascaradeAvailable) return true;
-  return Date.now() - mascaradeLastCheck > MASCARADE_RECHECK_MS;
+  return Date.now() - mascaradeLastCheck > mascaradeRecheckMs();
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +192,7 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Pro
       logger.warn({ err: (err as Error).message }, "[llm] mascarade /send failed, falling back to Ollama");
       mascaradeAvailable = false;
       mascaradeLastCheck = Date.now();
+      mascaradeFailCount++;
     }
   }
   return chatViaOllama(messages, opts);
@@ -214,6 +223,7 @@ export async function* streamChat(
       logger.warn({ err: (err as Error).message }, "[llm] mascarade failed for complex stream, falling back to Ollama");
       mascaradeAvailable = false;
       mascaradeLastCheck = Date.now();
+      mascaradeFailCount++;
     }
   }
 
@@ -383,6 +393,7 @@ async function* streamViaOllama(
 
       const chunk = decoder.decode(value, { stream: true });
       for (const line of chunk.split("\n").filter(Boolean)) {
+        if (line.length > 102_400) continue; // Skip oversized chunks (100KB max)
         try {
           const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
           if (parsed.message?.content) {

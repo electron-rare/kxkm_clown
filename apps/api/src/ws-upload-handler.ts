@@ -71,12 +71,21 @@ export async function handleUpload(
     // Trust magic bytes over declared MIME
     actualMime = detected.mime;
   } else {
-    // No magic bytes detected — likely a text file; verify by extension
+    // No magic bytes detected — verify it's actually text content (no null bytes in first 512)
     const ext = filename.split(".").pop()?.toLowerCase() || "";
-    const textExts = new Set(["txt", "md", "csv", "json", "jsonl", "xml", "html", "yml", "yaml", "toml"]);
+    const textExts = new Set(["txt", "md", "csv", "json", "jsonl", "xml", "html", "yml", "yaml", "toml",
+      "ini", "log", "sh", "py", "js", "ts", "c", "cpp", "rs", "go", "java", "sql", "rtf"]);
     if (!textExts.has(ext)) {
       send(ws, { type: "system", text: `Extension non reconnue sans signature binaire: .${ext}` });
       return;
+    }
+    // Safety: verify first 512 bytes contain no null bytes (binary indicator)
+    const checkLen = Math.min(512, buffer.length);
+    for (let i = 0; i < checkLen; i++) {
+      if (buffer[i] === 0) {
+        send(ws, { type: "system", text: `Fichier binaire detecte dans .${ext} — rejet.` });
+        return;
+      }
     }
     actualMime = mimeType || "text/plain";
   }

@@ -15,6 +15,9 @@ export const CHAT_COMMANDS = new Set([
   "/ascii",
   "/translate",
   "/tr",
+  "/collab",
+  "/persona-create",
+  "/radio",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -632,6 +635,79 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         } catch (err) {
           send(ws, { type: "system", text: `Erreur export: ${err instanceof Error ? err.message : String(err)}` });
         }
+        return;
+      }
+
+      case "/collab": {
+        // /collab [topic] — all personas respond to same topic (max 5)
+        const collabTopic = text.slice(8).trim() || "Qu'est-ce que l'art aujourd'hui ?";
+        const collabPersonas = getPersonas().filter(p => (p as any).enabled !== false);
+        const selected = [...collabPersonas].sort(() => Math.random() - 0.5).slice(0, 5);
+
+        broadcast(info.channel, { type: "system", text: `=== COLLAB: ${selected.map(p => p.nick).join(", ")} ===\nSujet: "${collabTopic}"` });
+
+        if (typeof routeToPersonas === "function") {
+          const mentions = selected.map(p => `@${p.nick}`).join(" ");
+          await routeToPersonas(info.channel, `${mentions} ${collabTopic}`);
+        }
+        return;
+      }
+
+      case "/persona-create": {
+        // /persona-create <name> <model> <description>
+        const pcArgs = text.slice(16).trim();
+        const pcMatch = pcArgs.match(/^(\S+)\s+(\S+)\s+(.+)$/);
+        if (!pcMatch) {
+          send(ws, { type: "system", text: "Usage: /persona-create <nom> <modele> <description>\nEx: /persona-create Mozart qwen3.5:9b Compositeur classique viennois" });
+          return;
+        }
+        const [, pcName, pcModel, pcDescription] = pcMatch;
+
+        const existingPersona = getPersonas().find(p => p.nick.toLowerCase() === pcName!.toLowerCase());
+        if (existingPersona) {
+          send(ws, { type: "system", text: `Persona "${pcName}" existe deja.` });
+          return;
+        }
+
+        const pcSystemPrompt = `Tu es ${pcName}. ${pcDescription} Tu reponds en francais.`;
+
+        const fsPC = await import("node:fs/promises");
+        const pathPC = await import("node:path");
+        const customFile = pathPC.join(process.cwd(), "data", "persona-memory", `_custom_${pcName!.toLowerCase()}.json`);
+        await fsPC.writeFile(customFile, JSON.stringify({ nick: pcName, model: pcModel, systemPrompt: pcSystemPrompt, color: "#" + Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0"), custom: true }));
+
+        broadcast(info.channel, { type: "system", text: `Persona "${pcName}" creee (${pcModel}). Elle sera active au prochain /reload.` });
+        return;
+      }
+
+      case "/radio": {
+        // /radio [on|off] — continuous random persona quotes every 30s
+        const radioAction = parts[1] || "on";
+        if (radioAction === "off") {
+          const existing = (globalThis as any).__radioTimers?.get(info.channel);
+          if (existing) { clearInterval(existing); (globalThis as any).__radioTimers.delete(info.channel); }
+          broadcast(info.channel, { type: "system", text: "Radio OFF." });
+          return;
+        }
+
+        if (!(globalThis as any).__radioTimers) (globalThis as any).__radioTimers = new Map();
+        const existingTimer = (globalThis as any).__radioTimers.get(info.channel);
+        if (existingTimer) { send(ws, { type: "system", text: "Radio deja active. /radio off pour arreter." }); return; }
+
+        broadcast(info.channel, { type: "system", text: "Radio ON — une persona aleatoire s'exprime toutes les 30s. /radio off pour arreter." });
+
+        const radioTimer = setInterval(async () => {
+          const radioPersonas = getPersonas().filter(p => (p as any).enabled !== false);
+          const rp = radioPersonas[Math.floor(Math.random() * radioPersonas.length)];
+          if (!rp || typeof routeToPersonas !== "function") return;
+          const topics = ["la beaute du chaos", "le silence", "la revolution", "le son comme matiere", "l'avenir de l'art", "la memoire collective", "le corps et la machine"];
+          const radioTopic = topics[Math.floor(Math.random() * topics.length)];
+          try {
+            await routeToPersonas(info.channel, `@${rp.nick} En une phrase, parle de ${radioTopic}.`);
+          } catch {}
+        }, 30000);
+
+        (globalThis as any).__radioTimers.set(info.channel, radioTimer);
         return;
       }
 

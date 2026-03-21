@@ -183,6 +183,9 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
                   }).catch(() => {});
                 }}>{r}</button>
               ))}
+              <button className="chat-react-btn" onClick={() => {
+                if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {});
+              }} title="Copier">{"\uD83D\uDCCB"}</button>
               <button className="chat-pin-btn" onClick={() => {
                 if (msg.text) {
                   fetch("/api/v2/feedback", {

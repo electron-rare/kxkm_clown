@@ -6,14 +6,14 @@ import { generateImage } from "./comfyui.js";
 import { saveImage, saveAudio } from "./media-store.js";
 import type { OutboundMessage } from "./chat-types.js";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
-import { createComposition, getActiveComposition, addTrack, listCompositions } from "./composition-store.js";
+import { createComposition, getComposition, getActiveComposition, addTrack, listCompositions } from "./composition-store.js";
 
 export const GENERATE_COMMANDS = new Set([
   "/imagine", "/compose", "/layer", "/mix", "/voice", "/noise",
   "/ambient", "/fx", "/comp", "/imagine-models", "/remix", "/tracks",
   "/undo", "/solo", "/unsolo", "/rename", "/duplicate", "/dup", "/bpm", "/clear-comp",
   "/loop", "/swap", "/info", "/normalize", "/crossfade", "/trim",
-  "/stutter", "/pan", "/master",
+  "/stutter", "/pan", "/master", "/concat", "/silence",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -70,7 +70,36 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           send(ws, { type: "system", text: `Compositions:\n${comps.map(c => `  ${c.id}: ${c.name} (${c.tracks.length} pistes)`).join("\n")}` });
           return;
         }
-        send(ws, { type: "system", text: "Usage: /comp new <nom> | /comp list" });
+        if (action === "save") {
+          const comp = getActiveComposition(info.nick, info.channel);
+          if (!comp) { send(ws, { type: "system", text: "Pas de composition active." }); return; }
+          const dir = path.join(process.cwd(), "data", "compositions", comp.id);
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, "composition.json"), JSON.stringify(comp, null, 2));
+          send(ws, { type: "system", text: `💾 Composition sauvegardee: ${comp.name} (${comp.tracks.length} pistes)` });
+          return;
+        }
+        if (action === "load") {
+          const compId = sub[1];
+          if (!compId) { send(ws, { type: "system", text: "Usage: /comp load <id>" }); return; }
+          const comp = getComposition(compId);
+          if (!comp) { send(ws, { type: "system", text: `Composition ${compId} introuvable.` }); return; }
+          send(ws, { type: "system", text: `📂 Composition chargee: ${comp.name} (${comp.tracks.length} pistes)` });
+          return;
+        }
+        if (action === "delete") {
+          const compId = sub[1];
+          if (!compId) { send(ws, { type: "system", text: "Usage: /comp delete <id>" }); return; }
+          const dir = path.join(process.cwd(), "data", "compositions", compId);
+          if (fs.existsSync(dir)) {
+            fs.rmSync(dir, { recursive: true });
+            send(ws, { type: "system", text: `🗑️ Composition ${compId} supprimee` });
+          } else {
+            send(ws, { type: "system", text: `Composition ${compId} introuvable.` });
+          }
+          return;
+        }
+        send(ws, { type: "system", text: "Usage: /comp new|list|save|load|delete" });
         return;
       }
 
@@ -723,6 +752,47 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           `  Fichier: ${fileInfo}`,
           `  Cree: ${t.createdAt}`,
         ].join("\n") });
+        return;
+      }
+
+      case "/concat": {
+        const args = text.slice(8).trim().split(/\s+/);
+        const a = parseInt(args[0]) - 1;
+        const b = parseInt(args[1]) - 1;
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(a) || isNaN(b) || a < 0 || b < 0 || a >= comp.tracks.length || b >= comp.tracks.length || a === b) {
+          send(ws, { type: "system", text: "Usage: /concat <piste#> <piste#> — concatene B apres A" }); return;
+        }
+        const tA = comp.tracks[a], tB = comp.tracks[b];
+        if (!tA.filePath || !tB.filePath || !fs.existsSync(tA.filePath) || !fs.existsSync(tB.filePath)) {
+          send(ws, { type: "system", text: "Les deux pistes doivent avoir des fichiers." }); return;
+        }
+        const concatFile = tA.filePath + ".concat.txt";
+        fs.writeFileSync(concatFile, `file '${tA.filePath}'\nfile '${tB.filePath}'`);
+        const tmp = tA.filePath + ".cat.wav";
+        execFileSync("ffmpeg", ["-f", "concat", "-safe", "0", "-i", concatFile, "-y", tmp], { timeout: 30000 });
+        fs.renameSync(tmp, tA.filePath);
+        fs.unlinkSync(concatFile);
+        tA.duration += tB.duration;
+        tA.prompt += " + " + tB.prompt.slice(0, 30);
+        if (tB.filePath && fs.existsSync(tB.filePath)) fs.unlinkSync(tB.filePath);
+        comp.tracks.splice(b, 1);
+        send(ws, { type: "system", text: `🔗 Pistes #${a+1} + #${b+1} concatenees → #${a+1} (${tA.duration}s)` });
+        return;
+      }
+
+      case "/silence": {
+        const dur = Math.min(60, Math.max(1, parseInt(text.slice(9).trim() || "5")));
+        let comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) comp = createComposition(info.nick, info.channel);
+        const track = addTrack(comp.id, { type: "sfx", prompt: `silence ${dur}s`, duration: dur, volume: 0, startMs: 0 });
+        if (track) {
+          const trackPath = path.join(process.cwd(), "data", "compositions", comp.id, `${track.id}.wav`);
+          fs.mkdirSync(path.dirname(trackPath), { recursive: true });
+          execFileSync("ffmpeg", ["-f", "lavfi", "-i", "anullsrc=r=32000:cl=mono", "-t", String(dur), trackPath], { timeout: 15000 });
+          track.filePath = trackPath;
+        }
+        send(ws, { type: "system", text: `⏸️ Silence ${dur}s ajoute (piste ${comp.tracks.length})` });
         return;
       }
 

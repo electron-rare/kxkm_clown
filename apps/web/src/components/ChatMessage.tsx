@@ -92,25 +92,9 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
         </div>
       );
 
-    case "audio": {
-      const color = msg.nick ? getNickColor(msg.nick) : undefined;
-      return (
-        <div key={msg.id} className="chat-msg chat-msg-audio" style={color ? { color } : undefined}>
-          <span className="chat-ts">{fmtTime(msg.timestamp)}</span>
-          <span className="chat-nick" style={color ? { color } : undefined}>
-            {"<"}{msg.nick || "???"}{">"}{" "}
-          </span>
-          <span className="chat-audio-indicator">&#9835;</span>
-          <button className="chat-audio-play" aria-label="Lire le message audio" onClick={() => {
-            if (msg.audioData && msg.audioMime) {
-              const a = new Audio(`data:${msg.audioMime};base64,${msg.audioData}`);
-              a.volume = 0.7;
-              a.play().catch(() => {});
-            }
-          }}>&#9654;</button>
-        </div>
-      );
-    }
+    case "audio":
+      // Audio messages are hidden — playback handled by voice chat queue in Chat.tsx
+      return null;
 
     case "image": {
       const color = msg.nick ? getNickColor(msg.nick) : undefined;

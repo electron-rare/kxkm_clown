@@ -5,6 +5,8 @@ import TrackHeaders from "./daw/TrackHeaders";
 import TimelineGrid from "./daw/TimelineGrid";
 import GeneratorPanel from "./daw/GeneratorPanel";
 import StatusBar from "./daw/StatusBar";
+import { usePlayback } from "./daw/usePlayback";
+import { useDAWShortcuts } from "./daw/useDAWShortcuts";
 
 const initialState: DAWState = {
   compId: "", compName: "Ma composition", bpm: 120,
@@ -17,6 +19,8 @@ const initialState: DAWState = {
 export default function ComposePage() {
   const [state, dispatch] = useReducer(dawReducer, initialState);
   const wsRef = useRef<WebSocket | null>(null);
+
+  const { play, pause, stop, seek } = usePlayback(state.tracks, dispatch);
 
   // WebSocket connection
   useEffect(() => {
@@ -89,9 +93,23 @@ export default function ComposePage() {
     }
   }, []);
 
+  const handleNew = useCallback(() => {
+    cmd("/comp new " + state.compName);
+    dispatch({ type: "SET_TRACKS", tracks: [] });
+    dispatch({ type: "SET_STATUS", status: "Nouveau" });
+  }, [cmd, state.compName]);
+
+  const handleSave = useCallback(() => {
+    cmd("/comp save");
+  }, [cmd]);
+
+  useDAWShortcuts(state, dispatch, { play, pause, stop, cmd });
+
   return (
     <div className="daw">
-      <TransportBar state={state} dispatch={dispatch} onCmd={cmd} />
+      <TransportBar state={state} dispatch={dispatch} onCmd={cmd}
+        onPlay={play} onPause={pause} onStop={stop} onSeek={seek}
+        onNew={handleNew} onSave={handleSave} />
       <div className="daw-body">
         <TrackHeaders state={state} dispatch={dispatch} onCmd={cmd} />
         <TimelineGrid state={state} dispatch={dispatch} onCmd={cmd} />

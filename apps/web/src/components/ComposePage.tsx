@@ -12,6 +12,7 @@ interface Track {
   solo: boolean;
   type: "music" | "voice" | "noise";
   color: string;
+  startOffset: number; // seconds offset in timeline
   audioData?: string;
   audioMime?: string;
 }
@@ -68,6 +69,43 @@ export default function ComposePage() {
   const [zoom, setZoom] = useState(8);
   const [editingName, setEditingName] = useState<number | null>(null);
   const [fxOpen, setFxOpen] = useState<number | null>(null);
+  const [dragging, setDragging] = useState<{ trackIdx: number; mode: "move" | "resize"; startX: number; origOffset: number; origDuration: number } | null>(null);
+  const pxPerSec = zoom;
+
+  // Handle drag/resize
+  const handlePointerDown = useCallback((e: React.PointerEvent, trackIdx: number, mode: "move" | "resize") => {
+    e.preventDefault();
+    e.stopPropagation();
+    const track = tracks[trackIdx];
+    setDragging({ trackIdx, mode, startX: e.clientX, origOffset: track.startOffset, origDuration: track.duration });
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, [tracks]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging) return;
+    const dx = e.clientX - dragging.startX;
+    const dSec = dx / pxPerSec;
+    setTracks(prev => prev.map((t, i) => {
+      if (i !== dragging.trackIdx) return t;
+      if (dragging.mode === "move") {
+        return { ...t, startOffset: Math.max(0, Math.round((dragging.origOffset + dSec) * 2) / 2) }; // snap 0.5s
+      } else {
+        return { ...t, duration: Math.max(1, Math.round((dragging.origDuration + dSec) * 2) / 2) }; // snap 0.5s
+      }
+    }));
+  }, [dragging, pxPerSec]);
+
+  const handlePointerUp = useCallback(() => {
+    if (dragging) {
+      const t = tracks[dragging.trackIdx];
+      if (dragging.mode === "resize" && t.duration !== dragging.origDuration) {
+        // Send trim command
+        cmd(`/trim ${dragging.trackIdx + 1} 0 ${t.duration}`);
+      }
+      setDragging(null);
+    }
+  }, [dragging, tracks]);
+
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; trackIdx: number } | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -89,7 +127,7 @@ export default function ComposePage() {
             prompt: m.text || "Sans titre", style, duration, volume: 100, pan: 0,
             muted: false, solo: false,
             type: (m.text || "").match(/noise|silence|drone|pink|white|sine|brown/i) ? "noise" as const : "music" as const,
-            color: COLORS[prev.length % COLORS.length],
+            color: COLORS[prev.length % COLORS.length], startOffset: 0,
             audioData: m.audioData, audioMime: m.audioMime || "audio/wav",
           }]);
           setGenerating(false); setStatus("");
@@ -101,7 +139,7 @@ export default function ComposePage() {
             prompt: m.nick ? m.nick + " (voix)" : "Voix",
             style: "voice", duration: 10, volume: 100, pan: 0,
             muted: false, solo: false, type: "voice" as const,
-            color: COLORS[prev.length % COLORS.length],
+            color: COLORS[prev.length % COLORS.length], startOffset: 0,
             audioData: m.data, audioMime: m.mimeType || "audio/wav",
           }]);
           setGenerating(false); setStatus("");
@@ -131,7 +169,7 @@ export default function ComposePage() {
     }
   }, []);
 
-  const maxDur = Math.max(30, ...tracks.map(t => t.duration));
+  const maxDur = Math.max(30, ...tracks.map(t => t.startOffset + t.duration));
   const totalDur = tracks.reduce((s, t) => Math.max(s, t.duration), 0);
   const timelineWidth = maxDur * zoom;
   const beatInterval = 60 / bpm;
@@ -249,11 +287,22 @@ export default function ComposePage() {
                 <div key={track.id} className={"daw-lane" + (selectedTrack === i ? " daw-lane-sel" : "") + (track.muted ? " daw-lane-muted" : "")}
                   onClick={e => { e.stopPropagation(); setSelectedTrack(i); }}
                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, trackIdx: i }); }}>
-                  <div className="daw-block" style={{
+                  <div className={`daw-block ${dragging?.trackIdx === i ? "daw-block-dragging" : ""}`} style={{
                     width: Math.max(track.duration * zoom, 24),
                     backgroundColor: track.color,
                     opacity: track.muted ? 0.3 : 0.5 + (track.volume / 200),
-                  }} title={track.prompt}>
+                  }} title={`${track.prompt} (${track.startOffset}s → ${track.startOffset + track.duration}s)`}
+                  onPointerDown={(e) => handlePointerDown(e, i, "move")}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                
+                  onContextMenu={(ev) => { ev.preventDefault(); setContextMenu({ x: ev.clientX, y: ev.clientY, trackIdx: i }); }}>
+                  {/* Resize handle */}
+                  <div className="daw-resize-handle"
+                    onPointerDown={(e) => { e.stopPropagation(); handlePointerDown(e, i, "resize"); }}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                  />
                     <span className="daw-block-text">{track.prompt.slice(0, 40)}</span>
                     <span className="daw-block-dur">{track.duration}s</span>
                   </div>

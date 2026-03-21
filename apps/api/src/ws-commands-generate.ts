@@ -22,6 +22,7 @@ export const GENERATE_COMMANDS = new Set([
   "/stutter", "/pan", "/master", "/concat", "/silence",
   "/play", "/stop-all", "/template", "/marker",
   "/metronome", "/delete", "/preview", "/gain",
+  "/suggest", "/snapshot", "/randomize",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1004,6 +1005,78 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         if (removed?.filePath && fs.existsSync(removed.filePath)) fs.unlinkSync(removed.filePath);
         send(ws, { type: "system", text: `\ud83d\uddd1\ufe0f Piste #${trackNum} supprimee: "${removed?.prompt?.slice(0, 40)}"` });
         broadcastCompUpdate(broadcast, info.channel, comp.id, "track_removed", { trackCount: comp.tracks.length });
+        return;
+      }
+
+      case "/suggest": {
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || comp.tracks.length === 0) {
+          send(ws, { type: "system", text: "Ajoute d'abord des pistes. /layer ou /noise" }); return;
+        }
+
+        const trackList = comp.tracks.map((t, i) => `#${i+1} [${t.type}] ${t.prompt} (${t.duration}s)`).join("\n");
+
+        send(ws, { type: "system", text: "\ud83e\udd14 Analyse de la composition..." });
+
+        try {
+          const suggestOllamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+          const resp = await fetch(`${suggestOllamaUrl}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "qwen3.5:9b",
+              messages: [{ role: "user", content: `Tu es un compositeur expert. Voici une composition multi-pistes:\n${trackList}\n\nSuggere la prochaine piste a ajouter (type, style, duree). Reponds en une phrase avec la commande exacte a taper. Exemples:\n/layer dark pad with filter sweep, ambient, 30s\n/voice Schaeffer "Le son revele l'invisible"\n/noise pink 15\nReponds UNIQUEMENT la commande.` }],
+              stream: false, options: { num_predict: 100 }, keep_alive: "30m", think: false,
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as { message?: { content?: string } };
+            const suggestion = (data.message?.content || "").trim();
+            send(ws, { type: "system", text: `\ud83d\udca1 Suggestion: ${suggestion}` });
+          }
+        } catch {
+          send(ws, { type: "system", text: "Suggestion indisponible." });
+        }
+        return;
+      }
+
+      case "/snapshot": {
+        const label = text.slice(10).trim() || `v${Date.now()}`;
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition." }); return; }
+
+        const snapshotDir = path.join(process.cwd(), "data", "compositions", comp.id, "snapshots");
+        fs.mkdirSync(snapshotDir, { recursive: true });
+        fs.writeFileSync(path.join(snapshotDir, `${label}.json`), JSON.stringify(comp, null, 2));
+        send(ws, { type: "system", text: `\ud83d\udcf8 Snapshot "${label}" sauvegarde` });
+        return;
+      }
+
+      case "/randomize": {
+        const dur = parseInt(text.slice(11).trim()) || 30;
+        let comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) comp = createComposition(info.nick, info.channel, "Random " + Date.now().toString(36));
+
+        broadcast(info.channel, { type: "system", text: `\ud83c\udfb2 Generation aleatoire ${dur}s...` });
+
+        const noiseTypes = ["white", "pink", "brown", "sine", "drone"];
+        const count = 2 + Math.floor(Math.random() * 3); // 2-4 tracks
+
+        for (let i = 0; i < count; i++) {
+          const noiseType = noiseTypes[Math.floor(Math.random() * noiseTypes.length)];
+          const trackDur = Math.max(5, Math.min(dur, 10 + Math.floor(Math.random() * 20)));
+          const track = addTrack(comp.id, { type: "sfx" as any, prompt: `${noiseType} noise ${trackDur}s`, duration: trackDur, volume: 30 + Math.floor(Math.random() * 70), startMs: Math.floor(Math.random() * dur * 500) });
+          if (track) {
+            const trackPath = path.join(process.cwd(), "data", "compositions", comp.id, `${track.id}.wav`);
+            const types: Record<string, string> = { white: "anoisesrc=d=DUR:c=white", pink: "anoisesrc=d=DUR:c=pink", brown: "anoisesrc=d=DUR:c=brown", sine: "sine=frequency=" + (100 + Math.floor(Math.random() * 500)) + ":duration=DUR", drone: "sine=frequency=" + (40 + Math.floor(Math.random() * 80)) + ":duration=DUR,tremolo=f=" + (0.05 + Math.random() * 0.2).toFixed(2) + ":d=0.7" };
+            const filter = (types[noiseType] || types.white).replace(/DUR/g, String(trackDur));
+            execFileSync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", String(trackDur), "-ar", "32000", "-ac", "1", "-y", trackPath], { timeout: 15000 });
+            track.filePath = trackPath;
+          }
+        }
+
+        send(ws, { type: "system", text: `\ud83c\udfb2 ${comp.tracks.length} pistes generees aleatoirement. /mix pour ecouter.` });
         return;
       }
 

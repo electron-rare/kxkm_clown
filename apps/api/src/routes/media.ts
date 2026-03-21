@@ -71,6 +71,18 @@ router.get("/compositions/:id/master", (req, res) => {
   res.sendFile(masterPath);
 });
 
+// GET /api/v2/media/compositions/:id/bounce — serve bounced audio (wav/mp3/flac)
+router.get("/compositions/:id/bounce", (req, res) => {
+  const format = (req.query.format as string) || "wav";
+  if (!["wav", "mp3", "flac"].includes(format)) return res.status(400).json({ error: "Invalid format. Use wav, mp3, or flac." });
+  const bouncePath = path.join(process.cwd(), "data", "compositions", req.params.id, `bounce.${format}`);
+  if (!fs.existsSync(bouncePath)) return res.status(404).json({ error: "Bounce not found. /bounce first." });
+  const mimeMap: Record<string, string> = { wav: "audio/wav", mp3: "audio/mpeg", flac: "audio/flac" };
+  res.setHeader("Content-Type", mimeMap[format] || "application/octet-stream");
+  res.setHeader("Content-Disposition", `attachment; filename="${req.params.id}-bounce.${format}"`);
+  res.sendFile(bouncePath);
+});
+
 // GET /api/v2/media/compositions — list compositions
 router.get("/compositions", async (_req, res) => {
   const compDir = path.join(process.cwd(), "data", "compositions");

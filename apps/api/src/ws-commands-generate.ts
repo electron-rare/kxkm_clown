@@ -23,7 +23,7 @@ export const GENERATE_COMMANDS = new Set([
   "/play", "/stop-all", "/template", "/marker",
   "/metronome", "/delete", "/preview", "/gain",
   "/suggest", "/snapshot", "/randomize",
-  "/glitch", "/stretch",
+  "/glitch", "/stretch", "/bounce",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1117,6 +1117,60 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         fs.renameSync(tmp, track.filePath);
         track.duration = Math.round(track.duration * clamp);
         send(ws, { type: "system", text: `\u23f3 Stretch x${clamp} piste #${trackNum+1} (${track.duration}s)` });
+        return;
+      }
+
+      case "/bounce": {
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || comp.tracks.length === 0) {
+          send(ws, { type: "system", text: "Pas de pistes. /layer d'abord." }); return;
+        }
+
+        const format = text.slice(8).trim().toLowerCase() || "wav";
+        if (!["wav", "mp3", "flac"].includes(format)) {
+          send(ws, { type: "system", text: "Formats: wav, mp3, flac" }); return;
+        }
+
+        broadcast(info.channel, { type: "system", text: `\uD83C\uDFA7 Bounce ${format.toUpperCase()} en cours...` });
+
+        const outDir = path.join(process.cwd(), "data", "compositions", comp.id);
+        const outPath = path.join(outDir, `bounce.${format}`);
+
+        try {
+          // First mix to WAV if not already done
+          const mixPath = path.join(outDir, "mix.wav");
+          if (!fs.existsSync(mixPath)) {
+            const inputs = comp.tracks.filter((t: any) => t.filePath && fs.existsSync(t.filePath));
+            if (inputs.length === 0) { send(ws, { type: "system", text: "Aucun fichier audio." }); return; }
+            const ffArgs: string[] = [];
+            const filterParts: string[] = [];
+            inputs.forEach((t: any, i: number) => {
+              const offset = (t.startMs || 0) / 1000;
+              if (offset > 0) ffArgs.push("-itsoffset", String(offset));
+              ffArgs.push("-i", t.filePath!);
+              filterParts.push(`[${i}]aformat=sample_rates=44100:channel_layouts=stereo,volume=${(t.volume ?? 100) / 100}[a${i}]`);
+            });
+            const mixInputs = inputs.map((_: any, i: number) => `[a${i}]`).join("");
+            filterParts.push(`${mixInputs}amix=inputs=${inputs.length}:duration=longest[out]`);
+            ffArgs.push("-filter_complex", filterParts.join(";"), "-map", "[out]", "-ar", "44100", "-ac", "2", "-y", mixPath);
+            execFileSync("ffmpeg", ffArgs, { timeout: 60000 });
+          }
+
+          // Convert to target format
+          if (format === "wav") {
+            fs.copyFileSync(mixPath, outPath);
+          } else if (format === "mp3") {
+            execFileSync("ffmpeg", ["-i", mixPath, "-codec:a", "libmp3lame", "-b:a", "320k", "-y", outPath], { timeout: 30000 });
+          } else if (format === "flac") {
+            execFileSync("ffmpeg", ["-i", mixPath, "-codec:a", "flac", "-y", outPath], { timeout: 30000 });
+          }
+
+          const size = fs.statSync(outPath).size;
+          send(ws, { type: "system", text: `\u2705 Bounce ${format.toUpperCase()}: ${Math.round(size / 1024)} KB\nDownload: /api/v2/media/compositions/${comp.id}/bounce?format=${format}` });
+          broadcastCompUpdate(broadcast, info.channel, comp.id, "bounce_complete");
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur bounce: ${err instanceof Error ? err.message : String(err)}` });
+        }
         return;
       }
 

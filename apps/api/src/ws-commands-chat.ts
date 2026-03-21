@@ -88,6 +88,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "/randomize [duree]                  \u2014 generer une composition aleatoire",
             "/glitch <piste#>                    \u2014 appliquer un glitch audio aleatoire",
             "/stretch <piste#> <facteur>          \u2014 time-stretch sans changer le pitch",
+            "/bounce [wav|mp3|flac]               \u2014 offline render (320k MP3, FLAC lossless)",
             "/status                            \u2014 etat du systeme (VRAM, modeles, perf)",
             "/responders <1-5>                  \u2014 nombre de personas qui repondent",
             "/model                             \u2014 modele actif",

@@ -2,10 +2,14 @@ import { trackError } from "./error-tracker.js";
 import { recordLatency } from "./perf.js";
 import { getToolsForPersona as defaultGetToolsForPersona, type ToolDefinition } from "./mcp-tools.js";
 import {
-  streamOllamaChat as defaultStreamOllamaChat,
+  streamOllamaChat,
+  streamLLMChat,
   streamOllamaChatWithTools as defaultStreamOllamaChatWithTools,
   cleanPersonaResponse,
 } from "./ws-ollama.js";
+
+// Use mascarade-backed LLM client by default, fallback to direct Ollama
+const defaultStreamOllamaChat = streamLLMChat;
 import {
   synthesizeTTS as defaultSynthesizeTTS,
   isTTSAvailable as defaultIsTTSAvailable,

@@ -463,3 +463,60 @@ export async function streamOllamaChatWithTools(
     }
   });
 }
+
+// ---------------------------------------------------------------------------
+// LLM Client — mascarade-backed streaming (OpenAI-compatible)
+// Falls back to direct Ollama if mascarade is unavailable.
+// Drop-in replacement for streamOllamaChat with same signature.
+// ---------------------------------------------------------------------------
+
+import { streamChat as llmStreamChat, type ChatMessage } from "./llm-client.js";
+
+const USE_MASCARADE = process.env.USE_MASCARADE !== "0"; // enabled by default
+
+export async function streamLLMChat(
+  _ollamaUrl: string,
+  persona: ChatPersona,
+  userMessage: string,
+  onChunk: (text: string) => void,
+  onDone: (fullText: string) => void,
+  onError: (err: Error) => void,
+): Promise<void> {
+  if (!USE_MASCARADE) {
+    return streamOllamaChat(_ollamaUrl, persona, userMessage, onChunk, onDone, onError);
+  }
+
+  await ollamaLimit(async () => {
+    try {
+      const messages: ChatMessage[] = [
+        { role: "system", content: persona.systemPrompt },
+        { role: "user", content: userMessage },
+      ];
+
+      const gen = llmStreamChat(messages, {
+        model: persona.model,
+        maxTokens: estimateMaxTokens(userMessage, persona.maxTokens),
+        numCtx: estimateNumCtx(persona.systemPrompt, userMessage),
+        numBatch: 512,
+        keepAlive: "30m",
+        think: false,
+      });
+
+      let result: { content: string } | undefined;
+      while (true) {
+        const { done, value } = await gen.next();
+        if (done) {
+          result = value as { content: string };
+          break;
+        }
+        onChunk(value);
+      }
+
+      const cleaned = stripThinking(result?.content || "");
+      onDone(cleaned);
+    } catch (err) {
+      trackError("llm_stream", err, { persona: persona.nick, model: persona.model });
+      onError(err instanceof Error ? err : new Error(String(err)));
+    }
+  });
+}

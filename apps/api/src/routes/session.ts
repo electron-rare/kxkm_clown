@@ -122,6 +122,14 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
     }));
   });
 
+  // LLM providers (mascarade status)
+  router.get("/api/v2/llm-providers", async (_req, res) => {
+    const { getProviders, checkMascaradeHealth } = await import("../llm-client.js");
+    const healthy = await checkMascaradeHealth();
+    const providers = await getProviders();
+    res.json(asApiData({ mascarade: healthy, providers, fallback: "ollama" }));
+  });
+
   // Scheduler metrics — GPU/CPU task management
   router.get("/api/v2/scheduler", (_req, res) => {
     const metrics = scheduler.getMetrics();

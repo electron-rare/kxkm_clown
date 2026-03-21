@@ -15,7 +15,7 @@ export const INFO_COMMANDS = new Set([
   "/status", "/stats", "/session", "/time", "/date", "/version",
   "/changelog", "/fortune", "/speed", "/model", "/persona", "/personas-detail",
   "/models", "/memory", "/context", "/export", "/history", "/responders-info",
-  "/reload", "/theme", "/dice", "/roll", "/flip",
+  "/reload", "/theme", "/dice", "/roll", "/flip", "/llm",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -278,6 +278,24 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         } catch (err) {
           lines.push(`Ollama non disponible: ${err instanceof Error ? err.message : String(err)}`);
         }
+        send(ws, { type: "system", text: lines.join("\n") });
+        return;
+      }
+
+      case "/llm": {
+        const { getProviders, checkMascaradeHealth } = await import("./llm-client.js");
+        const healthy = await checkMascaradeHealth();
+        const providers = await getProviders();
+        const lines = [
+          "=== LLM Backend ===",
+          `  Mascarade: ${healthy ? "OK" : "OFFLINE"} (${process.env.MASCARADE_URL || "http://127.0.0.1:8100"})`,
+          `  Providers: ${providers.join(", ") || "ollama (fallback)"}`,
+          `  Mode: ${process.env.USE_MASCARADE === "0" ? "Direct Ollama" : "Mascarade → Ollama fallback"}`,
+          `  Default model: ${process.env.LLM_DEFAULT_MODEL || "ollama:qwen3.5:9b"}`,
+          "",
+          "Usage: les personas routent via mascarade automatiquement.",
+          "Pour forcer un provider: mettre 'claude:claude-sonnet-4-6' dans le model du persona.",
+        ];
         send(ws, { type: "system", text: lines.join("\n") });
         return;
       }

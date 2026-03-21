@@ -13,6 +13,8 @@ export const CHAT_COMMANDS = new Set([
   "/quote",
   "/weather",
   "/ascii",
+  "/translate",
+  "/tr",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -45,7 +47,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         send(ws, {
           type: "system",
           text: [
-            "=== 3615 J'ai pete -- 99 commandes ===",
+            "=== 3615 J'ai pete -- 105 commandes ===",
             "",
             "CHAT",
             "  /nick <nom>        Changer de pseudo",
@@ -154,6 +156,10 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "  /fortune            Citation aleatoire",
             "  /dice <NdS>         Lancer des des",
             "  /flip               Pile ou face",
+            "  /quote              Citation aleatoire d'une persona",
+            "  /weather [ville]    Meteo (wttr.in)",
+            "  /ascii <texte>      Texte en gros blocs",
+            "  /tr <texte>         Traduction FR↔EN auto",
             "",
             "  F1=Chat F2=Voice F3=Personas F4=Compose F5=Images",
             "  F6=Media F7=Admin F8=DAW AI F9=Instruments",
@@ -551,6 +557,41 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         // Simple figlet-style with block chars
         const big = asciiText.split("").map(c => `[${c}]`).join(" ");
         broadcast(info.channel, { type: "system", text: `\n  ${"\u2588".repeat(asciiText.length * 4 + 2)}\n  \u2588 ${big} \u2588\n  ${"\u2588".repeat(asciiText.length * 4 + 2)}` });
+        return;
+      }
+
+      case "/translate":
+      case "/tr": {
+        const trInput = text.replace(/^\/(translate|tr)\s*/i, "").trim();
+        if (!trInput) { send(ws, { type: "system", text: "Usage: /tr <texte> — traduit FR↔EN automatiquement" }); return; }
+
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "qwen3.5:9b",
+              messages: [
+                { role: "system", content: "Tu es un traducteur. Si le texte est en francais, traduis en anglais. Si en anglais, traduis en francais. Reponds UNIQUEMENT avec la traduction, rien d'autre." },
+                { role: "user", content: trInput },
+              ],
+              stream: false,
+              options: { num_predict: 500 },
+              keep_alive: "30m",
+              think: false,
+            }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as { message?: { content?: string } };
+            const translation = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            send(ws, { type: "system", text: `${trInput}\n→ ${translation || "(traduction echouee)"}` });
+          } else {
+            send(ws, { type: "system", text: "Erreur traduction." });
+          }
+        } catch {
+          send(ws, { type: "system", text: "Service de traduction indisponible." });
+        }
         return;
       }
 

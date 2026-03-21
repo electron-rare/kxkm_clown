@@ -5,15 +5,12 @@
   "type": "module",
   "description": "V2 web shell scaffold for React/Vite migration",
   "dependencies": {
-    "@magenta/music": "^1.23.1",
     "@tanstack/react-virtual": "^3.13.23",
     "@xyflow/react": "^12.10.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-virtualized-auto-sizer": "^2.0.3",
-    "react-window": "^2.2.7",
-    "tone": "^15.1.22",
-    "wavesurfer.js": "^7.12.4"
+    "react-window": "^2.2.7"
   },
   "scripts": {
     "status": "node ../../scripts/workspace-package.js web status",

@@ -63,6 +63,7 @@ export const INFO_COMMANDS = new Set([
   "/uptime",
   "/lot400",
   "/about",
+  "/benchmark",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -653,6 +654,46 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           "",
           "/lot400 pour le milestone.",
         ];
+        send(ws, { type: "system", text: lines.join("\n") });
+        return;
+      }
+
+      case "/benchmark": {
+        send(ws, { type: "system", text: "Benchmark en cours..." });
+        const tests: Array<{ name: string; promise: Promise<number> }> = [];
+
+        const timeTest = (name: string, url: string) => {
+          tests.push({ name, promise: (async () => {
+            const t0 = Date.now();
+            try {
+              await fetch(url, { signal: AbortSignal.timeout(5000) });
+              return Date.now() - t0;
+            } catch { return -1; }
+          })() });
+        };
+
+        const benchOllamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        timeTest("Ollama", `${benchOllamaUrl}/api/tags`);
+        timeTest("ComfyUI", "http://localhost:8188/system_stats");
+        timeTest("Kokoro", `${process.env.KOKORO_URL || "http://127.0.0.1:9201"}/health`);
+        timeTest("AI Bridge", "http://127.0.0.1:8301/health");
+        timeTest("Mascarade", `${process.env.MASCARADE_URL || "http://127.0.0.1:8100"}/health`);
+
+        // Ollama inference test
+        tests.push({ name: "Ollama chat", promise: (async () => {
+          const t0 = Date.now();
+          try {
+            await fetch(`${benchOllamaUrl}/api/chat`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ model: "qwen3.5:9b", messages: [{ role: "user", content: "1+1" }], stream: false, options: { num_predict: 5 }, keep_alive: "30m", think: false }),
+              signal: AbortSignal.timeout(10000),
+            });
+            return Date.now() - t0;
+          } catch { return -1; }
+        })() });
+
+        const results = await Promise.all(tests.map(async t => ({ name: t.name, ms: await t.promise })));
+        const lines = ["=== BENCHMARK ===", ...results.map(r => `  ${r.name}: ${r.ms < 0 ? "TIMEOUT" : r.ms + "ms"}`)];
         send(ws, { type: "system", text: lines.join("\n") });
         return;
       }

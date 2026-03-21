@@ -1,6 +1,28 @@
 import React, { useState, useRef, useEffect } from "react";
 import type { UseWebSocketReturn } from "../hooks/useWebSocket";
 
+const ALL_COMMANDS = [
+  "/help", "/nick", "/who", "/clear", "/join", "/channels", "/topic", "/pin",
+  "/dm", "/whisper", "/search", "/react", "/mute", "/unmute", "/ban", "/unban",
+  "/invite", "/personas", "/web", "/responders", "/random-persona", "/debate",
+  "/quote", "/weather", "/ascii", "/voice-test",
+  "/imagine", "/imagine-models",
+  "/comp", "/layer", "/voice", "/noise", "/ambient", "/compose", "/mix",
+  "/master", "/bounce", "/remix", "/randomize", "/clear-comp", "/undo",
+  "/silence", "/concat", "/loop", "/snapshot", "/marker", "/metronome",
+  "/preview", "/suggest", "/template",
+  "/fx", "/normalize", "/crossfade", "/trim", "/stutter", "/glitch",
+  "/stretch", "/pan", "/gain",
+  "/tracks", "/solo", "/unsolo", "/delete", "/rename", "/duplicate", "/swap",
+  "/bpm", "/info",
+  "/stem", "/mp3",
+  "/drone", "/grain", "/circus", "/honk", "/kokoro",
+  "/status", "/stats", "/models", "/llm", "/memory", "/speed", "/model",
+  "/persona", "/version", "/changelog", "/session", "/history", "/context",
+  "/export", "/reload", "/theme", "/time", "/fortune", "/dice", "/flip",
+  "/translate", "/tr", "/debate", "/quote", "/weather", "/ascii",
+];
+
 export interface ChatInputProps {
   input: string;
   setInput: (value: string) => void;
@@ -13,6 +35,7 @@ export interface ChatInputProps {
 export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend, onKeyDown, ws, personas = [] }: ChatInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [cmdQuery, setCmdQuery] = useState<string | null>(null);
   const [mentionIdx, setMentionIdx] = useState(0);
 
   // Filter personas matching the typed prefix
@@ -20,10 +43,20 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
     ? personas.filter(p => p.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 8)
     : [];
 
+  // Filter commands matching the typed prefix (fuzzy: includes, not just startsWith)
+  const cmdSuggestions = cmdQuery !== null
+    ? ALL_COMMANDS.filter(c => {
+        const q = cmdQuery.toLowerCase();
+        return c.toLowerCase().includes(q);
+      }).slice(0, 8)
+    : [];
+
+  const activeSuggestions = mentionSuggestions.length > 0 ? "mention" : cmdSuggestions.length > 0 ? "cmd" : null;
+
   // Reset index when suggestions change
   useEffect(() => {
     setMentionIdx(0);
-  }, [mentionQuery]);
+  }, [mentionQuery, cmdQuery]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
@@ -33,8 +66,13 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
     const mentionMatch = beforeCursor.match(/@(\w*)$/);
     if (mentionMatch) {
       setMentionQuery(mentionMatch[1]);
+      setCmdQuery(null);
+    } else if (beforeCursor.match(/^\/\S*$/) && !beforeCursor.includes(" ")) {
+      setCmdQuery(beforeCursor.slice(1));
+      setMentionQuery(null);
     } else {
       setMentionQuery(null);
+      setCmdQuery(null);
     }
   }
 
@@ -57,26 +95,50 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
     });
   }
 
+  function selectCommand(cmd: string) {
+    setInput(cmd + " ");
+    setCmdQuery(null);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        const pos = cmd.length + 1;
+        el.setSelectionRange(pos, pos);
+      }
+    });
+  }
+
   function handleKeyDownInternal(e: React.KeyboardEvent) {
-    if (mentionSuggestions.length > 0) {
+    const suggestions = activeSuggestions === "mention" ? mentionSuggestions : cmdSuggestions;
+    if (suggestions.length > 0) {
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setMentionIdx(prev => (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length);
+        setMentionIdx(prev => (prev - 1 + suggestions.length) % suggestions.length);
         return;
       }
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setMentionIdx(prev => (prev + 1) % mentionSuggestions.length);
+        setMentionIdx(prev => (prev + 1) % suggestions.length);
         return;
       }
-      if (e.key === "Tab" || e.key === "Enter") {
+      if (e.key === "Tab") {
         e.preventDefault();
-        selectMention(mentionSuggestions[mentionIdx]);
+        if (activeSuggestions === "mention") {
+          selectMention(suggestions[mentionIdx]);
+        } else {
+          selectCommand(suggestions[mentionIdx]);
+        }
+        return;
+      }
+      if (e.key === "Enter" && activeSuggestions === "mention") {
+        e.preventDefault();
+        selectMention(suggestions[mentionIdx]);
         return;
       }
       if (e.key === "Escape") {
         e.preventDefault();
         setMentionQuery(null);
+        setCmdQuery(null);
         return;
       }
     }
@@ -92,9 +154,22 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
             <button
               key={name}
               className={`chat-mention-item ${i === mentionIdx ? "active" : ""}`}
-              onMouseDown={(e) => { e.preventDefault(); selectMention(name); }}
+              onMouseDown={(ev) => { ev.preventDefault(); selectMention(name); }}
             >
               @{name}
+            </button>
+          ))}
+        </div>
+      )}
+      {cmdSuggestions.length > 0 && mentionSuggestions.length === 0 && (
+        <div className="chat-mention-dropdown">
+          {cmdSuggestions.map((cmd, i) => (
+            <button
+              key={cmd}
+              className={`chat-mention-item ${i === mentionIdx ? "active" : ""}`}
+              onMouseDown={(ev) => { ev.preventDefault(); selectCommand(cmd); }}
+            >
+              {cmd}
             </button>
           ))}
         </div>

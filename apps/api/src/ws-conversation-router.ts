@@ -93,9 +93,24 @@ const DEFAULT_MAX_INTER_PERSONA_DEPTH = 3;
 const PERSONA_COOLDOWN_MS = 3000;
 const DEFAULT_INTER_PERSONA_DELAY_MS = 500;
 
+// Dynamic mood based on time of day (Lot 405)
+function getPersonaMood(): string {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 12) return "Tu es matinal et energique ce matin.";
+  if (hour >= 12 && hour < 14) return "C'est l'heure du dejeuner, tu es detendu.";
+  if (hour >= 14 && hour < 18) return "L'apres-midi avance, tu es concentre et productif.";
+  if (hour >= 18 && hour < 22) return "La soiree arrive, tu es plus philosophe et contemplatif.";
+  return "Il est tard, tu es mystique et onirique dans tes reponses.";
+}
+
 function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<LoadPersonaMemoryFn>>): ChatPersona {
+  const mood = getPersonaMood();
+
   if (memory.facts.length === 0 && !memory.summary) {
-    return persona;
+    return {
+      ...persona,
+      systemPrompt: persona.systemPrompt + `\n\n[Humeur] ${mood}`,
+    };
   }
 
   const memoryBlock = [
@@ -106,7 +121,7 @@ function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<Load
 
   return {
     ...persona,
-    systemPrompt: persona.systemPrompt + memoryBlock,
+    systemPrompt: persona.systemPrompt + memoryBlock + `\n\n[Humeur] ${mood}`,
   };
 }
 

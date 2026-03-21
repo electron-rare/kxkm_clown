@@ -70,6 +70,26 @@ export default function Chat() {
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
+  // Ctrl+F search overlay
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+      if (e.key === "Escape") setSearchOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const searchMatches = searchOpen && searchQuery.length >= 2
+    ? new Set(messages.filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase())).map(m => m.id))
+    : new Set<number>();
+
   // Channel switching — no page reload
   const [channels] = useState(["#general", "#musique", "#images", "#dev", "#random"]);
   const [showChannelMenu, setShowChannelMenu] = useState(false);
@@ -209,13 +229,28 @@ export default function Chat() {
 
       <div className="chat-body">
         <div className="chat-messages" ref={containerRef} role="log" aria-live="polite">
+          {searchOpen && (
+            <div className="chat-search-bar">
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Rechercher..."
+                className="chat-search-input"
+              />
+              <span className="chat-search-count">{searchMatches.size} resultats</span>
+              <button className="chat-search-close" onClick={() => { setSearchOpen(false); setSearchQuery(""); }}>&#10005;</button>
+            </div>
+          )}
           {messages.map((msg, idx) => {
             const prevMsg = idx > 0 ? messages[idx - 1] : null;
             const showDateSep = !prevMsg || !isSameDay(prevMsg.timestamp, msg.timestamp);
             return (
               <React.Fragment key={msg.id}>
                 {showDateSep && <DateSeparator timestamp={msg.timestamp} />}
-                <ChatMessage msg={msg} getNickColor={getNickColor} channel={channel} onVote={handleVote} />
+                <div className={searchMatches.has(msg.id) ? "chat-msg-highlight" : undefined}>
+                  <ChatMessage msg={msg} getNickColor={getNickColor} channel={channel} onVote={handleVote} />
+                </div>
               </React.Fragment>
             );
           })}

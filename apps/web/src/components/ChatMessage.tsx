@@ -1,5 +1,7 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import type { ChatMsg } from "./chat-types";
+
+const WaveformPlayer = lazy(() => import("./WaveformPlayer").then(m => ({ default: m.WaveformPlayer })));
 
 function renderText(text: string): React.ReactNode {
   // Split by code blocks first
@@ -130,12 +132,16 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
           </span>
           <span className="chat-text">{msg.text}</span>
           {msg.audioData && msg.audioMime && (
-            <audio
-              controls
-              src={`data:${msg.audioMime};base64,${msg.audioData}`}
-              aria-label={`Musique generee: ${msg.text || "sans titre"}`}
-              style={{ display: "block", marginTop: "4px", maxWidth: "400px" }}
-            />
+            <Suspense fallback={
+              <audio controls src={`data:${msg.audioMime};base64,${msg.audioData}`}
+                style={{ display: "block", marginTop: "4px", maxWidth: "400px" }} />
+            }>
+              <WaveformPlayer
+                src={`data:${msg.audioMime};base64,${msg.audioData}`}
+                label={msg.text || "sans titre"}
+                color={color}
+              />
+            </Suspense>
           )}
         </div>
       );

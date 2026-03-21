@@ -31,8 +31,9 @@ async function main() {
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     next();
   }, express.static(dawDistPath));
-  // SPA fallback for /daw
-  app.get("/daw/*", (req, res) => {
+  // SPA fallback for /daw (only for paths without file extension)
+  app.get("/daw/*", (req, res, next) => {
+    if (path.extname(req.path)) return next(); // let static middleware handle files
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");

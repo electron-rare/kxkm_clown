@@ -3892,6 +3892,7 @@ code {
 .daw-block:hover { filter: brightness(1.3); }
 .daw-block-text { font-size: 10px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
 .daw-block-dur { font-size: 9px; color: rgba(255,255,255,0.7); background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 2px; flex-shrink: 0; margin-left: 4px; }
+.daw-block-badge { background: rgba(0,0,0,0.4); border-radius: 2px; padding: 0 3px; font-size: 9px; margin-right: 4px; font-weight: bold; color: #fff; flex-shrink: 0; }
 
 /* Context Menu */
 .daw-context-menu { position: fixed; background: #2a2a2a; border: 1px solid #555; border-radius: 4px; padding: 4px 0; z-index: 100; min-width: 140px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }

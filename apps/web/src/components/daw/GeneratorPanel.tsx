@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import type { DAWState, DAWAction } from "./types";
 import { STYLES } from "./types";
 
@@ -11,6 +11,13 @@ interface Props {
 export default function GeneratorPanel({ state, dispatch, onCmd }: Props) {
   const { tracks, selectedTrack, generating, prompt, style, duration, bpm, compName } = state;
   const [tab, setTab] = useState<"gen" | "fx" | "edit" | "manage">("gen");
+  const [compositions, setCompositions] = useState<Array<{id: string; name: string; tracks: any[]}>>([]);
+
+  useEffect(() => {
+    fetch("/api/v2/media/compositions").then(r => r.json()).then(d => {
+      if (d.ok && d.data) setCompositions(d.data);
+    }).catch(() => {});
+  }, [tab]);
 
   const sel = selectedTrack !== null ? selectedTrack + 1 : null;
   const target = sel || (tracks.length || 1);
@@ -149,6 +156,16 @@ export default function GeneratorPanel({ state, dispatch, onCmd }: Props) {
             <button className="daw-btn" onClick={() => onCmd("/template noise-art")}>TPL Noise</button>
             <button className="daw-btn" onClick={() => onCmd("/template spoken-word")}>TPL Spoken</button>
           </div>
+          {compositions.length > 0 && (
+            <div className="daw-panel-row">
+              <span className="daw-panel-label">Comps:</span>
+              {compositions.slice(0, 5).map(c => (
+                <button key={c.id} className="daw-btn" onClick={() => onCmd(`/comp load ${c.id}`)} title={c.name}>
+                  {c.name.slice(0, 12)} ({c.tracks?.length || 0}p)
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

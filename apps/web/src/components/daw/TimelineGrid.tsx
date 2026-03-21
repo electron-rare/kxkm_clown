@@ -1,6 +1,6 @@
 import React, { useRef, useCallback } from "react";
 import type { DAWState, DAWAction } from "./types";
-import { CTX_ACTIONS } from "./types";
+import { CTX_ACTIONS, typeIcon } from "./types";
 
 interface Props {
   state: DAWState;
@@ -95,6 +95,7 @@ export default function TimelineGrid({ state, dispatch, onCmd }: Props) {
                   onPointerDown={e => { e.stopPropagation(); handlePointerDown(e, i, "resize"); }}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp} />
+                <span className="daw-block-badge">{typeIcon(track)}</span>
                 <span className="daw-block-text">{track.prompt.slice(0, 40)}</span>
                 <span className="daw-block-dur">{track.duration}s</span>
               </div>

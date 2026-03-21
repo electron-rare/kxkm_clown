@@ -4,7 +4,7 @@ Updated: 2026-03-21T12:00:00Z
 
 ## Summary
 
-- **281 lots executed** (24-272) in sessions 2026-03-19/20/21
+- **286 lots executed** (24-286) in sessions 2026-03-19/20/21
 - **425 tests**, 0 fail
 - **55 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
@@ -827,3 +827,27 @@ Updated: 2026-03-20T12:00:00Z
 
 ## lot-280-final [done]
 - Summary: 281 lots, 89 commands, DAW Phase 1-4, composition pipeline complete
+
+## lot-283-composition-browser [done]
+
+- Description: Composition browser in Gestion tab (REST API fetch)
+- Owner: Frontend
+- Summary: Fetch compositions from /api/v2/media/compositions, display as buttons in Gestion tab, /comp load on click.
+
+## lot-284-track-type-badges [done]
+
+- Description: Track type indicators (M/V/N badges) in timeline blocks
+- Owner: Frontend
+- Summary: typeIcon() badge in TimelineGrid blocks, CSS .daw-block-badge.
+
+## lot-285-e2e-health [done]
+
+- Description: Full E2E + health check + PLAN update
+- Owner: Ops
+- Summary: Health 7/7, E2E verified, PLAN updated to 286 lots.
+
+## lot-286-build-deploy [done]
+
+- Description: Build + deploy + commit
+- Owner: Ops
+- Summary: Vite build, Docker rebuild, git push.

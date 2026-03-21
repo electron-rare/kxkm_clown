@@ -59,9 +59,9 @@ async function main() {
   // This prevents intercepting main app files (index.html, assets/, etc.)
   const dawUuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
   app.use((req, res, next) => {
-    if (req.path.startsWith("/api/") || req.path === "/ws" || req.path.startsWith("/daw") || req.path.startsWith("/assets/")) return next();
+    if (req.path.startsWith("/api/") || req.path === "/ws" || req.path.startsWith("/daw")) return next();
     // Only serve if filename contains openDAW build UUID (e.g., main.048779e6-xxxx.js)
-    if (!dawUuidPattern.test(req.path) && !req.path.startsWith("/processors.") && !req.path.startsWith("/graph-runtime.") && !req.path.startsWith("/index.") && req.path !== "/favicon.svg" && req.path !== "/build-info.json") return next();
+    if (!dawUuidPattern.test(req.path) && !req.path.startsWith("/processors.") && !req.path.startsWith("/graph-runtime.") && !req.path.startsWith("/index.") && req.path !== "/favicon.svg" && req.path !== "/build-info.json" && !req.path.startsWith("/assets/")) return next();
     const dawFile = path.join(dawDistPath, req.path);
     if (fs.existsSync(dawFile) && fs.statSync(dawFile).isFile()) {
       res.setHeader("Cross-Origin-Opener-Policy", "same-origin");

@@ -21,6 +21,7 @@ interface RealProgress {
   model?: string;
   lora?: string;
   elapsed: number;
+  preview?: string; // data:image/* base64 live preview
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -74,15 +75,17 @@ export default function ImaginePage() {
       try {
         const msg = JSON.parse(evt.data);
         if (msg.type === "image_progress") {
-          setRealProgress({
-            step: msg.step,
-            totalSteps: msg.totalSteps,
-            percent: msg.percent,
-            phase: msg.phase,
-            model: msg.model,
-            lora: msg.lora,
-            elapsed: msg.elapsed,
-          });
+          setRealProgress(prev => ({
+            step: msg.step || prev?.step || 0,
+            totalSteps: msg.totalSteps || prev?.totalSteps || 0,
+            percent: msg.percent >= 0 ? msg.percent : (prev?.percent || 0),
+            phase: msg.phase || prev?.phase || "sampling",
+            model: msg.model || prev?.model,
+            lora: msg.lora || prev?.lora,
+            elapsed: msg.elapsed || prev?.elapsed || 0,
+            // Keep latest preview frame
+            preview: msg.preview || prev?.preview,
+          }));
         }
       } catch {}
     };
@@ -175,10 +178,16 @@ export default function ImaginePage() {
             </div>
           )}
 
-          {/* Spinner animation */}
-          <div className="img-spinner">
-            <div className="img-spinner-inner" />
-          </div>
+          {/* Live preview from ComfyUI */}
+          {realProgress?.preview ? (
+            <div className="img-preview-live">
+              <img src={realProgress.preview} alt="preview" className="img-preview-img" />
+            </div>
+          ) : (
+            <div className="img-spinner">
+              <div className="img-spinner-inner" />
+            </div>
+          )}
         </div>
       )}
 

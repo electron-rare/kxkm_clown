@@ -1386,7 +1386,7 @@ async function handleImagineCommand({
     text: `${info.nick} genere une image: "${imagePrompt}"...`,
   });
 
-  // Send real progress from ComfyUI WebSocket
+  // Send real progress from ComfyUI WebSocket (including preview frames)
   const onProgress = (p: ImageProgress) => {
     send(ws, {
       type: "image_progress",
@@ -1397,6 +1397,7 @@ async function handleImagineCommand({
       model: p.model,
       lora: p.lora,
       elapsed: p.elapsed,
+      preview: (p as any).preview || undefined,
     } as any);
   };
 

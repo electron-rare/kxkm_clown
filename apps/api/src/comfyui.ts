@@ -16,6 +16,7 @@ export interface ImageProgress {
   model?: string;
   lora?: string;
   elapsed: number; // ms since start
+  preview?: string; // data:image/* base64 preview frame
 }
 
 export interface GenerateImageOptions {
@@ -133,10 +134,29 @@ export async function generateImage(
 
       ws.on("message", async (data: WebSocket.Data) => {
         try {
-          // ComfyUI sends binary preview frames — skip them
-          if (typeof data !== "string" && !Buffer.isBuffer(data)) return;
-          const raw = typeof data === "string" ? data : data.toString("utf8");
-          // Skip binary-looking data
+          // ComfyUI sends binary preview frames (type 1 = JPEG preview, type 2 = PNG)
+          // Extract and forward as preview image
+          const buf = Buffer.isBuffer(data) ? data : (typeof data === "string" ? null : Buffer.from(data as ArrayBuffer));
+          if (buf && buf.length > 8 && (buf[0] === 1 || buf[0] === 2)) {
+            // Binary preview: first 4 bytes = type+format, rest = image data
+            const previewData = buf.subarray(8); // skip header
+            if (previewData.length > 100) {
+              const mime = buf[0] === 2 ? "image/png" : "image/jpeg";
+              opts?.onProgress?.({
+                step: 0, totalSteps: steps,
+                percent: -1, // signal: this is a preview frame, not a step
+                phase: "sampling",
+                model: checkpoint, lora: selection.lora,
+                elapsed: Date.now() - startTime,
+                preview: `data:${mime};base64,${previewData.toString("base64")}`,
+              } as ImageProgress & { preview: string });
+            }
+            return;
+          }
+
+          // JSON messages
+          if (!buf && typeof data !== "string") return;
+          const raw = typeof data === "string" ? data : buf!.toString("utf8");
           if (raw.charCodeAt(0) > 127) return;
 
           const msg = JSON.parse(raw) as Record<string, any>;

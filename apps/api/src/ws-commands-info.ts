@@ -228,16 +228,47 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         const personaName = text.slice(9).trim();
         const pList = getPersonas();
         if (!personaName) {
-          const list = pList.map(p => `  ${p.nick} (${p.model})`).join("\n");
-          send(ws, { type: "system", text: `Personas actives (${pList.length}):\n${list}` });
+          // Rich persona list with voice + model info
+          const { getPersonaVoice } = await import("./persona-voices.js");
+          const categories: Record<string, typeof pList> = {};
+          for (const p of pList) {
+            const cat = p.systemPrompt.includes("musique") || p.systemPrompt.includes("son") ? "Musique/Son"
+              : p.systemPrompt.includes("philosophe") || p.systemPrompt.includes("theorie") ? "Philosophie"
+              : p.systemPrompt.includes("scien") || p.systemPrompt.includes("code") ? "Science/Tech"
+              : p.systemPrompt.includes("art") || p.systemPrompt.includes("cinema") ? "Arts"
+              : "Transversal";
+            (categories[cat] ||= []).push(p);
+          }
+          const lines = [`=== ${pList.length} Personas ===`];
+          for (const [cat, personas] of Object.entries(categories)) {
+            lines.push(`\n[${cat}]`);
+            for (const p of personas) {
+              const voice = getPersonaVoice(p.nick);
+              lines.push(`  ${p.nick} — ${p.model} — voix: ${voice.speaker}`);
+            }
+          }
+          lines.push(`\n/persona <nom> pour les details. /voice-test <nom> pour ecouter.`);
+          send(ws, { type: "system", text: lines.join("\n") });
           return;
         }
         const found = pList.find(p => p.nick.toLowerCase() === personaName.toLowerCase());
         if (!found) {
-          send(ws, { type: "system", text: `Persona "${personaName}" inconnue. /personas pour la liste.` });
+          send(ws, { type: "system", text: `Persona "${personaName}" inconnue. /persona pour la liste.` });
           return;
         }
-        send(ws, { type: "system", text: `${found.nick}\n  Modele: ${found.model}\n  Couleur: ${found.color}\n  Prompt: ${found.systemPrompt.slice(0, 200)}...` });
+        const { getPersonaVoice: getVoice } = await import("./persona-voices.js");
+        const v = getVoice(found.nick);
+        const mem = await loadPersonaMemory(found.nick);
+        send(ws, { type: "system", text: [
+          `=== ${found.nick} ===`,
+          `  Modele: ${found.model}`,
+          `  Couleur: ${found.color}`,
+          `  Voix: ${v.speaker} (${v.language})`,
+          `  Style: ${v.instruct}`,
+          mem.facts.length > 0 ? `  Memoire: ${mem.facts.slice(0, 3).join(", ")}` : "",
+          `  Prompt: ${found.systemPrompt.slice(0, 300)}...`,
+          `\n  /voice-test ${found.nick} — ecouter sa voix`,
+        ].filter(Boolean).join("\n") });
         return;
       }
 

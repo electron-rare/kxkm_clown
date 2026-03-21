@@ -274,14 +274,17 @@ export function useChatState(): UseChatStateReturn {
         }
 
         if (type === "message" && chatMsg.nick && personaColors[chatMsg.nick]) {
-          sounds.receive();
+          // Subtle notification for persona messages (only if tab not focused)
+          if (document.hidden) {
+            sounds.notification();
+          }
         }
 
-        // Check if current user is mentioned
+        // Check if current user is mentioned → louder sound
         if (type === "message" && chatMsg.text) {
           const currentNick = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("kxkm-nick") : null;
           if (currentNick && chatMsg.text.toLowerCase().includes(`@${currentNick.toLowerCase()}`)) {
-            sounds.receive(); // play notification sound on @mention
+            sounds.mention();
           }
         }
 

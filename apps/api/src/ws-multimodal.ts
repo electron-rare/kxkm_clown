@@ -68,26 +68,33 @@ const KOKORO_VOICE_MAP: Record<string, string> = {
   Eno: "bm_george",
 };
 
-// Piper voice mapping — FR-FR for French personas
+// Piper FR voice mapping — 5 voices for persona diversity
+// siwis-medium: female, warm, medium quality (44kHz)
+// siwis-low: female, lighter/faster
+// upmc-medium: male academic, clear, medium quality (22kHz)
+// tom-medium: male warm/natural, medium quality (44kHz)
+// gilles-low: male casual/rough
 const PIPER_VOICE_MAP: Record<string, string> = {
-  // Female personas → siwis (female FR)
+  // Female personas → siwis-medium (warm) or siwis-low (lighter)
   Radigue: "fr_FR-siwis-medium", Oliveros: "fr_FR-siwis-medium",
-  Haraway: "fr_FR-siwis-medium", Oram: "fr_FR-siwis-medium",
-  Bjork: "fr_FR-siwis-medium", Hypatia: "fr_FR-siwis-medium",
-  Curie: "fr_FR-siwis-medium", LeGuin: "fr_FR-siwis-medium",
-  Mnouchkine: "fr_FR-siwis-medium", Pina: "fr_FR-siwis-medium",
-  TeamLab: "fr_FR-siwis-medium",
-  // Male personas → upmc (male FR academic) or gilles (male FR casual)
-  Pharmacius: "fr_FR-upmc-medium", Schaeffer: "fr_FR-upmc-medium",
-  Deleuze: "fr_FR-upmc-medium", Foucault: "fr_FR-upmc-medium",
-  Batty: "fr_FR-gilles-low", Turing: "fr_FR-upmc-medium",
-  Cage: "fr_FR-gilles-low", SunRa: "fr_FR-gilles-low",
-  Merzbow: "fr_FR-gilles-low", Picasso: "fr_FR-gilles-low",
-  Bookchin: "fr_FR-upmc-medium", Swartz: "fr_FR-gilles-low",
-  Ikeda: "fr_FR-upmc-medium", Decroux: "fr_FR-upmc-medium",
-  Grotowski: "fr_FR-gilles-low", Fratellini: "fr_FR-gilles-low",
-  RoyalDeLuxe: "fr_FR-gilles-low", Fuller: "fr_FR-upmc-medium",
-  Tarkovski: "fr_FR-upmc-medium", Sherlock: "fr_FR-upmc-medium",
+  Haraway: "fr_FR-siwis-medium", Curie: "fr_FR-siwis-medium",
+  LeGuin: "fr_FR-siwis-medium", Mnouchkine: "fr_FR-siwis-medium",
+  Oram: "fr_FR-siwis-low", Bjork: "fr_FR-siwis-low",
+  Hypatia: "fr_FR-siwis-low", Pina: "fr_FR-siwis-low",
+  TeamLab: "fr_FR-siwis-low",
+  // Male authoritative → upmc (academic) — intellectuels, scientifiques
+  Pharmacius: "fr_FR-upmc-medium", Foucault: "fr_FR-upmc-medium",
+  Deleuze: "fr_FR-upmc-medium", Turing: "fr_FR-upmc-medium",
+  Bookchin: "fr_FR-upmc-medium", Ikeda: "fr_FR-upmc-medium",
+  Sherlock: "fr_FR-upmc-medium", Fuller: "fr_FR-upmc-medium",
+  // Male warm/natural → tom (natural) — artistes, poetes
+  Schaeffer: "fr_FR-tom-medium", Cage: "fr_FR-tom-medium",
+  Tarkovski: "fr_FR-tom-medium", Decroux: "fr_FR-tom-medium",
+  Batty: "fr_FR-tom-medium", Picasso: "fr_FR-tom-medium",
+  // Male casual/rough → gilles (casual) — punk, noise, street
+  SunRa: "fr_FR-gilles-low", Merzbow: "fr_FR-gilles-low",
+  Swartz: "fr_FR-gilles-low", Grotowski: "fr_FR-gilles-low",
+  Fratellini: "fr_FR-gilles-low", RoyalDeLuxe: "fr_FR-gilles-low",
   Demoscene: "fr_FR-gilles-low",
 };
 

@@ -61,5 +61,19 @@ export function useMinitelSounds() {
     trackTimeout(() => beep(800, 0.15), 350);
   }, [beep]);
 
-  return { keyPress, send, receive, connect };
+  // Notification: persona mentions the user
+  const mention = useCallback(() => {
+    if (!mountedRef.current) return;
+    beep(1400, 0.08);
+    trackTimeout(() => beep(1600, 0.08), 100);
+    trackTimeout(() => beep(1400, 0.12), 200);
+  }, [beep]);
+
+  // Subtle notification for new persona message
+  const notification = useCallback(() => {
+    if (!mountedRef.current) return;
+    beep(500, 0.04);
+  }, [beep]);
+
+  return { keyPress, send, receive, connect, mention, notification };
 }

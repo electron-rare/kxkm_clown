@@ -70,6 +70,29 @@ export default function Chat() {
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
+  // Channel switching — no page reload
+  const [channels] = useState(["#general", "#musique", "#images", "#dev", "#random"]);
+  const [showChannelMenu, setShowChannelMenu] = useState(false);
+
+  // Theme toggle — persisted in localStorage
+  const [theme, setTheme] = useState(() =>
+    typeof localStorage !== "undefined" ? localStorage.getItem("kxkm-theme") || "dark" : "dark"
+  );
+
+  const toggleTheme = useCallback(() => {
+    setTheme(prev => {
+      const next = prev === "dark" ? "light" : "dark";
+      localStorage.setItem("kxkm-theme", next);
+      document.documentElement.setAttribute("data-theme", next);
+      return next;
+    });
+  }, []);
+
+  // Apply theme on mount
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, []);
+
   // Voice chat toggle — persisted in sessionStorage
   const [voiceChat, setVoiceChat] = useState(() =>
     typeof sessionStorage !== "undefined" ? sessionStorage.getItem("kxkm-voicechat") === "1" : false
@@ -133,9 +156,36 @@ export default function Chat() {
   return (
     <div className="chat-container">
       <div className="chat-header">
-        <span className="chat-channel">{channel}</span>
+        <div className="chat-channel-selector">
+          <button className="chat-channel-btn" onClick={() => setShowChannelMenu(!showChannelMenu)}>
+            {channel} &#9662;
+          </button>
+          {showChannelMenu && (
+            <div className="chat-channel-menu">
+              {channels.map(ch => (
+                <button
+                  key={ch}
+                  className={`chat-channel-item ${ch === channel ? "active" : ""}`}
+                  onClick={() => {
+                    if (ch !== channel && ws.connected) {
+                      ws.send({ type: "command", text: `/join ${ch}` });
+                    }
+                    setShowChannelMenu(false);
+                  }}
+                >
+                  {ch}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <span className={`chat-status ${ws.connected ? "chat-status-on" : ws.connectionStatus === "reconnecting" ? "chat-status-warn" : "chat-status-off"}`}>
-          {ws.connected ? "connecte" : ws.connectionStatus === "reconnecting" ? `reconnexion (${ws.reconnectAttempts})` : "deconnecte"}
+          <span className="chat-status-dot" />
+          {ws.connected
+            ? <>connecte{ws.latencyMs != null && <span style={{ opacity: 0.5, marginLeft: 4 }}>{ws.latencyMs}ms</span>}</>
+            : ws.connectionStatus === "reconnecting"
+              ? `reconnexion (${ws.reconnectAttempts})`
+              : <>deconnecte<button className="chat-reconnect-btn" onClick={ws.reconnect}>reconnecter</button></>}
         </span>
         <span className="chat-count">{messages.length} msgs</span>
         <button
@@ -145,7 +195,17 @@ export default function Chat() {
         >
           {voiceChat ? "\uD83D\uDD0A" : "\uD83D\uDD07"}
         </button>
+        <button className="chat-theme-toggle" onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>
+          {theme === "dark" ? "\u2600" : "\u263E"}
+        </button>
       </div>
+
+      {ws.connectionStatus === "reconnecting" && (
+        <div className="chat-reconnect-banner">
+          Reconnexion en cours (tentative {ws.reconnectAttempts})...
+          <button className="chat-reconnect-btn" onClick={ws.reconnect} style={{ marginLeft: 8 }}>forcer</button>
+        </div>
+      )}
 
       <div className="chat-body">
         <div className="chat-messages" ref={containerRef} role="log" aria-live="polite">

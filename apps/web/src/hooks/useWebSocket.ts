@@ -13,9 +13,11 @@ export interface UseWebSocketReturn {
   connected: boolean;
   connectionStatus: ConnectionStatus;
   reconnectAttempts: number;
+  latencyMs: number | null;
   send: (data: unknown) => void;
   lastMessage: unknown | null;
   disconnect: () => void;
+  reconnect: () => void;
 }
 
 const INITIAL_DELAY = 1000;
@@ -29,6 +31,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [lastMessage, setLastMessage] = useState<unknown | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,6 +40,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const onMessageRef = useRef(onMessage);
   const mountedRef = useRef(true);
   const manualDisconnect = useRef(false);
+  const pingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pingSentAt = useRef<number>(0);
 
   // Keep onMessage ref current without triggering reconnects
   useEffect(() => {
@@ -52,6 +57,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
   const closeSocket = useCallback(() => {
     clearReconnect();
+    if (pingTimer.current) { clearInterval(pingTimer.current); pingTimer.current = null; }
     if (wsRef.current) {
       wsRef.current.onopen = null;
       wsRef.current.onclose = null;
@@ -117,6 +123,14 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       setConnected(true);
       setConnectionStatus("connected");
       setReconnectAttempts(0);
+      // Start ping/pong latency measurement
+      if (pingTimer.current) clearInterval(pingTimer.current);
+      pingTimer.current = setInterval(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          pingSentAt.current = performance.now();
+          wsRef.current.send(JSON.stringify({ type: "__ping" }));
+        }
+      }, 15_000);
     };
 
     ws.onmessage = (event: MessageEvent) => {
@@ -126,6 +140,13 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         parsed = JSON.parse(event.data as string);
       } catch {
         parsed = event.data;
+      }
+      // Handle pong for latency measurement
+      if (parsed && typeof parsed === "object" && (parsed as Record<string, unknown>).type === "__pong") {
+        if (pingSentAt.current > 0) {
+          setLatencyMs(Math.round(performance.now() - pingSentAt.current));
+        }
+        return; // Don't propagate internal pong messages
       }
       setLastMessage(parsed);
       onMessageRef.current?.(parsed);
@@ -165,6 +186,15 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     setReconnectAttempts(0);
   }, [closeSocket]);
 
+  const reconnect = useCallback(() => {
+    manualDisconnect.current = false;
+    backoffRef.current = reconnectInterval;
+    attemptsRef.current = 0;
+    setReconnectAttempts(0);
+    setLatencyMs(null);
+    connectFnRef.current();
+  }, [reconnectInterval]);
+
   // Connect / disconnect based on enabled flag
   useEffect(() => {
     mountedRef.current = true;
@@ -186,5 +216,5 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     };
   }, [enabled, url, connect, closeSocket, reconnectInterval]);
 
-  return { connected, connectionStatus, reconnectAttempts, send, lastMessage, disconnect };
+  return { connected, connectionStatus, reconnectAttempts, latencyMs, send, lastMessage, disconnect, reconnect };
 }

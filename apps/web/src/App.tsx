@@ -29,6 +29,7 @@ const DawAIPanel = lazy(() => import("./components/DawAIPanel"));
 const AIInstruments = lazy(() => import("./components/AIInstruments"));
 const AdminPage = lazy(() => import("./components/AdminPage"));
 const MediaExplorer = lazy(() => import("./components/MediaExplorer"));
+const MediaGallery = lazy(() => import("./components/MediaGallery"));
 
 // ---------------------------------------------------------------------------
 // App state phases:
@@ -167,7 +168,7 @@ export default function App() {
         return <AIInstruments />;
 
       case "media":
-        return <MediaExplorer />;
+        return <MediaGallery />;
 
       case "chat":
       default:

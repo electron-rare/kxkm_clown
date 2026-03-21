@@ -283,6 +283,63 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
     }));
   });
 
+  // Prometheus-compatible metrics endpoint
+  router.get("/api/v2/metrics", async (_req, res) => {
+    const lines: string[] = [];
+
+    // Uptime
+    lines.push(`# HELP kxkm_uptime_seconds Server uptime in seconds`);
+    lines.push(`# TYPE kxkm_uptime_seconds gauge`);
+    lines.push(`kxkm_uptime_seconds ${Math.floor(process.uptime())}`);
+
+    // Memory
+    const mem = process.memoryUsage();
+    lines.push(`# HELP kxkm_memory_rss_bytes RSS memory`);
+    lines.push(`# TYPE kxkm_memory_rss_bytes gauge`);
+    lines.push(`kxkm_memory_rss_bytes ${mem.rss}`);
+    lines.push(`kxkm_memory_heap_used_bytes ${mem.heapUsed}`);
+
+    // Scheduler metrics
+    try {
+      const { scheduler } = await import("../inference-scheduler.js");
+      const m = scheduler.getMetrics();
+      lines.push(`# HELP kxkm_scheduler_gpu_queue GPU task queue length`);
+      lines.push(`# TYPE kxkm_scheduler_gpu_queue gauge`);
+      lines.push(`kxkm_scheduler_gpu_queue ${m.gpuQueue}`);
+      lines.push(`kxkm_scheduler_cpu_queue ${m.cpuQueue}`);
+      lines.push(`kxkm_scheduler_gpu_active ${m.activeGpuTasks}`);
+      lines.push(`kxkm_scheduler_cpu_active ${m.activeCpuTasks}`);
+      lines.push(`# HELP kxkm_scheduler_total_submitted Total tasks submitted`);
+      lines.push(`# TYPE kxkm_scheduler_total_submitted counter`);
+      lines.push(`kxkm_scheduler_total_submitted ${m.totalSubmitted}`);
+      lines.push(`kxkm_scheduler_total_completed ${m.totalCompleted}`);
+      lines.push(`kxkm_scheduler_total_rejected ${m.totalRejected}`);
+      if (m.vramFree !== null) {
+        lines.push(`kxkm_vram_free_mb ${m.vramFree}`);
+      }
+      lines.push(`kxkm_ram_free_mb ${m.ramFree}`);
+    } catch {}
+
+    // Perf tracker
+    try {
+      const resp = await fetch("http://localhost:" + (process.env.V2_API_PORT || 4180) + "/api/v2/perf");
+      if (resp.ok) {
+        const perf = await resp.json();
+        if (perf.data) {
+          lines.push(`# HELP kxkm_http_requests_total Total HTTP requests`);
+          lines.push(`# TYPE kxkm_http_requests_total counter`);
+          lines.push(`kxkm_http_requests_total ${perf.data.requests || 0}`);
+          if (perf.data.avg_latency_ms) {
+            lines.push(`kxkm_http_avg_latency_ms ${perf.data.avg_latency_ms}`);
+          }
+        }
+      }
+    } catch {}
+
+    res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+    res.send(lines.join("\n") + "\n");
+  });
+
   // Public status strip — no auth required
   router.get("/api/v2/status", async (_req, res) => {
     try {

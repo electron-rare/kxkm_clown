@@ -282,6 +282,36 @@ export default function ComposePage() {
   const hasAudio = tracks.some(t => t.audioData);
   const generatingCount = tracks.filter(t => t.generating).length;
 
+  // Playlist mode: play all tracks sequentially
+  const [playing, setPlaying] = useState(false);
+  const playlistRef = useRef<HTMLAudioElement | null>(null);
+
+  const playPlaylist = useCallback(() => {
+    const audioTracks = tracks.filter(t => t.audioData && t.audioMime);
+    if (audioTracks.length === 0) return;
+    setPlaying(true);
+    let idx = 0;
+    const playNext = () => {
+      if (idx >= audioTracks.length) { setPlaying(false); return; }
+      const t = audioTracks[idx];
+      const audio = new Audio(`data:${t.audioMime};base64,${t.audioData}`);
+      playlistRef.current = audio;
+      audio.volume = (t.volume || 100) / 100;
+      audio.onended = () => { idx++; playNext(); };
+      audio.onerror = () => { idx++; playNext(); };
+      audio.play().catch(() => { idx++; playNext(); });
+    };
+    playNext();
+  }, [tracks]);
+
+  const stopPlaylist = useCallback(() => {
+    if (playlistRef.current) {
+      playlistRef.current.pause();
+      playlistRef.current = null;
+    }
+    setPlaying(false);
+  }, []);
+
   return (
     <div className="cmp">
       {/* HEADER */}
@@ -301,6 +331,9 @@ export default function ComposePage() {
           </button>
           <button className="cmp-genall-btn" onClick={generateAll} disabled={generatingCount > 0}>
             {"\u25B6\u25B6"} Tout
+          </button>
+          <button className="cmp-play-btn" onClick={playing ? stopPlaylist : playPlaylist} disabled={!hasAudio} title={playing ? "Stop" : "Enchainer toutes les pistes"}>
+            {playing ? "\u23F9" : "\u25B6"} {playing ? "Stop" : "Play"}
           </button>
           <button className="cmp-add-track-btn" onClick={addTrack} title="Ajouter une piste">+</button>
         </div>

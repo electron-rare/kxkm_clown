@@ -26,6 +26,7 @@ const UllaPage = lazy(() => import("./components/UllaPage"));
 const ComposePage = lazy(() => import("./components/ComposePage"));
 const ImaginePage = lazy(() => import("./components/ImaginePage"));
 const DawAIPanel = lazy(() => import("./components/DawAIPanel"));
+const AIInstruments = lazy(() => import("./components/AIInstruments"));
 const AdminPage = lazy(() => import("./components/AdminPage"));
 const MediaExplorer = lazy(() => import("./components/MediaExplorer"));
 
@@ -161,6 +162,9 @@ export default function App() {
 
       case "daw-ai":
         return <DawAIPanel />;
+
+      case "instruments":
+        return <AIInstruments />;
 
       case "media":
         return <MediaExplorer />;

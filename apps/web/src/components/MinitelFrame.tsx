@@ -28,6 +28,7 @@ const MODE_BUTTONS: ModeButton[] = [
   { label: "Media", page: "media", key: "F6" },
   { label: "Admin", page: "admin", key: "F7", roles: ["admin", "operator", "viewer"] },
   { label: "DAW AI", page: "daw-ai", key: "F8" },
+  { label: "Instruments", page: "instruments", key: "F9" },
 ];
 
 // Sommaire = full navigation (overlay)
@@ -48,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Generation images", page: "imagine-mode" },
   { label: "Mediatheque", page: "media" },
   { label: "DAW AI Assistant", page: "daw-ai" },
+  { label: "AI Instruments", page: "instruments" },
   { label: "Tableau de bord", page: "dashboard" },
   { label: "Node Engine", page: "node-engine", roles: ["admin", "operator"] },
   { label: "Training", page: "training", roles: ["admin", "operator"] },

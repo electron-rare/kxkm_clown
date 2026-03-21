@@ -21,6 +21,7 @@ export const GENERATE_COMMANDS = new Set([
   "/loop", "/swap", "/info", "/normalize", "/crossfade", "/trim",
   "/stutter", "/pan", "/master", "/concat", "/silence",
   "/play", "/stop-all", "/template", "/marker",
+  "/metronome", "/delete",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -208,7 +209,13 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             text: `[Mix: ${comp.name} \u2014 ${comp.tracks.length} pistes, 44.1kHz stereo]`,
             audioData: mixBuffer.toString("base64"), audioMime: "audio/wav",
           } as any);
-          send(ws, { type: "system", text: `\u2705 Mix termine. Download: /api/v2/media/compositions/${comp.id}/mix` });
+          // Also generate MP3 version
+          try {
+            const mp3Path = outPath.replace(".wav", ".mp3");
+            execFileSync("ffmpeg", ["-i", outPath, "-codec:a", "libmp3lame", "-b:a", "192k", "-y", mp3Path], { timeout: 30000 });
+          } catch { /* MP3 conversion optional */ }
+
+          send(ws, { type: "system", text: `\u2705 Mix termine. Download: /api/v2/media/compositions/${comp.id}/mix (WAV) | /api/v2/media/compositions/${comp.id}/mp3 (MP3)` });
           broadcastCompUpdate(broadcast, info.channel, comp.id, "mix_complete");
         } catch (err) {
           send(ws, { type: "system", text: `Erreur mixage: ${err instanceof Error ? err.message : String(err)}` });
@@ -932,6 +939,39 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         if (!(comp as any).markers) (comp as any).markers = [];
         (comp as any).markers.push({ label, time });
         send(ws, { type: "system", text: `\ud83d\udccd Marker ajoute: "${label}" a ${time}s` });
+        return;
+      }
+
+      case "/metronome": {
+        const bpmVal = parseInt(text.slice(11).trim()) || 120;
+        const dur = 30;
+        let comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) comp = createComposition(info.nick, info.channel);
+        const track = addTrack(comp.id, { type: "sfx" as any, prompt: `metronome ${bpmVal}bpm`, duration: dur, volume: 50, startMs: 0 });
+        if (track) {
+          const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
+          fs.mkdirSync(trackDir, { recursive: true });
+          const trackPath = path.join(trackDir, `${track.id}.wav`);
+          const beatInterval = 60 / bpmVal;
+          execFileSync("ffmpeg", ["-f", "lavfi", "-i", `sine=frequency=1000:duration=0.05,apad=whole_dur=${dur}`, "-af", `aecho=1:1:${Math.round(beatInterval*1000)}:1`, "-t", String(dur), "-ar", "32000", "-ac", "1", "-y", trackPath], { timeout: 15000 });
+          track.filePath = trackPath;
+          const buf = fs.readFileSync(trackPath);
+          broadcast(info.channel, { type: "music", nick: info.nick, text: `[Metronome ${bpmVal} BPM]`, audioData: buf.toString("base64"), audioMime: "audio/wav" } as any);
+          send(ws, { type: "system", text: `\ud83e\udd41 Metronome ${bpmVal} BPM ajoute (piste ${comp.tracks.length})` });
+        }
+        return;
+      }
+
+      case "/delete": {
+        const trackNum = parseInt(text.slice(8).trim());
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 1 || trackNum > comp.tracks.length) {
+          send(ws, { type: "system", text: `Usage: /delete <piste# 1-${comp?.tracks.length || "?"}>` }); return;
+        }
+        const removed = comp.tracks.splice(trackNum - 1, 1)[0];
+        if (removed?.filePath && fs.existsSync(removed.filePath)) fs.unlinkSync(removed.filePath);
+        send(ws, { type: "system", text: `\ud83d\uddd1\ufe0f Piste #${trackNum} supprimee: "${removed?.prompt?.slice(0, 40)}"` });
+        broadcastCompUpdate(broadcast, info.channel, comp.id, "track_removed", { trackCount: comp.tracks.length });
         return;
       }
 

@@ -48,6 +48,21 @@ router.get("/compositions/:id/mix", (req, res) => {
   res.sendFile(mixPath);
 });
 
+// GET /api/v2/media/compositions/:id/mp3 — serve mix MP3
+router.get("/compositions/:id/mp3", (req, res) => {
+  const mp3Path = path.join(process.cwd(), "data", "compositions", req.params.id, "mix.mp3");
+  if (!fs.existsSync(mp3Path)) {
+    const wavPath = mp3Path.replace(".mp3", ".wav");
+    if (!fs.existsSync(wavPath)) return res.status(404).json({ error: "Mix not found" });
+    try {
+      const { execFileSync } = require("child_process");
+      execFileSync("ffmpeg", ["-i", wavPath, "-codec:a", "libmp3lame", "-b:a", "192k", "-y", mp3Path], { timeout: 30000 });
+    } catch { return res.status(500).json({ error: "MP3 conversion failed" }); }
+  }
+  res.setHeader("Content-Disposition", `attachment; filename="${req.params.id}-mix.mp3"`);
+  res.sendFile(mp3Path);
+});
+
 // GET /api/v2/media/compositions/:id/master -- serve master WAV
 router.get("/compositions/:id/master", (req, res) => {
   const masterPath = path.join(process.cwd(), "data", "compositions", req.params.id, "master.wav");

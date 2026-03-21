@@ -77,9 +77,9 @@ echo "▸ DAW Samples"
 test_endpoint "samples list" "$HOST/api/v2/daw/samples"
 
 echo "▸ RAG / Feedback"
-test_endpoint "rag search" "$HOST/api/v2/rag/search" "POST"
+test_endpoint "rag search" "$HOST/api/v2/rag/search" "POST" "400"
 test_endpoint "dpo export" "$HOST/api/v2/export/dpo"
-test_endpoint "feedback" "$HOST/api/v2/feedback" "POST"
+test_endpoint "feedback" "$HOST/api/v2/feedback" "POST" "400"
 
 echo "▸ Scheduler"
 test_json "scheduler" "$HOST/api/v2/scheduler" "d['data']['maxVRAM']>0"

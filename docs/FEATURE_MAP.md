@@ -16,6 +16,7 @@ flowchart TD
   Product --> Engine[Node Engine]
   Product --> Multimodal[Multimodal Pipeline]
   Product --> Training[Training & DPO]
+  Product --> DAW[openDIAW.be + Composition]
   Product --> Ops[Ops]
   Product --> Data[Donnees]
   Product --> Security[Securite]
@@ -67,6 +68,22 @@ flowchart TD
   Data --> DPOData[DPO pairs]
   Data --> Export[HTML / training export]
   Data --> ConvMemory[Conversation memory]
+
+  DAW --> Instruments[9 Instruments DSP]
+  DAW --> AIBridge[AI Bridge 17 backends]
+  DAW --> Compose[Composition pipeline]
+  DAW --> Effects[FX + mastering]
+  DAW --> Stems[Demucs stems]
+  DAW --> SampleLib[Sample library]
+
+  Instruments --> SynthDSP[Drone/Grain/Glitch/Circus/Honk]
+  Instruments --> MagentaJS[Magenta.js MIDI]
+  Instruments --> AIInstr[AceStep/KokoroTTS/Piper]
+
+  AIBridge --> TTS_B[Kokoro + Piper + Chatterbox]
+  AIBridge --> MusicGen_B[ACE-Step + MusicGen]
+  AIBridge --> FFmpeg[ffmpeg synthesis]
+  AIBridge --> Demucs_B[Demucs + Matchering]
 
   Security --> NetGate[Subnet gate]
   Security --> Cookie[HttpOnly cookies]
@@ -315,9 +332,22 @@ flowchart TD
 | Subnet gate | OK | OK | haute |
 | Cookies HttpOnly | OK | OK | haute |
 | RBAC roles | -- | OK | haute |
+| **openDIAW.be / Composition** | | | |
+| 9 instruments DSP (Drone/Grain/Glitch/Circus/Honk/Magenta/AceStep/KokoroTTS/Piper) | -- | OK | haute |
+| AI Bridge (17 backends, :8301) | -- | OK | critique |
+| Composition pipeline (/comp /layer /mix /master) | -- | OK | haute |
+| Wavesurfer waveform player | -- | OK | moyenne |
+| Sample library (upload/browse/delete) | -- | OK | haute |
+| Stem separation (Demucs) | -- | OK | haute |
+| AI mastering (Matchering) | -- | OK | moyenne |
+| Magenta.js browser MIDI (MelodyRNN/DrumsRNN) | -- | OK | moyenne |
+| FX rack (12 effets: volume/fade/reverse/reverb/pitch/speed/echo/distortion/stutter/glitch/stretch/pan) | -- | OK | haute |
+| Chat commands (/drone /grain /circus /honk /kokoro /translate) | -- | OK | haute |
+| Tab completion V2 (fuzzy commands + @mentions) | -- | OK | moyenne |
 | **Tests** | | | |
 | Backend unit tests | -- | OK (425) | haute |
 | React component tests | -- | OK | haute |
+| E2E Playwright (commands + DAW) | -- | OK | haute |
 | Smoke tests | OK | OK | haute |
 | UI Minitel VIDEOTEX | -- | OK | haute |
 | Deploy tmux (deploy.sh) | -- | OK | moyenne |

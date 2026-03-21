@@ -3863,6 +3863,19 @@ code {
   gap: 8px;
 }
 
+/* --- Webcam capture --- */
+.img-webcam { margin: 4px 0; }
+.img-webcam-btn { background: none; border: 1px dashed rgba(255,255,255,0.2); border-radius: 4px; padding: 6px 12px; color: #aaa; cursor: pointer; font-family: var(--font-mono); font-size: 11px; width: 100%; }
+.img-webcam-btn:hover { border-color: #ffb300; color: #ffb300; }
+.img-webcam-preview { position: relative; }
+.img-webcam-video { width: 100%; max-width: 256px; border-radius: 4px; border: 1px solid rgba(255,179,0,0.3); }
+.img-webcam-capture { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); padding: 4px 16px; background: rgba(0,0,0,0.7); border: 1px solid #ffb300; color: #ffb300; border-radius: 3px; cursor: pointer; font-family: var(--font-mono); font-size: 12px; }
+
+/* --- AI auto-prompt --- */
+.img-auto-prompt { background: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; padding: 3px 10px; color: #888; cursor: pointer; font-family: var(--font-mono); font-size: 11px; }
+.img-auto-prompt:hover { color: #ffb300; border-color: #ffb300; }
+.img-prompt-actions { display: flex; gap: 4px; margin-bottom: 4px; }
+
 /* --- Sliders & selects --- */
 .img-slider-row {
   display: flex;

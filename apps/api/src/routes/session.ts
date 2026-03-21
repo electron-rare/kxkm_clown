@@ -512,6 +512,33 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
     const { type, style: compStyle, existing, context } = req.body || {};
     const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
 
+    // Image prompt generation mode — triggered by style:"random" or type not in DAW types
+    const isImageMode = compStyle === "random" || type === "image";
+    if (isImageMode) {
+      try {
+        const resp = await fetch(`${ollamaUrl}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "qwen3:8b",
+            messages: [{ role: "user", content: "Generate a creative, detailed image prompt for AI image generation. Be specific about style, lighting, mood, subject. Return ONLY the prompt in English, nothing else. Maximum 100 words." }],
+            stream: false,
+            options: { num_predict: 200 },
+            keep_alive: "30m",
+            think: false,
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!resp.ok) throw new Error("Ollama error");
+        const data = await resp.json() as { message?: { content?: string } };
+        const prompt = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+        res.json({ ok: true, data: { prompt } });
+      } catch {
+        res.json({ ok: true, data: { prompt: "a mystical forest at twilight, bioluminescent mushrooms, fog, cinematic lighting, 8k" } });
+      }
+      return;
+    }
+
     const typeHints: Record<string, string> = {
       music: "une description musicale pour générer de la musique",
       voice: "un texte poétique ou narratif à dire par une voix synthétique",

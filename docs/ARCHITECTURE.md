@@ -49,13 +49,23 @@ graph TB
         TRAIN[Training Unsloth/TRL]
     end
 
+    subgraph DAW["openDIAW.be — Audio/Music AI"]
+        BRIDGE[AI Bridge :8301\n17 backends]
+        KOKORO[Kokoro TTS :9201\n12 voix]
+        ACESTEP[ACE-Step :9200\nMusique IA]
+        PIPER[Piper/Chatterbox :9100]
+        DEMUCS[Demucs + Matchering]
+        FFSYNTH[ffmpeg synth\ndrone/grain/glitch/circus/honk]
+        OPENDAW[openDIAW.be Studio\n9 instruments DSP]
+    end
+
     subgraph External["Hors cluster"]
         STABLE[StableView :3000\ninterface séparée]
     end
 
     Chat -- "WS message/command" --> WS
     Voice -- "WS upload audio" --> WS
-    Compose -- "WS /compose" --> CMD
+    Compose -- "WS /compose /drone /kokoro" --> CMD
     Imagine -- "WS /imagine" --> CMD
     Media -- "REST /api/v2/media" --> REST
 
@@ -71,8 +81,17 @@ graph TB
     CMD -- "/imagine" --> COMFY
     CMD -- "/web" --> SEARX
     CMD -- "save" --> MSTORE
+    CMD -- "/drone /circus /honk /kokoro" --> BRIDGE
+    REST -- "/api/v2/ai-bridge/*" --> BRIDGE
     REST --> PG
     ENGINE --> TRAIN --> OLLAMA
+    BRIDGE --> KOKORO
+    BRIDGE --> ACESTEP
+    BRIDGE --> PIPER
+    BRIDGE --> DEMUCS
+    BRIDGE --> FFSYNTH
+    BRIDGE --> OLLAMA
+    OPENDAW -- "fetch AI Bridge" --> BRIDGE
 ```
 
 ## Flux chat — séquence complète

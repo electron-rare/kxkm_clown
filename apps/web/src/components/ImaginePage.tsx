@@ -88,6 +88,52 @@ const TXT2IMG_PRESETS: { label: string; suffix: string }[] = [
 ];
 
 /* ------------------------------------------------------------------ */
+/*  WebcamCapture — capture face photo from webcam                     */
+/* ------------------------------------------------------------------ */
+
+function WebcamCapture({ onCapture }: { onCapture: (base64: string) => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [streaming, setStreaming] = useState(false);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 512, height: 512 } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setStreaming(true);
+      }
+    } catch { alert("Camera non disponible"); }
+  };
+
+  const capture = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = 512; canvas.height = 512;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(videoRef.current, 0, 0, 512, 512);
+    const base64 = canvas.toDataURL("image/png").split(",")[1];
+    onCapture(base64);
+    // Stop stream
+    const stream = videoRef.current.srcObject as MediaStream;
+    stream?.getTracks().forEach(t => t.stop());
+    setStreaming(false);
+  };
+
+  return (
+    <div className="img-webcam">
+      {!streaming ? (
+        <button type="button" className="img-webcam-btn" onClick={startCamera}>📷 WEBCAM</button>
+      ) : (
+        <div className="img-webcam-preview">
+          <video ref={videoRef} autoPlay playsInline muted className="img-webcam-video" />
+          <button type="button" className="img-webcam-capture" onClick={capture}>📸 CAPTURER</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  ImageUpload — reusable drag-drop + preview                        */
 /* ------------------------------------------------------------------ */
 
@@ -185,6 +231,24 @@ function Txt2ImgForm({
   onSubmit: (e: React.FormEvent) => void;
 }) {
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [autoPromptLoading, setAutoPromptLoading] = useState(false);
+
+  const generatePrompt = async () => {
+    setAutoPromptLoading(true);
+    try {
+      const resp = await fetch("/api/v2/ai/suggest-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ style: "random" }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.data?.prompt) setPrompt(data.data.prompt);
+      }
+    } catch {} finally {
+      setAutoPromptLoading(false);
+    }
+  };
 
   const togglePreset = (preset: typeof TXT2IMG_PRESETS[number]) => {
     if (activePreset === preset.label) {
@@ -216,6 +280,11 @@ function Txt2ImgForm({
             {p.label}
           </button>
         ))}
+      </div>
+      <div className="img-prompt-actions">
+        <button type="button" className="img-auto-prompt" onClick={generatePrompt} disabled={autoPromptLoading}>
+          {autoPromptLoading ? "..." : "\uD83C\uDFB2 AI PROMPT"}
+        </button>
       </div>
       <textarea
         value={prompt}
@@ -480,8 +549,14 @@ function FaceSwapForm({
   return (
     <form onSubmit={handleSubmit} className="img-mode-form">
       <div className="img-upload-pair">
-        <ImageUpload label="Source face" value={source} onChange={setSource} />
-        <ImageUpload label="Target image" value={target} onChange={setTarget} />
+        <div>
+          <ImageUpload label="Source face" value={source} onChange={setSource} />
+          <WebcamCapture onCapture={setSource} />
+        </div>
+        <div>
+          <ImageUpload label="Target image" value={target} onChange={setTarget} />
+          <WebcamCapture onCapture={setTarget} />
+        </div>
       </div>
       {error && <div className="img-error">{error}</div>}
       <button

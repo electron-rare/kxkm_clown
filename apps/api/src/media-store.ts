@@ -31,6 +31,8 @@ export interface MediaMeta {
   createdAt: string;
   mime: string;
   filename: string;
+  url: string;
+  seed?: number;
 }
 
 function generateId(): string {
@@ -61,6 +63,8 @@ export async function saveImage(opts: {
     createdAt: new Date().toISOString(),
     mime: opts.mime || "image/png",
     filename,
+    url: `/api/v2/media/images/${filename}`,
+    seed: opts.seed,
   };
 
   await fsp.writeFile(
@@ -94,6 +98,7 @@ export async function saveAudio(opts: {
     createdAt: new Date().toISOString(),
     mime: opts.mime || "audio/wav",
     filename,
+    url: `/api/v2/media/audio/${filename}`,
   };
 
   await fsp.writeFile(

@@ -243,6 +243,7 @@ export default function Chat() {
         onSend={handleSend}
         onKeyDown={handleKeyDown}
         ws={ws}
+        personas={Object.keys(personaColors)}
       />
     </div>
   );

@@ -123,6 +123,7 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
   });
 
   // ComfyUI workflow endpoints (img2img, style transfer, face swap, video)
+  // All endpoints persist results via saveImage for gallery persistence.
   router.post("/api/v2/comfyui/img2img", async (req, res) => {
     const { image, prompt, strength } = req.body as { image?: string; prompt?: string; strength?: number };
     if (!image) return res.status(400).json({ ok: false, error: "image required" });
@@ -130,6 +131,11 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
       const { generateImg2Img } = await import("../comfyui.js");
       const result = await generateImg2Img(image, prompt || "", { strength });
       if (!result) return res.json({ ok: false, error: "Generation failed" });
+      if (result.imageBase64) {
+        const { saveImage } = await import("../media-store.js");
+        const meta = await saveImage({ base64: result.imageBase64, prompt: prompt || "(img2img)", nick: "web", channel: "imagine", seed: result.seed });
+        (result as Record<string, unknown>).savedUrl = meta.url;
+      }
       res.json(asApiData(result));
     } catch (err) { res.status(500).json({ ok: false, error: (err as Error).message }); }
   });
@@ -141,6 +147,11 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
       const { generateStyleTransfer } = await import("../comfyui.js");
       const result = await generateStyleTransfer(image, style || "painting", prompt || "", { strength });
       if (!result) return res.json({ ok: false, error: "Generation failed" });
+      if (result.imageBase64) {
+        const { saveImage } = await import("../media-store.js");
+        const meta = await saveImage({ base64: result.imageBase64, prompt: `[${style || "painting"}] ${prompt || "(style transfer)"}`, nick: "web", channel: "imagine", seed: result.seed });
+        (result as Record<string, unknown>).savedUrl = meta.url;
+      }
       res.json(asApiData(result));
     } catch (err) { res.status(500).json({ ok: false, error: (err as Error).message }); }
   });
@@ -152,6 +163,11 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
       const { generateFaceSwap } = await import("../comfyui.js");
       const result = await generateFaceSwap(source, target);
       if (!result) return res.json({ ok: false, error: "Generation failed" });
+      if (result.imageBase64) {
+        const { saveImage } = await import("../media-store.js");
+        const meta = await saveImage({ base64: result.imageBase64, prompt: "(face swap)", nick: "web", channel: "imagine" });
+        (result as Record<string, unknown>).savedUrl = meta.url;
+      }
       res.json(asApiData(result));
     } catch (err) { res.status(500).json({ ok: false, error: (err as Error).message }); }
   });
@@ -163,6 +179,11 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
       const { generateVideo } = await import("../comfyui.js");
       const result = await generateVideo(prompt, { duration });
       if (!result) return res.json({ ok: false, error: "Generation failed" });
+      if (result.videoBase64) {
+        const { saveImage } = await import("../media-store.js");
+        const meta = await saveImage({ base64: result.videoBase64, prompt: `[video ${duration || 4}s] ${prompt}`, nick: "web", channel: "imagine", seed: result.seed });
+        (result as Record<string, unknown>).savedUrl = meta.url;
+      }
       res.json(asApiData(result));
     } catch (err) { res.status(500).json({ ok: false, error: (err as Error).message }); }
   });

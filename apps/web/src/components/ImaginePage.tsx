@@ -16,6 +16,8 @@ interface ImageResult {
   seed?: number;
   elapsed?: number;
   mode?: string;
+  /** Server-persisted URL (available after save to media-store) */
+  savedUrl?: string;
 }
 
 interface RealProgress {
@@ -56,6 +58,13 @@ const PHASE_ICONS: Record<string, string> = {
   saving: "\u{1F4BE}",
   done: "\u2705",
 };
+
+/** Resolve image src: prefer server URL, fall back to base64 data URI */
+function imgSrc(r: ImageResult): string {
+  if (r.savedUrl) return r.savedUrl;
+  if (r.imageData && r.imageMime) return `data:${r.imageMime};base64,${r.imageData}`;
+  return "";
+}
 
 const STYLE_OPTIONS = [
   "painting",
@@ -273,6 +282,7 @@ function Img2ImgForm({
           imageMime: "image/png",
           seed: json.data.seed,
           mode: "img2img",
+          savedUrl: json.data.savedUrl,
         };
         onResult(result);
       } else {
@@ -357,6 +367,7 @@ function StyleForm({
           imageMime: "image/png",
           seed: json.data.seed,
           mode: "style",
+          savedUrl: json.data.savedUrl,
         };
         onResult(result);
       } else {
@@ -453,6 +464,7 @@ function FaceSwapForm({
           imageMime: "image/png",
           seed: json.data.seed,
           mode: "faceswap",
+          savedUrl: json.data.savedUrl,
         };
         onResult(result);
       } else {
@@ -516,6 +528,7 @@ function VideoForm({
           imageMime: "image/png",
           seed: json.data.seed,
           mode: "video",
+          savedUrl: json.data.savedUrl,
         };
         onResult(result);
       } else {
@@ -595,6 +608,37 @@ export default function ImaginePage() {
       progressStep: 2,
       maxResults: 50,
     });
+
+  // Load persisted images from server on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/v2/media/images");
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d.ok && Array.isArray(d.data) && d.data.length > 0) {
+          const persisted: ImageResult[] = d.data
+            .filter((img: any) => img.url && img.filename)
+            .slice(0, 50)
+            .map((img: any) => ({
+              prompt: img.prompt || img.filename,
+              savedUrl: img.url,
+              imageMime: img.mime || "image/png",
+              seed: img.seed,
+              mode: "txt2img",
+            }));
+          setResults((prev) => {
+            // Avoid duplicates — only add persisted items not already in state
+            const existingPrompts = new Set(prev.map((r) => r.prompt));
+            const newItems = persisted.filter((p) => !existingPrompts.has(p.prompt));
+            return [...prev, ...newItems].slice(0, 50);
+          });
+        }
+      } catch {
+        /* API not available — ignore */
+      }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Merged results: WS txt2img results + HTTP results from other modes
   // We store HTTP results in a separate ref and merge them into the shared list
@@ -777,14 +821,14 @@ export default function ImaginePage() {
       )}
 
       {/* FULLSCREEN VIEWER */}
-      {viewIdx !== null && results[viewIdx]?.imageData && (
+      {viewIdx !== null && (results[viewIdx]?.imageData || results[viewIdx]?.savedUrl) && (
         <div className="img-viewer" onClick={() => setViewIdx(null)}>
           <div
             className="img-viewer-frame"
             onClick={(e) => e.stopPropagation()}
           >
             <img
-              src={`data:${results[viewIdx].imageMime};base64,${results[viewIdx].imageData}`}
+              src={imgSrc(results[viewIdx])}
               alt={results[viewIdx].prompt}
               className="img-viewer-img"
             />
@@ -854,9 +898,9 @@ export default function ImaginePage() {
                 className={`img-card ${viewIdx === i ? "img-card-active" : ""}`}
                 onClick={() => setViewIdx(i)}
               >
-                {r.imageData && r.imageMime && (
+                {(r.imageData || r.savedUrl) && (
                   <img
-                    src={`data:${r.imageMime};base64,${r.imageData}`}
+                    src={imgSrc(r)}
                     alt={r.prompt}
                     className="img-card-img"
                     loading="lazy"

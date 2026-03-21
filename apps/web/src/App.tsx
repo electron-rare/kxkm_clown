@@ -47,7 +47,17 @@ export default function App() {
   const [phase, setPhase] = useState<"connecting" | "login" | "ready">(
     nick ? "ready" : "connecting"
   );
-  useKeyboardShortcuts(navigate);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  useKeyboardShortcuts(navigate, () => setShowShortcuts((prev) => !prev));
+
+  // Escape closes shortcuts overlay
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowShortcuts(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // Login handler: stores nick (pseudo only)
   function handleLogin(username: string) {
@@ -190,6 +200,36 @@ export default function App() {
           {renderPage()}
         </Suspense>
       </ErrorBoundary>
+      {showShortcuts && (
+        <div className="shortcuts-overlay" onClick={() => setShowShortcuts(false)}>
+          <div className="shortcuts-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="shortcuts-title">RACCOURCIS CLAVIER</div>
+            <div className="shortcuts-grid">
+              <div className="shortcuts-section">
+                <div className="shortcuts-section-title">Navigation</div>
+                <div className="shortcut-row"><kbd>F1</kbd> Chat</div>
+                <div className="shortcut-row"><kbd>F2</kbd> Voice</div>
+                <div className="shortcut-row"><kbd>F3</kbd> Personas</div>
+                <div className="shortcut-row"><kbd>F4</kbd> Compose</div>
+                <div className="shortcut-row"><kbd>F5</kbd> Images</div>
+                <div className="shortcut-row"><kbd>F6</kbd> Mediatheque</div>
+                <div className="shortcut-row"><kbd>F7</kbd> Admin</div>
+                <div className="shortcut-row"><kbd>F8</kbd> DAW AI</div>
+                <div className="shortcut-row"><kbd>F9</kbd> Instruments</div>
+              </div>
+              <div className="shortcuts-section">
+                <div className="shortcuts-section-title">Chat</div>
+                <div className="shortcut-row"><kbd>Enter</kbd> Envoyer</div>
+                <div className="shortcut-row"><kbd>Up/Down</kbd> Historique</div>
+                <div className="shortcut-row"><kbd>Tab</kbd> Autocomplete</div>
+                <div className="shortcut-row"><kbd>?</kbd> Cette aide</div>
+                <div className="shortcut-row"><kbd>Esc</kbd> Fermer</div>
+              </div>
+            </div>
+            <button className="shortcuts-close" onClick={() => setShowShortcuts(false)}>FERMER</button>
+          </div>
+        </div>
+      )}
     </MinitelFrame>
   );
 }

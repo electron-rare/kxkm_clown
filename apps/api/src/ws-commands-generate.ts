@@ -26,6 +26,7 @@ export const GENERATE_COMMANDS = new Set([
   "/metronome", "/delete", "/preview", "/gain",
   "/suggest", "/snapshot", "/randomize",
   "/glitch", "/stretch", "/bounce", "/stem",
+  "/mp3",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1310,6 +1311,55 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           }
         } catch (err) {
           send(ws, { type: "system", text: `Erreur stems: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/mp3": {
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition." }); return; }
+
+        const compDir = path.join(process.cwd(), "data", "compositions", comp.id);
+        const masterPath = path.join(compDir, "master.wav");
+        const mixPath = path.join(compDir, "mix.wav");
+        const sourcePath = fs.existsSync(masterPath) ? masterPath : fs.existsSync(mixPath) ? mixPath : null;
+
+        if (!sourcePath) {
+          send(ws, { type: "system", text: "Pas de mix/master. /mix ou /master d'abord." });
+          return;
+        }
+
+        const mp3Path = path.join(compDir, "export.mp3");
+        broadcast(info.channel, { type: "system", text: "Export MP3 en cours..." });
+
+        try {
+          execFileSync("ffmpeg", [
+            "-i", sourcePath,
+            "-codec:a", "libmp3lame",
+            "-b:a", "192k",
+            "-y", mp3Path,
+          ], { timeout: 60000 });
+
+          const mp3Buf = fs.readFileSync(mp3Path);
+          const sizeMB = (mp3Buf.length / (1024 * 1024)).toFixed(1);
+
+          await saveAudio({
+            base64: mp3Buf.toString("base64"),
+            prompt: comp.name,
+            nick: info.nick,
+            channel: info.channel,
+            mime: "audio/mpeg",
+          }).catch(() => {});
+
+          broadcast(info.channel, {
+            type: "music", nick: info.nick,
+            text: `[MP3: ${comp.name} \u2014 ${sizeMB}MB, 192kbps]`,
+            audioData: mp3Buf.toString("base64"), audioMime: "audio/mpeg",
+          } as any);
+
+          send(ws, { type: "system", text: `MP3 exporte (${sizeMB}MB). /api/v2/media/compositions/${comp.id}/export.mp3` });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur MP3: ${err instanceof Error ? err.message : String(err)}` });
         }
         return;
       }

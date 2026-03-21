@@ -1,10 +1,20 @@
 import { useEffect } from "react";
 
-export function useKeyboardShortcuts(onNavigate: (page: string) => void) {
+export function useKeyboardShortcuts(
+  onNavigate: (page: string) => void,
+  onToggleShortcuts?: () => void,
+) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      // "?" or F10 → toggle shortcuts overlay
+      if (e.key === "?" || e.key === "F10") {
+        e.preventDefault();
+        onToggleShortcuts?.();
+        return;
+      }
 
       const map: Record<string, string> = {
         F1: "chat",
@@ -26,5 +36,5 @@ export function useKeyboardShortcuts(onNavigate: (page: string) => void) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onNavigate]);
+  }, [onNavigate, onToggleShortcuts]);
 }

@@ -8,6 +8,20 @@ export interface ChatSidebarProps {
   toggleSidebar: (section: "personas" | "users") => void;
 }
 
+const previewVoice = (nick: string) => {
+  fetch("/api/v2/ai-bridge/generate/voice-fast", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: `Bonjour, je suis ${nick}.`, voice: "ff_siwis" }),
+  }).then(r => r.blob()).then(blob => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.volume = 0.7;
+    audio.play().catch(() => {});
+    audio.onended = () => URL.revokeObjectURL(url);
+  }).catch(() => {});
+};
+
 export const ChatSidebar = React.memo(function ChatSidebar({ personaColors, users, sidebarCollapsed, toggleSidebar }: ChatSidebarProps) {
   return (
     <div className="chat-sidebar">
@@ -36,6 +50,7 @@ export const ChatSidebar = React.memo(function ChatSidebar({ personaColors, user
                   title={`@${u}`}
                 >
                   ● {u}
+                  <button className="sidebar-voice-btn" onClick={(e) => { e.stopPropagation(); previewVoice(u); }} title={`Ecouter ${u}`}>♪</button>
                 </div>
               ))
             )}

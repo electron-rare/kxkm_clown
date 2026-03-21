@@ -74,6 +74,19 @@ export default function DawAIPanel() {
   ];
   const NOISE_TYPES = ["white", "pink", "brown", "sine", "drone"];
   const STYLES = ["experimental", "ambient", "electronic", "classical", "jazz", "industrial", "drone", "glitch"];
+  const KOKORO_VOICES = ["ff_siwis", "af_heart", "af_bella", "af_nicole", "af_sarah", "af_sky", "am_adam", "am_michael", "bf_emma", "bf_isabella", "bm_george", "bm_lewis"];
+  const INSTRUMENT_TYPES = ["drone", "grain", "glitch", "circus", "honk"] as const;
+
+  // Kokoro TTS fast
+  const [kokoroText, setKokoroText] = useState("");
+  const [kokoroVoice, setKokoroVoice] = useState("af_heart");
+  const [kokoroSpeed, setKokoroSpeed] = useState(1.0);
+
+  // AI Instruments
+  const [instrType, setInstrType] = useState<typeof INSTRUMENT_TYPES[number]>("drone");
+  const [instrDuration, setInstrDuration] = useState(15);
+  const [instrNote, setInstrNote] = useState("C2");
+  const [instrBpm, setInstrBpm] = useState(120);
 
   // --- Load saved samples on mount ---
   const loadSamples = useCallback(async () => {
@@ -267,6 +280,23 @@ export default function DawAIPanel() {
     generateTrack("generate/noise", { type: noiseType, duration: noiseDuration }, "noise", `${noiseType} ${noiseDuration}s`, noiseDuration);
   };
 
+  const handleKokoro = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!kokoroText.trim()) return;
+    generateTrack("generate/voice-fast", { text: kokoroText, voice: kokoroVoice, speed: kokoroSpeed }, "voice", `kokoro/${kokoroVoice}: "${kokoroText}"`, 10);
+  };
+
+  const handleInstrument = (e: React.FormEvent) => {
+    e.preventDefault();
+    const params: Record<string, unknown> = { duration: instrDuration };
+    if (instrType === "drone") Object.assign(params, { note: instrNote, voices: 5, waveform: "saw" });
+    else if (instrType === "grain") Object.assign(params, { source: "noise", density: 15 });
+    else if (instrType === "glitch") Object.assign(params, { bpm: instrBpm, crushBits: 6, stutter: 0.6 });
+    else if (instrType === "circus") Object.assign(params, { notes: "C4,E4,G4", register: "mixture" });
+    else if (instrType === "honk") Object.assign(params, { mode: "klaxon", frequency: 440, sweepRange: 800 });
+    generateTrack(`instrument/${instrType}`, params, "music", `${instrType} ${instrDuration}s`, instrDuration);
+  };
+
   const downloadTrack = (track: GeneratedTrack) => {
     const a = document.createElement("a");
     a.href = track.blobUrl;
@@ -437,6 +467,68 @@ export default function DawAIPanel() {
           </div>
           <button type="submit" className="daw-ai-btn daw-ai-btn-noise" disabled={status === "generating"}>
             {status === "generating" ? `GENERATION... ${formatElapsed(elapsed)}` : "Generer"}
+          </button>
+        </form>
+
+        {/* KOKORO TTS */}
+        <form onSubmit={handleKokoro} className="daw-ai-gen-card">
+          <div className="daw-ai-gen-title">KOKORO TTS</div>
+          <input
+            value={kokoroText}
+            onChange={e => setKokoroText(e.target.value)}
+            placeholder="Le clown entre en scene..."
+            className="daw-ai-input"
+            maxLength={500}
+          />
+          <div className="daw-ai-row">
+            <select value={kokoroVoice} onChange={e => setKokoroVoice(e.target.value)} className="daw-ai-select">
+              {KOKORO_VOICES.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <input
+              type="number" min={0.5} max={2.0} step={0.1} value={kokoroSpeed}
+              onChange={e => setKokoroSpeed(parseFloat(e.target.value) || 1.0)}
+              className="daw-ai-num"
+            />
+            <span className="daw-ai-unit">x</span>
+          </div>
+          <button type="submit" className="daw-ai-btn daw-ai-btn-voice" disabled={status === "generating" || !kokoroText.trim()}>
+            {status === "generating" ? `SYNTHESE... ${formatElapsed(elapsed)}` : "Kokoro TTS"}
+          </button>
+        </form>
+
+        {/* AI INSTRUMENTS */}
+        <form onSubmit={handleInstrument} className="daw-ai-gen-card">
+          <div className="daw-ai-gen-title">INSTRUMENTS AI</div>
+          <div className="daw-ai-row">
+            <select value={instrType} onChange={e => setInstrType(e.target.value as typeof INSTRUMENT_TYPES[number])} className="daw-ai-select">
+              {INSTRUMENT_TYPES.map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+            </select>
+            <input
+              type="number" min={3} max={60} value={instrDuration}
+              onChange={e => setInstrDuration(parseInt(e.target.value) || 15)}
+              className="daw-ai-num"
+            />
+            <span className="daw-ai-unit">s</span>
+          </div>
+          {instrType === "drone" && (
+            <div className="daw-ai-row">
+              <select value={instrNote} onChange={e => setInstrNote(e.target.value)} className="daw-ai-select">
+                {["C1","C2","C3","D2","E2","F2","G2","A2","B2"].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          )}
+          {instrType === "glitch" && (
+            <div className="daw-ai-row">
+              <input
+                type="number" min={60} max={200} value={instrBpm}
+                onChange={e => setInstrBpm(parseInt(e.target.value) || 120)}
+                className="daw-ai-num"
+              />
+              <span className="daw-ai-unit">bpm</span>
+            </div>
+          )}
+          <button type="submit" className="daw-ai-btn daw-ai-btn-music" disabled={status === "generating"}>
+            {status === "generating" ? `GENERATION... ${formatElapsed(elapsed)}` : `Generer ${instrType}`}
           </button>
         </form>
       </div>

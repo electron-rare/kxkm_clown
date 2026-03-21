@@ -220,6 +220,9 @@ export default function Chat() {
             );
           })}
           <div ref={messagesEndRef} />
+          <span className="chat-context-indicator" title="Contexte conversationnel utilise">
+            {messages.length} msgs
+          </span>
         </div>
 
         <ChatSidebar

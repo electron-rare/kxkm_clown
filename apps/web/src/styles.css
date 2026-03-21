@@ -657,6 +657,13 @@ code {
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
+  position: relative;
+}
+.chat-context-indicator {
+  position: sticky; bottom: 4px; float: right;
+  font-size: 9px; opacity: 0.35; padding: 1px 5px;
+  background: var(--bg, #111); border-radius: 3px;
+  pointer-events: none;
 }
 
 .chat-msg {
@@ -722,6 +729,13 @@ code {
 .chat-vote-btn:hover { opacity: 1; }
 .chat-vote-up:hover { color: #4caf50 !important; }
 .chat-vote-down:hover { color: #f44336 !important; }
+
+/* Chat actions bar (votes + reactions) — appears on hover */
+.chat-actions { display: inline-flex; gap: 1px; margin-left: 4px; opacity: 0; transition: opacity 0.15s; vertical-align: middle; }
+.chat-msg:hover .chat-actions { opacity: 0.5; }
+.chat-actions:hover { opacity: 1 !important; }
+.chat-react-btn { background: none; border: none; cursor: pointer; font-size: 10px; padding: 0 1px; opacity: 0.6; transition: opacity 0.1s, transform 0.1s; }
+.chat-react-btn:hover { opacity: 1; transform: scale(1.3); }
 
 .chat-users {
   width: 160px;

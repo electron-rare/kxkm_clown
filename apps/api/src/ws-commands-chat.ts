@@ -8,6 +8,7 @@ export const CHAT_COMMANDS = new Set([
   "/pin", "/dm", "/msg", "/whisper", "/w", "/search", "/react",
   "/mute", "/unmute", "/ban", "/unban", "/invite", "/personas",
   "/web", "/responders", "/voice-test", "/history-export",
+  "/random-persona",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -40,7 +41,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         send(ws, {
           type: "system",
           text: [
-            "=== 3615 J'ai pete -- 93 commandes ===",
+            "=== 3615 J'ai pete -- 99 commandes ===",
             "",
             "CHAT",
             "  /nick <nom>        Changer de pseudo",
@@ -60,6 +61,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "  /ban <pseudo>       Bannir (admin)",
             "  /unban <pseudo>     Debannir (admin)",
             "  /react <emoji>      Reagir au dernier message",
+            "  /random-persona [sujet]  Invoquer une persona au hasard",
             "  @NomPersona         Interpeller une persona",
             "",
             "GENERATION IMAGES (F5)",
@@ -110,6 +112,13 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "  /swap <a> <b>       Echanger deux pistes",
             "  /bpm <valeur>       Changer le tempo",
             "  /info <piste#>      Details d'une piste",
+            "",
+            "INSTRUMENTS AI",
+            "  /drone [dur] [note] Drone/pad (C2, saw, 5 voix)",
+            "  /grain [dur] [src]  Granulaire (noise/tone/voice)",
+            "  /circus [dur] [notes] Orgue de barbarie",
+            "  /honk [dur] [mode]  Klaxon/siren/horn",
+            "  /kokoro [voix] texte  TTS rapide Kokoro (12 voix)",
             "",
             "IA / STEMS",
             "  /stem [piste#]      Separer en stems (Demucs)",
@@ -444,6 +453,16 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         // Import and call synthesizeTTS directly
         const { synthesizeTTS } = await import("./ws-multimodal.js");
         await synthesizeTTS(persona.nick, testText, info.channel, broadcast);
+        return;
+      }
+
+      case "/random-persona": {
+        const topic = text.slice(16).trim() || "la vie, l'art et le chaos";
+        const personas = getPersonas().filter(p => (p as any).enabled !== false);
+        const random = personas[Math.floor(Math.random() * personas.length)];
+        if (!random) { send(ws, { type: "system", text: "Aucune persona disponible." }); return; }
+        broadcast(info.channel, { type: "system", text: `${random.nick} est invoque sur: "${topic}"` });
+        await routeToPersonas(info.channel, `@${random.nick} ${topic}`);
         return;
       }
 

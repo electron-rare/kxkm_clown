@@ -57,6 +57,9 @@ function fmtTime(ts: number): string {
   return h + ":" + m;
 }
 
+// Quick reaction emojis
+const REACTIONS = ["\uD83D\uDC4D", "\u2764\uFE0F", "\uD83D\uDE02", "\uD83C\uDFB5", "\uD83D\uDD25"];
+
 export interface ChatMessageProps {
   msg: ChatMsg;
   getNickColor: (nick: string) => string | undefined;
@@ -157,10 +160,23 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
           </span>
           <span className="chat-text">{renderText(msg.text || "")}</span>
           {isStreaming && <span className="chat-cursor">▌</span>}
-          {!isStreaming && color && onVote && (
-            <span className="chat-vote-btns">
-              <button className="chat-vote-btn chat-vote-up" title="Bonne reponse" onClick={() => onVote(msg, "up")}>{"\u25B2"}</button>
-              <button className="chat-vote-btn chat-vote-down" title="Mauvaise reponse" onClick={() => onVote(msg, "down")}>{"\u25BC"}</button>
+          {!isStreaming && color && (
+            <span className="chat-actions">
+              {onVote && (
+                <>
+                  <button className="chat-vote-btn chat-vote-up" title="Bonne reponse" onClick={() => onVote(msg, "up")}>{"\u25B2"}</button>
+                  <button className="chat-vote-btn chat-vote-down" title="Mauvaise reponse" onClick={() => onVote(msg, "down")}>{"\u25BC"}</button>
+                </>
+              )}
+              {REACTIONS.map(r => (
+                <button key={r} className="chat-react-btn" onClick={() => {
+                  fetch("/api/v2/feedback", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ messageId: msg.id, personaNick: msg.nick, response: msg.text, vote: "react", reaction: r }),
+                  }).catch(() => {});
+                }}>{r}</button>
+              ))}
             </span>
           )}
         </div>

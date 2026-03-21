@@ -674,13 +674,18 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           return;
         }
         const track = comp.tracks[trackNum - 1];
-        broadcast(info.channel, { type: "system", text: `\u{1F504} Remix piste #${trackNum}: "${track.prompt}"...` });
+        // Slight prompt variation for remix: append a variation hint + random seed
+        const variations = ["avec plus d'energie", "version alternative", "plus experimental", "variation subtile", "remix libre", "plus atmospherique"];
+        const variation = variations[Math.floor(Math.random() * variations.length)];
+        const remixPrompt = `${track.prompt} (${variation})`;
+        const remixSeed = Math.floor(Math.random() * 2147483647);
+        broadcast(info.channel, { type: "system", text: `\u{1F504} Remix piste #${trackNum}: "${track.prompt}" \u2192 ${variation} (seed ${remixSeed})...` });
 
         const remixTtsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
         try {
           const resp = await fetch(`${remixTtsUrl}/compose`, {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: track.prompt, duration: track.duration }),
+            body: JSON.stringify({ prompt: remixPrompt, duration: track.duration, seed: remixSeed }),
             signal: AbortSignal.timeout(300_000),
           });
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1361,6 +1366,96 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           send(ws, { type: "system", text: `MP3 exporte (${sizeMB}MB). /api/v2/media/compositions/${comp.id}/export.mp3` });
         } catch (err) {
           send(ws, { type: "system", text: `Erreur MP3: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/drone":
+      case "/grain":
+      case "/circus":
+      case "/honk": {
+        const instrArgs = text.slice(cmd.length + 1).trim().split(/\s+/);
+        const instrDur = Math.min(60, Math.max(3, parseInt(instrArgs[0] || "15")));
+        const instrType = cmd.slice(1);
+        const params: Record<string, unknown> = { duration: instrDur };
+        if (instrType === "drone") {
+          const note = instrArgs[1] || "C2";
+          Object.assign(params, { note, voices: 5, waveform: "saw", detune: 8, lfoRate: 0.1, lfoDepth: 0.4, cutoff: 1200 });
+        } else if (instrType === "grain") {
+          Object.assign(params, { source: instrArgs[1] || "noise", density: 15, grainSize: 0.05, pitchSpread: 400 });
+        } else if (instrType === "circus") {
+          const notes = instrArgs[1] || "C4,E4,G4";
+          Object.assign(params, { notes, register: instrArgs[2] || "mixture", wobble: 0.15, air: 0.2 });
+        } else if (instrType === "honk") {
+          Object.assign(params, { mode: instrArgs[1] || "klaxon", frequency: 440, sweepRange: 800 });
+        }
+        let comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) comp = createComposition(info.nick, info.channel);
+        const track = addTrack(comp.id, { type: "sfx", prompt: `${instrType} ${instrDur}s`, duration: instrDur, volume: 80, startMs: 0 });
+        if (!track) { send(ws, { type: "system", text: "Erreur creation piste." }); return; }
+        const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
+        fs.mkdirSync(trackDir, { recursive: true });
+        const trackPath = path.join(trackDir, `${track.id}.wav`);
+        const AI_BRIDGE_URL = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+        broadcast(info.channel, { type: "system", text: `\uD83C\uDFB9 Generation ${instrType} (${instrDur}s)...` });
+        try {
+          const resp = await fetch(`${AI_BRIDGE_URL}/instrument/${instrType}`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(params), signal: AbortSignal.timeout(60000),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const buf = Buffer.from(await resp.arrayBuffer());
+          fs.writeFileSync(trackPath, buf);
+          track.filePath = trackPath;
+          broadcast(info.channel, {
+            type: "music", nick: info.nick,
+            text: `[${instrType.toUpperCase()}: ${instrDur}s]`,
+            audioData: buf.toString("base64"), audioMime: "audio/wav",
+          } as any);
+          send(ws, { type: "system", text: `\u2705 ${instrType} ajoute (piste ${comp.tracks.length}). /mix pour combiner.` });
+          broadcastCompUpdate(broadcast, info.channel, comp.id, "track_added", { trackCount: comp.tracks.length });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur ${instrType}: ${err instanceof Error ? err.message : String(err)}` });
+        }
+        return;
+      }
+
+      case "/kokoro": {
+        const kokoroText = text.slice(8).trim();
+        if (!kokoroText) {
+          send(ws, { type: "system", text: "Usage: /kokoro <texte> — synthese vocale rapide (Kokoro TTS)\n  Voix: af_heart, af_bella, am_adam, bf_emma..." });
+          return;
+        }
+        const parts = kokoroText.match(/^(\w+)\s+(.+)$/);
+        const voice = parts && ["ff_siwis","af_heart","af_bella","af_nicole","af_sarah","af_sky","am_adam","am_michael","bf_emma","bf_isabella","bm_george","bm_lewis"].includes(parts[1]) ? parts[1] : "af_heart";
+        const ttsText = parts && voice !== "af_heart" ? parts[2] : kokoroText;
+        let comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) comp = createComposition(info.nick, info.channel);
+        const track = addTrack(comp.id, { type: "voice", prompt: `kokoro/${voice}: "${ttsText.slice(0, 50)}"`, duration: 10, volume: 100, startMs: 0 });
+        if (!track) { send(ws, { type: "system", text: "Erreur creation piste." }); return; }
+        const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
+        fs.mkdirSync(trackDir, { recursive: true });
+        const trackPath = path.join(trackDir, `${track.id}.wav`);
+        const AI_BRIDGE_URL = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+        broadcast(info.channel, { type: "system", text: `\uD83D\uDDE3\uFE0F Kokoro TTS (${voice})...` });
+        try {
+          const resp = await fetch(`${AI_BRIDGE_URL}/generate/voice-fast`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: ttsText, voice, speed: 1.0 }), signal: AbortSignal.timeout(30000),
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const buf = Buffer.from(await resp.arrayBuffer());
+          fs.writeFileSync(trackPath, buf);
+          track.filePath = trackPath;
+          broadcast(info.channel, {
+            type: "music", nick: info.nick,
+            text: `[Kokoro ${voice}: "${ttsText.slice(0, 80)}"]`,
+            audioData: buf.toString("base64"), audioMime: "audio/wav",
+          } as any);
+          send(ws, { type: "system", text: `\u2705 Voix kokoro/${voice} ajoutee (piste ${comp.tracks.length}). /mix pour combiner.` });
+          broadcastCompUpdate(broadcast, info.channel, comp.id, "track_added", { trackCount: comp.tracks.length });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur kokoro: ${err instanceof Error ? err.message : String(err)}` });
         }
         return;
       }

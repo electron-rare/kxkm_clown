@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { VideotexPageHeader } from "./VideotexMosaic";
 
 interface Track {
@@ -9,16 +9,17 @@ interface Track {
   duration: number;
   volume: number;
   color: string;
+  startOffset: number;
   audioData?: string;
   audioMime?: string;
   generating: boolean;
 }
 
 const DEFAULT_TRACKS: Track[] = [
-  { id: 1, label: "MUSIQUE", type: "music", prompt: "", duration: 30, volume: 100, color: "#c84c0c", generating: false },
-  { id: 2, label: "VOIX", type: "voice", prompt: "", duration: 10, volume: 100, color: "#2c6e49", generating: false },
-  { id: 3, label: "TEXTURE", type: "noise", prompt: "", duration: 30, volume: 80, color: "#7c3aed", generating: false },
-  { id: 4, label: "EFFET", type: "fx", prompt: "", duration: 15, volume: 60, color: "#0f766e", generating: false },
+  { id: 1, label: "MUSIQUE", type: "music", prompt: "", duration: 30, volume: 100, color: "#c84c0c", startOffset: 0, generating: false },
+  { id: 2, label: "VOIX", type: "voice", prompt: "", duration: 10, volume: 100, color: "#2c6e49", startOffset: 0, generating: false },
+  { id: 3, label: "TEXTURE", type: "noise", prompt: "", duration: 30, volume: 80, color: "#7c3aed", startOffset: 0, generating: false },
+  { id: 4, label: "EFFET", type: "fx", prompt: "", duration: 15, volume: 60, color: "#0f766e", startOffset: 0, generating: false },
 ];
 
 const NOISE_TYPES = ["drone", "pink", "white", "brown", "sine"];
@@ -31,6 +32,9 @@ export default function ComposePage() {
   const [mixing, setMixing] = useState(false);
   const [status, setStatus] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
+  const [dragging, setDragging] = useState<{ trackIdx: number; mode: "move" | "resize"; startX: number; origOffset: number; origDur: number } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; trackIdx: number } | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const nick = sessionStorage.getItem("kxkm-nick") || "composer";
@@ -82,6 +86,60 @@ export default function ComposePage() {
       wsRef.current.send(JSON.stringify({ type: "command", text: c }));
   }
 
+  const maxDur = Math.max(30, ...tracks.map(t => (t.startOffset || 0) + t.duration));
+
+  // Close context menu on outside click
+  useEffect(() => {
+    const close = () => setCtxMenu(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, []);
+
+  const startDrag = useCallback((e: React.PointerEvent, idx: number) => {
+    e.preventDefault();
+    const track = tracks[idx];
+    setDragging({ trackIdx: idx, mode: "move", startX: e.clientX, origOffset: track.startOffset || 0, origDur: track.duration });
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, [tracks]);
+
+  const startResize = useCallback((e: React.PointerEvent, idx: number) => {
+    e.preventDefault();
+    const track = tracks[idx];
+    setDragging({ trackIdx: idx, mode: "resize", startX: e.clientX, origOffset: track.startOffset || 0, origDur: track.duration });
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, [tracks]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging || !timelineRef.current) return;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const pxPerSec = (rect.width - 30) / maxDur;
+    const dx = e.clientX - dragging.startX;
+    const dSec = dx / pxPerSec;
+
+    setTracks(prev => prev.map((t, i) => {
+      if (i !== dragging.trackIdx) return t;
+      if (dragging.mode === "move") {
+        return { ...t, startOffset: Math.max(0, Math.round((dragging.origOffset + dSec) * 2) / 2) };
+      } else {
+        return { ...t, duration: Math.max(1, Math.round((dragging.origDur + dSec) * 2) / 2) };
+      }
+    }));
+  }, [dragging, maxDur]);
+
+  const onPointerUp = useCallback(() => { setDragging(null); }, []);
+
+  function duplicateTrack(idx: number) {
+    const src = tracks[idx];
+    if (!src.audioData) return;
+    setTracks(prev => [...prev, {
+      ...src,
+      id: Date.now(),
+      label: src.label + "'",
+      startOffset: (src.startOffset || 0) + src.duration,
+    }]);
+    setCtxMenu(null);
+  }
+
   function generate(trackIdx: number) {
     const track = tracks[trackIdx];
     if (!track.prompt.trim() && track.type !== "noise") return;
@@ -112,7 +170,6 @@ export default function ComposePage() {
     cmd("/mix");
   }
 
-  const maxDur = Math.max(30, ...tracks.map(t => t.duration));
   const hasAudio = tracks.some(t => t.audioData);
 
   return (
@@ -201,6 +258,53 @@ export default function ComposePage() {
           </div>
         ))}
       </div>
+
+      {/* TIMELINE */}
+      <div className="cmp-timeline" ref={timelineRef} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
+        {/* Ruler */}
+        <div className="cmp-ruler">
+          {Array.from({ length: Math.ceil(maxDur / 5) + 1 }, (_, i) => (
+            <span key={i} className="cmp-tick" style={{ left: `${(i * 5 / maxDur) * 100}%` }}>{i * 5}s</span>
+          ))}
+        </div>
+        {/* Track lanes */}
+        {tracks.map((track, i) => (
+          <div key={track.id} className="cmp-lane">
+            <span className="cmp-lane-label" style={{ color: track.color }}>{track.label[0]}{i + 1}</span>
+            <div className="cmp-lane-area">
+              {track.audioData && (
+                <div
+                  className={`cmp-tl-block ${dragging?.trackIdx === i ? "cmp-tl-dragging" : ""}`}
+                  style={{
+                    left: `${((track.startOffset || 0) / maxDur) * 100}%`,
+                    width: `${Math.max((track.duration / maxDur) * 100, 5)}%`,
+                    backgroundColor: track.color,
+                    opacity: track.volume / 100,
+                  }}
+                  title={`${track.prompt || track.label} (${track.duration}s)`}
+                  onPointerDown={e => startDrag(e, i)}
+                  onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, trackIdx: i }); }}
+                >
+                  <span className="cmp-tl-text">{track.prompt?.slice(0, 20) || track.label}</span>
+                  <span className="cmp-tl-dur">{track.duration}s</span>
+                  {/* Resize handle */}
+                  <div className="cmp-tl-resize" onPointerDown={e => { e.stopPropagation(); startResize(e, i); }} />
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Context menu */}
+      {ctxMenu && (
+        <div className="cmp-ctx" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
+          <button onClick={() => duplicateTrack(ctxMenu.trackIdx)}>Dupliquer</button>
+          <button onClick={() => { setTracks(prev => prev.filter((_, i) => i !== ctxMenu.trackIdx)); setCtxMenu(null); }}>Supprimer</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx + 1} reverse`); setCtxMenu(null); }}>Reverse</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx + 1} reverb`); setCtxMenu(null); }}>Reverb</button>
+        </div>
+      )}
 
       {/* MIX CONTROLS */}
       {hasAudio && (

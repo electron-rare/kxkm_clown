@@ -445,11 +445,16 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
           return;
         }
 
-        // Validate with Zod schema (non-breaking: log invalid, drop message)
+        // Handle ping/pong for latency measurement (bypass schema validation)
+        if (rawParsed && typeof rawParsed === "object" && (rawParsed as any).type === "__ping") {
+          send(ws, { type: "__pong" } as any);
+          return;
+        }
+
+        // Validate with Zod schema (non-breaking: log invalid, drop message silently)
         const validated = wsMessageSchema.safeParse(rawParsed);
         if (!validated.success) {
-          logger.warn({ issues: validated.error.issues }, "[ws-chat] Invalid WS message rejected by schema");
-          send(ws, { type: "system", text: "Message invalide (format incorrect)." });
+          // Don't spam the client with "format incorrect" — just drop silently
           return;
         }
 

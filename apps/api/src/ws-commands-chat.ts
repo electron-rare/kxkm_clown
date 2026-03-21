@@ -20,6 +20,8 @@ export const CHAT_COMMANDS = new Set([
   "/radio",
   "/summarize",
   "/mood",
+  "/haiku",
+  "/timer",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -196,12 +198,14 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         return;
       }
 
-      case "/who":
-        send(ws, {
-          type: "userlist",
-          users: channelUsers(info.channel),
-        });
+      case "/who": {
+        const whoUsers = channelUsers(info.channel);
+        const whoPersonas = getPersonas().filter(p => (p as any).enabled !== false);
+        const personaLines = whoPersonas.map(p => `  ${p.nick} [${p.model}]${(p as any).voice ? ` voice:${(p as any).voice}` : ""}`).join("\n");
+        send(ws, { type: "userlist", users: whoUsers });
+        send(ws, { type: "system", text: `Utilisateurs: ${whoUsers.join(", ")}\n\nPersonas actives (${whoPersonas.length}):\n${personaLines}` });
         return;
+      }
 
       case "/personas":
         send(ws, {
@@ -270,7 +274,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
       }
 
       case "/clear":
-        broadcast(info.channel, { type: "system", text: "__clear__" });
+        send(ws, { type: "system", text: "__clear__" });
         return;
 
       case "/responders": {
@@ -755,6 +759,48 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         else if (hour >= 18 && hour < 22) mood = "SOIREE — philosophe et contemplatif";
         else mood = "NUIT — mystique et onirique";
         send(ws, { type: "system", text: `Humeur actuelle: ${mood}\nLes personas adaptent leur ton selon l'heure.` });
+        return;
+      }
+
+      case "/haiku": {
+        const haikuTopic = text.slice(7).trim() || "le son et le silence";
+        const haikuPersonas = getPersonas().filter(p => (p as any).enabled !== false);
+        const hp = haikuPersonas[Math.floor(Math.random() * haikuPersonas.length)];
+        if (!hp) return;
+        const haikuOllamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${haikuOllamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: hp.model,
+              messages: [
+                { role: "system", content: hp.systemPrompt },
+                { role: "user", content: `Ecris un haiku (5-7-5 syllabes) sur: ${haikuTopic}. Reponds UNIQUEMENT avec le haiku, 3 lignes, rien d'autre.` },
+              ],
+              stream: false, options: { num_predict: 100 }, keep_alive: "30m", think: false,
+            }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as { message?: { content?: string } };
+            const haiku = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            if (haiku) {
+              broadcast(info.channel, { type: "message", nick: hp.nick, text: `\n${haiku}\n\n— ${hp.nick}, haiku sur "${haikuTopic}"`, color: hp.color });
+              return;
+            }
+          }
+        } catch {}
+        send(ws, { type: "system", text: "Haiku indisponible." });
+        return;
+      }
+
+      case "/timer": {
+        const seconds = parseInt(parts[1]) || 0;
+        if (seconds <= 0 || seconds > 3600) { send(ws, { type: "system", text: "Usage: /timer <secondes> (1-3600)" }); return; }
+        send(ws, { type: "system", text: `Timer: ${seconds}s demarre...` });
+        setTimeout(() => {
+          broadcast(info.channel, { type: "system", text: `Timer de ${info.nick}: ${seconds}s ecoule!` });
+        }, seconds * 1000);
         return;
       }
 

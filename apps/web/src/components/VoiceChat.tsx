@@ -97,6 +97,7 @@ export default function VoiceChat() {
   }, []);
 
   const enqueueAudio = useCallback((nick: string, data: string, mime: string) => {
+    if (audioQueueRef.current.length >= 10) audioQueueRef.current.shift();
     audioQueueRef.current.push({ nick, data, mime });
     playNext();
   }, [playNext]);

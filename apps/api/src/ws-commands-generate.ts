@@ -29,6 +29,7 @@ export const GENERATE_COMMANDS = new Set([
   "/mp3",
   "/drone", "/grain", "/circus", "/honk", "/kokoro",
   "/variations",
+  "/imagine-queue",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -51,6 +52,34 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
       case "/imagine":
         await handleImagineCommand({ ws, info, text, broadcast, send, logChatMessage });
         return;
+
+      case "/imagine-queue": {
+        const prompts = text.slice(15).split("|").map(p => p.trim()).filter(p => p.length > 0);
+        if (prompts.length === 0) { send(ws, { type: "system", text: "Usage: /imagine-queue prompt1 | prompt2 | prompt3" }); return; }
+        if (prompts.length > 8) { send(ws, { type: "system", text: "Maximum 8 prompts par queue." }); return; }
+
+        broadcast(info.channel, { type: "system", text: `Queue de ${prompts.length} images...` });
+
+        for (let i = 0; i < prompts.length; i++) {
+          broadcast(info.channel, { type: "system", text: `[${i + 1}/${prompts.length}] "${prompts[i].slice(0, 40)}..."` });
+          try {
+            const result = await scheduler.submit({
+              id: crypto.randomUUID(), device: "gpu", priority: "normal",
+              label: `queue-${i + 1}`, vramMB: VRAM_BUDGETS.comfyui,
+              execute: () => generateImage(prompts[i]),
+            });
+            if (result) {
+              broadcast(info.channel, {
+                type: "image", nick: info.nick,
+                text: `[Queue ${i + 1}/${prompts.length}: "${prompts[i]}"]`,
+                imageData: result.imageBase64, imageMime: "image/png",
+              } as OutboundMessage);
+            }
+          } catch {}
+        }
+        send(ws, { type: "system", text: `Queue terminee: ${prompts.length} images.` });
+        return;
+      }
 
       case "/imagine-models": {
         const { getComfyUIModels } = await import("./comfyui-models.js");

@@ -222,7 +222,7 @@ export default function Chat() {
 
       {ws.connectionStatus === "reconnecting" && (
         <div className="chat-reconnect-banner">
-          Reconnexion en cours (tentative {ws.reconnectAttempts})...
+          Reconnexion dans {Math.ceil((ws.nextRetryMs || 1000) / 1000)}s (tentative {ws.reconnectAttempts}/20)...
           <button className="chat-reconnect-btn" onClick={ws.reconnect} style={{ marginLeft: 8 }}>forcer</button>
         </div>
       )}

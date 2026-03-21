@@ -13,6 +13,7 @@ export interface UseWebSocketReturn {
   connected: boolean;
   connectionStatus: ConnectionStatus;
   reconnectAttempts: number;
+  nextRetryMs: number;
   latencyMs: number | null;
   send: (data: unknown) => void;
   lastMessage: unknown | null;
@@ -216,5 +217,6 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     };
   }, [enabled, url, connect, closeSocket, reconnectInterval]);
 
-  return { connected, connectionStatus, reconnectAttempts, latencyMs, send, lastMessage, disconnect, reconnect };
+  const nextRetryMs = connectionStatus === "reconnecting" ? backoffRef.current : 0;
+  return { connected, connectionStatus, reconnectAttempts, latencyMs, nextRetryMs, send, lastMessage, disconnect, reconnect };
 }

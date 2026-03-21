@@ -54,6 +54,17 @@ export function getActiveComposition(nick: string, channel: string): Composition
   return undefined;
 }
 
+export function setActiveComposition(nick: string, channel: string, compId: string): Composition | undefined {
+  const comp = compositions.get(compId);
+  if (!comp) return undefined;
+  // Reassign nick/channel so getActiveComposition finds it for this user
+  comp.nick = nick;
+  comp.channel = channel;
+  comp.updatedAt = new Date().toISOString();
+  saveComposition(comp);
+  return comp;
+}
+
 export function addTrack(compId: string, track: Omit<Track, "id" | "createdAt">): Track | null {
   const comp = compositions.get(compId);
   if (!comp) return null;

@@ -133,7 +133,7 @@ export default function TrackHeaders({ state, dispatch, onCmd }: Props) {
             {/* Row 3: Pan + FX */}
             {isExpanded && (
               <div className="daw-th-row3">
-                <PanKnob value={track.pan} onChange={v => { updateTrack(i, { pan: v }); }} />
+                <PanKnob value={track.pan} onChange={v => { updateTrack(i, { pan: v }); onCmd(`/pan ${i + 1} ${v}`); }} />
 
                 {/* FX indicator */}
                 <span className="daw-fx-trigger" onClick={e => {

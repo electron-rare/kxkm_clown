@@ -24,6 +24,7 @@ export default function ComposePage() {
   const [latency, setLatency] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const pingRef = useRef(0);
+  const loadCompRef = useRef<(id: string) => void>(() => {});
 
   const { play, pause, stop, seek } = usePlayback(state.tracks, dispatch);
 
@@ -81,9 +82,17 @@ export default function ComposePage() {
           try {
             const update = JSON.parse(m.text.slice(15));
             dispatch({ type: "SET_STATUS", status: `[collab] ${update.action} (${update.trackCount || ""}p)` });
-            if (update.action === "track_added" || update.action === "track_removed" || update.action === "fx_applied") {
-              cmd("/tracks");
+            if (update.compId && (update.action === "track_added" || update.action === "track_removed" || update.action === "fx_applied")) {
+              loadCompRef.current(update.compId);
             }
+          } catch {}
+          return;
+        }
+        // Comp loaded via /comp load — reload full composition
+        if (m.type === "system" && m.text?.startsWith("__comp_loaded__")) {
+          try {
+            const parsed = JSON.parse(m.text.slice(15));
+            if (parsed.compId) loadCompRef.current(parsed.compId);
           } catch {}
           return;
         }
@@ -138,6 +147,59 @@ export default function ComposePage() {
       wsRef.current.send(JSON.stringify({ type: "command", text: c }));
     }
   }, []);
+
+  // Load composition from server (tracks + audio)
+  const loadComposition = useCallback(async (compId: string) => {
+    try {
+      const resp = await fetch(`/api/v2/media/compositions/${compId}`);
+      const data = await resp.json();
+      if (!data.ok || !data.data) return;
+      const comp = data.data;
+      dispatch({ type: "SET_COMP_ID", id: comp.id });
+      dispatch({ type: "SET_NAME", name: comp.name });
+      if (comp.bpm) dispatch({ type: "SET_BPM", bpm: comp.bpm });
+
+      const loadedTracks: typeof initialState.tracks = [];
+      for (const t of comp.tracks || []) {
+        const track: typeof initialState.tracks[0] = {
+          id: t.id ? Number(t.id.replace(/\D/g, "").slice(-10)) || Date.now() + Math.random() : Date.now() + Math.random(),
+          name: (t.prompt || "Track").slice(0, 30),
+          prompt: t.prompt || "",
+          style: "",
+          duration: t.duration || 10,
+          startOffset: (t.startMs || 0) / 1000,
+          volume: t.volume ?? 100,
+          pan: 0,
+          muted: false,
+          solo: false,
+          type: t.type === "voice" ? "voice" as const : t.type === "sfx" || t.type === "noise" ? "noise" as const : "music" as const,
+          color: COLORS[loadedTracks.length % COLORS.length],
+          fxCount: 0,
+        };
+
+        // Try to load audio from track file
+        if (t.id && comp.id) {
+          try {
+            const audioResp = await fetch(`/api/v2/media/compositions/${comp.id}/tracks/${t.id}`);
+            if (audioResp.ok) {
+              const buf = await audioResp.arrayBuffer();
+              const bytes = new Uint8Array(buf);
+              let binary = "";
+              for (let j = 0; j < bytes.length; j++) binary += String.fromCharCode(bytes[j]);
+              track.audioData = btoa(binary);
+              track.audioMime = "audio/wav";
+            }
+          } catch { /* track file may not exist */ }
+        }
+
+        loadedTracks.push(track);
+      }
+
+      dispatch({ type: "SET_TRACKS", tracks: loadedTracks });
+      dispatch({ type: "SET_STATUS", status: `Loaded: ${comp.name} (${loadedTracks.length} tracks)` });
+    } catch { /* network error */ }
+  }, []);
+  loadCompRef.current = loadComposition;
 
   const handleNew = useCallback(() => {
     cmd("/comp new " + state.compName);

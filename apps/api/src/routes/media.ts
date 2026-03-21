@@ -86,4 +86,21 @@ router.get("/compositions", async (_req, res) => {
   }
 });
 
+// GET /api/v2/media/compositions/:id — get full composition with tracks
+router.get("/compositions/:id", (req, res) => {
+  const compPath = path.join(process.cwd(), "data", "compositions", req.params.id, "composition.json");
+  if (!fs.existsSync(compPath)) return res.status(404).json({ error: "Not found" });
+  try {
+    const comp = JSON.parse(fs.readFileSync(compPath, "utf-8"));
+    res.json({ ok: true, data: comp });
+  } catch { res.status(500).json({ error: "Failed to read composition" }); }
+});
+
+// GET /api/v2/media/compositions/:id/tracks/:trackId — serve individual track WAV
+router.get("/compositions/:id/tracks/:trackId", (req, res) => {
+  const trackPath = path.join(process.cwd(), "data", "compositions", req.params.id, req.params.trackId + ".wav");
+  if (!fs.existsSync(trackPath)) return res.status(404).json({ error: "Track not found" });
+  res.sendFile(trackPath);
+});
+
 export default router;

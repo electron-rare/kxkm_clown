@@ -6,7 +6,7 @@ import { generateImage } from "./comfyui.js";
 import { saveImage, saveAudio } from "./media-store.js";
 import type { OutboundMessage } from "./chat-types.js";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
-import { createComposition, getComposition, getActiveComposition, addTrack, listCompositions } from "./composition-store.js";
+import { createComposition, getComposition, getActiveComposition, setActiveComposition, addTrack, listCompositions } from "./composition-store.js";
 
 
 type BroadcastFn = (channel: string, msg: import("./chat-types.js").OutboundMessage, exclude?: import("ws").WebSocket) => void;
@@ -72,6 +72,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           const name = sub.slice(1).join(" ") || undefined;
           const comp = createComposition(info.nick, info.channel, name);
           send(ws, { type: "system", text: `\u{1F3BC} Composition creee: ${comp.name} (${comp.id})\n  /layer <prompt> pour ajouter des pistes` });
+          send(ws, { type: "system", text: "__comp_loaded__" + JSON.stringify({ compId: comp.id, name: comp.name, trackCount: 0 }) } as any);
           return;
         }
         if (action === "list") {
@@ -92,9 +93,10 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         if (action === "load") {
           const compId = sub[1];
           if (!compId) { send(ws, { type: "system", text: "Usage: /comp load <id>" }); return; }
-          const comp = getComposition(compId);
+          const comp = setActiveComposition(info.nick, info.channel, compId);
           if (!comp) { send(ws, { type: "system", text: `Composition ${compId} introuvable.` }); return; }
           send(ws, { type: "system", text: `📂 Composition chargee: ${comp.name} (${comp.tracks.length} pistes)` });
+          send(ws, { type: "system", text: "__comp_loaded__" + JSON.stringify({ compId: comp.id, name: comp.name, trackCount: comp.tracks.length }) } as any);
           return;
         }
         if (action === "delete") {

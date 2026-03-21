@@ -32,6 +32,11 @@ export const CHAT_COMMANDS = new Set([
   "/persona-enable",
   "/shout",
   "/define",
+  "/tldr",
+  "/rephrase",
+  "/math",
+  "/emojify",
+  "/countdown",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -184,6 +189,11 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "  /mood               Analyse de l'ambiance du canal",
             "  /haiku [sujet]      Haiku d'une persona aleatoire",
             "  /timer <sec> [msg]  Timer avec notification",
+            "  /tldr               Resume la derniere reponse persona",
+            "  /rephrase <texte>   Reformuler un texte",
+            "  /math <expr>        Calculatrice",
+            "  /emojify <texte>    Ajouter des emojis",
+            "  /countdown <1-30>   Compte a rebours",
             "",
             "  F1=Chat F2=Voice F3=Personas F4=Compose F5=Images",
             "  F6=Media F7=Admin F8=DAW AI F9=Instruments",
@@ -952,6 +962,97 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             send(ws, { type: "system", text: `📖 ${word}: ${def || "Definition indisponible."}` });
           }
         } catch { send(ws, { type: "system", text: "Definition indisponible." }); }
+        return;
+      }
+
+      case "/tldr": {
+        const store = getContextStore?.();
+        if (!store) { send(ws, { type: "system", text: "Context store indisponible." }); return; }
+        const context = await store.getContext(info.channel, 3000);
+        const lastPersonaMsg = context.split("\n").reverse().find(l => l.includes(":") && !l.startsWith(info.nick));
+        if (!lastPersonaMsg) { send(ws, { type: "system", text: "Rien a resumer." }); return; }
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "qwen3.5:9b",
+              messages: [{ role: "user", content: `Resume en UNE seule phrase concise: "${lastPersonaMsg}"` }],
+              stream: false, options: { num_predict: 100 }, keep_alive: "30m", think: false,
+            }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as any;
+            send(ws, { type: "system", text: `TL;DR: ${data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim() || "?"}` });
+          }
+        } catch { send(ws, { type: "system", text: "Resume indisponible." }); }
+        return;
+      }
+
+      case "/rephrase": {
+        const input = text.slice(10).trim();
+        if (!input) { send(ws, { type: "system", text: "Usage: /rephrase <texte>" }); return; }
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "qwen3.5:9b",
+              messages: [{ role: "user", content: `Reformule differemment en francais (meme sens, autre style): "${input}"` }],
+              stream: false, options: { num_predict: 300 }, keep_alive: "30m", think: false,
+            }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as any;
+            send(ws, { type: "system", text: `→ ${data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim() || "?"}` });
+          }
+        } catch { send(ws, { type: "system", text: "Reformulation indisponible." }); }
+        return;
+      }
+
+      case "/math": {
+        const expr = text.slice(6).trim();
+        if (!expr) { send(ws, { type: "system", text: "Usage: /math <expression>" }); return; }
+        try {
+          // Safe eval using Function constructor (no access to scope)
+          const result = new Function(`"use strict"; return (${expr.replace(/[^0-9+\-*/().%\s^]/g, "")})`)();
+          send(ws, { type: "system", text: `🧮 ${expr} = ${result}` });
+        } catch {
+          send(ws, { type: "system", text: `🧮 Erreur: expression invalide "${expr}"` });
+        }
+        return;
+      }
+
+      case "/emojify": {
+        const input = text.slice(9).trim();
+        if (!input) { send(ws, { type: "system", text: "Usage: /emojify <texte>" }); return; }
+        const map: Record<string, string> = {
+          "musique": "🎵", "son": "🔊", "art": "🎨", "code": "💻", "amour": "❤️",
+          "feu": "🔥", "eau": "💧", "soleil": "☀️", "lune": "🌙", "etoile": "⭐",
+          "chat": "🐱", "chien": "🐕", "fleur": "🌸", "arbre": "🌳", "monde": "🌍",
+          "temps": "⏰", "nuit": "🌙", "jour": "☀️", "rire": "😂", "triste": "😢",
+        };
+        let result = input;
+        for (const [word, emoji] of Object.entries(map)) {
+          result = result.replace(new RegExp(`\\b${word}\\b`, "gi"), `${word}${emoji}`);
+        }
+        broadcast(info.channel, { type: "system", text: result });
+        return;
+      }
+
+      case "/countdown": {
+        const seconds = parseInt(parts[1]) || 5;
+        if (seconds < 1 || seconds > 30) { send(ws, { type: "system", text: "Usage: /countdown <1-30>" }); return; }
+        for (let i = seconds; i > 0; i--) {
+          setTimeout(() => {
+            broadcast(info.channel, { type: "system", text: `⏱️ ${i}...` });
+          }, (seconds - i) * 1000);
+        }
+        setTimeout(() => {
+          broadcast(info.channel, { type: "system", text: "🎉 GO!" });
+        }, seconds * 1000);
         return;
       }
 

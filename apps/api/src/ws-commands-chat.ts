@@ -86,6 +86,8 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "/suggest                            \u2014 IA suggere la prochaine piste",
             "/snapshot [label]                   \u2014 sauvegarder un snapshot de la composition",
             "/randomize [duree]                  \u2014 generer une composition aleatoire",
+            "/glitch <piste#>                    \u2014 appliquer un glitch audio aleatoire",
+            "/stretch <piste#> <facteur>          \u2014 time-stretch sans changer le pitch",
             "/status                            \u2014 etat du systeme (VRAM, modeles, perf)",
             "/responders <1-5>                  \u2014 nombre de personas qui repondent",
             "/model                             \u2014 modele actif",

@@ -4,7 +4,7 @@ Updated: 2026-03-21T12:00:00Z
 
 ## Summary
 
-- **272 lots executed** (24-272) in sessions 2026-03-19/20/21
+- **281 lots executed** (24-272) in sessions 2026-03-19/20/21
 - **425 tests**, 0 fail
 - **55 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
@@ -818,3 +818,12 @@ Updated: 2026-03-20T12:00:00Z
 
 ## lot-236-plan-docs [done]
 - Summary: PLAN + docs update to 236 lots
+
+## lot-278-glitch [done]
+- /glitch: random audio glitch effect (bit crush + tremolo + phaser)
+
+## lot-279-stretch [done]
+- /stretch: time stretch without pitch change (atempo)
+
+## lot-280-final [done]
+- Summary: 281 lots, 89 commands, DAW Phase 1-4, composition pipeline complete

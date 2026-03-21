@@ -23,6 +23,7 @@ export const GENERATE_COMMANDS = new Set([
   "/play", "/stop-all", "/template", "/marker",
   "/metronome", "/delete", "/preview", "/gain",
   "/suggest", "/snapshot", "/randomize",
+  "/glitch", "/stretch",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1077,6 +1078,43 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         }
 
         send(ws, { type: "system", text: `\ud83c\udfb2 ${comp.tracks.length} pistes generees aleatoirement. /mix pour ecouter.` });
+        return;
+      }
+
+
+      case "/glitch": {
+        const trackNum = parseInt(text.slice(8).trim().split(/\s+/)[0]) - 1;
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 0 || trackNum >= comp.tracks.length) {
+          send(ws, { type: "system", text: "Usage: /glitch <piste#>" }); return;
+        }
+        const track = comp.tracks[trackNum];
+        if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
+        const tmp = track.filePath + ".glitch.wav";
+        const bits = 4 + Math.floor(Math.random() * 8);
+        const freq = (1 + Math.random() * 10).toFixed(1);
+        execFileSync("ffmpeg", ["-i", track.filePath, "-af", `acrusher=bits=${bits}:mix=0.7,tremolo=f=${freq}:d=0.8,aphaser=type=t:speed=2`, "-y", tmp], { timeout: 30000 });
+        fs.renameSync(tmp, track.filePath);
+        send(ws, { type: "system", text: `\ud83d\udd00 Glitch piste #${trackNum+1} (bits:${bits} trem:${freq}Hz)` });
+        return;
+      }
+
+      case "/stretch": {
+        const args = text.slice(9).trim().split(/\s+/);
+        const trackNum = parseInt(args[0]) - 1;
+        const factor = parseFloat(args[1] || "2");
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 0 || trackNum >= comp.tracks.length) {
+          send(ws, { type: "system", text: "Usage: /stretch <piste#> <facteur 0.5-4>" }); return;
+        }
+        const track = comp.tracks[trackNum];
+        if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
+        const clamp = Math.min(4, Math.max(0.5, factor));
+        const tmp = track.filePath + ".stretch.wav";
+        execFileSync("ffmpeg", ["-i", track.filePath, "-af", `atempo=${1/clamp}`, "-y", tmp], { timeout: 30000 });
+        fs.renameSync(tmp, track.filePath);
+        track.duration = Math.round(track.duration * clamp);
+        send(ws, { type: "system", text: `\u23f3 Stretch x${clamp} piste #${trackNum+1} (${track.duration}s)` });
         return;
       }
 

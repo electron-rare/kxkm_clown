@@ -3559,12 +3559,167 @@ code {
   opacity: 0.8;
 }
 
+/* --- Mode Tabs --- */
+.img-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.img-tab {
+  background: #111;
+  border: 1px solid #444;
+  color: #888;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.img-tab:hover {
+  border-color: var(--minitel-amber, #ffb300);
+  color: #ddd;
+}
+.img-tab-active {
+  background: var(--minitel-amber, #ffb300);
+  color: #000;
+  border-color: var(--minitel-amber, #ffb300);
+}
+
+/* --- Mode Form (shared for non-txt2img) --- */
+.img-mode-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+  max-width: 100%;
+}
+
+/* --- ImageUpload --- */
+.img-upload {
+  width: 100%;
+  min-height: 120px;
+  border: 2px dashed #444;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: #0a0a0a;
+  transition: border-color 0.15s, background 0.15s;
+  overflow: hidden;
+}
+.img-upload:hover,
+.img-upload-dragging {
+  border-color: var(--minitel-amber, #ffb300);
+  background: rgba(255, 179, 0, 0.03);
+}
+.img-upload-preview {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 2px;
+}
+.img-upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: #555;
+}
+.img-upload-icon {
+  font-size: 28px;
+  color: #444;
+  line-height: 1;
+}
+.img-upload-label {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.img-upload-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* --- Sliders & selects --- */
+.img-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.img-slider-label {
+  color: #888;
+  font-size: 11px;
+  white-space: nowrap;
+  min-width: 100px;
+}
+.img-slider-value {
+  color: var(--minitel-amber, #ffb300);
+  font-weight: bold;
+}
+.img-slider {
+  flex: 1;
+  accent-color: var(--minitel-amber, #ffb300);
+  height: 4px;
+  cursor: pointer;
+}
+.img-select {
+  flex: 1;
+  background: #111;
+  border: 1px solid #444;
+  color: #ddd;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.img-select:focus {
+  border-color: var(--minitel-amber, #ffb300);
+  outline: none;
+}
+
+/* --- Viewer mode badge --- */
+.img-viewer-badge-mode {
+  background: rgba(255, 179, 0, 0.15);
+  border-color: var(--minitel-amber, #ffb300);
+  color: var(--minitel-amber, #ffb300);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* --- Gallery card mode tag --- */
+.img-card-meta-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 2px;
+}
+.img-card-mode {
+  color: var(--minitel-amber, #ffb300);
+  font-size: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(255, 179, 0, 0.15);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .img-form { flex-direction: column; }
   .img-gen-btn { min-width: unset; }
   .img-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 6px; }
   .img-viewer-img { max-width: 95vw; max-height: 70vh; }
+  .img-tabs { gap: 3px; }
+  .img-tab { font-size: 9px; padding: 5px 8px; }
+  .img-upload-pair { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .imagine-page { padding: 4px 8px; }
@@ -3572,6 +3727,7 @@ code {
   .img-card-overlay { padding: 12px 4px 4px; }
   .img-card-prompt { font-size: 8px; }
   .img-viewer-btn { width: 30px; height: 30px; font-size: 14px; }
+  .img-tab { font-size: 8px; padding: 4px 6px; letter-spacing: 0; }
 }
 
 /* ===================== DAW AI PANEL ===================== */

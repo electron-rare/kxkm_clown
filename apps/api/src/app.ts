@@ -64,7 +64,7 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
   });
 
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" })); // large limit for base64 image uploads
   app.use(createSessionMiddleware(sessionRepo));
 
   const requireSession = createRequireSession();

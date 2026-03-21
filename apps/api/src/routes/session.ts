@@ -122,6 +122,56 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
     }));
   });
 
+  // ComfyUI workflow endpoints (img2img, style transfer, face swap, video)
+  router.post("/api/v2/comfyui/img2img", async (req, res) => {
+    const { image, prompt, strength } = req.body as { image?: string; prompt?: string; strength?: number };
+    if (!image) return res.status(400).json({ ok: false, error: "image required" });
+    try {
+      const { generateImg2Img } = await import("../comfyui.js");
+      const result = await generateImg2Img(image, prompt || "", { strength });
+      if (!result) return res.json({ ok: false, error: "Generation failed" });
+      res.json(asApiData(result));
+    } catch (err) { res.status(500).json({ ok: false, error: (err as Error).message }); }
+  });
+
+  router.post("/api/v2/comfyui/style", async (req, res) => {
+    const { image, style, prompt, strength } = req.body as { image?: string; style?: string; prompt?: string; strength?: number };
+    if (!image) return res.status(400).json({ ok: false, error: "image required" });
+    try {
+      const { generateStyleTransfer } = await import("../comfyui.js");
+      const result = await generateStyleTransfer(image, style || "painting", prompt || "", { strength });
+      if (!result) return res.json({ ok: false, error: "Generation failed" });
+      res.json(asApiData(result));
+    } catch (err) { res.status(500).json({ ok: false, error: (err as Error).message }); }
+  });
+
+  router.post("/api/v2/comfyui/faceswap", async (req, res) => {
+    const { source, target } = req.body as { source?: string; target?: string };
+    if (!source || !target) return res.status(400).json({ ok: false, error: "source and target required" });
+    try {
+      const { generateFaceSwap } = await import("../comfyui.js");
+      const result = await generateFaceSwap(source, target);
+      if (!result) return res.json({ ok: false, error: "Generation failed" });
+      res.json(asApiData(result));
+    } catch (err) { res.status(500).json({ ok: false, error: (err as Error).message }); }
+  });
+
+  router.post("/api/v2/comfyui/video", async (req, res) => {
+    const { prompt, duration } = req.body as { prompt?: string; duration?: number };
+    if (!prompt) return res.status(400).json({ ok: false, error: "prompt required" });
+    try {
+      const { generateVideo } = await import("../comfyui.js");
+      const result = await generateVideo(prompt, { duration });
+      if (!result) return res.json({ ok: false, error: "Generation failed" });
+      res.json(asApiData(result));
+    } catch (err) { res.status(500).json({ ok: false, error: (err as Error).message }); }
+  });
+
+  router.get("/api/v2/comfyui/workflows", async (_req, res) => {
+    const { listWorkflows } = await import("../comfyui.js");
+    res.json(asApiData(listWorkflows()));
+  });
+
   // LLM providers (mascarade status)
   router.get("/api/v2/llm-providers", async (_req, res) => {
     const { getProviders, checkMascaradeHealth } = await import("../llm-client.js");

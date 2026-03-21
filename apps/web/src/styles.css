@@ -3972,3 +3972,47 @@ code {
   .minitel-nav-panel { width: 100vw; }
   .compose-page, .imagine-page, .media-explorer, .admin-page { padding: 4px; }
 }
+
+/* ═══ Global overflow fix ═══ */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+#root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+.minitel-terminal {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+.minitel-body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+.minitel-screen {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+.minitel-content {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+.minitel-bottom-bar {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+/* DAW should scroll horizontally only inside timeline */
+.daw {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+.daw-body {
+  max-width: 100%;
+  overflow: hidden;
+}
+/* Chat container */
+.chat-container {
+  max-width: 100%;
+  overflow-x: hidden;
+}

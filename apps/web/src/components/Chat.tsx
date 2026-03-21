@@ -35,6 +35,20 @@ function useAudioQueue(enabled: boolean) {
   return { enqueue };
 }
 
+function isSameDay(a: number, b: number): boolean {
+  const da = new Date(a), db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+function DateSeparator({ timestamp }: { timestamp: number }) {
+  const d = new Date(timestamp);
+  const today = new Date();
+  const isToday = isSameDay(d.getTime(), today.getTime());
+  const isYesterday = isSameDay(d.getTime(), today.getTime() - 86400000);
+  const label = isToday ? "Aujourd'hui" : isYesterday ? "Hier" : d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return <div className="chat-date-sep">{label}</div>;
+}
+
 export default function Chat() {
   const {
     messages,
@@ -135,9 +149,16 @@ export default function Chat() {
 
       <div className="chat-body">
         <div className="chat-messages" ref={containerRef} role="log" aria-live="polite">
-          {messages.map((msg) => (
-            <ChatMessage key={msg.id} msg={msg} getNickColor={getNickColor} channel={channel} onVote={handleVote} />
-          ))}
+          {messages.map((msg, idx) => {
+            const prevMsg = idx > 0 ? messages[idx - 1] : null;
+            const showDateSep = !prevMsg || !isSameDay(prevMsg.timestamp, msg.timestamp);
+            return (
+              <React.Fragment key={msg.id}>
+                {showDateSep && <DateSeparator timestamp={msg.timestamp} />}
+                <ChatMessage msg={msg} getNickColor={getNickColor} channel={channel} onVote={handleVote} />
+              </React.Fragment>
+            );
+          })}
           <div ref={messagesEndRef} />
         </div>
 

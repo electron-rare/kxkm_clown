@@ -7,7 +7,7 @@ export const CHAT_COMMANDS = new Set([
   "/help", "/nick", "/who", "/clear", "/join", "/channels", "/topic",
   "/pin", "/dm", "/msg", "/whisper", "/w", "/search", "/react",
   "/mute", "/unmute", "/ban", "/unban", "/invite", "/personas",
-  "/web", "/responders",
+  "/web", "/responders", "/voice-test",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -326,21 +326,39 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
       }
 
       case "/search": {
-        const query = text.slice(8).trim().toLowerCase();
-        if (!query) { send(ws, { type: "system", text: "Usage: /search <mot-cle>" }); return; }
+        // /search <query> — searches conversation history + web (SearXNG)
+        const query = text.slice(8).trim();
+        if (!query) { send(ws, { type: "system", text: "Usage: /search <query> — cherche dans l'historique + web" }); return; }
+
+        const sections: string[] = [`=== Recherche: "${query}" ===`];
+
+        // 1. Search conversation context
         const store = getContextStore?.();
-        if (!store) { send(ws, { type: "system", text: "Context store non disponible." }); return; }
-        try {
-          const context = await store.getContext(info.channel, 100_000);
-          const lines = context.split("\n").filter((l: string) => l.toLowerCase().includes(query));
-          if (lines.length === 0) {
-            send(ws, { type: "system", text: `Aucun resultat pour "${query}"` });
-            return;
-          }
-          send(ws, { type: "system", text: `Resultats pour "${query}" (${lines.length}):\n${lines.slice(-10).join("\n")}` });
-        } catch (err) {
-          send(ws, { type: "system", text: `Erreur recherche: ${err instanceof Error ? err.message : String(err)}` });
+        if (store) {
+          try {
+            const context = await store.getContext(info.channel, 100_000);
+            const lines = context.split("\n").filter((l: string) => l.toLowerCase().includes(query.toLowerCase()));
+            if (lines.length > 0) {
+              sections.push(`\n[Historique chat] (${lines.length} resultats)`);
+              sections.push(lines.slice(-5).join("\n"));
+            }
+          } catch { /* silent */ }
         }
+
+        // 2. Search web via SearXNG
+        try {
+          const webResults = await searchWeb(query);
+          if (webResults && webResults.length > 10) {
+            sections.push(`\n[Web]`);
+            sections.push(webResults.slice(0, 500));
+          }
+        } catch { /* silent */ }
+
+        if (sections.length === 1) {
+          sections.push("Aucun resultat.");
+        }
+
+        send(ws, { type: "system", text: sections.join("\n") });
         return;
       }
 
@@ -400,6 +418,32 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         if (!invitePersona) { send(ws, { type: "system", text: `Persona ${target} inconnue` }); return; }
         broadcast(info.channel, { type: "system", text: `${invitePersona.nick} a ete invite par ${info.nick}` });
         broadcast(info.channel, { type: "join", nick: invitePersona.nick, channel: info.channel, text: `${invitePersona.nick} rejoint ${info.channel}` } as OutboundMessage);
+        return;
+      }
+
+      case "/voice-test": {
+        // /voice-test [persona] [texte] — preview a persona's TTS voice
+        const testNick = parts[1] || "Pharmacius";
+        const testText = parts.slice(2).join(" ") || `Bonjour, je suis ${testNick}. Ma voix est unique dans ce collectif.`;
+
+        if (testText.length < 10) {
+          send(ws, { type: "system", text: "Usage: /voice-test <persona> [texte a prononcer]" });
+          return;
+        }
+
+        // Find persona
+        const personas = getPersonas();
+        const persona = personas.find(p => p.nick.toLowerCase() === testNick.toLowerCase());
+        if (!persona) {
+          send(ws, { type: "system", text: `Persona "${testNick}" introuvable. /who pour la liste.` });
+          return;
+        }
+
+        send(ws, { type: "system", text: `Test voix: ${persona.nick} — "${testText.slice(0, 50)}..."` });
+
+        // Import and call synthesizeTTS directly
+        const { synthesizeTTS } = await import("./ws-multimodal.js");
+        await synthesizeTTS(persona.nick, testText, info.channel, broadcast);
         return;
       }
 

@@ -10,7 +10,8 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-virtualized-auto-sizer": "^2.0.3",
-    "react-window": "^2.2.7"
+    "react-window": "^2.2.7",
+    "tone": "^15.1.22"
   },
   "scripts": {
     "status": "node ../../scripts/workspace-package.js web status",

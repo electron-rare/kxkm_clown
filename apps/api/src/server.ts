@@ -55,9 +55,13 @@ async function main() {
     res.json({ ok: true });
   });
 
-  // openDAW files at root (for internal absolute imports from /daw)
+  // openDAW files at root — ONLY serve files with openDAW UUID pattern in filename
+  // This prevents intercepting main app files (index.html, assets/, etc.)
+  const dawUuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
   app.use((req, res, next) => {
-    if (req.path.startsWith("/api/") || req.path === "/ws" || req.path.startsWith("/daw")) return next();
+    if (req.path.startsWith("/api/") || req.path === "/ws" || req.path.startsWith("/daw") || req.path.startsWith("/assets/")) return next();
+    // Only serve if filename contains openDAW build UUID (e.g., main.048779e6-xxxx.js)
+    if (!dawUuidPattern.test(req.path) && !req.path.startsWith("/processors.") && !req.path.startsWith("/graph-runtime.") && !req.path.startsWith("/index.") && req.path !== "/favicon.svg" && req.path !== "/build-info.json") return next();
     const dawFile = path.join(dawDistPath, req.path);
     if (fs.existsSync(dawFile) && fs.statSync(dawFile).isFile()) {
       res.setHeader("Cross-Origin-Opener-Policy", "same-origin");

@@ -180,7 +180,7 @@ code {
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: var(--gap);
 }
 
@@ -536,8 +536,12 @@ code {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   border: none;
   background: transparent;
+  overflow-x: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .chat-header {
@@ -547,6 +551,9 @@ code {
   padding: 8px 14px;
   border-bottom: 2px solid var(--border);
   background: rgba(51, 255, 51, 0.03);
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .chat-channel {
@@ -583,6 +590,8 @@ code {
   display: flex;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .chat-messages {
@@ -682,6 +691,8 @@ code {
   gap: 0;
   border-top: 1px solid var(--minitel-green, #33ff33);
   background: var(--minitel-black, #0a0a0a);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chat-input input {
@@ -1203,6 +1214,8 @@ code {
   padding: 4px 12px;
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px;
   letter-spacing: 2px;
   text-transform: uppercase;
   position: relative;
@@ -1219,6 +1232,8 @@ code {
   padding: 4px 8px;
   display: flex;
   justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 2px;
   letter-spacing: 1px;
   position: relative;
   z-index: 5;
@@ -1478,6 +1493,8 @@ code {
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 100%;
 
   /* ── Variable remap: old IRC tokens → Minitel phosphore ── */
   --bg: var(--minitel-black);
@@ -2829,7 +2846,7 @@ code {
 
 .minitel-dash-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
   gap: 8px;
 }
 
@@ -2989,6 +3006,7 @@ code {
 .cmp-track-body {
   display: flex; gap: 4px; padding: 4px 8px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 .cmp-prompt {
   flex: 1; min-width: 0;
@@ -3009,6 +3027,8 @@ code {
   padding: 4px 8px 6px;
   display: flex; align-items: center; gap: 6px;
   min-width: 0;
+  flex-wrap: wrap;
+  overflow-x: hidden;
 }
 .cmp-block {
   height: 20px; border-radius: 3px;
@@ -3023,6 +3043,7 @@ code {
   display: flex; gap: 6px; padding: 8px 12px;
   border-top: 1px solid #2a2a2a;
   min-width: 0;
+  flex-wrap: wrap;
 }
 .cmp-mix-btn {
   flex: 1; min-width: 0; padding: 8px; border: none; border-radius: 4px;
@@ -3253,6 +3274,9 @@ code {
   .cmp-audio { max-width: 120px; }
   .cmp-lane { height: 24px; }
   .cmp-lane-label { width: 20px; font-size: 8px; }
+  .cmp-name-row { gap: 4px; }
+  .cmp-mix { flex-wrap: wrap; gap: 4px; }
+  .cmp-timeline { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
 }
 @media (max-width: 480px) {
   .cmp-track-label { min-width: 40px; font-size: 9px; }
@@ -3261,6 +3285,11 @@ code {
   .cmp-timeline { margin: 4px 8px; }
   .cmp-lane { height: 20px; }
   .cmp-tl-text { display: none; }
+  .cmp-header { padding: 4px 8px 0; }
+  .cmp-tracks { padding: 4px 8px; }
+  .cmp-mix { padding: 6px 8px; }
+  .cmp-type-sel { min-width: 50px; font-size: 9px; }
+  .cmp-auto-btn, .cmp-genall-btn { font-size: 10px; padding: 4px 8px; }
 }
 
 /* ================================================================= */
@@ -3643,7 +3672,7 @@ code {
 }
 .img-upload-pair {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -3652,12 +3681,13 @@ code {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .img-slider-label {
   color: #888;
   font-size: 11px;
   white-space: nowrap;
-  min-width: 100px;
+  min-width: 80px;
 }
 .img-slider-value {
   color: var(--minitel-amber, #ffb300);
@@ -3665,6 +3695,7 @@ code {
 }
 .img-slider {
   flex: 1;
+  min-width: 0;
   accent-color: var(--minitel-amber, #ffb300);
   height: 4px;
   cursor: pointer;
@@ -3720,6 +3751,8 @@ code {
   .img-tabs { gap: 3px; }
   .img-tab { font-size: 9px; padding: 5px 8px; }
   .img-upload-pair { grid-template-columns: 1fr; }
+  .img-slider-label { min-width: 60px; font-size: 10px; }
+  .img-mode-form { gap: 6px; }
 }
 @media (max-width: 480px) {
   .imagine-page { padding: 4px 8px; }
@@ -3728,6 +3761,9 @@ code {
   .img-card-prompt { font-size: 8px; }
   .img-viewer-btn { width: 30px; height: 30px; font-size: 14px; }
   .img-tab { font-size: 8px; padding: 4px 6px; letter-spacing: 0; }
+  .img-slider-row { gap: 4px; }
+  .img-slider-label { min-width: unset; width: 100%; }
+  .img-select { font-size: 10px; }
 }
 
 /* ===================== DAW AI PANEL ===================== */
@@ -3776,7 +3812,7 @@ code {
   font-family: var(--font-mono, "VT323", monospace); font-size: 12px;
   flex: 1;
 }
-.daw-ai-row { display: flex; gap: 6px; align-items: center; }
+.daw-ai-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .daw-ai-num {
   background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255, 255, 255, 0.15);
   color: #ddd; padding: 4px 6px; border-radius: 3px; width: 60px; text-align: center;
@@ -3838,11 +3874,15 @@ code {
 @media (max-width: 768px) {
   .daw-ai-generators { grid-template-columns: 1fr; }
   .daw-ai-link { flex-direction: column; align-items: flex-start; }
+  .daw-ai-gen-card { padding: 10px; }
 }
 @media (max-width: 480px) {
   .daw-ai-panel { padding: 4px 8px; }
   .daw-ai-track-controls { flex-wrap: wrap; }
   .daw-ai-audio { min-width: 100%; }
+  .daw-ai-btn { padding: 6px 10px; font-size: 12px; }
+  .daw-ai-input { font-size: 12px; }
+  .daw-ai-track-info { gap: 4px; }
 }
 
 /* ===================== AI INSTRUMENT RACK ===================== */
@@ -3938,8 +3978,23 @@ code {
 @media (max-width: 768px) {
   .ai-inst-controls { flex-direction: column; align-items: flex-start; }
   .ai-inst-controls input[type="range"] { width: 100%; }
+  .ai-inst-result { flex-wrap: wrap; }
+  .ai-inst-result audio { min-width: 0; width: 100%; }
 }
 @media (max-width: 480px) {
   .ai-rack { padding: 4px 8px; }
   .ai-inst { padding: 8px 10px; }
+  .ai-inst-controls select,
+  .ai-inst-controls input[type="number"],
+  .ai-inst-controls input[type="text"] { min-width: 0; width: 100%; }
+  .ai-inst-gen-btn { width: 100%; text-align: center; }
 }
+
+/* Stem separation button */
+.daw-ai-sep-btn {
+  padding: 2px 8px; font-size: 11px; border-radius: 2px; cursor: pointer;
+  font-family: var(--font-mono, "VT323", monospace); border: 1px solid #ff9800;
+  color: #ff9800; background: transparent; letter-spacing: 1px;
+}
+.daw-ai-sep-btn:hover:not(:disabled) { background: rgba(255,152,0,0.15); }
+.daw-ai-sep-btn:disabled { opacity: 0.4; cursor: wait; }

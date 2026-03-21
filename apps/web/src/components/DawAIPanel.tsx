@@ -297,6 +297,48 @@ export default function DawAIPanel() {
     navigator.clipboard.writeText(window.location.origin + url).catch(() => {});
   };
 
+  // --- Stem separation (Demucs) ---
+  const [separating, setSeparating] = useState<string | null>(null); // sample id being separated
+  const separateSample = useCallback(async (sample: SavedSample) => {
+    setSeparating(sample.id);
+    try {
+      // Fetch the WAV from server
+      const audioResp = await fetch(sample.url);
+      if (!audioResp.ok) throw new Error("Failed to fetch sample");
+      const audioBlob = await audioResp.blob();
+
+      // Send to Demucs via ai-bridge
+      const formData = new FormData();
+      formData.append("file", audioBlob, "input.wav");
+      // ai-bridge /separate expects raw binary body
+      const sepResp = await fetch(`${AI_BRIDGE}/separate`, {
+        method: "POST",
+        headers: { "Content-Type": "audio/wav" },
+        body: await audioBlob.arrayBuffer(),
+      });
+      if (!sepResp.ok) throw new Error(`Separation failed: ${sepResp.status}`);
+      const result = await sepResp.json();
+
+      // Save each stem as a new sample
+      if (result.ok && result.data) {
+        for (const [stemName, stemBase64] of Object.entries(result.data)) {
+          const stemBuf = Uint8Array.from(atob(stemBase64 as string), c => c.charCodeAt(0));
+          const stemBlob = new Blob([stemBuf], { type: "audio/wav" });
+          await fetch(`${DAW_API}/samples?name=${encodeURIComponent(`${sample.name} [${stemName}]`)}&type=stem&duration=${sample.duration}`, {
+            method: "POST",
+            headers: { "Content-Type": "audio/wav" },
+            body: stemBlob,
+          });
+        }
+        loadSamples(); // refresh list
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Separation failed");
+    } finally {
+      setSeparating(null);
+    }
+  }, [loadSamples]);
+
   return (
     <div className="daw-ai-panel">
       <VideotexPageHeader title="DAW AI ASSISTANT" subtitle="openDAW + AI Bridge" color="cyan" />
@@ -466,6 +508,12 @@ export default function DawAIPanel() {
                 className="daw-ai-url-btn"
                 title={`openDAW import: ${s.url}`}
               >URL</button>
+              <button
+                onClick={() => separateSample(s)}
+                className="daw-ai-sep-btn"
+                disabled={separating === s.id}
+                title="Separer stems (vocals + instruments)"
+              >{separating === s.id ? "..." : "STEMS"}</button>
               <button
                 onClick={() => deleteSample(s)}
                 className="daw-ai-rm-btn"

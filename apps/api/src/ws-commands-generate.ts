@@ -12,6 +12,7 @@ export const GENERATE_COMMANDS = new Set([
   "/imagine", "/compose", "/layer", "/mix", "/voice", "/noise",
   "/ambient", "/fx", "/comp", "/imagine-models", "/remix", "/tracks",
   "/undo", "/solo", "/unsolo", "/rename", "/duplicate", "/dup", "/bpm", "/clear-comp",
+  "/loop", "/swap", "/info",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -543,6 +544,69 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         return;
       }
 
+
+
+      case "/loop": {
+        const args = text.slice(6).trim().split(/\s+/);
+        const trackNum = parseInt(args[0] || "");
+        const times = Math.min(10, Math.max(2, parseInt(args[1] || "2")));
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 1 || trackNum > comp.tracks.length) {
+          send(ws, { type: "system", text: "Usage: /loop <piste#> <fois>" }); return;
+        }
+        const track = comp.tracks[trackNum - 1];
+        if (!track.filePath || !fs.existsSync(track.filePath)) {
+          send(ws, { type: "system", text: "Piste sans fichier audio." }); return;
+        }
+        // Create concat file
+        const concatFile = track.filePath + ".concat.txt";
+        fs.writeFileSync(concatFile, Array(times).fill(`file '${track.filePath}'`).join("\n"));
+        const tmpPath = track.filePath + ".loop.wav";
+        execFileSync("ffmpeg", ["-f", "concat", "-safe", "0", "-i", concatFile, "-y", tmpPath], { timeout: 30000 });
+        fs.renameSync(tmpPath, track.filePath);
+        fs.unlinkSync(concatFile);
+        track.duration *= times;
+        send(ws, { type: "system", text: `\u{1F501} Piste #${trackNum} loopee x${times} (${track.duration}s)` });
+        return;
+      }
+
+      case "/swap": {
+        const args = text.slice(6).trim().split(/\s+/);
+        const a = parseInt(args[0]) - 1;
+        const b = parseInt(args[1]) - 1;
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(a) || isNaN(b) || a < 0 || b < 0 || a >= comp.tracks.length || b >= comp.tracks.length) {
+          send(ws, { type: "system", text: "Usage: /swap <piste#> <piste#>" }); return;
+        }
+        [comp.tracks[a], comp.tracks[b]] = [comp.tracks[b], comp.tracks[a]];
+        send(ws, { type: "system", text: `\u{1F500} Pistes #${a+1} et #${b+1} echangees` });
+        return;
+      }
+
+      case "/info": {
+        const trackNum = parseInt(text.slice(6).trim());
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 1 || trackNum > comp.tracks.length) {
+          send(ws, { type: "system", text: "Usage: /info <piste#>" }); return;
+        }
+        const t = comp.tracks[trackNum - 1];
+        const icon = t.type === "voice" ? "\u{1F399}\uFE0F" : t.type === "sfx" ? "\u{1F50A}" : "\u{1F3B5}";
+        let fileInfo = "pas de fichier";
+        if (t.filePath && fs.existsSync(t.filePath)) {
+          const stat = fs.statSync(t.filePath);
+          fileInfo = `${Math.round(stat.size / 1024)} KB`;
+        }
+        send(ws, { type: "system", text: [
+          `${icon} Piste #${trackNum}`,
+          `  Type: ${t.type}`,
+          `  Prompt: ${t.prompt}`,
+          `  Duree: ${t.duration}s`,
+          `  Volume: ${t.volume}%`,
+          `  Fichier: ${fileInfo}`,
+          `  Cree: ${t.createdAt}`,
+        ].join("\n") });
+        return;
+      }
 
       default:
         send(ws, { type: "system", text: `Commande inconnue: ${cmd}. Tape /help.` });

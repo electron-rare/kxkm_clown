@@ -4,7 +4,7 @@ Updated: 2026-03-21T12:00:00Z
 
 ## Summary
 
-- **236 lots executed** (24-205) in sessions 2026-03-19/20/21
+- **272 lots executed** (24-272) in sessions 2026-03-19/20/21
 - **425 tests**, 0 fail
 - **55 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
@@ -14,7 +14,7 @@ Updated: 2026-03-21T12:00:00Z
 - ComposePage rewritten: direct WS, 5 generation buttons (Musique, Voix, Drone, Pink, White), timeline
 - MusicGen compose fixed (WAV write, VRAM management)
 - TTFC 284ms
-- Next: lots 206+ (wavesurfer waveform, Demucs stems, WAV export, templates, collab, MIDI, automation, FX rack, sample browser, spectral view)
+- Next: lots 273+ (wavesurfer waveform, Demucs stems, WAV export, templates, collab, MIDI, automation, FX rack, sample browser, spectral view)
 
 ---
 

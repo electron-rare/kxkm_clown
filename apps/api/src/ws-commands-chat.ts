@@ -65,6 +65,8 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "/rename <nom>                      \u2014 renommer la composition active",
             "/dup <piste#>                      \u2014 dupliquer une piste",
             "/bpm <20-300>                      \u2014 tempo de la composition",
+            "/preview <piste#>                  — ecouter une piste seule (sans mix)",
+            "/gain <piste#> <dB>                — ajuster le gain en decibels (ex: /gain 1 -3)",
             "/clear-comp                        \u2014 vider toutes les pistes",
             "/loop <piste#> <fois>               \u2014 boucler une piste N fois (ffmpeg concat)",
             "/swap <piste#> <piste#>              \u2014 echanger deux pistes de position",

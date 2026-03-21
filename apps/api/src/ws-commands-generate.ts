@@ -21,7 +21,7 @@ export const GENERATE_COMMANDS = new Set([
   "/loop", "/swap", "/info", "/normalize", "/crossfade", "/trim",
   "/stutter", "/pan", "/master", "/concat", "/silence",
   "/play", "/stop-all", "/template", "/marker",
-  "/metronome", "/delete",
+  "/metronome", "/delete", "/preview", "/gain",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -737,6 +737,38 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
       }
 
 
+
+      case "/preview": {
+        const trackNum = parseInt(text.slice(9).trim());
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 1 || trackNum > comp.tracks.length) {
+          send(ws, { type: "system", text: `Usage: /preview <piste#>` }); return;
+        }
+        const track = comp.tracks[trackNum - 1];
+        if (!track.filePath || !fs.existsSync(track.filePath)) {
+          send(ws, { type: "system", text: "Piste sans fichier audio." }); return;
+        }
+        const buf = fs.readFileSync(track.filePath);
+        send(ws, { type: "music", nick: info.nick, text: `[Preview #${trackNum}: ${track.prompt.slice(0, 40)}]`, audioData: buf.toString("base64"), audioMime: "audio/wav" } as any);
+        return;
+      }
+
+      case "/gain": {
+        const args = text.slice(6).trim().split(/\s+/);
+        const trackNum = parseInt(args[0]) - 1;
+        const db = parseFloat(args[1] || "0");
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 0 || trackNum >= comp.tracks.length || isNaN(db)) {
+          send(ws, { type: "system", text: "Usage: /gain <piste#> <dB> (ex: /gain 1 -3)" }); return;
+        }
+        const track = comp.tracks[trackNum];
+        if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
+        const tmp = track.filePath + ".gain.wav";
+        execFileSync("ffmpeg", ["-i", track.filePath, "-af", `volume=${db}dB`, "-y", tmp], { timeout: 30000 });
+        fs.renameSync(tmp, track.filePath);
+        send(ws, { type: "system", text: `\u{1F50A} Gain ${db > 0 ? "+" : ""}${db}dB piste #${trackNum + 1}` });
+        return;
+      }
 
       case "/loop": {
         const args = text.slice(6).trim().split(/\s+/);

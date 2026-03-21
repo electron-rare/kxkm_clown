@@ -3902,9 +3902,15 @@ code {
 .daw-ctx-danger:hover { background: #a33 !important; color: #fff !important; }
 .daw-context-menu hr { border: none; border-top: 1px solid #444; margin: 4px 0; }
 
-/* Generator Panel */
-.daw-generator { padding: 4px 8px; background: #252525; border-top: 1px solid #444; flex-shrink: 0; }
-.daw-gen-row { display: flex; gap: 4px; margin-bottom: 4px; }
+/* Generator Panel — 4-tab UI */
+.daw-panel { border-top: 1px solid #444; background: #252525; flex-shrink: 0; }
+.daw-panel-tabs { display: flex; border-bottom: 1px solid #333; }
+.daw-tab { background: none; border: none; color: #888; padding: 4px 12px; font-size: 11px; cursor: pointer; font-family: inherit; border-bottom: 2px solid transparent; }
+.daw-tab.active { color: #fff; border-bottom-color: #c84c0c; }
+.daw-tab:hover { color: #ccc; }
+.daw-panel-content { padding: 6px 8px; }
+.daw-panel-row { display: flex; gap: 3px; margin: 3px 0; flex-wrap: wrap; align-items: center; }
+.daw-panel-label { color: #4af; font-size: 10px; min-width: 50px; font-weight: bold; }
 .daw-prompt { flex: 1; background: #333; border: 1px solid #555; color: #fff; padding: 4px 6px; font-family: inherit; font-size: 12px; resize: none; }
 .daw-select { background: #333; border: 1px solid #555; color: #ccc; font-size: 11px; padding: 2px; font-family: inherit; }
 .daw-dur { width: 50px; }
@@ -3912,6 +3918,8 @@ code {
 .daw-btn { background: #3a3a3a; border: 1px solid #555; color: #ccc; font-size: 10px; padding: 3px 6px; cursor: pointer; border-radius: 2px; font-family: inherit; }
 .daw-btn:hover { background: #4a4a4a; color: #fff; }
 .daw-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.daw-btn-accent { background: #c84c0c !important; border-color: #c84c0c !important; color: #fff !important; }
+.daw-btn-accent:hover { background: #e06020 !important; }
 .daw-btn-gen { background: #2c6e49; border-color: #2c6e49; color: #fff; }
 .daw-btn-gen:hover { background: #3a8a5a; }
 .daw-btn-voice { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
@@ -3954,7 +3962,7 @@ code {
   .daw-fx-trigger { display: none; }
   .daw-audio-sm { display: none; }
   .daw-th-row2 { gap: 2px; }
-  .daw-generator { flex-direction: column; }
+  .daw-panel { flex-direction: column; }
   .daw-gen-prompt { width: 100%; }
   .daw-gen-row { flex-wrap: wrap; }
   .daw-gen-btn { font-size: 9px; padding: 4px 6px; }

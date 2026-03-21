@@ -9,6 +9,7 @@ export const CHAT_COMMANDS = new Set([
   "/mute", "/unmute", "/ban", "/unban", "/invite", "/personas",
   "/web", "/responders", "/voice-test", "/history-export",
   "/random-persona",
+  "/debate",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -62,6 +63,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "  /unban <pseudo>     Debannir (admin)",
             "  /react <emoji>      Reagir au dernier message",
             "  /random-persona [sujet]  Invoquer une persona au hasard",
+            "  /debate [sujet]     Debat entre 2 personas au hasard",
             "  @NomPersona         Interpeller une persona",
             "",
             "GENERATION IMAGES (F5)",
@@ -463,6 +465,23 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         if (!random) { send(ws, { type: "system", text: "Aucune persona disponible." }); return; }
         broadcast(info.channel, { type: "system", text: `${random.nick} est invoque sur: "${topic}"` });
         await routeToPersonas(info.channel, `@${random.nick} ${topic}`);
+        return;
+      }
+
+      case "/debate": {
+        // /debate [topic] — two random personas debate a topic
+        const debateTopic = text.slice(8).trim() || "l'art et la technologie";
+        const debatePersonas = getPersonas().filter(p => (p as any).enabled !== false);
+        if (debatePersonas.length < 2) { send(ws, { type: "system", text: "Pas assez de personas." }); return; }
+
+        // Pick 2 different random personas
+        const shuffled = [...debatePersonas].sort(() => Math.random() - 0.5);
+        const p1 = shuffled[0], p2 = shuffled[1];
+
+        broadcast(info.channel, { type: "system", text: `=== DEBAT: ${p1.nick} vs ${p2.nick} ===\nSujet: "${debateTopic}"` });
+
+        // Trigger first persona
+        await routeToPersonas(info.channel, `@${p1.nick} Debat avec @${p2.nick} sur: ${debateTopic}. Prends position et argumente.`);
         return;
       }
 

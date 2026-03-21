@@ -646,6 +646,28 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         }
         broadcast(info.channel, { type: "system", text: `\u{1f30a} Generation ambient: "${ambPrompt}"...` });
 
+        // Fast AI ambient (uses ffmpeg instruments, instant)
+        if (ambPrompt.includes("ai") || ambPrompt.includes("generatif") || ambPrompt.includes("instant")) {
+          const AI_BRIDGE_URL = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+          try {
+            const resp = await fetch(`${AI_BRIDGE_URL}/instrument/pad`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ type: "warm", duration: 60, chord: "Am" }),
+              signal: AbortSignal.timeout(15_000),
+            });
+            if (resp.ok) {
+              const audioBuffer = Buffer.from(await resp.arrayBuffer());
+              broadcast(info.channel, {
+                type: "music", nick: info.nick,
+                text: `[Ambient AI: "${ambPrompt}" \u2014 generatif instantane]`,
+                audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
+              } as any);
+              return;
+            }
+          } catch { /* Fall through to MusicGen */ }
+        }
+
         const ttsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
         try {
           const resp = await fetch(`${ttsUrl}/compose`, {

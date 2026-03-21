@@ -371,13 +371,13 @@ export default function DawAIPanel() {
 
   return (
     <div className="daw-ai-panel">
-      <VideotexPageHeader title="DAW AI ASSISTANT" subtitle="openDAW + AI Bridge" color="cyan" />
+      <VideotexPageHeader title="DAW AI ASSISTANT" subtitle="openDIAW.be + AI Bridge" color="cyan" />
 
       <div className="daw-ai-link">
         <a href="/daw/" target="_blank" rel="noopener" className="daw-ai-open-btn">
-          OUVRIR openDAW
+          OUVRIR openDIAW.be
         </a>
-        <span className="daw-ai-hint">Generez des pistes ici, puis importez-les dans openDAW</span>
+        <span className="daw-ai-hint">Generez des pistes ici, puis importez-les dans openDIAW.be</span>
       </div>
 
       {/* AI SUGGEST */}
@@ -561,7 +561,7 @@ export default function DawAIPanel() {
                   <button
                     onClick={() => copyUrl(t.serverUrl!)}
                     className="daw-ai-url-btn"
-                    title={`openDAW: ${t.serverUrl}`}
+                    title={`openDIAW.be: ${t.serverUrl}`}
                   >URL</button>
                 )}
                 <button onClick={() => downloadTrack(t)} className="daw-ai-dl-btn" title="Telecharger WAV">DL</button>
@@ -598,7 +598,7 @@ export default function DawAIPanel() {
               <button
                 onClick={() => copyUrl(s.url)}
                 className="daw-ai-url-btn"
-                title={`openDAW import: ${s.url}`}
+                title={`openDIAW.be import: ${s.url}`}
               >URL</button>
               <button
                 onClick={() => separateSample(s)}
@@ -613,7 +613,7 @@ export default function DawAIPanel() {
               >X</button>
             </div>
             <div className="daw-ai-sample-hint">
-              openDAW: <code>{s.url}</code>
+              openDIAW.be: <code>{s.url}</code>
             </div>
           </div>
         ))}

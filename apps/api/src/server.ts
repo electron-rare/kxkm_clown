@@ -22,7 +22,7 @@ async function main() {
   // Serve V2 web build (Vite output) as static files
   // -----------------------------------------------------------------------
   // -----------------------------------------------------------------------
-  // Serve AI-generated samples for openDAW import
+  // Serve AI-generated samples for openDIAW.be import
   // -----------------------------------------------------------------------
   const dawSamplesDir = path.join(process.cwd(), "data", "daw-samples");
   fs.mkdirSync(dawSamplesDir, { recursive: true });
@@ -73,7 +73,7 @@ async function main() {
   });
 
   // -----------------------------------------------------------------------
-  // Serve openDAW studio at /daw with COOP/COEP headers
+  // Serve openDIAW.be studio at /daw with COOP/COEP headers
   // -----------------------------------------------------------------------
   const dawDistPath = process.env.DAW_DIST_PATH || "/home/kxkm/openDAW/packages/app/studio/dist";
   app.use("/daw", (req, res, next) => {
@@ -116,7 +116,7 @@ async function main() {
     }
   });
 
-  // Local proxy for openDAW API calls (replaces api.opendaw.studio)
+  // Local proxy for openDIAW.be API calls (replaces api.opendaw.studio)
   app.all("/api/opendaw/*", (req, res) => {
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -129,12 +129,12 @@ async function main() {
     res.json({ ok: true });
   });
 
-  // openDAW files at root — ONLY serve files with openDAW UUID pattern in filename
+  // openDIAW.be files at root — ONLY serve files with build UUID pattern in filename
   // This prevents intercepting main app files (index.html, assets/, etc.)
   const dawUuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
   app.use((req, res, next) => {
     if (req.path.startsWith("/api/") || req.path === "/ws" || req.path.startsWith("/daw")) return next();
-    // Only serve if filename contains openDAW build UUID (e.g., main.048779e6-xxxx.js)
+    // Only serve if filename contains build UUID (e.g., main.048779e6-xxxx.js)
     if (!dawUuidPattern.test(req.path) && !req.path.startsWith("/processors.") && !req.path.startsWith("/graph-runtime.") && !req.path.startsWith("/index.") && req.path !== "/favicon.svg" && req.path !== "/build-info.json" && !req.path.startsWith("/assets/")) return next();
     const dawFile = path.join(dawDistPath, req.path);
     if (fs.existsSync(dawFile) && fs.statSync(dawFile).isFile()) {

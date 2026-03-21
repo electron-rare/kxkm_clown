@@ -177,6 +177,15 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
                   }).catch(() => {});
                 }}>{r}</button>
               ))}
+              <button className="chat-pin-btn" onClick={() => {
+                if (msg.text) {
+                  fetch("/api/v2/feedback", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ messageId: msg.id, personaNick: msg.nick, response: msg.text, vote: "pin", channel }),
+                  }).catch(() => {});
+                }
+              }} title="Epingler">{"\uD83D\uDCCC"}</button>
             </span>
           )}
         </div>

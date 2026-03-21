@@ -43,6 +43,34 @@ const NOISE_TYPES = ["drone", "pink", "white", "brown", "sine"];
 const STYLES = ["experimental", "ambient", "drone", "noise", "glitch", "industrial", "techno", "minimal", "concrete", "jazz", "classical", "dark", "lo-fi", "post-rock"];
 const PERSONAS = ["Pharmacius", "Docteur Maboul", "Gargantua", "Nostradamus", "Piaf"];
 
+function drawWaveform(canvas: HTMLCanvasElement, audioData: string, _audioMime: string, color: string) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  // Decode base64 audio to get raw samples (simplified: use byte visualization from data)
+  const bytes = atob(audioData.slice(0, 2000)); // sample first 2KB
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < w; i++) {
+    const byteIdx = Math.floor((i / w) * bytes.length);
+    const val = (bytes.charCodeAt(byteIdx % bytes.length) / 255) * h;
+    if (i === 0) ctx.moveTo(i, val); else ctx.lineTo(i, val);
+  }
+  ctx.stroke();
+}
+
+function WaveformCanvas({ audioData, audioMime, color }: { audioData: string; audioMime: string; color: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (canvasRef.current && audioData) {
+      drawWaveform(canvasRef.current, audioData, audioMime, color);
+    }
+  }, [audioData, audioMime, color]);
+  return <canvas ref={canvasRef} width={120} height={30} className="cmp-waveform" />;
+}
+
 export default function ComposePage() {
   const [tracks, setTracks] = useState<Track[]>(DEFAULT_TRACKS);
   const [compName, setCompName] = useState("Ma composition");
@@ -428,6 +456,9 @@ export default function ComposePage() {
               >
                 {track.generating ? `${track.genElapsed || 0}s` : "\u25B6"}
               </button>
+              {track.audioData && track.audioMime && (
+                <WaveformCanvas audioData={track.audioData} audioMime={track.audioMime} color={track.color} />
+              )}
             </div>
 
             {/* Per-track progress bar */}

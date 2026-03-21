@@ -13,6 +13,7 @@ interface Track {
   audioData?: string;
   audioMime?: string;
   generating: boolean;
+  persona?: string;
 }
 
 const DEFAULT_TRACKS: Track[] = [
@@ -152,7 +153,7 @@ export default function ComposePage() {
         cmd("/layer " + track.prompt.trim() + ", " + style + ", " + track.duration + "s");
         break;
       case "voice":
-        cmd("/voice Pharmacius \"" + track.prompt.trim() + "\"");
+        cmd("/voice " + (track.persona || "Pharmacius") + " \"" + track.prompt.trim() + "\"");
         break;
       case "noise":
         cmd("/noise " + (track.prompt.trim() || "drone") + " " + track.duration);
@@ -203,7 +204,7 @@ export default function ComposePage() {
     <div className="cmp">
       {/* HEADER */}
       <div className="cmp-header">
-        <VideotexPageHeader title="COMPOSE" subtitle="4 pistes" color="magenta" />
+        <VideotexPageHeader title="COMPOSE" subtitle={`${tracks.length} pistes`} color="magenta" />
         <div className="cmp-name-row">
           <input className="cmp-name" value={compName} onChange={e => setCompName(e.target.value)} placeholder="Nom..." />
           <select className="cmp-style" value={style} onChange={e => setStyle(e.target.value)}>
@@ -224,7 +225,17 @@ export default function ComposePage() {
           <div key={track.id} className={"cmp-track" + (track.generating ? " cmp-track-gen" : "")}>
             {/* Track header */}
             <div className="cmp-track-head" style={{ borderLeftColor: track.color }}>
-              <span className="cmp-track-label" style={{ color: track.color }}>{track.label}</span>
+              <select
+                className="cmp-track-type"
+                value={track.type}
+                onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, type: e.target.value as Track["type"], label: e.target.value.toUpperCase() } : t))}
+                style={{ color: track.color }}
+              >
+                <option value="music">MUSIQUE</option>
+                <option value="voice">VOIX</option>
+                <option value="noise">TEXTURE</option>
+                <option value="fx">EFFET</option>
+              </select>
               <input
                 type="range" min={0} max={100} value={track.volume}
                 className="cmp-vol"
@@ -264,7 +275,20 @@ export default function ComposePage() {
 
             {/* Prompt + generate */}
             <div className="cmp-track-body">
-              {track.type === "noise" ? (
+              {track.type === "voice" ? (
+                <div className="cmp-voice-row">
+                  <select
+                    className="cmp-persona"
+                    value={track.persona || "Pharmacius"}
+                    onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, persona: e.target.value } : t))}
+                  >
+                    {["Pharmacius","Schaeffer","Merzbow","Cage","Radigue","SunRa","Haraway","Batty","Deleuze","Turing"].map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <input className="cmp-prompt" value={track.prompt} onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, prompt: e.target.value } : t))} placeholder="Texte à dire..." />
+                </div>
+              ) : track.type === "noise" ? (
                 <select
                   className="cmp-prompt"
                   value={track.prompt || "drone"}
@@ -277,7 +301,7 @@ export default function ComposePage() {
                   className="cmp-prompt"
                   value={track.prompt}
                   onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, prompt: e.target.value } : t))}
-                  placeholder={track.type === "music" ? "dark ambient drone..." : track.type === "voice" ? "Le son est notre matiere..." : "pink noise..."}
+                  placeholder={track.type === "music" ? "dark ambient drone..." : "pink noise..."}
                 />
               )}
               <button
@@ -309,6 +333,23 @@ export default function ComposePage() {
             </div>
           </div>
         ))}
+        <button className="cmp-add-track" onClick={() => {
+          const types: Array<Track["type"]> = ["music", "voice", "noise", "fx"];
+          const colors = ["#b45309", "#1d4ed8", "#be185d", "#0f5b78", "#9333ea", "#dc2626"];
+          const newId = Date.now();
+          const idx = tracks.length;
+          setTracks(prev => [...prev, {
+            id: newId,
+            label: `PISTE ${idx + 1}`,
+            type: types[idx % types.length],
+            prompt: "",
+            duration: 15,
+            volume: 80,
+            color: colors[idx % colors.length],
+            startOffset: 0,
+            generating: false,
+          }]);
+        }}>+ Ajouter piste</button>
       </div>
 
       {/* TIMELINE */}

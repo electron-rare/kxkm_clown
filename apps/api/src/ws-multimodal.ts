@@ -110,6 +110,23 @@ function isEnglishPersona(nick: string): boolean {
   return nick === "Moorcock" || nick === "Eno";
 }
 
+/** Strip markdown/special chars for clean TTS pronunciation */
+function cleanTextForTTS(raw: string): string {
+  return raw
+    .replace(/\*\*(.+?)\*\*/g, "$1")       // **bold** → bold
+    .replace(/\*(.+?)\*/g, "$1")            // *italic* → italic
+    .replace(/`(.+?)`/g, "$1")              // `code` → code
+    .replace(/```[\s\S]*?```/g, "")         // remove code blocks
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [text](url) → text
+    .replace(/@(\w+)/g, "$1")               // @mention → mention
+    .replace(/https?:\/\/\S+/g, "")         // remove URLs
+    .replace(/[#*_~|>]/g, "")               // strip markdown chars
+    .replace(/\[.*?\]/g, "")                // remove [tags]
+    .replace(/\(.*?seed.*?\)/g, "")         // remove (seed:xxx)
+    .replace(/\s{2,}/g, " ")               // collapse whitespace
+    .trim();
+}
+
 export async function synthesizeTTS(
   nick: string,
   text: string,
@@ -118,7 +135,8 @@ export async function synthesizeTTS(
 ): Promise<void> {
   if (!text || text.length < 10) return;
 
-  const truncated = text.slice(0, 1000);
+  const truncated = cleanTextForTTS(text).slice(0, 1000);
+  if (truncated.length < 10) return; // nothing left after cleaning
   const english = isEnglishPersona(nick);
 
   // --- For English personas: Kokoro first (fast, good EN quality) ---

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { VideotexPageHeader, VideotexSeparator } from "./VideotexMosaic";
+import React, { useState, useRef, useEffect } from "react";
+import { VideotexPageHeader } from "./VideotexMosaic";
 
 interface Track {
   id: number;
@@ -7,285 +7,193 @@ interface Track {
   style: string;
   duration: number;
   volume: number;
+  pan: number;
+  muted: boolean;
+  solo: boolean;
   type: "music" | "voice" | "sfx";
+  color: string;
   audioData?: string;
   audioMime?: string;
 }
+
+const COLORS = ["#c84c0c", "#2c6e49", "#7c3aed", "#0f766e", "#b45309", "#1d4ed8", "#be185d", "#0f5b78"];
+const STYLES = [
+  { group: "Electronique", items: ["experimental", "ambient", "drone", "noise", "glitch", "industrial", "techno", "minimal", "synthwave"] },
+  { group: "Concrete", items: ["concrete", "electroacoustique", "acousmatic", "field-recording"] },
+  { group: "Jazz/Classique", items: ["jazz", "free-jazz", "classical", "cinematic"] },
+  { group: "Rock/Urbain", items: ["post-rock", "metal", "hip-hop", "lo-fi", "trap"] },
+  { group: "World/Dark", items: ["folk", "world", "dark", "dark-ambient"] },
+];
 
 export default function ComposePage() {
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState("experimental");
   const [duration, setDuration] = useState(30);
   const [tracks, setTracks] = useState<Track[]>([]);
-  const [mixing, setMixing] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [status, setStatus] = useState("");
+  const [bpm, setBpm] = useState(120);
   const [compName, setCompName] = useState("Ma composition");
+  const [status, setStatus] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [playheadPos, setPlayheadPos] = useState(0);
+  const [selectedTrack, setSelectedTrack] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Connect to WebSocket
   useEffect(() => {
     const nick = sessionStorage.getItem("kxkm-nick") || "composer";
     const wsUrl = (location.protocol === "https:" ? "wss:" : "ws:") + "//" + location.host + "/ws?nick=" + encodeURIComponent(nick);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
-
     ws.onmessage = (event) => {
       try {
         const m = JSON.parse(event.data);
-        
-        // Capture music results (from /layer, /noise, /mix)
         if (m.type === "music" && m.audioData) {
           setTracks(prev => [...prev, {
-            id: Date.now() + Math.random(),
-            prompt: m.text || "Sans titre",
-            style,
-            duration,
-            volume: 100,
-            type: (m.text || "").includes("Noise") ? "sfx" : (m.text || "").includes("Mix") ? "music" : "music",
-            audioData: m.audioData,
-            audioMime: m.audioMime || "audio/wav",
+            id: Date.now() + Math.random(), prompt: m.text || "Sans titre", style, duration, volume: 100, pan: 0, muted: false, solo: false,
+            type: (m.text || "").includes("Noise") || (m.text || "").includes("silence") ? "sfx" : "music",
+            color: COLORS[prev.length % COLORS.length], audioData: m.audioData, audioMime: m.audioMime || "audio/wav",
           }]);
-          setGenerating(false);
-          setStatus("");
+          setGenerating(false); setStatus("");
         }
-        
-        // Capture voice results (from /voice)
         if (m.type === "audio" && m.data) {
           setTracks(prev => [...prev, {
-            id: Date.now() + Math.random(),
-            prompt: m.nick ? m.nick + " (voix)" : "Voix",
-            style: "voice",
-            duration: 10,
-            volume: 100,
-            type: "voice",
-            audioData: m.data,
-            audioMime: m.mimeType || "audio/wav",
+            id: Date.now() + Math.random(), prompt: m.nick ? m.nick + " (voix)" : "Voix", style: "voice", duration: 10, volume: 100, pan: 0, muted: false, solo: false,
+            type: "voice", color: COLORS[prev.length % COLORS.length], audioData: m.data, audioMime: m.mimeType || "audio/wav",
           }]);
-          setGenerating(false);
-          setStatus("");
+          setGenerating(false); setStatus("");
         }
-        
-        // Status messages
         if (m.type === "system" && m.text) {
           const t = m.text;
-          if (t.includes("ajoute une piste") || t.includes("Generation") || t.includes("generation") || t.includes("Mixage") || t.includes("compose")) {
-            setStatus(t.slice(0, 100));
-          }
-          if (t.includes("Erreur") || t.includes("echouee")) {
-            setGenerating(false);
-            setStatus("Erreur: " + t.slice(0, 80));
-          }
-          if (t.includes("Mix termine")) {
-            setMixing(false);
-            setStatus("Mix termine!");
-          }
+          if (t.includes("ajoute") || t.includes("Generation") || t.includes("Mixage") || t.includes("Master")) setStatus(t.slice(0, 80));
+          if (t.includes("Erreur") || t.includes("echouee")) { setGenerating(false); setStatus("! " + t.slice(0, 60)); }
+          if (t.includes("Mix termine") || t.includes("Master termine")) setStatus(t.slice(0, 60));
         }
       } catch {}
     };
-
     return () => { ws.close(); };
   }, []);
 
-  function sendCmd(cmd: string) {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "command", text: cmd }));
-    }
-  }
+  function cmd(c: string) { wsRef.current?.readyState === WebSocket.OPEN && wsRef.current.send(JSON.stringify({ type: "command", text: c })); }
 
-  function handleAddTrack(e: React.FormEvent) {
-    e.preventDefault();
-    if (!prompt.trim() || generating) return;
-    setGenerating(true);
-    setStatus("Generation en cours...");
-    sendCmd("/layer " + prompt.trim() + ", " + style + " style, " + duration + "s");
-  }
-
-  function handleAddVoice() {
-    if (!prompt.trim() || generating) return;
-    setGenerating(true);
-    setStatus("Voix en cours...");
-    sendCmd("/voice Pharmacius \"" + prompt.trim() + "\"");
-  }
-
-  function handleAddNoise(type: string) {
-    setGenerating(true);
-    setStatus("Noise " + type + "...");
-    sendCmd("/noise " + type + " " + duration);
-  }
-
-  function handleMix() {
-    setMixing(true);
-    setStatus("Mixage...");
-    sendCmd("/mix");
-  }
-
-  function handleNewComp() {
-    sendCmd("/comp new " + compName);
-    setTracks([]);
-    setStatus("Nouvelle composition");
-  }
-
-  const maxDuration = Math.max(30, ...tracks.map(t => t.duration));
+  const maxDur = Math.max(30, ...tracks.map(t => t.duration));
+  const totalDur = tracks.reduce((s, t) => Math.max(s, t.duration), 0);
+  const beats = Math.ceil((maxDur * bpm) / 60);
 
   return (
-    <div className="compose-page">
-      <VideotexPageHeader title="COMPOSE" subtitle="Studio multi-pistes" color="magenta" />
-
-      {/* Header */}
-      <div className="compose-comp-header">
-        <input type="text" value={compName} onChange={e => setCompName(e.target.value)} className="minitel-input" placeholder="Nom" style={{flex:1}} />
-        <button className="minitel-nav-btn" onClick={handleNewComp}>Nouvelle</button>
-        <span className="compose-track-count">{tracks.length} piste{tracks.length !== 1 ? "s" : ""}</span>
+    <div className="daw">
+      {/* TOP BAR */}
+      <div className="daw-topbar">
+        <input className="daw-name" value={compName} onChange={e => setCompName(e.target.value)} />
+        <div className="daw-transport">
+          <button className="daw-btn" onClick={() => { cmd("/comp new " + compName); setTracks([]); }}>NEW</button>
+          <button className="daw-btn" onClick={() => cmd("/comp save")}>SAVE</button>
+          <span className="daw-bpm" onClick={() => { const b = prompt ? parseInt(prompt) : 0; if (b >= 20 && b <= 300) setBpm(b); }}>
+            {bpm} BPM
+          </span>
+          <span className="daw-time">{Math.floor(totalDur / 60)}:{String(Math.floor(totalDur % 60)).padStart(2, "0")}</span>
+          <span className="daw-tracks">{tracks.length}T</span>
+        </div>
       </div>
 
-      {status && <div className="compose-status">{status}</div>}
+      {/* GLOBAL LANES (Arrangement, Marker, Tempo) */}
+      <div className="daw-globals">
+        <div className="daw-global-lane">
+          <span className="daw-global-label">Arrangement</span>
+          <div className="daw-global-area">
+            <div className="daw-arrangement-block" style={{ width: "100%" }}>{compName}</div>
+          </div>
+        </div>
+        <div className="daw-global-lane">
+          <span className="daw-global-label">Tempo</span>
+          <div className="daw-global-area">
+            <span className="daw-tempo-point">{bpm}</span>
+          </div>
+        </div>
+      </div>
 
-      <VideotexSeparator color="magenta" />
+      {/* RULER */}
+      <div className="daw-ruler-row">
+        <div className="daw-track-header" />
+        <div className="daw-ruler" ref={timelineRef}>
+          {Array.from({ length: Math.ceil(maxDur) + 1 }, (_, i) => (
+            <div key={i} className={`daw-ruler-mark ${i % 5 === 0 ? "daw-ruler-major" : ""}`} style={{ left: `${(i / maxDur) * 100}%` }}>
+              {i % 5 === 0 && <span className="daw-ruler-num">{i}</span>}
+            </div>
+          ))}
+          <div className="daw-playhead" style={{ left: `${(playheadPos / maxDur) * 100}%` }} />
+        </div>
+      </div>
 
-      {/* Generator */}
-      <form onSubmit={handleAddTrack} className="compose-form">
-        <div className="compose-header">{"> AJOUTER UNE PISTE"}</div>
-        <textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="dark ambient drone, musique concrete..." className="minitel-input compose-textarea" rows={2} maxLength={500} />
-        <div className="compose-options">
-          <select value={style} onChange={e => setStyle(e.target.value)} className="minitel-input" style={{flex:1}}>
-            <optgroup label="Electronique">
-              <option value="experimental">Experimental</option>
-              <option value="ambient">Ambient</option>
-              <option value="drone">Drone</option>
-              <option value="noise">Noise</option>
-              <option value="glitch">Glitch</option>
-              <option value="industrial">Industrial</option>
-              <option value="techno">Techno</option>
-              <option value="minimal">Minimal</option>
-              <option value="synthwave">Synthwave</option>
-            </optgroup>
-            <optgroup label="Concrete / Acoustique">
-              <option value="concrete">Musique concrete</option>
-              <option value="electroacoustique">Electroacoustique</option>
-              <option value="acousmatic">Acousmatique</option>
-              <option value="field-recording">Field recording</option>
-            </optgroup>
-            <optgroup label="Jazz / Classique">
-              <option value="jazz">Jazz</option>
-              <option value="free-jazz">Free jazz</option>
-              <option value="classical">Classique</option>
-              <option value="cinematic">Cinematique</option>
-            </optgroup>
-            <optgroup label="Rock / Urbain">
-              <option value="post-rock">Post-rock</option>
-              <option value="metal">Metal</option>
-              <option value="hip-hop">Hip-hop</option>
-              <option value="lo-fi">Lo-fi</option>
-              <option value="trap">Trap</option>
-            </optgroup>
-            <optgroup label="World / Dark">
-              <option value="folk">Folk</option>
-              <option value="world">World</option>
-              <option value="dark">Dark ambient</option>
-            </optgroup>
+      {/* TRACKS */}
+      <div className="daw-tracks-area">
+        {tracks.length === 0 ? (
+          <div className="daw-empty">Ajoute des pistes avec les boutons ci-dessous</div>
+        ) : tracks.map((track, i) => (
+          <div key={track.id} className={`daw-track-row ${selectedTrack === i ? "daw-track-selected" : ""} ${track.muted ? "daw-track-muted" : ""}`} onClick={() => setSelectedTrack(i)}>
+            <div className="daw-track-header">
+              <div className="daw-track-color" style={{ backgroundColor: track.color }} />
+              <span className="daw-track-name">{track.type === "voice" ? "V" : track.type === "sfx" ? "N" : "M"}{i + 1}</span>
+              <button className={`daw-btn-sm ${track.muted ? "active" : ""}`} onClick={e => { e.stopPropagation(); setTracks(p => p.map((t, j) => j === i ? { ...t, muted: !t.muted } : t)); }}>M</button>
+              <button className={`daw-btn-sm ${track.solo ? "active" : ""}`} onClick={e => { e.stopPropagation(); setTracks(p => p.map((t, j) => j === i ? { ...t, solo: !t.solo } : t)); }}>S</button>
+              <input type="range" min={0} max={100} value={track.volume} className="daw-vol" onChange={e => setTracks(p => p.map((t, j) => j === i ? { ...t, volume: +e.target.value } : t))} onClick={e => e.stopPropagation()} />
+              {track.audioData && <audio controls src={`data:${track.audioMime};base64,${track.audioData}`} className="daw-audio" />}
+            </div>
+            <div className="daw-track-lane">
+              <div className="daw-block" style={{
+                width: `${Math.max((track.duration / maxDur) * 100, 3)}%`,
+                backgroundColor: track.color,
+                opacity: track.muted ? 0.3 : track.volume / 100,
+              }} title={track.prompt}>
+                <span className="daw-block-text">{track.prompt.slice(0, 30)}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* CONTROLS */}
+      <div className="daw-controls">
+        <div className="daw-input-row">
+          <textarea value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Prompt..." className="daw-prompt" rows={1} />
+          <select value={style} onChange={e => setStyle(e.target.value)} className="daw-select">
+            {STYLES.map(g => <optgroup key={g.group} label={g.group}>{g.items.map(s => <option key={s} value={s}>{s}</option>)}</optgroup>)}
           </select>
-          <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="minitel-input" style={{width:70}}>
-            <option value={10}>10s</option>
-            <option value={30}>30s</option>
-            <option value={60}>60s</option>
-            <option value={120}>2min</option>
+          <select value={duration} onChange={e => setDuration(+e.target.value)} className="daw-select daw-dur">
+            <option value={10}>10s</option><option value={30}>30s</option><option value={60}>60s</option><option value={120}>2m</option>
           </select>
         </div>
-        <div className="compose-btn-row">
-          <span className="compose-btn-label">Generer:</span>
-          <button type="submit" className="minitel-nav-btn" disabled={generating || !prompt.trim()}>Musique</button>
-          <button type="button" className="minitel-nav-btn" onClick={handleAddVoice} disabled={generating || !prompt.trim()}>Voix</button>
-          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("drone")} disabled={generating}>Drone</button>
-          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("pink")} disabled={generating}>Pink</button>
-          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("white")} disabled={generating}>White</button>
-          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("sine")} disabled={generating}>Sine</button>
-          <button type="button" className="minitel-nav-btn" onClick={() => handleAddNoise("brown")} disabled={generating}>Brown</button>
+        <div className="daw-btn-row">
+          <button className="daw-btn daw-btn-gen" disabled={generating || !prompt.trim()} onClick={e => { e.preventDefault(); setGenerating(true); setStatus("..."); cmd("/layer " + prompt.trim() + ", " + style + ", " + duration + "s"); }}>MUSIC</button>
+          <button className="daw-btn" disabled={generating || !prompt.trim()} onClick={() => { setGenerating(true); cmd('/voice Pharmacius "' + prompt.trim() + '"'); }}>VOICE</button>
+          <button className="daw-btn" onClick={() => { setGenerating(true); cmd("/noise drone " + duration); }}>DRONE</button>
+          <button className="daw-btn" onClick={() => { setGenerating(true); cmd("/noise pink " + duration); }}>PINK</button>
+          <button className="daw-btn" onClick={() => { setGenerating(true); cmd("/noise white " + duration); }}>WHITE</button>
+          <button className="daw-btn" onClick={() => { setGenerating(true); cmd("/noise sine " + duration); }}>SINE</button>
+          <button className="daw-btn" onClick={() => cmd("/silence " + duration)}>SIL</button>
         </div>
         {tracks.length > 0 && (
-          <div className="compose-btn-row">
-            <span className="compose-btn-label">Edition:</span>
-            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd("/undo")}>Undo</button>
-            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd("/tracks")}>Tracks</button>
-            <button type="button" className="minitel-nav-btn" onClick={() => { const n = prompt.trim() || "1"; sendCmd(`/fx ${n} reverse`); }}>Reverse</button>
-            <button type="button" className="minitel-nav-btn" onClick={() => { const n = prompt.trim() || "1"; sendCmd(`/fx ${n} reverb`); }}>Reverb</button>
-            <button type="button" className="minitel-nav-btn" onClick={() => { const n = prompt.trim() || "1"; sendCmd(`/fx ${n} echo`); }}>Echo</button>
-            <button type="button" className="minitel-nav-btn" onClick={() => { const n = prompt.trim() || "1"; sendCmd(`/fx ${n} distortion`); }}>Distort</button>
-            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd(`/stutter ${tracks.length} 8`)}>Stutter</button>
+          <div className="daw-btn-row">
+            <button className="daw-btn" onClick={() => cmd("/undo")}>UNDO</button>
+            <button className="daw-btn" onClick={() => cmd("/fx " + ((selectedTrack ?? tracks.length - 1) + 1) + " reverse")}>REV</button>
+            <button className="daw-btn" onClick={() => cmd("/fx " + ((selectedTrack ?? tracks.length - 1) + 1) + " reverb")}>VERB</button>
+            <button className="daw-btn" onClick={() => cmd("/fx " + ((selectedTrack ?? tracks.length - 1) + 1) + " echo")}>ECHO</button>
+            <button className="daw-btn" onClick={() => cmd("/fx " + ((selectedTrack ?? tracks.length - 1) + 1) + " distortion")}>DIST</button>
+            <button className="daw-btn" onClick={() => cmd("/stutter " + ((selectedTrack ?? tracks.length - 1) + 1) + " 8")}>STUT</button>
+            <button className="daw-btn" onClick={() => cmd("/fx " + ((selectedTrack ?? tracks.length - 1) + 1) + " pitch 5")}>P+</button>
+            <button className="daw-btn" onClick={() => cmd("/fx " + ((selectedTrack ?? tracks.length - 1) + 1) + " pitch -5")}>P-</button>
           </div>
         )}
         {tracks.length > 1 && (
-          <div className="compose-btn-row">
-            <span className="compose-btn-label">Sortie:</span>
-            <button type="button" className="minitel-login-btn" onClick={handleMix} disabled={mixing}>
-              {mixing ? "Mixage..." : `Mix ${tracks.length}p`}
-            </button>
-            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd("/master")}>Master</button>
-            <button type="button" className="minitel-nav-btn" onClick={() => sendCmd("/export")}>Export</button>
+          <div className="daw-btn-row">
+            <button className="daw-btn daw-btn-mix" onClick={() => { setStatus("Mixage..."); cmd("/mix"); }}>MIX</button>
+            <button className="daw-btn daw-btn-mix" onClick={() => { setStatus("Mastering..."); cmd("/master"); }}>MASTER</button>
+            <button className="daw-btn" onClick={() => cmd("/export")}>EXPORT</button>
           </div>
         )}
-      </form>
-
-      {/* Timeline */}
-      {tracks.length > 0 && (
-        <>
-          <VideotexSeparator color="yellow" />
-          <div className="compose-header">{"> TIMELINE"}</div>
-          <div className="compose-timeline">
-            <div className="timeline-ruler">
-              {Array.from({ length: Math.ceil(maxDuration / 5) + 1 }, (_, i) => (
-                <span key={i} className="timeline-tick" style={{ left: (i * 5 / maxDuration) * 100 + "%" }}>{i * 5}s</span>
-              ))}
-            </div>
-            {tracks.map((track, i) => {
-              const icon = track.type === "voice" ? "V" : track.type === "sfx" ? "N" : "M";
-              const colors = ["#c84c0c", "#2c6e49", "#7c3aed", "#0f766e", "#b45309", "#1d4ed8"];
-              return (
-                <div key={track.id} className="timeline-lane">
-                  <span className="timeline-label">{icon}{i + 1}</span>
-                  <div className="timeline-track-area">
-                    <div className="timeline-block" style={{
-                      width: Math.max((track.duration / maxDuration) * 100, 8) + "%",
-                      backgroundColor: colors[i % colors.length],
-                      opacity: track.volume / 100,
-                    }} title={track.prompt + " (" + track.duration + "s)"}>
-                      <span className="timeline-block-text">{track.prompt.slice(0, 25)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {/* Tracks detail */}
-      {tracks.length > 0 && (
-        <>
-          <VideotexSeparator color="cyan" />
-          <div className="compose-header">{"> PISTES"}</div>
-          {tracks.map((track, i) => (
-            <div key={track.id} className="compose-track">
-              <span className="compose-track-num">#{i + 1}</span>
-              <span className="compose-track-prompt">{track.prompt.slice(0, 30)}</span>
-              <input type="range" min={0} max={100} value={track.volume} onChange={e => setTracks(prev => prev.map((t, j) => j === i ? { ...t, volume: +e.target.value } : t))} className="compose-volume" title={`Vol: ${track.volume}%`} />
-              <div className="compose-track-actions">
-                <button className="compose-track-btn" onClick={() => sendCmd(`/solo ${i+1}`)} title="Solo">S</button>
-                <button className="compose-track-btn" onClick={() => sendCmd(`/loop ${i+1} 2`)} title="Loop x2">{"\u27f3"}</button>
-                <button className="compose-track-btn" onClick={() => sendCmd(`/fx ${i+1} reverse`)} title="Reverse">{"\u21c6"}</button>
-              </div>
-              {track.audioData && <audio controls src={`data:${track.audioMime};base64,${track.audioData}`} className="compose-audio" />}
-              <button className="compose-track-del" onClick={() => setTracks(prev => prev.filter((_, j) => j !== i))}>X</button>
-            </div>
-          ))}
-        </>
-      )}
-
-      {/* Status Bar */}
-      <div className="compose-status-bar">
-        <span>{compName} | {tracks.length}p | {tracks.reduce((s, t) => s + t.duration, 0)}s total</span>
-        {status && <span className="compose-status-msg">{status}</span>}
       </div>
+
+      {/* STATUS */}
+      <div className="daw-status">{status || `${compName} | ${tracks.length} pistes | ${totalDur}s | ${bpm} BPM`}</div>
     </div>
   );
 }

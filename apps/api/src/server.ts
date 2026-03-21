@@ -40,12 +40,13 @@ async function main() {
     res.sendFile(path.join(dawDistPath, "index.html"));
   });
 
-  // openDAW internal imports use absolute paths (/) — serve daw files at root too
-  // Only serves if file exists in daw dist (won't conflict with web app)
+
+
+  // openDAW files at root (for internal absolute imports from /daw)
   app.use((req, res, next) => {
-    if (req.path.startsWith("/api/") || req.path === "/ws") return next();
+    if (req.path.startsWith("/api/") || req.path === "/ws" || req.path.startsWith("/daw")) return next();
     const dawFile = path.join(dawDistPath, req.path);
-    if (require("fs").existsSync(dawFile) && require("fs").statSync(dawFile).isFile()) {
+    if (fs.existsSync(dawFile) && fs.statSync(dawFile).isFile()) {
       res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
       res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
       res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");

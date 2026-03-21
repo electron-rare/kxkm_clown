@@ -25,6 +25,7 @@ export const CHAT_COMMANDS = new Set([
   "/story",
   "/speak",
   "/trivia",
+  "/echo",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -854,6 +855,13 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             broadcast(info.channel, { type: "system", text: `\u{1F9E0} TRIVIA\n${trivia || "Indisponible."}` });
           }
         } catch { broadcast(info.channel, { type: "system", text: "Trivia indisponible." }); }
+        return;
+      }
+
+      case "/echo": {
+        const echoText = text.slice(6).trim();
+        if (!echoText) { send(ws, { type: "system", text: "Usage: /echo <message>" }); return; }
+        broadcast(info.channel, { type: "system", text: echoText });
         return;
       }
 

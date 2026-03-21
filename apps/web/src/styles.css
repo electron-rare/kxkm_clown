@@ -666,6 +666,14 @@ code {
   pointer-events: none;
 }
 
+.chat-scroll-down {
+  position: sticky; bottom: 4px; left: 50%; transform: translateX(-50%);
+  z-index: 10; padding: 3px 12px;
+  background: rgba(0,0,0,0.8); border: 1px solid #ffb300;
+  color: #ffb300; border-radius: 12px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px;
+}
+
 .chat-msg {
   white-space: pre-wrap;
   word-break: break-word;

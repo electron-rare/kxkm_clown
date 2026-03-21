@@ -21,6 +21,7 @@ export interface ImageProgress {
 
 export interface GenerateImageOptions {
   onProgress?: (p: ImageProgress) => void;
+  aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
 }
 
 export async function generateImage(
@@ -56,7 +57,17 @@ export async function generateImage(
     steps = 25; cfg = 7; sampler = "euler_ancestral"; scheduler = "normal";
   }
 
-  logger.info({ checkpoint, lora: selection.lora, steps, cfg, sampler }, "[comfyui] Generating with smart selection");
+  // Aspect ratio support
+  const ratioMap: Record<string, [number, number]> = {
+    "1:1": [1024, 1024],
+    "16:9": [1216, 688],
+    "9:16": [688, 1216],
+    "4:3": [1152, 864],
+    "3:4": [864, 1152],
+  };
+  const [imgWidth, imgHeight] = ratioMap[opts?.aspectRatio || "1:1"] || [1024, 1024];
+
+  logger.info({ checkpoint, lora: selection.lora, steps, cfg, sampler, aspectRatio: opts?.aspectRatio }, "[comfyui] Generating with smart selection");
 
   const emitProgress = (phase: ImageProgress["phase"], step = 0) => {
     opts?.onProgress?.({
@@ -78,7 +89,7 @@ export async function generateImage(
 
   const workflow: Record<string, any> = {
     "4": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: checkpoint } },
-    "5": { class_type: "EmptyLatentImage", inputs: { width: 1024, height: 1024, batch_size: 1 } },
+    "5": { class_type: "EmptyLatentImage", inputs: { width: imgWidth, height: imgHeight, batch_size: 1 } },
     "8": { class_type: "VAEDecode", inputs: { samples: ["3", 0], vae: ["4", 2] } },
     "9": { class_type: "SaveImage", inputs: { filename_prefix: "kxkm", images: ["8", 0] } },
   };

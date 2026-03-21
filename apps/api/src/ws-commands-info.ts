@@ -66,6 +66,7 @@ export const INFO_COMMANDS = new Set([
   "/benchmark",
   "/ping",
   "/count",
+  "/leaderboard",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -293,8 +294,13 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
       }
 
       case "/version": {
-        const pkg = { version: "2.0.0", name: "@kxkm/api" };
-        send(ws, { type: "system", text: `KXKM_Clown ${pkg.version}\n  Ollama: v0.18.2\n  Node: ${process.version}\n  Commandes: 66\n  Personas: ${getPersonas().length}\n  Uptime: ${Math.floor(process.uptime()/3600)}h${Math.floor((process.uptime()%3600)/60)}m` });
+        send(ws, { type: "system", text: [
+          "3615 J'ai pete — v2.0 (lot 440+)",
+          `  Node: ${process.version}`,
+          `  Commandes: ~134`,
+          `  Personas: ${getPersonas().length}`,
+          `  Uptime: ${Math.floor(process.uptime() / 60)}min`,
+        ].join("\n") });
         return;
       }
 
@@ -659,6 +665,25 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           `  Exports: ${countFiles("exports")}`,
           `  Feedback: ${countFiles("feedback")}`,
         ];
+        send(ws, { type: "system", text: lines.join("\n") });
+        return;
+      }
+
+      case "/leaderboard": {
+        const personas = getPersonas();
+        const scores: Array<{ nick: string; facts: number }> = [];
+        for (const p of personas) {
+          try {
+            const mem = await loadPersonaMemory(p.nick);
+            scores.push({ nick: p.nick, facts: mem.facts.length });
+          } catch { scores.push({ nick: p.nick, facts: 0 }); }
+        }
+        scores.sort((a, b) => b.facts - a.facts);
+        const lines = ["=== LEADERBOARD (memoire) ===", ...scores.slice(0, 10).map((s, i) => {
+          const medal = i === 0 ? "\u{1F947}" : i === 1 ? "\u{1F948}" : i === 2 ? "\u{1F949}" : `${i+1}.`;
+          const bar = "\u{2588}".repeat(Math.min(s.facts, 20));
+          return `  ${medal} ${s.nick}: ${s.facts} faits ${bar}`;
+        })];
         send(ws, { type: "system", text: lines.join("\n") });
         return;
       }

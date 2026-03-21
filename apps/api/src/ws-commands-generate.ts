@@ -1742,13 +1742,21 @@ async function handleImagineCommand({
     return;
   }
 
+  // Parse --ar aspect ratio (Lot 440)
+  let aspectRatio: string | undefined;
+  const arMatch = imagePrompt.match(/\s*--ar\s+([\d:]+)/i);
+  let cleanPrompt = imagePrompt;
+  if (arMatch) {
+    aspectRatio = arMatch[1];
+    cleanPrompt = cleanPrompt.replace(/\s*--ar\s+[\d:]+/i, "").trim();
+  }
+
   // Parse --no for negative prompt (Lot 426)
   let negativePrompt = "ugly, blurry, low quality, deformed";
-  const noMatch = imagePrompt.match(/\s*--no\s+(.+)$/i);
-  let cleanPrompt = imagePrompt;
+  const noMatch = cleanPrompt.match(/\s*--no\s+(.+)$/i);
   if (noMatch) {
     negativePrompt = noMatch[1].trim();
-    cleanPrompt = imagePrompt.replace(/\s*--no\s+.+$/i, "").trim();
+    cleanPrompt = cleanPrompt.replace(/\s*--no\s+.+$/i, "").trim();
   }
 
   broadcast(info.channel, {
@@ -1778,7 +1786,7 @@ async function handleImagineCommand({
       priority: "normal",
       label: `/imagine "${cleanPrompt.slice(0, 40)}"`,
       vramMB: VRAM_BUDGETS.comfyui,
-      execute: () => generateImage(cleanPrompt, { onProgress }),
+      execute: () => generateImage(cleanPrompt, { onProgress, aspectRatio: aspectRatio as any }),
     });
     if (!result) {
       broadcast(info.channel, { type: "system", text: "\u{1F3A8} Generation echouee \u2014 verifiez ComfyUI" });

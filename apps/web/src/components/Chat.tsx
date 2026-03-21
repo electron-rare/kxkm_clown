@@ -69,6 +69,7 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
 
   // Ctrl+F search overlay
   const [searchOpen, setSearchOpen] = useState(false);
@@ -161,7 +162,9 @@ export default function Chat() {
     if (!el) return;
     function onScroll() {
       if (!el) return;
-      autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+      autoScrollRef.current = atBottom;
+      setShowScrollBtn(!atBottom);
     }
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
@@ -258,6 +261,13 @@ export default function Chat() {
           <span className="chat-context-indicator" title="Contexte conversationnel utilise">
             {messages.length} msgs
           </span>
+          {showScrollBtn && messages.length > 10 && (
+            <button className="chat-scroll-down" onClick={() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+              autoScrollRef.current = true;
+              setShowScrollBtn(false);
+            }}>{"\u2193"} Nouveaux messages</button>
+          )}
         </div>
 
         <ChatSidebar

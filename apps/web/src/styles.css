@@ -2917,7 +2917,7 @@ code {
 .cmp *, .cmp *::before, .cmp *::after { box-sizing: border-box; }
 
 .cmp-header { padding: 8px 12px 0; }
-.cmp-name-row { display: flex; gap: 6px; margin-top: 6px; }
+.cmp-name-row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
 .cmp-name {
   flex: 1; min-width: 0;
   background: #1e1e1e; border: 1px solid #333; color: #ddd;
@@ -3106,6 +3106,24 @@ code {
   font-family: inherit;
 }
 .cmp-ctx button:hover { background: #333; color: #fff; }
+.cmp-ctx-sep { border: none; border-top: 1px solid #333; margin: 4px 0; }
+
+.cmp-ai-btn {
+  background: none; border: none; font-size: 14px; cursor: pointer;
+  padding: 2px 4px; border-radius: 2px; transition: all 0.15s;
+}
+.cmp-ai-btn:hover { background: rgba(255,255,255,0.1); transform: scale(1.1); }
+
+.cmp-auto-btn, .cmp-genall-btn {
+  background: #1e1e1e; border: 1px solid #444; color: #ddd;
+  font-family: inherit; font-size: 11px; padding: 5px 12px;
+  border-radius: 3px; cursor: pointer; transition: all 0.1s;
+  white-space: nowrap; min-width: 0;
+}
+.cmp-auto-btn:hover { background: #333; border-color: #4a9eff; }
+.cmp-genall-btn { background: #2c6e49; border-color: #2c6e49; color: #fff; }
+.cmp-genall-btn:hover { filter: brightness(1.2); }
+.cmp-auto-btn:disabled, .cmp-genall-btn:disabled { opacity: 0.3; }
 
 @media (max-width: 768px) {
   .cmp-track-head { flex-wrap: wrap; }

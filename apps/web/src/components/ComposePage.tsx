@@ -170,6 +170,33 @@ export default function ComposePage() {
     cmd("/mix");
   }
 
+  async function autoCompose() {
+    setStatus("IA compose 4 pistes...");
+    for (let i = 0; i < tracks.length; i++) {
+      try {
+        const resp = await fetch("/api/v2/ai/suggest-prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: tracks[i].type, style, existing: "", context: "" }),
+        });
+        const data = await resp.json();
+        if (data.prompt) {
+          setTracks(prev => prev.map((t, j) => j === i ? { ...t, prompt: data.prompt } : t));
+        }
+      } catch {}
+    }
+    setStatus("Prompts générés — clique \u25b6 sur chaque piste");
+  }
+
+  async function generateAll() {
+    for (let i = 0; i < tracks.length; i++) {
+      if (tracks[i].prompt.trim() || tracks[i].type === "noise") {
+        generate(i);
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+
   const hasAudio = tracks.some(t => t.audioData);
 
   return (
@@ -182,6 +209,12 @@ export default function ComposePage() {
           <select className="cmp-style" value={style} onChange={e => setStyle(e.target.value)}>
             {STYLES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          <button className="cmp-auto-btn" onClick={autoCompose} disabled={tracks.some(t => t.generating)}>
+            🤖 Auto-compose
+          </button>
+          <button className="cmp-genall-btn" onClick={generateAll} disabled={tracks.some(t => t.generating)}>
+            ▶▶ Tout générer
+          </button>
         </div>
       </div>
 
@@ -208,6 +241,25 @@ export default function ComposePage() {
                 <option value={30}>30s</option>
                 <option value={60}>60s</option>
               </select>
+              <button
+                className="cmp-ai-btn"
+                title="IA suggère un prompt"
+                onClick={async () => {
+                  setStatus(`IA réfléchit pour ${track.label}...`);
+                  try {
+                    const resp = await fetch("/api/v2/ai/suggest-prompt", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ type: track.type, style, existing: track.prompt, context: tracks.map(t => t.prompt).filter(Boolean).join(", ") }),
+                    });
+                    const data = await resp.json();
+                    if (data.prompt) {
+                      setTracks(prev => prev.map((t, j) => j === i ? { ...t, prompt: data.prompt } : t));
+                    }
+                    setStatus("");
+                  } catch { setStatus("IA indisponible"); }
+                }}
+              >✨</button>
             </div>
 
             {/* Prompt + generate */}
@@ -299,10 +351,16 @@ export default function ComposePage() {
       {/* Context menu */}
       {ctxMenu && (
         <div className="cmp-ctx" style={{ top: ctxMenu.y, left: ctxMenu.x }} onClick={e => e.stopPropagation()}>
-          <button onClick={() => duplicateTrack(ctxMenu.trackIdx)}>Dupliquer</button>
-          <button onClick={() => { setTracks(prev => prev.filter((_, i) => i !== ctxMenu.trackIdx)); setCtxMenu(null); }}>Supprimer</button>
-          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx + 1} reverse`); setCtxMenu(null); }}>Reverse</button>
-          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx + 1} reverb`); setCtxMenu(null); }}>Reverb</button>
+          <button onClick={() => { duplicateTrack(ctxMenu.trackIdx); setCtxMenu(null); }}>📋 Dupliquer</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} reverse`); setCtxMenu(null); }}>⏪ Reverse</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} reverb`); setCtxMenu(null); }}>🌊 Reverb</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} echo`); setCtxMenu(null); }}>🔁 Echo</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} distortion`); setCtxMenu(null); }}>💥 Distortion</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} pitch 3`); setCtxMenu(null); }}>🔼 Pitch+</button>
+          <button onClick={() => { cmd(`/fx ${ctxMenu.trackIdx+1} pitch -3`); setCtxMenu(null); }}>🔽 Pitch-</button>
+          <button onClick={() => { cmd(`/stutter ${ctxMenu.trackIdx+1} 8`); setCtxMenu(null); }}>⚡ Stutter</button>
+          <hr className="cmp-ctx-sep" />
+          <button onClick={() => { setTracks(prev => prev.filter((_, j) => j !== ctxMenu.trackIdx)); setCtxMenu(null); }} style={{color:"#e53935"}}>🗑 Supprimer</button>
         </div>
       )}
 

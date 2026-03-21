@@ -265,6 +265,42 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
   });
 
   // -----------------------------------------------------------------------
+  // AI prompt suggestion for Compose DAW
+  // -----------------------------------------------------------------------
+
+  router.post("/api/v2/ai/suggest-prompt", async (req, res) => {
+    const { type, style: compStyle, existing, context } = req.body || {};
+    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+
+    const typeHints: Record<string, string> = {
+      music: "une description musicale pour générer de la musique",
+      voice: "un texte poétique ou narratif à dire par une voix synthétique",
+      noise: "un type de bruit ou texture sonore (drone, pink, white, brown, sine)",
+      fx: "un effet sonore ou une texture de fond",
+    };
+
+    try {
+      const resp = await fetch(`${ollamaUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "qwen3:8b",
+          messages: [{ role: "user", content: `Tu es un compositeur sonore. Génère ${typeHints[type as string] || "un prompt audio"} pour une composition de style "${compStyle || "experimental"}". ${existing ? `Le prompt actuel est: "${existing}". Améliore-le.` : ""} ${context ? `Contexte des autres pistes: ${context}` : ""} Réponds UNIQUEMENT le prompt (1-2 phrases max, pas d'explication).` }],
+          stream: false,
+          options: { num_predict: 80 },
+          keep_alive: "30m",
+          think: false,
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await resp.json() as { message?: { content?: string } };
+      res.json({ ok: true, prompt: data.message?.content?.trim() || "" });
+    } catch {
+      res.json({ ok: false, prompt: "" });
+    }
+  });
+
+  // -----------------------------------------------------------------------
   // Error telemetry — recent tracked errors
   // -----------------------------------------------------------------------
 

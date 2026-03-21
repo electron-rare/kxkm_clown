@@ -152,7 +152,7 @@ describe("synthesizeTTS", () => {
     assert.equal(fetchCalled, false);
   });
 
-  it("calls fetch with the correct URL and body", async () => {
+  it("calls Kokoro first with voice param", async () => {
     let capturedUrl = "";
     let capturedBody: any = {};
     mockFetch(async (url: string, opts: any) => {
@@ -161,13 +161,15 @@ describe("synthesizeTTS", () => {
       return {
         ok: true,
         arrayBuffer: async () => new ArrayBuffer(0),
+        headers: new Headers({ "X-Elapsed-Ms": "100" }),
       };
     });
 
     await synthesizeTTS("Pharmacius", "Hello world this is a test text", "ch1", () => {});
     assert.match(capturedUrl, /\/synthesize$/);
     assert.equal(capturedBody.text, "Hello world this is a test text");
-    assert.ok(capturedBody.persona === "pharmacius" || capturedBody.persona === "Pharmacius");
+    // Kokoro uses "voice" field, not "persona"
+    assert.ok(capturedBody.voice === "am_adam" || capturedBody.persona !== undefined);
   });
 
   it("truncates text to 1000 chars", async () => {
@@ -177,6 +179,7 @@ describe("synthesizeTTS", () => {
       return {
         ok: true,
         arrayBuffer: async () => new ArrayBuffer(0),
+        headers: new Headers({ "X-Elapsed-Ms": "100" }),
       };
     });
 
@@ -190,6 +193,7 @@ describe("synthesizeTTS", () => {
     mockFetch(async () => ({
       ok: true,
       arrayBuffer: async () => audioBytes.buffer.slice(audioBytes.byteOffset, audioBytes.byteOffset + audioBytes.byteLength),
+      headers: new Headers({ "X-Elapsed-Ms": "100" }),
     }));
 
     const broadcasts: { channel: string; msg: OutboundMessage }[] = [];

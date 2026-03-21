@@ -59,6 +59,32 @@ export function releaseTTS(): void {
 
 const TTS_URL = process.env.TTS_URL || "http://127.0.0.1:9100";
 const QWEN3_TTS_URL = process.env.QWEN3_TTS_URL || "http://127.0.0.1:9300";
+const KOKORO_URL = process.env.KOKORO_URL || "http://127.0.0.1:9201";
+
+// Kokoro voice mapping — per-persona voice assignment
+// Male voices: am_adam, am_michael | Female voices: af_heart, af_bella, af_nicole, af_sarah, af_sky
+// British: bf_emma, bf_isabella, bm_george, bm_lewis
+const KOKORO_VOICE_MAP: Record<string, string> = {
+  // Male deep/authority
+  Pharmacius: "am_adam", Batty: "bm_george", Deleuze: "am_michael", Turing: "am_adam",
+  Foucault: "bm_lewis", Bookchin: "am_michael", Schaeffer: "bm_george",
+  Cage: "am_adam", Decroux: "bm_lewis", Grotowski: "am_michael",
+  Fuller: "am_adam", Tarkovski: "bm_george", Moorcock: "bm_lewis",
+  Picasso: "am_michael", RoyalDeLuxe: "am_adam", Eno: "bm_george",
+  Swartz: "am_adam", Sherlock: "bm_lewis",
+  // Male energetic
+  SunRa: "am_michael", Merzbow: "am_adam", Ikeda: "am_michael",
+  Demoscene: "am_adam", Fratellini: "am_michael",
+  // Female
+  Radigue: "af_sarah", Oliveros: "af_heart", Haraway: "af_bella",
+  Oram: "af_nicole", Bjork: "af_sky", Hypatia: "af_nicole",
+  Curie: "af_bella", LeGuin: "af_sarah", Mnouchkine: "af_heart",
+  Pina: "af_sky", TeamLab: "bf_emma",
+};
+
+function getKokoroVoice(nick: string): string {
+  return KOKORO_VOICE_MAP[nick] || "af_heart";
+}
 
 export async function synthesizeTTS(
   nick: string,
@@ -69,9 +95,31 @@ export async function synthesizeTTS(
   if (!text || text.length < 10) return;
 
   const truncated = text.slice(0, 1000);
-  const voice = getPersonaVoice(nick);
 
-  // --- Try Qwen3-TTS first (per-persona voice routing) ---
+  // --- Priority 1: Kokoro (fastest — ~400ms, CPU, always available) ---
+  try {
+    const kokoroVoice = getKokoroVoice(nick);
+    const resp = await fetch(`${KOKORO_URL}/synthesize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: truncated, voice: kokoroVoice, speed: 1.0 }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (resp.ok) {
+      const audioBuffer = Buffer.from(await resp.arrayBuffer());
+      const base64 = audioBuffer.toString("base64");
+      broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
+      logger.debug({ nick, voice: kokoroVoice, ms: resp.headers.get("X-Elapsed-Ms") }, "[tts] Kokoro OK");
+      return;
+    }
+    logger.warn(`[tts] Kokoro HTTP ${resp.status} for ${nick}, falling back`);
+  } catch (err) {
+    logger.warn(`[tts] Kokoro unreachable: ${(err as Error).message}, falling back`);
+  }
+
+  // --- Priority 2: Qwen3-TTS (higher quality but slower, GPU) ---
+  const voice = getPersonaVoice(nick);
   try {
     const resp = await fetch(`${QWEN3_TTS_URL}/synthesize`, {
       method: "POST",
@@ -90,15 +138,15 @@ export async function synthesizeTTS(
       const audioBuffer = Buffer.from(await resp.arrayBuffer());
       const base64 = audioBuffer.toString("base64");
       broadcastFn(channel, { type: "audio", nick, data: base64, mimeType: "audio/wav" });
-      logger.info(`[tts] Qwen3-TTS OK for ${nick} (speaker=${voice.speaker})`);
+      logger.info(`[tts] Qwen3-TTS OK for ${nick}`);
       return;
     }
-    logger.warn(`[tts] Qwen3-TTS HTTP ${resp.status} for ${nick}, falling back to ${TTS_URL}`);
+    logger.warn(`[tts] Qwen3-TTS HTTP ${resp.status} for ${nick}, falling back to piper`);
   } catch (err) {
-    logger.warn(`[tts] Qwen3-TTS unreachable for ${nick}: ${err instanceof Error ? err.message : String(err)}, falling back`);
+    logger.warn(`[tts] Qwen3-TTS unreachable for ${nick}, falling back to piper`);
   }
 
-  // --- Fallback to existing TTS (Chatterbox/Piper via sidecar) ---
+  // --- Priority 3: Piper (legacy fallback) ---
   try {
     const resp = await fetch(`${TTS_URL}/synthesize`, {
       method: "POST",

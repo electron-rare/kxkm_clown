@@ -12,7 +12,7 @@ export const GENERATE_COMMANDS = new Set([
   "/imagine", "/compose", "/layer", "/mix", "/voice", "/noise",
   "/ambient", "/fx", "/comp", "/imagine-models", "/remix", "/tracks",
   "/undo", "/solo", "/unsolo", "/rename", "/duplicate", "/dup", "/bpm", "/clear-comp",
-  "/loop", "/swap", "/info",
+  "/loop", "/swap", "/info", "/normalize", "/crossfade", "/trim",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -328,6 +328,67 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             }
             return;
           }
+
+      case "/normalize": {
+        const trackNum = parseInt(text.slice(11).trim() || "");
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition." }); return; }
+        const track = (trackNum >= 1 && trackNum <= comp.tracks.length) ? comp.tracks[trackNum - 1] : comp.tracks[comp.tracks.length - 1];
+        const num = trackNum || comp.tracks.length;
+        if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
+        const tmp = track.filePath + ".norm.wav";
+        execFileSync("ffmpeg", ["-i", track.filePath, "-af", "loudnorm", "-y", tmp], { timeout: 30000 });
+        fs.renameSync(tmp, track.filePath);
+        send(ws, { type: "system", text: `\u{1F4CA} Piste #${num} normalisee` });
+        return;
+      }
+
+      case "/crossfade": {
+        const args = text.slice(11).trim().split(/\s+/);
+        const a = parseInt(args[0]) - 1;
+        const dur = parseInt(args[1] || "3");
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(a) || a < 0 || a >= comp.tracks.length - 1) {
+          send(ws, { type: "system", text: "Usage: /crossfade <piste#> [duree_s]. Crossfade entre piste N et N+1." }); return;
+        }
+        const tA = comp.tracks[a], tB = comp.tracks[a + 1];
+        if (!tA.filePath || !tB.filePath || !fs.existsSync(tA.filePath) || !fs.existsSync(tB.filePath)) {
+          send(ws, { type: "system", text: "Les deux pistes doivent avoir des fichiers." }); return;
+        }
+        const out = tA.filePath + ".xfade.wav";
+        execFileSync("ffmpeg", ["-i", tA.filePath, "-i", tB.filePath, "-filter_complex", `acrossfade=d=${dur}:c1=tri:c2=tri`, "-y", out], { timeout: 60000 });
+        fs.renameSync(out, tA.filePath);
+        tA.prompt += ` + ${tB.prompt.slice(0, 30)}`;
+        tA.duration += tB.duration - dur;
+        if (tB.filePath && fs.existsSync(tB.filePath)) fs.unlinkSync(tB.filePath);
+        comp.tracks.splice(a + 1, 1);
+        send(ws, { type: "system", text: `\u{1F517} Crossfade ${dur}s entre pistes #${a+1} et #${a+2} \u2192 piste #${a+1}` });
+        return;
+      }
+
+      case "/trim": {
+        const args = text.slice(6).trim().split(/\s+/);
+        const trackNum = parseInt(args[0]) - 1;
+        const start = parseFloat(args[1] || "0");
+        const end = parseFloat(args[2] || "0");
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 0 || trackNum >= comp.tracks.length || (!start && !end)) {
+          send(ws, { type: "system", text: "Usage: /trim <piste#> <debut_s> <fin_s>. Ex: /trim 1 2 10" }); return;
+        }
+        const track = comp.tracks[trackNum];
+        if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
+        const tmp = track.filePath + ".trim.wav";
+        const ffArgs: string[] = ["-i", track.filePath];
+        if (start > 0) ffArgs.push("-ss", String(start));
+        if (end > 0) ffArgs.push("-to", String(end));
+        ffArgs.push("-y", tmp);
+        execFileSync("ffmpeg", ffArgs, { timeout: 30000 });
+        fs.renameSync(tmp, track.filePath);
+        track.duration = end > 0 ? end - start : track.duration - start;
+        send(ws, { type: "system", text: `\u2702\uFE0F Piste #${trackNum+1} trimmee: ${start}s \u2192 ${end || "fin"}s (${track.duration}s)` });
+        return;
+      }
+
       default:
             send(ws, { type: "system", text: "FX: /fx [piste#] volume|fade-in|fade-out|reverse|reverb|pitch|speed|echo|distortion [param]\nExemple: /fx 2 reverb | /fx pitch -3 | /fx 1 fade-in 3" });
             return;

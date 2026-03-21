@@ -4023,3 +4023,15 @@ code {
 }
 .daw-ai-sep-btn:hover:not(:disabled) { background: rgba(255,152,0,0.15); }
 .daw-ai-sep-btn:disabled { opacity: 0.4; cursor: wait; }
+
+/* ── Admin service health monitor ── */
+.admin-health { margin-bottom: 16px; }
+.admin-health-title { font-size: 14px; color: #0ff; letter-spacing: 2px; margin-bottom: 8px; font-family: var(--font-mono, "VT323", monospace); }
+.admin-health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(140px,100%), 1fr)); gap: 8px; }
+.admin-health-card { padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); text-align: center; }
+.admin-health-ok { border-color: rgba(76,175,80,0.3); }
+.admin-health-ok .admin-health-status { color: #4caf50; font-size: 18px; }
+.admin-health-fail { border-color: rgba(244,67,54,0.3); }
+.admin-health-fail .admin-health-status { color: #f44; font-size: 18px; }
+.admin-health-name { font-size: 10px; color: #aaa; letter-spacing: 1px; font-family: var(--font-mono, "VT323", monospace); }
+.admin-health-detail { font-size: 9px; color: #666; margin-top: 2px; }

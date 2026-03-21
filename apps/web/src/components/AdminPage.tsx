@@ -1,6 +1,75 @@
 import { useState, useEffect } from "react";
 import { api, type SessionData, type UserRole } from "../api";
 
+/* ── Real-time service health monitor ── */
+function ServiceHealth() {
+  const [services, setServices] = useState<Record<string, { ok: boolean; detail?: string }>>({});
+
+  useEffect(() => {
+    const check = async () => {
+      const results: Record<string, { ok: boolean; detail?: string }> = {};
+
+      // API
+      try {
+        const r = await fetch("/api/v2/health").then((r) => r.json());
+        results.api = { ok: r.ok, detail: `${r.data?.database?.personas || 0} personas` };
+      } catch {
+        results.api = { ok: false };
+      }
+
+      // LLM / Mascarade
+      try {
+        const r = await fetch("/api/v2/llm-providers").then((r) => r.json());
+        results.mascarade = { ok: !!r.data?.mascarade, detail: r.data?.providers?.join(", ") };
+      } catch {
+        results.mascarade = { ok: false };
+      }
+
+      // ComfyUI
+      try {
+        const r = await fetch("/api/v2/comfyui/workflows").then((r) => r.json());
+        results.comfyui = { ok: !!r.ok, detail: `${r.data?.length || 0} workflows` };
+      } catch {
+        results.comfyui = { ok: false };
+      }
+
+      // Scheduler
+      try {
+        const r = await fetch("/api/v2/scheduler").then((r) => r.json());
+        results.scheduler = {
+          ok: true,
+          detail: `GPU:${r.data?.activeGpuTasks ?? 0}/${r.data?.gpuQueue ?? 0} CPU:${r.data?.activeCpuTasks ?? 0}`,
+        };
+      } catch {
+        results.scheduler = { ok: false };
+      }
+
+      setServices(results);
+    };
+    check();
+    const id = setInterval(check, 10_000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="admin-health">
+      <div className="admin-health-title">SERVICES</div>
+      <div className="admin-health-grid">
+        {Object.entries(services).map(([name, s]) => (
+          <div
+            key={name}
+            className={`admin-health-card ${s.ok ? "admin-health-ok" : "admin-health-fail"}`}
+          >
+            <div className="admin-health-name">{name.toUpperCase()}</div>
+            <div className="admin-health-status">{s.ok ? "\u25CF" : "\u25CB"}</div>
+            {s.detail && <div className="admin-health-detail">{s.detail}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface AdminPageProps {
   session: SessionData | null;
   onLogin: (session: SessionData) => void;
@@ -112,6 +181,8 @@ export default function AdminPage({ session, onLogin, onNavigate }: AdminPagePro
       <div className="admin-user">
         {session!.username} [{session!.role}]
       </div>
+
+      <ServiceHealth />
 
       <div className="admin-grid">
         <button className="admin-card" onClick={() => onNavigate("personas")}>

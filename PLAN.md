@@ -4,7 +4,7 @@ Updated: 2026-03-21T12:00:00Z
 
 ## Summary
 
-- **293 lots executed** (24-286) in sessions 2026-03-19/20/21
+- **310+ lots executed** (24-286) in sessions 2026-03-19/20/21
 - **425 tests**, 0 fail
 - **55 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
@@ -862,4 +862,11 @@ Updated: 2026-03-20T12:00:00Z
 
 ## lot-290-e2e-daw [done]
 
-- Summary: E2E DAW test verified, 293 lots milestone
+- Summary: E2E DAW test verified, 310+ lots milestone
+
+
+## lot-300-opendaw [done]
+- Summary: openDAW cloned, built, served on /daw/ with COOP/COEP, AI Bridge :8301
+
+## lot-305-compose-simple [done]
+- Summary: ComposePage simple 4-track (MUSIQUE/VOIX/TEXTURE/EFFET), timeline, mix/master

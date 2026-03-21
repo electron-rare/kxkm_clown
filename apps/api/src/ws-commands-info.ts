@@ -61,6 +61,8 @@ export const INFO_COMMANDS = new Set([
   "/reload", "/theme", "/dice", "/roll", "/flip", "/llm",
   "/clear-media",
   "/uptime",
+  "/lot400",
+  "/about",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -605,6 +607,53 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         const m = Math.floor((secs % 3600) / 60);
         const s = secs % 60;
         send(ws, { type: "system", text: `Uptime: ${h}h ${m}m ${s}s` });
+        return;
+      }
+
+      case "/lot400": {
+        const art = [
+          "╔══════════════════════════════════════════════╗",
+          "║                                              ║",
+          "║   ██╗      ██████╗ ████████╗██╗  ██╗██████╗  ║",
+          "║   ██║     ██╔═══██╗╚══██╔══╝██║  ██║██╔═══╝  ║",
+          "║   ██║     ██║   ██║   ██║   ████████║██████╗  ║",
+          "║   ██║     ██║   ██║   ██║   ╚════██║██╔═══╝  ║",
+          "║   ███████╗╚██████╔╝   ██║        ██║██████╗  ║",
+          "║   ╚══════╝ ╚═════╝    ╚═╝        ╚═╝╚═════╝  ║",
+          "║                                              ║",
+          "║        3615 J'ai pété — LOT 400              ║",
+          "║                                              ║",
+          "║   106 commandes | 33 personas | 16 services  ║",
+          "║   6 instruments | 5 workflows | 7 voix TTS   ║",
+          "║   211 tests | 19 E2E | mascarade + openDAW   ║",
+          "║                                              ║",
+          "║   Merci le chaos sonore.                     ║",
+          "║                                              ║",
+          "╚══════════════════════════════════════════════╝",
+        ];
+        broadcast(info.channel, { type: "system", text: art.join("\n") });
+        return;
+      }
+
+      case "/about": {
+        const lines = [
+          "=== 3615 J'ai pété ===",
+          "Plateforme IA multi-persona, DAW natif, generation d'images et de musique.",
+          "",
+          "Stack: Node.js + React + Vite + Express + WebSocket",
+          "IA: Ollama (qwen3.5:9b) + mascarade (multi-provider)",
+          "Audio: Kokoro TTS + Piper FR + ACE-Step + Demucs + Matchering",
+          "Images: ComfyUI (32 checkpoints, 24 LoRAs, 5 workflows)",
+          "DAW: openDAW + 6 instruments AI + Magenta.js MIDI",
+          "",
+          `${getPersonas().length} personas | ${INFO_COMMANDS.size + GENERATE_COMMANDS.size + CHAT_COMMANDS.size}+ commandes`,
+          "",
+          "github.com/electron-rare/kxkm_clown",
+          "License: code prive | inspirations: GPL, MIT, Apache, LGPL",
+          "",
+          "/lot400 pour le milestone.",
+        ];
+        send(ws, { type: "system", text: lines.join("\n") });
         return;
       }
 

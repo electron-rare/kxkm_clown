@@ -48,6 +48,14 @@ router.get("/compositions/:id/mix", (req, res) => {
   res.sendFile(mixPath);
 });
 
+// GET /api/v2/media/compositions/:id/master -- serve master WAV
+router.get("/compositions/:id/master", (req, res) => {
+  const masterPath = path.join(process.cwd(), "data", "compositions", req.params.id, "master.wav");
+  if (!fs.existsSync(masterPath)) return res.status(404).json({ error: "Master not found. /master first." });
+  res.setHeader("Content-Disposition", `attachment; filename="${req.params.id}-master.wav"`);
+  res.sendFile(masterPath);
+});
+
 // GET /api/v2/media/compositions — list compositions
 router.get("/compositions", async (_req, res) => {
   const compDir = path.join(process.cwd(), "data", "compositions");

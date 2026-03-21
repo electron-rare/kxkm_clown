@@ -13,6 +13,7 @@ export const GENERATE_COMMANDS = new Set([
   "/ambient", "/fx", "/comp", "/imagine-models", "/remix", "/tracks",
   "/undo", "/solo", "/unsolo", "/rename", "/duplicate", "/dup", "/bpm", "/clear-comp",
   "/loop", "/swap", "/info", "/normalize", "/crossfade", "/trim",
+  "/stutter", "/pan", "/master",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -386,6 +387,62 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         fs.renameSync(tmp, track.filePath);
         track.duration = end > 0 ? end - start : track.duration - start;
         send(ws, { type: "system", text: `\u2702\uFE0F Piste #${trackNum+1} trimmee: ${start}s \u2192 ${end || "fin"}s (${track.duration}s)` });
+        return;
+      }
+
+      case "/stutter": {
+        const args = text.slice(9).trim().split(/\s+/);
+        const trackNum = parseInt(args[0]) - 1;
+        const count = Math.min(16, Math.max(2, parseInt(args[1] || "8")));
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 0 || trackNum >= comp.tracks.length) {
+          send(ws, { type: "system", text: "Usage: /stutter <piste#> [repetitions 2-16]" }); return;
+        }
+        const track = comp.tracks[trackNum];
+        if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
+        const tmp = track.filePath + ".stutter.wav";
+        const segDur = 0.1;
+        const filter = `[0]atrim=0:${segDur},aloop=${count}:size=${Math.floor(32000*segDur)}[s];[0][s]amix=inputs=2:duration=first`;
+        execFileSync("ffmpeg", ["-i", track.filePath, "-filter_complex", filter, "-y", tmp], { timeout: 30000 });
+        fs.renameSync(tmp, track.filePath);
+        send(ws, { type: "system", text: `\u26A1 Stutter x${count} piste #${trackNum+1}` });
+        return;
+      }
+
+      case "/pan": {
+        const args = text.slice(5).trim().split(/\s+/);
+        const trackNum = parseInt(args[0]) - 1;
+        const panVal = parseFloat(args[1] || "0");
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp || isNaN(trackNum) || trackNum < 0 || trackNum >= comp.tracks.length) {
+          send(ws, { type: "system", text: "Usage: /pan <piste#> <-1 to 1> (-1=gauche, 0=centre, 1=droite)" }); return;
+        }
+        const track = comp.tracks[trackNum];
+        if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
+        const tmp = track.filePath + ".pan.wav";
+        const clampedPan = Math.min(1, Math.max(-1, panVal));
+        execFileSync("ffmpeg", ["-i", track.filePath, "-af", `pan=stereo|c0=${1-clampedPan}*c0|c1=${1+clampedPan}*c0`, "-y", tmp], { timeout: 30000 });
+        fs.renameSync(tmp, track.filePath);
+        const label = clampedPan < -0.3 ? "gauche" : clampedPan > 0.3 ? "droite" : "centre";
+        send(ws, { type: "system", text: `\u{1F508} Pan piste #${trackNum+1}: ${clampedPan} (${label})` });
+        return;
+      }
+
+      case "/master": {
+        const comp = getActiveComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition." }); return; }
+        const mixPath = path.join(process.cwd(), "data", "compositions", comp.id, "mix.wav");
+        if (!fs.existsSync(mixPath)) { send(ws, { type: "system", text: "/mix d'abord." }); return; }
+        broadcast(info.channel, { type: "system", text: "\u{1F39B}\uFE0F Mastering en cours..." });
+        const masterPath = path.join(process.cwd(), "data", "compositions", comp.id, "master.wav");
+        execFileSync("ffmpeg", ["-i", mixPath, "-af", "loudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50,alimiter=limit=0.95", "-ar", "44100", "-y", masterPath], { timeout: 60000 });
+        const audioBuffer = fs.readFileSync(masterPath);
+        broadcast(info.channel, {
+          type: "music", nick: info.nick,
+          text: `[Master: ${comp.name} \u2014 ${comp.tracks.length} pistes, 44.1kHz]`,
+          audioData: audioBuffer.toString("base64"), audioMime: "audio/wav",
+        } as any);
+        send(ws, { type: "system", text: `\u2705 Master termine. Download: /api/v2/media/compositions/${comp.id}/master` });
         return;
       }
 

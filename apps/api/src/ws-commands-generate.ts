@@ -31,6 +31,7 @@ export const GENERATE_COMMANDS = new Set([
   "/variations",
   "/imagine-queue",
   "/upscale",
+  "/imagine-gallery",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -874,10 +875,29 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
 
 
       case "/preview": {
-        const trackNum = parseInt(text.slice(9).trim());
+        const previewArg = text.slice(9).trim();
         const comp = getActiveComposition(info.nick, info.channel);
-        if (!comp || isNaN(trackNum) || trackNum < 1 || trackNum > comp.tracks.length) {
-          send(ws, { type: "system", text: `Usage: /preview <piste#>` }); return;
+        if (!comp) { send(ws, { type: "system", text: "Pas de composition active." }); return; }
+
+        // No argument: preview full mix/master
+        if (!previewArg) {
+          const mixPath = path.join(process.cwd(), "data", "compositions", comp.id, "mix.wav");
+          const masterPath = path.join(process.cwd(), "data", "compositions", comp.id, "master.wav");
+          const sourcePath = fs.existsSync(masterPath) ? masterPath : fs.existsSync(mixPath) ? mixPath : null;
+          if (!sourcePath) { send(ws, { type: "system", text: "/mix d'abord." }); return; }
+          const buf = fs.readFileSync(sourcePath);
+          send(ws, {
+            type: "music", nick: info.nick,
+            text: `[Preview: ${comp.name}]`,
+            audioData: buf.toString("base64"), audioMime: "audio/wav",
+          } as any);
+          return;
+        }
+
+        // With track number: preview single track
+        const trackNum = parseInt(previewArg);
+        if (isNaN(trackNum) || trackNum < 1 || trackNum > comp.tracks.length) {
+          send(ws, { type: "system", text: `Usage: /preview [piste#]` }); return;
         }
         const track = comp.tracks[trackNum - 1];
         if (!track.filePath || !fs.existsSync(track.filePath)) {
@@ -1561,6 +1581,26 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
       case "/upscale": {
         // /upscale — upscale last generated image 2x (placeholder, needs ESRGAN model)
         send(ws, { type: "system", text: "Upscale non implemente (necessite modele ESRGAN). Utilisez /imagine avec un prompt plus detaille." });
+        return;
+      }
+
+      case "/imagine-gallery": {
+        try {
+          const imagesDir = path.join(process.cwd(), "data", "media", "images");
+          const files = fs.readdirSync(imagesDir).filter(f => f.endsWith(".json"));
+          if (files.length === 0) { send(ws, { type: "system", text: "Aucune image sauvegardee." }); return; }
+
+          const images = files.slice(-20).map(f => {
+            try {
+              const meta = JSON.parse(fs.readFileSync(path.join(imagesDir, f), "utf-8"));
+              return `  ${meta.prompt?.slice(0, 50) || "?"} — ${meta.createdAt?.slice(0, 10) || "?"}`;
+            } catch { return null; }
+          }).filter(Boolean);
+
+          send(ws, { type: "system", text: `=== GALERIE (${files.length} images) ===\n${images.join("\n")}\n\nVoir F6 (Mediatheque) pour la vue complete.` });
+        } catch {
+          send(ws, { type: "system", text: "Galerie non disponible." });
+        }
         return;
       }
 

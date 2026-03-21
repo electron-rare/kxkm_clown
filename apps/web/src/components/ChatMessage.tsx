@@ -186,6 +186,14 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
               <button className="chat-react-btn" aria-label="Copier le message" onClick={() => {
                 if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {});
               }} title="Copier">{"\uD83D\uDCCB"}</button>
+              <button className="chat-react-btn" onClick={() => {
+                const input = document.querySelector('.chat-input-field') as HTMLInputElement;
+                if (input && msg.nick) {
+                  input.value = `@${msg.nick} `;
+                  input.focus();
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+              }} title="Repondre">{"\u21A9"}</button>
               <button className="chat-pin-btn" aria-label="Epingler le message" onClick={() => {
                 if (msg.text) {
                   fetch("/api/v2/feedback", {

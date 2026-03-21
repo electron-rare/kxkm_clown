@@ -28,6 +28,8 @@ export const CHAT_COMMANDS = new Set([
   "/echo",
   "/color",
   "/whoami",
+  "/persona-disable",
+  "/persona-enable",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -898,6 +900,26 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
       case "/whoami": {
         // /whoami — show current session info (Lot 453)
         send(ws, { type: "system", text: `Nick: ${info.nick}\nCanal: ${info.channel}\nRole: ${(info as any).role || "viewer"}\nSession: ${(info as any).sessionId || "N/A"}` });
+        return;
+      }
+
+      case "/persona-disable": {
+        const nick = parts[1];
+        if (!nick) { send(ws, { type: "system", text: "Usage: /persona-disable <nom>" }); return; }
+        const persona = getPersonas().find(p => p.nick.toLowerCase() === nick.toLowerCase());
+        if (!persona) { send(ws, { type: "system", text: `Persona "${nick}" inconnue.` }); return; }
+        (persona as any).enabled = false;
+        send(ws, { type: "system", text: `${persona.nick} desactivee. /persona-enable ${nick} pour reactiver.` });
+        return;
+      }
+
+      case "/persona-enable": {
+        const nick = parts[1];
+        if (!nick) { send(ws, { type: "system", text: "Usage: /persona-enable <nom>" }); return; }
+        const persona = getPersonas().find(p => p.nick.toLowerCase() === nick.toLowerCase());
+        if (!persona) { send(ws, { type: "system", text: `Persona "${nick}" inconnue.` }); return; }
+        (persona as any).enabled = true;
+        send(ws, { type: "system", text: `${persona.nick} reactivee.` });
         return;
       }
 

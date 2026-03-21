@@ -3929,3 +3929,46 @@ code {
 }
 .daw-resize-handle:hover { background: rgba(255,255,255,0.5); }
 
+
+/* ═══ DAW Responsive ═══ */
+@media (max-width: 768px) {
+  .daw { font-size: 11px; }
+  .daw-transport { flex-wrap: wrap; gap: 4px; padding: 4px; }
+  .daw-transport-left { width: 100%; }
+  .daw-transport-center { width: 100%; justify-content: center; }
+  .daw-transport-right { width: 100%; justify-content: center; flex-wrap: wrap; }
+  .daw-name-input { width: 100%; }
+  .daw-headers { width: 80px; min-width: 80px; }
+  .daw-th-name { display: none; }
+  .daw-vol { width: 40px; }
+  .daw-pan { display: none; }
+  .daw-fx-trigger { display: none; }
+  .daw-audio-sm { display: none; }
+  .daw-th-row2 { gap: 2px; }
+  .daw-generator { flex-direction: column; }
+  .daw-gen-prompt { width: 100%; }
+  .daw-gen-row { flex-wrap: wrap; }
+  .daw-gen-btn { font-size: 9px; padding: 4px 6px; }
+  .daw-status { flex-wrap: wrap; font-size: 10px; }
+  .daw-seek { width: 80px; }
+  .daw-tool-btns, .daw-zoom-btns { display: none; }
+}
+
+@media (max-width: 480px) {
+  .daw-headers { width: 50px; min-width: 50px; }
+  .daw-th-type { font-size: 10px; min-width: 16px; }
+  .daw-btn-sm { font-size: 8px; padding: 1px 2px; }
+  .daw-vol { width: 30px; }
+  .daw-transport-center { gap: 4px; }
+  .daw-time-display { font-size: 11px; }
+  .daw-btn-transport { font-size: 14px; padding: 4px 8px; }
+  .daw-lane { height: 36px; }
+}
+
+/* ═══ Global Responsive fixes ═══ */
+@media (max-width: 768px) {
+  .minitel-terminal { overflow-x: hidden; }
+  .minitel-content { padding: 0; }
+  .minitel-nav-panel { width: 100vw; }
+  .compose-page, .imagine-page, .media-explorer, .admin-page { padding: 4px; }
+}

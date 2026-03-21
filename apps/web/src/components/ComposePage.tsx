@@ -243,10 +243,18 @@ export default function ComposePage() {
                 )}
               </div>
               <div className="daw-th-row2">
-                <button className={"daw-btn-sm" + (track.muted ? " active" : "")} onClick={e => { e.stopPropagation(); updateTrack(i, { muted: !track.muted }); }}>M</button>
-                <button className={"daw-btn-sm" + (track.solo ? " active" : "")} onClick={e => { e.stopPropagation(); updateTrack(i, { solo: !track.solo }); }}>S</button>
+                <button className={"daw-btn-sm" + (track.muted ? " active" : "")} onClick={e => { e.stopPropagation(); const willMute = !track.muted; updateTrack(i, { muted: willMute }); cmd(`/fx ${i + 1} volume ${willMute ? 0 : track.volume}`); }}>M</button>
+                <button className={"daw-btn-sm" + (track.solo ? " active" : "")} onClick={e => { e.stopPropagation(); const willSolo = !track.solo; updateTrack(i, { solo: willSolo }); cmd(willSolo ? `/solo ${i + 1}` : `/unsolo`); }}>S</button>
                 <input type="range" min={0} max={100} value={track.volume} className="daw-vol" title={"Vol: " + track.volume + "%"}
-                  onClick={e => e.stopPropagation()} onChange={e => updateTrack(i, { volume: +e.target.value })} />
+                  onClick={e => e.stopPropagation()} onChange={e => {
+                  const newVol = +e.target.value;
+                  updateTrack(i, { volume: newVol });
+                  // Send volume to server (debounced)
+                  clearTimeout((window as any).__volTimer);
+                  (window as any).__volTimer = setTimeout(() => {
+                    cmd(`/fx ${i + 1} volume ${newVol}`);
+                  }, 500);
+                }} />
                 <span className="daw-pan" onClick={e => { e.stopPropagation(); cyclePan(i); }} title="Pan (click to cycle)">
                   {track.pan < 0 ? "L" + Math.abs(track.pan * 100) : track.pan > 0 ? "R" + (track.pan * 100) : "C"}
                 </span>

@@ -159,32 +159,48 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         }
 
         broadcast(info.channel, { type: "system", text: `\u{1F39B}\uFE0F Mixage de ${comp.tracks.length} pistes...` });
-
+        const { execFileSync } = await import("node:child_process");
         const outPath = path.join(process.cwd(), "data", "compositions", comp.id, "mix.wav");
 
         try {
-          if (comp.tracks.length === 1 && comp.tracks[0].filePath) {
-            fs.copyFileSync(comp.tracks[0].filePath, outPath);
+          const inputs = comp.tracks.filter(t => t.filePath && fs.existsSync(t.filePath));
+
+          if (inputs.length === 1) {
+            fs.copyFileSync(inputs[0].filePath!, outPath);
           } else {
-            const inputs = comp.tracks.filter(t => t.filePath && fs.existsSync(t.filePath));
             const ffmpegArgs: string[] = [];
-            for (const t of inputs) {
+            const filterParts: string[] = [];
+
+            // Add each track with its offset and volume
+            inputs.forEach((t, i) => {
+              const offsetSec = (t.startMs || 0) / 1000;
+              if (offsetSec > 0) {
+                ffmpegArgs.push("-itsoffset", String(offsetSec));
+              }
               ffmpegArgs.push("-i", t.filePath!);
-            }
-            ffmpegArgs.push("-filter_complex", `amix=inputs=${inputs.length}:duration=longest:dropout_transition=2`);
-            ffmpegArgs.push("-ac", "1", "-ar", "32000", "-y", outPath);
+
+              // Apply volume scaling per track
+              const vol = (t.volume ?? 100) / 100;
+              filterParts.push(`[${i}]aformat=sample_rates=44100:channel_layouts=stereo,volume=${vol}[a${i}]`);
+            });
+
+            // Combine all scaled tracks
+            const mixInputs = inputs.map((_, i) => `[a${i}]`).join("");
+            filterParts.push(`${mixInputs}amix=inputs=${inputs.length}:duration=longest:dropout_transition=2[out]`);
+
+            ffmpegArgs.push("-filter_complex", filterParts.join(";"));
+            ffmpegArgs.push("-map", "[out]", "-ar", "44100", "-ac", "2", "-y", outPath);
+
             execFileSync("ffmpeg", ffmpegArgs, { timeout: 60000 });
           }
 
           const mixBuffer = fs.readFileSync(outPath);
           broadcast(info.channel, {
             type: "music", nick: info.nick,
-            text: `[Mix: ${comp.name} \u2014 ${comp.tracks.length} pistes]`,
+            text: `[Mix: ${comp.name} \u2014 ${comp.tracks.length} pistes, 44.1kHz stereo]`,
             audioData: mixBuffer.toString("base64"), audioMime: "audio/wav",
           } as any);
-
-          send(ws, { type: "system", text: `\u2705 Mix termine: ${comp.tracks.length} pistes \u2192 mix.wav` });
-          send(ws, { type: "system", text: `Download: /api/v2/media/compositions/${comp.id}/mix` });
+          send(ws, { type: "system", text: `\u2705 Mix termine. Download: /api/v2/media/compositions/${comp.id}/mix` });
         } catch (err) {
           send(ws, { type: "system", text: `Erreur mixage: ${err instanceof Error ? err.message : String(err)}` });
         }

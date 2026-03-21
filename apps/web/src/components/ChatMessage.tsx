@@ -151,6 +151,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
           style={color ? { color } : undefined}
         >
           <span className="chat-ts">{fmtTime(msg.timestamp)}</span>
+          {color && <span className="chat-avatar" style={{ backgroundColor: color }}>{(msg.nick || "?")[0]}</span>}
           <span className="chat-nick" style={color ? { color } : undefined}>
             {"<"}{msg.nick || "???"}{">"}{" "}
           </span>

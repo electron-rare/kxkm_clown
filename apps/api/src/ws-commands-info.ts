@@ -3,19 +3,63 @@ import { promisify } from "node:util";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
 import { getRecentErrors } from "./error-tracker.js";
 import { loadPersonaMemory } from "./ws-persona-router.js";
 import { getActiveComposition } from "./composition-store.js";
 import type { OutboundMessage } from "./chat-types.js";
+import { scheduler } from "./inference-scheduler.js";
+import { listWorkflows } from "./comfyui.js";
+import { GENERATE_COMMANDS } from "./ws-commands-generate.js";
+import { CHAT_COMMANDS } from "./ws-commands-chat.js";
 
 const execFileAsync = promisify(execFile);
+
+// ---------------------------------------------------------------------------
+// Helpers for /status dashboard
+// ---------------------------------------------------------------------------
+
+function fmtUptime(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return h > 0 ? `${h}h${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
+function fmtMB(bytes: number): string {
+  return `${Math.round(bytes / 1048576)}MB`;
+}
+
+/** Recursively count files in a directory, optionally filtering by extension. */
+function countFilesRec(dir: string, exts?: Set<string>): number {
+  try {
+    let count = 0;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        count += countFilesRec(path.join(dir, e.name), exts);
+      } else if (!exts || exts.has(path.extname(e.name).toLowerCase())) {
+        count++;
+      }
+    }
+    return count;
+  } catch { return 0; }
+}
+
+async function safeFetchJson<T>(url: string, timeoutMs = 3000): Promise<T | null> {
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!resp.ok) return null;
+    return await resp.json() as T;
+  } catch { return null; }
+}
 
 export const INFO_COMMANDS = new Set([
   "/status", "/stats", "/session", "/time", "/date", "/version",
   "/changelog", "/fortune", "/speed", "/model", "/persona", "/personas-detail",
   "/models", "/memory", "/context", "/export", "/history", "/responders-info",
   "/reload", "/theme", "/dice", "/roll", "/flip", "/llm",
+  "/clear-media",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -36,88 +80,158 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
     const cmd = parts[0]?.toLowerCase();
 
     switch (cmd) {
-      case "/status": {
+      case "/status":
+      case "/stats": {
+        // ---------------------------------------------------------------
+        // Comprehensive system dashboard — all fetches run in parallel
+        // ---------------------------------------------------------------
         const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-        const lines: string[] = ["=== Statut serveur ==="];
+        const mascaradeUrl = process.env.MASCARADE_URL || "http://127.0.0.1:8100";
+        const dataDir = path.join(process.cwd(), "data");
 
-        const uptimeSec = Math.floor(process.uptime());
-        lines.push(`Uptime: ${Math.floor(uptimeSec / 3600)}h${Math.floor((uptimeSec % 3600) / 60)}m${uptimeSec % 60}s`);
-        lines.push(`Utilisateurs connectes: ${getActiveUserCount()}`);
-        lines.push(`Personas actives: ${getPersonas().length}`);
-        lines.push(`Max repondeurs: ${getMaxResponders()}`);
+        // Fire all async probes in parallel
+        const [
+          mascaradeHealth,
+          ollamaPs,
+          ollamaTags,
+          gpuInfo,
+          perfData,
+          comfyModels,
+        ] = await Promise.all([
+          // Mascarade health
+          safeFetchJson<{ status?: string; providers?: string[] }>(`${mascaradeUrl}/health`),
+          // Ollama running models
+          safeFetchJson<{ models?: Array<{ name: string; size: number; size_vram?: number }> }>(`${ollamaUrl}/api/ps`),
+          // Ollama available models
+          safeFetchJson<{ models?: Array<{ name: string; size: number }> }>(`${ollamaUrl}/api/tags`),
+          // GPU info via nvidia-smi
+          (async () => {
+            try {
+              const { stdout } = await execFileAsync("nvidia-smi", [
+                "--query-gpu=memory.used,memory.total,memory.free,utilization.gpu",
+                "--format=csv,noheader,nounits",
+              ], { timeout: 3000 });
+              const p = stdout.trim().split(", ").map(Number);
+              return { usedMB: p[0], totalMB: p[1], freeMB: p[2], utilPct: p[3] };
+            } catch { return null; }
+          })(),
+          // Perf endpoint
+          safeFetchJson<{ data?: { avg_latency_ms?: number; requests?: number; memory?: { rss_mb?: number } } }>(
+            `http://127.0.0.1:${process.env.V2_API_PORT || 4180}/api/v2/perf`,
+          ),
+          // ComfyUI models
+          safeFetchJson<{ data?: Array<{ type: string }> }>(
+            `http://127.0.0.1:${process.env.V2_API_PORT || 4180}/api/v2/comfyui/models`,
+          ),
+        ]);
 
-        try {
-          const ctrl = new AbortController();
-          const t = setTimeout(() => ctrl.abort(), 2000);
-          const resp = await fetch(`${ollamaUrl}/api/tags`, { signal: ctrl.signal });
-          clearTimeout(t);
-          if (resp.ok) {
-            const body = await resp.json() as { models?: Array<{ name: string; size: number }> };
-            if (body.models) {
-              lines.push(`Modeles charges: ${body.models.length}`);
-              for (const m of body.models.slice(0, 8)) {
-                lines.push(`  - ${m.name} (${Math.round(m.size / 1073741824 * 10) / 10}GB)`);
-              }
-            }
-          }
-        } catch { lines.push("Ollama: non disponible"); }
+        // Sync data: memory, scheduler, file counts, command count
+        const mem = process.memoryUsage();
+        const totalRamMB = Math.round(os.totalmem() / 1048576);
+        const schedMetrics = scheduler.getMetrics();
+        const cmdCount = INFO_COMMANDS.size + GENERATE_COMMANDS.size + CHAT_COMMANDS.size;
+        const workflows = listWorkflows();
 
-        try {
-          const { stdout } = await execFileAsync("nvidia-smi", ["--query-gpu=memory.used,memory.total,utilization.gpu", "--format=csv,noheader,nounits"], { timeout: 2000 });
-          const gpuParts = stdout.trim().split(", ");
-          if (gpuParts.length >= 3) {
-            lines.push(`VRAM: ${gpuParts[0]}MB / ${gpuParts[1]}MB (GPU util: ${gpuParts[2]}%)`);
-          }
-        } catch { /* nvidia-smi not available */ }
+        // File counts (sync but fast — cached by OS)
+        const sampleCount = countFilesRec(path.join(dataDir, "daw-samples"), new Set([".wav", ".mp3", ".ogg", ".flac"]));
+        const imageCount = countFilesRec(path.join(dataDir, "media", "images"), new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]));
+        const audioCount = countFilesRec(path.join(dataDir, "media", "audio"), new Set([".wav", ".mp3", ".ogg", ".flac"]));
+        const backupCount = countFilesRec(path.join(dataDir, "compositions"));
 
-        try {
-          const ctrl = new AbortController();
-          const t = setTimeout(() => ctrl.abort(), 2000);
-          const resp = await fetch(`http://127.0.0.1:${process.env.V2_API_PORT || 4180}/api/v2/perf`, { signal: ctrl.signal });
-          clearTimeout(t);
-          if (resp.ok) {
-            const perfData = await resp.json() as { data?: { avg_latency_ms?: number; max_latency_ms?: number; requests?: number; memory?: { rss_mb?: number } } };
-            if (perfData.data) {
-              const d = perfData.data;
-              lines.push(`Requetes HTTP: ${d.requests || 0} (avg ${d.avg_latency_ms?.toFixed(1) || "?"}ms, max ${d.max_latency_ms?.toFixed(1) || "?"}ms)`);
-              if (d.memory?.rss_mb) lines.push(`Memoire RSS: ${d.memory.rss_mb}MB`);
-            }
-          }
-        } catch { /* perf endpoint not available */ }
-
+        // Message count
+        let totalMsgs = 0;
         const ustats = getUserStats?.();
-        if (ustats) {
-          let totalMsgs = 0;
-          for (const [, s] of ustats) totalMsgs += s.messages;
-          lines.push(`Messages traites: ${totalMsgs}`);
-        }
+        if (ustats) { for (const [, s] of ustats) totalMsgs += s.messages; }
 
+        // --- Build output ---
+        const L: string[] = [];
+        L.push("=== 3615 J'ai pete -- STATUS ===");
+        L.push("");
+
+        // SYSTEME
+        L.push("SYSTEME");
+        L.push(`  Uptime: ${fmtUptime(Math.floor(process.uptime()))}`);
+        L.push(`  RAM: ${fmtMB(mem.rss)} / ${Math.round(totalRamMB / 1024)}GB`);
+        L.push(`  Node: ${process.version}`);
+        L.push(`  Commandes: ${cmdCount}`);
+        L.push(`  Utilisateurs: ${getActiveUserCount()} | Personas: ${getPersonas().length}`);
+        if (totalMsgs > 0) L.push(`  Messages traites: ${totalMsgs}`);
+        L.push("");
+
+        // LLM
+        L.push("LLM");
+        if (mascaradeHealth) {
+          const providers = mascaradeHealth.providers?.join(", ") || "ollama";
+          L.push(`  Mascarade: OK (${providers})`);
+        } else {
+          L.push(`  Mascarade: OFFLINE`);
+        }
+        if (ollamaPs?.models && ollamaPs.models.length > 0) {
+          for (const m of ollamaPs.models) {
+            const vram = m.size_vram ? ` (${(m.size_vram / 1e9).toFixed(1)}GB VRAM)` : "";
+            L.push(`  Ollama: ${m.name} loaded${vram}`);
+          }
+        } else if (ollamaTags?.models) {
+          L.push(`  Ollama: ${ollamaTags.models.length} modeles, aucun charge`);
+        } else {
+          L.push(`  Ollama: non disponible`);
+        }
+        if (gpuInfo) {
+          L.push(`  VRAM: ${(gpuInfo.usedMB / 1024).toFixed(1)}GB / ${(gpuInfo.totalMB / 1024).toFixed(1)}GB (${(gpuInfo.freeMB / 1024).toFixed(1)}GB libre, GPU ${gpuInfo.utilPct}%)`);
+        }
+        L.push("");
+
+        // AUDIO
+        L.push("AUDIO");
+        if (perfData?.data?.avg_latency_ms != null) {
+          L.push(`  API avg latency: ${perfData.data.avg_latency_ms.toFixed(0)}ms`);
+        }
+        try {
+          const { PERSONA_VOICES } = await import("./persona-voices.js");
+          const voiceCount = Object.keys(PERSONA_VOICES).length;
+          L.push(`  Voices: ${voiceCount} personas mappees`);
+        } catch { /* voices module unavailable */ }
+        L.push("");
+
+        // GENERATION
+        L.push("GENERATION");
+        L.push(`  ComfyUI: ${workflows.length} workflows`);
+        if (comfyModels?.data) {
+          const checkpoints = comfyModels.data.filter(m => m.type === "checkpoint" || m.type === "checkpoints").length;
+          if (checkpoints > 0) L.push(`  Checkpoints: ${checkpoints}`);
+        }
+        L.push(`  Scheduler: GPU ${schedMetrics.activeGpuTasks}/${1} (queue ${schedMetrics.gpuQueue}), CPU ${schedMetrics.activeCpuTasks}/${schedMetrics.maxCpuWorkers} (queue ${schedMetrics.cpuQueue})`);
+        if (schedMetrics.totalSubmitted > 0) {
+          L.push(`  Jobs: ${schedMetrics.totalCompleted}/${schedMetrics.totalSubmitted} done, ${schedMetrics.totalRejected} rejected`);
+        }
+        L.push("");
+
+        // STOCKAGE
+        L.push("STOCKAGE");
+        L.push(`  Samples: ${sampleCount} fichiers`);
+        L.push(`  Images: ${imageCount} fichiers`);
+        L.push(`  Audio: ${audioCount} fichiers`);
+        L.push(`  Compositions: ${backupCount} fichiers`);
+
+        // Context store
         try {
           const cs = getContextStore?.();
           if (cs) {
             const gStats = await cs.getStats();
-            lines.push(`Context store: ${gStats.channels} canaux, ${gStats.totalSizeMB.toFixed(2)} MB`);
+            L.push(`  Context: ${gStats.channels} canaux, ${gStats.totalSizeMB.toFixed(1)} MB`);
           }
         } catch { /* context stats unavailable */ }
 
+        // Errors
         try {
           const recent = getRecentErrors(1);
           if (recent.length > 0) {
-            const e = recent[0];
-            lines.push(`Derniere erreur: [${e.label}] ${e.message} (${e.timestamp})`);
-          } else {
-            lines.push("Derniere erreur: aucune");
+            L.push("");
+            L.push(`DERNIERE ERREUR: [${recent[0].label}] ${recent[0].message}`);
           }
         } catch { /* error tracker unavailable */ }
 
-        send(ws, { type: "system", text: lines.join("\n") });
-        return;
-      }
-
-      case "/stats": {
-        const stats = getUserStats?.()?.get(info.nick);
-        const uptime = stats ? Math.floor((Date.now() - stats.firstSeen) / 60000) : 0;
-        send(ws, { type: "system", text: `Stats ${info.nick}:\n  Messages: ${stats?.messages || 0}\n  Connecte: ${uptime}min` });
+        send(ws, { type: "system", text: L.join("\n") });
         return;
       }
 
@@ -481,6 +595,40 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
       case "/flip": {
         const result = Math.random() < 0.5 ? "pile" : "face";
         broadcast(info.channel, { type: "system", text: `\u{1FA99} ${info.nick}: ${result}!` });
+        return;
+      }
+
+      case "/clear-media": {
+        // /clear-media [type] — cleanup generated media (images, audio, samples)
+        const mediaType = parts[1] || "all"; // all, images, audio, samples
+        const results: string[] = [];
+
+        const cleanDir = async (dir: string, label: string) => {
+          const dirPath = path.join(process.cwd(), "data", dir);
+          if (!fs.existsSync(dirPath)) return;
+          const files = fs.readdirSync(dirPath).filter((f: string) => !f.startsWith(".") && f !== "index.jsonl");
+          if (files.length === 0) { results.push(`  ${label}: vide`); return; }
+          let size = 0;
+          for (const f of files) {
+            const fp = path.join(dirPath, f);
+            try { size += fs.statSync(fp).size; fs.unlinkSync(fp); } catch {}
+          }
+          // Clear index
+          const indexPath = path.join(dirPath, "index.jsonl");
+          if (fs.existsSync(indexPath)) fs.writeFileSync(indexPath, "");
+          results.push(`  ${label}: ${files.length} fichiers supprimes (${(size / 1024 / 1024).toFixed(1)} MB)`);
+        };
+
+        if (mediaType === "all" || mediaType === "images") await cleanDir("media/images", "Images");
+        if (mediaType === "all" || mediaType === "audio") await cleanDir("media/audio", "Audio");
+        if (mediaType === "all" || mediaType === "samples") await cleanDir("daw-samples", "Samples DAW");
+        if (mediaType === "all" || mediaType === "exports") await cleanDir("exports", "Exports");
+
+        if (results.length === 0) {
+          send(ws, { type: "system", text: "Usage: /clear-media [all|images|audio|samples|exports]" });
+        } else {
+          send(ws, { type: "system", text: `Nettoyage media:\n${results.join("\n")}` });
+        }
         return;
       }
 

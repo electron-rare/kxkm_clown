@@ -189,6 +189,11 @@ async function main() {
     // Ollama not ready yet — model will load on first real request
   });
 
+  // Pre-warm ComfyUI: load default checkpoint into VRAM (non-blocking)
+  import("./comfyui.js").then(({ preloadComfyUIModel }) => {
+    preloadComfyUIModel().catch(() => {});
+  });
+
   // -----------------------------------------------------------------------
   // Initialize local RAG (embeddings via Ollama)
   // -----------------------------------------------------------------------

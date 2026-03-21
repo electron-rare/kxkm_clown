@@ -665,6 +665,33 @@ export async function generateImg2Img(
 // List available workflow types
 // ---------------------------------------------------------------------------
 
+/**
+ * Preload a ComfyUI checkpoint into VRAM by queuing a 1-step generation.
+ * Call at server startup to avoid the 5-10s model load delay on first /imagine.
+ */
+export async function preloadComfyUIModel(): Promise<void> {
+  const checkpoint = process.env.COMFYUI_CHECKPOINT || "sdxl_lightning_4step.safetensors";
+  const workflow: Record<string, any> = {
+    "1": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: checkpoint } },
+    "2": { class_type: "EmptyLatentImage", inputs: { width: 64, height: 64, batch_size: 1 } },
+    "3": { class_type: "CLIPTextEncode", inputs: { text: "warmup", clip: ["1", 1] } },
+    "4": { class_type: "CLIPTextEncode", inputs: { text: "", clip: ["1", 1] } },
+    "5": { class_type: "KSampler", inputs: { seed: 0, steps: 1, cfg: 1, sampler_name: "euler", scheduler: "normal", denoise: 1, model: ["1", 0], positive: ["3", 0], negative: ["4", 0], latent_image: ["2", 0] } },
+  };
+  try {
+    const resp = await fetch(`${COMFYUI_URL}/prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: workflow }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (resp.ok) logger.info({ checkpoint }, "[comfyui] Model preloaded");
+    else logger.warn("[comfyui] Preload failed: " + resp.status);
+  } catch {
+    logger.warn("[comfyui] Preload failed (ComfyUI unreachable)");
+  }
+}
+
 export function listWorkflows(): Array<{ id: string; name: string; description: string; inputs: string[] }> {
   return [
     { id: "txt2img", name: "Text \u2192 Image", description: "Generate image from text prompt", inputs: ["prompt"] },

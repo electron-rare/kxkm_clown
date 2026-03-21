@@ -27,6 +27,7 @@ export const GENERATE_COMMANDS = new Set([
   "/suggest", "/snapshot", "/randomize",
   "/glitch", "/stretch", "/bounce", "/stem",
   "/mp3",
+  "/drone", "/grain", "/circus", "/honk", "/kokoro",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {

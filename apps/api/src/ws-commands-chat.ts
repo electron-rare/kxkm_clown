@@ -10,6 +10,9 @@ export const CHAT_COMMANDS = new Set([
   "/web", "/responders", "/voice-test", "/history-export",
   "/random-persona",
   "/debate",
+  "/quote",
+  "/weather",
+  "/ascii",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -482,6 +485,72 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
 
         // Trigger first persona
         await routeToPersonas(info.channel, `@${p1.nick} Debat avec @${p2.nick} sur: ${debateTopic}. Prends position et argumente.`);
+        return;
+      }
+
+      case "/quote": {
+        // /quote — random inspirational quote from a persona's domain
+        const personas = getPersonas().filter(p => (p as any).enabled !== false);
+        const p = personas[Math.floor(Math.random() * personas.length)];
+        if (!p) return;
+
+        // Ask the persona for a quote via Ollama
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: p.model,
+              messages: [
+                { role: "system", content: p.systemPrompt },
+                { role: "user", content: "Donne une seule citation inspirante ou provocante dans ton domaine. Format: juste la citation entre guillemets, suivie de ton nom. Maximum 2 phrases." },
+              ],
+              stream: false,
+              options: { num_predict: 150 },
+              keep_alive: "30m",
+            }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (resp.ok) {
+            const data = await resp.json() as { message?: { content?: string } };
+            const quote = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            if (quote) {
+              broadcast(info.channel, { type: "message", nick: p.nick, text: quote, color: p.color });
+              return;
+            }
+          }
+        } catch {}
+        send(ws, { type: "system", text: "Citation indisponible." });
+        return;
+      }
+
+      case "/weather": {
+        // /weather [ville] — weather via wttr.in
+        const city = text.slice(9).trim() || "Paris";
+        try {
+          const resp = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=3&lang=fr`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          if (resp.ok) {
+            const weather = await resp.text();
+            send(ws, { type: "system", text: weather.trim() });
+          } else {
+            send(ws, { type: "system", text: `Meteo indisponible pour "${city}"` });
+          }
+        } catch {
+          send(ws, { type: "system", text: "Service meteo indisponible." });
+        }
+        return;
+      }
+
+      case "/ascii": {
+        // /ascii <texte> — render text as ASCII art (simple block letters)
+        const asciiText = text.slice(7).trim().toUpperCase().slice(0, 20);
+        if (!asciiText) { send(ws, { type: "system", text: "Usage: /ascii <texte>" }); return; }
+        // Simple figlet-style with block chars
+        const big = asciiText.split("").map(c => `[${c}]`).join(" ");
+        broadcast(info.channel, { type: "system", text: `\n  ${"\u2588".repeat(asciiText.length * 4 + 2)}\n  \u2588 ${big} \u2588\n  ${"\u2588".repeat(asciiText.length * 4 + 2)}` });
         return;
       }
 

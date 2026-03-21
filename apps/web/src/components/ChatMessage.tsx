@@ -72,7 +72,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
     case "system":
       return (
         <div className="chat-msg chat-msg-system">
-          <span className="chat-ts">{fmtTime(msg.timestamp)}</span>
+          <span className="chat-ts" title={new Date(msg.timestamp).toLocaleString("fr-FR")}>{fmtTime(msg.timestamp)}</span>
           {(msg.text || "").split("\n").map((line, i) => (
             <div key={i}>{line || "\u00A0"}</div>
           ))}
@@ -82,7 +82,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
     case "join":
       return (
         <div className="chat-msg chat-msg-system">
-          <span className="chat-ts">{fmtTime(msg.timestamp)}</span>
+          <span className="chat-ts" title={new Date(msg.timestamp).toLocaleString("fr-FR")}>{fmtTime(msg.timestamp)}</span>
           {"-->  "}{msg.nick} a rejoint {msg.channel || channel}
         </div>
       );
@@ -90,7 +90,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
     case "part":
       return (
         <div className="chat-msg chat-msg-system">
-          <span className="chat-ts">{fmtTime(msg.timestamp)}</span>
+          <span className="chat-ts" title={new Date(msg.timestamp).toLocaleString("fr-FR")}>{fmtTime(msg.timestamp)}</span>
           {"<--  "}{msg.nick} a quitte {msg.channel || channel}
         </div>
       );
@@ -103,7 +103,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
       const color = msg.nick ? getNickColor(msg.nick) : undefined;
       return (
         <div className="chat-msg chat-msg-image" style={color ? { color } : undefined}>
-          <span className="chat-ts">{fmtTime(msg.timestamp)}</span>
+          <span className="chat-ts" title={new Date(msg.timestamp).toLocaleString("fr-FR")}>{fmtTime(msg.timestamp)}</span>
           <span className="chat-nick" style={color ? { color } : undefined}>
             {"<"}{msg.nick || "???"}{">"}{" "}
           </span>
@@ -124,7 +124,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
       const color = msg.nick ? getNickColor(msg.nick) : undefined;
       return (
         <div key={msg.id} className="chat-msg chat-msg-music" style={color ? { color } : undefined}>
-          <span className="chat-ts">{fmtTime(msg.timestamp)}</span>
+          <span className="chat-ts" title={new Date(msg.timestamp).toLocaleString("fr-FR")}>{fmtTime(msg.timestamp)}</span>
           <span className="chat-nick" style={color ? { color } : undefined}>
             {"<"}{msg.nick || "???"}{">"}{" "}
           </span>
@@ -153,7 +153,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
           role="article"
           style={color ? { color } : undefined}
         >
-          <span className="chat-ts">{fmtTime(msg.timestamp)}</span>
+          <span className="chat-ts" title={new Date(msg.timestamp).toLocaleString("fr-FR")}>{fmtTime(msg.timestamp)}</span>
           {color && <span className="chat-avatar" style={{ backgroundColor: color }}>{(msg.nick || "?")[0]}</span>}
           <span className="chat-nick" style={color ? { color } : undefined}>
             {"<"}{msg.nick || "???"}{">"}{" "}

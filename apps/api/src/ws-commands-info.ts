@@ -60,6 +60,7 @@ export const INFO_COMMANDS = new Set([
   "/models", "/memory", "/context", "/export", "/history", "/responders-info",
   "/reload", "/theme", "/dice", "/roll", "/flip", "/llm",
   "/clear-media",
+  "/uptime",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -595,6 +596,15 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
       case "/flip": {
         const result = Math.random() < 0.5 ? "pile" : "face";
         broadcast(info.channel, { type: "system", text: `\u{1FA99} ${info.nick}: ${result}!` });
+        return;
+      }
+
+      case "/uptime": {
+        const secs = Math.floor(process.uptime());
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        send(ws, { type: "system", text: `Uptime: ${h}h ${m}m ${s}s` });
         return;
       }
 

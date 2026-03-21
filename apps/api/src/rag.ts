@@ -34,6 +34,8 @@ interface RAGOptions {
 export class LocalRAG {
   private chunks: DocumentChunk[] = [];
   private options: RAGOptions;
+  private _rerankerFailCount = 0;
+  private _rerankerLastFail = 0;
 
   constructor(options: RAGOptions) {
     this.options = options;
@@ -190,6 +192,8 @@ export class LocalRAG {
   ): Promise<Array<{ text: string; source: string; score: number }>> {
     const rerankerUrl = this.options.rerankerUrl || process.env.RERANKER_URL;
     if (!rerankerUrl || results.length <= 1) return results;
+    // Skip reranker if it failed recently (circuit breaker)
+    if (this._rerankerFailCount >= 2 && Date.now() - this._rerankerLastFail < 60_000) return results;
 
     try {
       const resp = await fetch(`${rerankerUrl}/rerank`, {
@@ -200,14 +204,14 @@ export class LocalRAG {
           documents: results.map((r) => r.text),
           top_k: maxResults,
         }),
-        signal: AbortSignal.timeout(5_000),
+        signal: AbortSignal.timeout(2_000),
       });
       if (resp.ok) {
         const data = (await resp.json()) as {
           results?: Array<{ text: string; score: number }>;
         };
         if (data.results && data.results.length > 0) {
-          // Map reranked texts back to original results to preserve source metadata
+          this._rerankerFailCount = 0;
           const sourceMap = new Map(results.map((r) => [r.text, r.source]));
           logger.info(`[rag:reranker] reranked ${results.length} → ${data.results.length} results`);
           return data.results.map((r) => ({
@@ -218,8 +222,9 @@ export class LocalRAG {
         }
       }
     } catch (err) {
-      // Reranker unavailable — use original ordering
-      trackError("rag_rerank", err, { query: query.slice(0, 80) });
+      this._rerankerFailCount++;
+      this._rerankerLastFail = Date.now();
+      trackError("rag_rerank", err, { query: query.slice(0, 80), failCount: this._rerankerFailCount });
     }
     return results;
   }

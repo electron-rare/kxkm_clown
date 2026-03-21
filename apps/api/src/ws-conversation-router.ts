@@ -26,6 +26,21 @@ import type { ChatLogEntry, ChatPersona, OutboundMessage, PersonaMemory } from "
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
 // ---------------------------------------------------------------------------
+// Clean markdown/formatting from text before sending to TTS (Lot 425)
+// ---------------------------------------------------------------------------
+
+function cleanForTTS(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/@(\w+)/g, "$1")
+    .replace(/[#*_~|>]/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+// ---------------------------------------------------------------------------
 // Sentence-boundary detection for streaming TTS chunking
 // ---------------------------------------------------------------------------
 
@@ -201,6 +216,21 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   const ttsQueues = new Map<string, Promise<void>>();
   let totalMessageCount = 0;
 
+  // Memory cache (30s TTL) to avoid N+1 reloads in inter-persona chains
+  const memoryCache = new Map<string, { data: PersonaMemory; ts: number }>();
+  const MEMORY_CACHE_TTL = 30_000;
+  async function cachedLoadMemory(nick: string): Promise<PersonaMemory> {
+    const cached = memoryCache.get(nick);
+    if (cached && Date.now() - cached.ts < MEMORY_CACHE_TTL) return cached.data;
+    const data = await loadPersonaMemory(nick);
+    memoryCache.set(nick, { data, ts: Date.now() });
+    if (memoryCache.size > 50) {
+      const oldest = [...memoryCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+      if (oldest) memoryCache.delete(oldest[0]);
+    }
+    return data;
+  }
+
   function enqueueTTS(nick: string, text: string, channel: string): void {
     if (process.env.TTS_ENABLED !== "1" || !isTTSAvailable()) return;
     if (text.length < 10) return;
@@ -303,7 +333,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     let memory: PersonaMemory = preloadedMemory || { nick: persona.nick, facts: [], summary: "", lastUpdated: "" };
     if (!preloadedMemory) {
       try {
-        memory = await loadPersonaMemory(persona.nick);
+        memory = await cachedLoadMemory(persona.nick);
       } catch (err) {
         trackError("memory_load", err, { persona: persona.nick });
       }
@@ -338,7 +368,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       const { sentences, remaining } = extractSentences(sentenceBuffer);
       sentenceBuffer = remaining;
       for (const sentence of sentences) {
-        enqueueTTS(persona.nick, sentence, channel);
+        enqueueTTS(persona.nick, cleanForTTS(sentence), channel);
         sentenceTTSFired = true;
       }
     };
@@ -368,14 +398,14 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
       // Flush remaining sentence buffer to TTS
       if (sentenceBuffer.trim().length >= 10) {
-        enqueueTTS(persona.nick, sentenceBuffer.trim(), channel);
+        enqueueTTS(persona.nick, cleanForTTS(sentenceBuffer.trim()), channel);
         sentenceTTSFired = true;
       }
       sentenceBuffer = "";
 
       // Fallback: if no sentences were detected during streaming, send full text
       if (!sentenceTTSFired && process.env.TTS_ENABLED === "1" && isTTSAvailable()) {
-        enqueueTTS(persona.nick, fullText, channel);
+        enqueueTTS(persona.nick, cleanForTTS(fullText), channel);
       }
 
       // Auto-generate image if Picasso responds
@@ -528,7 +558,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     // Pre-warm persona memory IN PARALLEL with enrichment (saves 10-30ms per persona)
     const [enrichedText, ...memories] = await Promise.all([
       buildConversationInput(text, channel, getContextString, rag),
-      ...responders.map(p => loadPersonaMemory(p.nick).catch(() => ({ nick: p.nick, facts: [], summary: "", lastUpdated: "" } as PersonaMemory))),
+      ...responders.map(p => cachedLoadMemory(p.nick).catch(() => ({ nick: p.nick, facts: [], summary: "", lastUpdated: "" } as PersonaMemory))),
     ]);
 
     // Inject pre-loaded memories into persona response

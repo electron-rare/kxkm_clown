@@ -87,6 +87,24 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
     switch (cmd) {
       case "/status":
       case "/stats": {
+        // Per-persona stats (Lot 428): /stats <persona_nick>
+        const statsTarget = parts[1]?.toLowerCase();
+        if (statsTarget) {
+          const persona = getPersonas().find(p => p.nick.toLowerCase() === statsTarget);
+          if (persona) {
+            const mem = await loadPersonaMemory(persona.nick);
+            const lines = [
+              `=== Stats: ${persona.nick} ===`,
+              `  Modele: ${persona.model}`,
+              `  Memoire: ${mem.facts.length} faits retenus`,
+              mem.facts.length > 0 ? `  Faits: ${mem.facts.slice(0, 5).join(", ")}` : "",
+              mem.summary ? `  Resume: ${mem.summary}` : "",
+              mem.lastUpdated ? `  Derniere MAJ: ${mem.lastUpdated}` : "",
+            ].filter(Boolean);
+            send(ws, { type: "system", text: lines.join("\n") });
+            return;
+          }
+        }
         // ---------------------------------------------------------------
         // Comprehensive system dashboard — all fetches run in parallel
         // ---------------------------------------------------------------

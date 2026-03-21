@@ -1726,9 +1726,18 @@ async function handleImagineCommand({
     return;
   }
 
+  // Parse --no for negative prompt (Lot 426)
+  let negativePrompt = "ugly, blurry, low quality, deformed";
+  const noMatch = imagePrompt.match(/\s*--no\s+(.+)$/i);
+  let cleanPrompt = imagePrompt;
+  if (noMatch) {
+    negativePrompt = noMatch[1].trim();
+    cleanPrompt = imagePrompt.replace(/\s*--no\s+.+$/i, "").trim();
+  }
+
   broadcast(info.channel, {
     type: "system",
-    text: `${info.nick} genere une image: "${imagePrompt}"...`,
+    text: `${info.nick} genere une image: "${cleanPrompt}"${noMatch ? ` (sans: ${negativePrompt})` : ""}...`,
   });
 
   // Send real progress from ComfyUI WebSocket (including preview frames)
@@ -1751,9 +1760,9 @@ async function handleImagineCommand({
       id: crypto.randomUUID(),
       device: "gpu",
       priority: "normal",
-      label: `/imagine "${imagePrompt.slice(0, 40)}"`,
+      label: `/imagine "${cleanPrompt.slice(0, 40)}"`,
       vramMB: VRAM_BUDGETS.comfyui,
-      execute: () => generateImage(imagePrompt, { onProgress }),
+      execute: () => generateImage(cleanPrompt, { onProgress }),
     });
     if (!result) {
       broadcast(info.channel, { type: "system", text: "\u{1F3A8} Generation echouee \u2014 verifiez ComfyUI" });
@@ -1763,19 +1772,19 @@ async function handleImagineCommand({
     broadcast(info.channel, {
       type: "image",
       nick: info.nick,
-      text: `[Image generee: "${imagePrompt}" seed:${result.seed}${result.model ? ` model:${result.model}` : ""}${result.lora ? ` lora:${result.lora}` : ""}]`,
+      text: `[Image generee: "${cleanPrompt}" seed:${result.seed}${result.model ? ` model:${result.model}` : ""}${result.lora ? ` lora:${result.lora}` : ""}]`,
       imageData: result.imageBase64,
       imageMime: "image/png",
     } as OutboundMessage);
 
-    saveImage({ base64: result.imageBase64, prompt: imagePrompt, nick: info.nick, channel: info.channel, seed: result.seed }).catch(() => {});
+    saveImage({ base64: result.imageBase64, prompt: cleanPrompt, nick: info.nick, channel: info.channel, seed: result.seed }).catch(() => {});
 
     logChatMessage({
       ts: new Date().toISOString(),
       channel: info.channel,
       nick: info.nick,
       type: "system",
-      text: `[Image generee: "${imagePrompt}"]`,
+      text: `[Image generee: "${cleanPrompt}"]`,
     });
   } catch (err) {
     send(ws, {

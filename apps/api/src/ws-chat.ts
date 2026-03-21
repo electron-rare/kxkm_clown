@@ -50,7 +50,7 @@ function saveChannelState() {
     pins: Object.fromEntries([...channelPins].map(([k, v]) => [k, v])),
     savedAt: new Date().toISOString(),
   };
-  fs.promises.writeFile(CHANNEL_STATE_FILE, JSON.stringify(state, null, 2)).catch(() => {});
+  fs.promises.writeFile(CHANNEL_STATE_FILE, JSON.stringify(state, null, 2)).catch(err => logger.warn({ err: err.message }, "[ws-chat] channel state save failed"));
 }
 
 // Load on start (async to avoid blocking event loop)

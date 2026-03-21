@@ -22,6 +22,7 @@ export const CHAT_COMMANDS = new Set([
   "/mood",
   "/haiku",
   "/timer",
+  "/story",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -801,6 +802,22 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         setTimeout(() => {
           broadcast(info.channel, { type: "system", text: `Timer de ${info.nick}: ${seconds}s ecoule!` });
         }, seconds * 1000);
+        return;
+      }
+
+      case "/story": {
+        // /story [theme] — 3 personas each write a paragraph continuing a story (Lot 427)
+        const theme = text.slice(7).trim() || "un voyage dans un monde sonore inconnu";
+        const storyPersonas = getPersonas().filter(p => (p as any).enabled !== false);
+        if (storyPersonas.length < 3) { send(ws, { type: "system", text: "Pas assez de personas (min 3)." }); return; }
+        const storytellers = [...storyPersonas].sort(() => Math.random() - 0.5).slice(0, 3);
+
+        broadcast(info.channel, { type: "system", text: `=== HISTOIRE COLLABORATIVE ===\nTheme: "${theme}"\nConteurs: ${storytellers.map(p => p.nick).join(", ")}` });
+
+        await routeToPersonas(
+          info.channel,
+          `@${storytellers[0].nick} Ecris le premier paragraphe d'une histoire courte sur: ${theme}. @${storytellers[1].nick} continuera apres toi, puis @${storytellers[2].nick} conclura. Maximum 3 phrases.`,
+        );
         return;
       }
 

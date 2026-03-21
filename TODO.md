@@ -121,7 +121,7 @@
 ### Phase C — Feature Parity V2
 - [x] Recovery on crash worker — `recoverStaleRuns()` + worker startup recovery
 - [x] Cancel support — `requestCancel()` repo + `shouldCancel` callback worker + API endpoint
-- [ ] Tab completion chat V2
+- [x] Tab completion chat V2 — fuzzy matching 108+ commands + @mentions
 - [x] Commandes slash V2 — `parseSlashCommand`, `resolveCommand`, `generateHelpText` + 11 commandes + 17 tests
 - [x] Mémoire conversationnelle V2 — `ConversationMemory`, `addToMemory`, `buildLlmContext`, `clearMemory`
 - [x] Status strip admin V2 — GET `/api/v2/status` (personas, graphs, runs, queue)
@@ -134,7 +134,7 @@
 ### Phase D — Déploiement & Docs
 - [x] Docker — `Dockerfile` (multi-stage Node 22 alpine) + `docker-compose.yml` (5 services) + `.dockerignore`
 - [ ] Documentation utilisateur
-- [ ] Performance profiling
+- [x] Performance profiling — deep analysis API (21 findings) + frontend (15 findings), 9 fixes applied
 
 ## P11 Lot 17 — Deep Audit & Refactoring
 
@@ -162,22 +162,22 @@
   - [ ] Extraire `middleware/auth.ts`
 - [ ] **P2** writeFileSync → appendFile async dans ws-chat.ts (3 occurrences)
 - [ ] **P2** console.log → logger structuré (apps/api, apps/worker)
-- [ ] **P2** React.memo sur Chat, ChatHistory, VoiceChat, NodeEditor
-- [ ] **P2** Lazy load: React.lazy + Suspense pour routes lourdes
+- [x] **P2** React.memo sur Chat, ChatHistory, VoiceChat, NodeEditor — ChatMessage already memo'd
+- [x] **P2** Lazy load: React.lazy + Suspense pour routes lourdes — 17 lazy routes + WaveformPlayer
 
 ### Phase C — Infrastructure
 
-- [ ] SearXNG dans docker-compose (service searxng:8080, remplacer DuckDuckGo)
-- [ ] MinerU/Docling dans docker-compose (remplacer pdf-parse)
+- [x] SearXNG dans docker-compose — kxkm_clown-searxng-1 :8080 (healthy)
+- [x] MinerU/Docling dans docker-compose — kxkm_clown-docling-1 :9400 (healthy)
 - [ ] Spike BGE-M3 embeddings (upgrade nomic-embed-text)
 - [ ] Déployer deep-audit.js sur kxkm-ai (cron quotidien)
-- [ ] Créer utilisateur Discord **Pharmacius** (bot orchestrateur, bridge chat Discord ↔ KXKM)
+- [x] Créer utilisateur Discord **Pharmacius** — kxkm_clown-discord-bot-1 (up 4 days)
 
 ### Phase D — Nouveaux node types
 
-- [ ] `music_generation` node (ACE-Step 1.5, <4GB VRAM)
+- [x] `music_generation` node (ACE-Step 1.5 + AI Bridge 17 backends)
 - [ ] `voice_clone` node (XTTS-v2, zero-shot 6s reference)
-- [ ] `document_extraction` node (MinerU/Docling)
+- [x] `document_extraction` node (Docling :9400)
 
 ## P12 Lot 18 — Voice & MCP (futur)
 
@@ -185,12 +185,12 @@
 - [ ] LLMRTC WebRTC streaming (TypeScript, VAD, barge-in)
 - [ ] MCP SDK integration (personas = MCP servers)
 - [ ] PCL + OpenCharacter pipeline fine-tune
-- [ ] Chatterbox TTS evaluation
+- [x] Chatterbox TTS evaluation — deployed as fallback TTS, remote backend on :9100
 
 ## P13 Lot 19 — Music & Creative (futur)
 
-- [ ] ACE-Step 1.5 production
-- [ ] `/compose` command (prompt → musique)
+- [x] ACE-Step 1.5 production — AI Bridge /generate/music-ai + openDIAW.be AceStep instrument
+- [x] `/compose` command (prompt → musique) — lots 320+, full composition pipeline
 - [ ] Flux 2 dans ComfyUI
 - [ ] A2A Protocol evaluation
 

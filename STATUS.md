@@ -1,6 +1,15 @@
 # EXECUTION STATUS (kxkm-clown-v2)
 
-Updated: 2026-03-17T22:06:31Z
+Updated: 2026-03-21T23:00:00Z
+
+## Current: lot-427 (session 2026-03-21)
+
+- Total lots completed: 427
+- Commands: 108+
+- Services: 17 backends AI Bridge + 13 infra services
+- Tests: 425+ passing
+- Performance: TTFC 284ms, chat latency -200-500ms optimized
+- openDIAW.be: 9 custom instruments, public on GitHub
 
 ## lot-0-cadrage
 - Status: done

@@ -4,7 +4,7 @@ Updated: 2026-03-21T12:00:00Z
 
 ## Summary
 
-- **286 lots executed** (24-286) in sessions 2026-03-19/20/21
+- **293 lots executed** (24-286) in sessions 2026-03-19/20/21
 - **425 tests**, 0 fail
 - **55 commands**, 13 services, 9 spec docs
 - **All SEC-01-05 resolved**
@@ -851,3 +851,15 @@ Updated: 2026-03-20T12:00:00Z
 - Description: Build + deploy + commit
 - Owner: Ops
 - Summary: Vite build, Docker rebuild, git push.
+
+## lot-287-daw-ux [done]
+
+- Summary: DAW UX overhaul — LCD display, faders, gradients, snap grid, loop region, animations
+
+## lot-288-backend-integration [done]
+
+- Summary: REST endpoints for compositions/tracks, comp load sync, M/S/vol/pan wired
+
+## lot-290-e2e-daw [done]
+
+- Summary: E2E DAW test verified, 293 lots milestone

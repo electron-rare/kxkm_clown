@@ -1,14 +1,11 @@
 /**
- * OpenAI-compatible LLM client
+ * LLM Client — routes through mascarade (/send) with Ollama fallback
  *
- * Routes chat requests through mascarade (multi-provider orchestrator)
- * or falls back to direct Ollama if mascarade is unavailable.
+ * mascarade /send endpoint:
+ *   POST { messages, strategy, provider, model, system, temperature, max_tokens }
+ *   Returns: { content, model, provider, tokens_used, cached }
  *
- * Supports:
- *   - Streaming (SSE) and non-streaming
- *   - Model routing via "provider:model" syntax (e.g. "claude:claude-sonnet-4-6")
- *   - Fallback chain: mascarade → direct Ollama
- *   - Connection pooling (keep-alive)
+ * Fallback: direct Ollama /api/chat if mascarade is unavailable
  */
 
 import logger from "./logger.js";
@@ -21,14 +18,12 @@ const MASCARADE_URL = process.env.MASCARADE_URL || "http://127.0.0.1:8100";
 const MASCARADE_API_KEY = process.env.MASCARADE_API_KEY || "";
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const LLM_TIMEOUT_MS = parseInt(process.env.LLM_TIMEOUT_MS || "45000", 10);
+const DEFAULT_MODEL = process.env.LLM_DEFAULT_MODEL || "qwen3.5:9b";
 
-// Default model when persona doesn't specify one
-const DEFAULT_MODEL = process.env.LLM_DEFAULT_MODEL || "ollama:qwen3.5:9b";
-
-// Track mascarade availability to avoid repeated timeouts
+// Track mascarade availability
 let mascaradeAvailable = true;
 let mascaradeLastCheck = 0;
-const MASCARADE_CHECK_INTERVAL_MS = 30_000; // re-check every 30s after failure
+const MASCARADE_RECHECK_MS = 30_000;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,7 +36,7 @@ export interface ChatMessage {
 }
 
 export interface ChatOptions {
-  model?: string;        // "provider:model" or just "model" (uses Ollama)
+  model?: string;
   temperature?: number;
   maxTokens?: number;
   numCtx?: number;
@@ -62,18 +57,15 @@ export interface ChatResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Health check
+// Health
 // ---------------------------------------------------------------------------
 
 export async function checkMascaradeHealth(): Promise<boolean> {
   try {
-    const resp = await fetch(`${MASCARADE_URL}/health`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    const ok = resp.ok;
-    mascaradeAvailable = ok;
+    const resp = await fetch(`${MASCARADE_URL}/health`, { signal: AbortSignal.timeout(3000) });
+    mascaradeAvailable = resp.ok;
     mascaradeLastCheck = Date.now();
-    return ok;
+    return resp.ok;
   } catch {
     mascaradeAvailable = false;
     mascaradeLastCheck = Date.now();
@@ -83,82 +75,61 @@ export async function checkMascaradeHealth(): Promise<boolean> {
 
 function shouldTryMascarade(): boolean {
   if (mascaradeAvailable) return true;
-  // Re-check periodically
-  if (Date.now() - mascaradeLastCheck > MASCARADE_CHECK_INTERVAL_MS) return true;
-  return false;
+  return Date.now() - mascaradeLastCheck > MASCARADE_RECHECK_MS;
 }
 
 // ---------------------------------------------------------------------------
-// Parse model string: "provider:model" or just "model" (defaults to ollama)
+// Parse model: detect "provider:model" vs plain Ollama model
 // ---------------------------------------------------------------------------
 
-function parseModel(model: string | undefined): { provider: string; model: string; isOllamaOnly: boolean } {
+function parseModel(model: string | undefined): { provider: string | null; model: string } {
   const m = model || DEFAULT_MODEL;
-  if (m.includes(":") && !m.startsWith("qwen") && !m.startsWith("mistral:") && !m.startsWith("llama")) {
-    // Looks like "provider:model" (e.g. "claude:claude-sonnet-4-6")
-    // But Ollama models also use ":" (e.g. "qwen3.5:9b") — detect by known providers
-    const knownProviders = ["claude", "openai", "mistral-api", "google", "bedrock", "huggingface", "ollama", "llama_cpp"];
-    const prefix = m.split(":")[0];
+  const knownProviders = ["claude", "openai", "mistral-api", "google", "bedrock", "huggingface", "ollama", "llama_cpp"];
+  const colonIdx = m.indexOf(":");
+  if (colonIdx > 0) {
+    const prefix = m.slice(0, colonIdx);
     if (knownProviders.includes(prefix)) {
-      return { provider: prefix, model: m.slice(prefix.length + 1), isOllamaOnly: prefix === "ollama" };
+      return { provider: prefix, model: m.slice(colonIdx + 1) };
     }
   }
-  // Default: treat as Ollama model name
-  return { provider: "ollama", model: m, isOllamaOnly: true };
+  // Ollama model (qwen3.5:9b, mistral:7b, etc.) — let mascarade route via default provider
+  return { provider: null, model: m };
 }
 
 // ---------------------------------------------------------------------------
-// Non-streaming chat (returns complete response)
+// Non-streaming: mascarade /send → Ollama fallback
 // ---------------------------------------------------------------------------
 
-export async function chat(
-  messages: ChatMessage[],
-  opts: ChatOptions = {},
-): Promise<ChatResponse> {
-  const { provider, model, isOllamaOnly } = parseModel(opts.model);
-
-  // Try mascarade first (unless Ollama-only and mascarade is down)
+export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResponse> {
   if (shouldTryMascarade()) {
     try {
-      return await chatViaMascarade(messages, { ...opts, model: `${provider}:${model}` });
+      return await chatViaMascarade(messages, opts);
     } catch (err) {
-      logger.warn({ err: (err as Error).message, provider, model }, "[llm] mascarade failed, falling back to Ollama");
+      logger.warn({ err: (err as Error).message }, "[llm] mascarade /send failed, falling back to Ollama");
       mascaradeAvailable = false;
       mascaradeLastCheck = Date.now();
     }
   }
-
-  // Fallback: direct Ollama
-  return chatViaOllama(messages, { ...opts, model });
+  return chatViaOllama(messages, opts);
 }
 
 // ---------------------------------------------------------------------------
-// Streaming chat (yields tokens)
+// Streaming: direct Ollama (mascarade /send is non-streaming)
+// When mascarade adds streaming support, we can route through it.
+// For now: non-streaming probe via mascarade, streaming via Ollama.
 // ---------------------------------------------------------------------------
 
 export async function* streamChat(
   messages: ChatMessage[],
   opts: ChatOptions = {},
 ): AsyncGenerator<string, ChatResponse> {
-  const { provider, model, isOllamaOnly } = parseModel(opts.model);
-
-  // Try mascarade first
-  if (shouldTryMascarade() && !isOllamaOnly) {
-    try {
-      return yield* streamViaMascarade(messages, { ...opts, model: `${provider}:${model}` });
-    } catch (err) {
-      logger.warn({ err: (err as Error).message }, "[llm] mascarade stream failed, falling back to Ollama");
-      mascaradeAvailable = false;
-      mascaradeLastCheck = Date.now();
-    }
-  }
-
-  // Fallback (or Ollama-only): direct Ollama streaming
-  return yield* streamViaOllama(messages, { ...opts, model });
+  // mascarade /send is non-streaming → use direct Ollama for streaming
+  // This still benefits from mascarade for non-streaming calls (tool probes, etc.)
+  return yield* streamViaOllama(messages, opts);
 }
 
 // ---------------------------------------------------------------------------
-// Mascarade (OpenAI-compatible)
+// Mascarade /send (non-streaming, with full routing + cache + metrics)
 // ---------------------------------------------------------------------------
 
 async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
@@ -167,42 +138,58 @@ async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Pro
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (MASCARADE_API_KEY) headers["Authorization"] = `Bearer ${MASCARADE_API_KEY}`;
 
+  const { provider, model } = parseModel(opts.model);
+
+  // Extract system message from messages array
+  const systemMsg = messages.find(m => m.role === "system");
+  const chatMessages = messages.filter(m => m.role !== "system").map(m => ({
+    role: m.role,
+    content: m.content,
+  }));
+
   try {
-    const resp = await fetch(`${MASCARADE_URL}/v1/chat/completions`, {
+    const resp = await fetch(`${MASCARADE_URL}/send`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        model: opts.model,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        messages: chatMessages,
+        system: systemMsg?.content || undefined,
+        provider: provider || undefined,
+        model: model,
         temperature: opts.temperature ?? 0.7,
         max_tokens: opts.maxTokens || 800,
-        stream: false,
-        ...(opts.tools && opts.tools.length > 0 ? { tools: opts.tools } : {}),
       }),
       signal: controller.signal,
     });
 
-    if (!resp.ok) throw new Error(`mascarade ${resp.status}: ${resp.statusText}`);
+    if (!resp.ok) throw new Error(`mascarade /send ${resp.status}: ${resp.statusText}`);
 
     const data = await resp.json() as {
+      content?: string;
       model?: string;
-      choices?: Array<{
-        message?: { content?: string; tool_calls?: ChatResponse["toolCalls"] };
-        finish_reason?: string;
-      }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      provider?: string;
+      tokens_used?: number;
+      cached?: boolean;
+      error?: string;
     };
 
-    const choice = data.choices?.[0];
+    if (data.error) throw new Error(`mascarade: ${data.error}`);
+
+    logger.debug({
+      provider: data.provider,
+      model: data.model,
+      tokens: data.tokens_used,
+      cached: data.cached,
+    }, "[llm] mascarade response");
+
     return {
-      content: choice?.message?.content || "",
-      model: data.model || opts.model || "unknown",
-      provider: "mascarade",
-      toolCalls: choice?.message?.tool_calls,
-      usage: data.usage ? {
-        promptTokens: data.usage.prompt_tokens || 0,
-        completionTokens: data.usage.completion_tokens || 0,
-        totalTokens: data.usage.total_tokens || 0,
+      content: data.content || "",
+      model: data.model || model,
+      provider: data.provider || "mascarade",
+      usage: data.tokens_used ? {
+        promptTokens: 0,
+        completionTokens: data.tokens_used,
+        totalTokens: data.tokens_used,
       } : undefined,
     };
   } finally {
@@ -210,88 +197,21 @@ async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Pro
   }
 }
 
-async function* streamViaMascarade(
-  messages: ChatMessage[],
-  opts: ChatOptions,
-): AsyncGenerator<string, ChatResponse> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (MASCARADE_API_KEY) headers["Authorization"] = `Bearer ${MASCARADE_API_KEY}`;
-
-  try {
-    const resp = await fetch(`${MASCARADE_URL}/v1/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model: opts.model,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-        temperature: opts.temperature ?? 0.7,
-        max_tokens: opts.maxTokens || 800,
-        stream: true,
-      }),
-      signal: controller.signal,
-    });
-
-    if (!resp.ok) throw new Error(`mascarade ${resp.status}: ${resp.statusText}`);
-
-    const reader = resp.body?.getReader();
-    if (!reader) throw new Error("No response body");
-
-    const decoder = new TextDecoder();
-    let fullText = "";
-    let model = opts.model || "unknown";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      // Parse SSE: "data: {...}\n\n"
-      for (const line of chunk.split("\n")) {
-        if (!line.startsWith("data: ")) continue;
-        const payload = line.slice(6).trim();
-        if (payload === "[DONE]") continue;
-
-        try {
-          const parsed = JSON.parse(payload) as {
-            model?: string;
-            choices?: Array<{ delta?: { content?: string } }>;
-          };
-          if (parsed.model) model = parsed.model;
-          const token = parsed.choices?.[0]?.delta?.content;
-          if (token) {
-            fullText += token;
-            yield token;
-          }
-        } catch { /* partial JSON — skip */ }
-      }
-    }
-
-    return {
-      content: fullText,
-      model,
-      provider: "mascarade",
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 // ---------------------------------------------------------------------------
-// Direct Ollama (fallback)
+// Direct Ollama (fallback + streaming)
 // ---------------------------------------------------------------------------
 
 async function chatViaOllama(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+  const { model } = parseModel(opts.model);
 
   try {
     const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: opts.model,
+        model,
         messages: messages.map(m => ({ role: m.role, content: m.content })),
         stream: false,
         options: {
@@ -314,7 +234,7 @@ async function chatViaOllama(messages: ChatMessage[], opts: ChatOptions): Promis
 
     return {
       content: data.message?.content || "",
-      model: opts.model || "unknown",
+      model,
       provider: "ollama",
       toolCalls: data.message?.tool_calls,
       thinking: data.message?.thinking,
@@ -330,13 +250,14 @@ async function* streamViaOllama(
 ): AsyncGenerator<string, ChatResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+  const { model } = parseModel(opts.model);
 
   try {
     const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: opts.model,
+        model,
         messages: messages.map(m => ({ role: m.role, content: m.content })),
         stream: true,
         options: {
@@ -379,18 +300,14 @@ async function* streamViaOllama(
     }
 
     const cleaned = fullText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
-    return {
-      content: cleaned,
-      model: opts.model || "unknown",
-      provider: "ollama",
-    };
+    return { content: cleaned, model, provider: "ollama" };
   } finally {
     clearTimeout(timeout);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Convenience: get available providers from mascarade
+// Convenience
 // ---------------------------------------------------------------------------
 
 export async function getProviders(): Promise<string[]> {

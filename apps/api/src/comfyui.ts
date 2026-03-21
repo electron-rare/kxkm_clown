@@ -23,6 +23,7 @@ export interface GenerateImageOptions {
   onProgress?: (p: ImageProgress) => void;
   aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
   seed?: number;
+  checkpoint?: string;
 }
 
 export async function generateImage(
@@ -32,11 +33,13 @@ export async function generateImage(
   const seed = opts?.seed ?? Math.floor(Math.random() * 2 ** 32);
   const startTime = Date.now();
 
-  // Smart model selection
+  // Smart model selection (overridable via opts.checkpoint)
   const models = await getComfyUIModels();
-  const selection = models.length > 0
-    ? selectModel(prompt, models)
-    : { checkpoint: process.env.COMFYUI_CHECKPOINT || "sdxl_lightning_4step.safetensors", lora: undefined, loraStrength: 0.7 };
+  const selection = opts?.checkpoint
+    ? { checkpoint: opts.checkpoint, lora: undefined, loraStrength: 0.7 }
+    : models.length > 0
+      ? selectModel(prompt, models)
+      : { checkpoint: process.env.COMFYUI_CHECKPOINT || "sdxl_lightning_4step.safetensors", lora: undefined, loraStrength: 0.7 };
 
   const checkpoint = selection.checkpoint;
   const ckLower = checkpoint.toLowerCase();

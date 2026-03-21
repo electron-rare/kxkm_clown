@@ -22,6 +22,8 @@ const ALL_COMMANDS = [
   "/export", "/reload", "/theme", "/time", "/fortune", "/dice", "/flip",
   "/translate", "/tr", "/debate", "/quote", "/weather", "/ascii",
   "/collab", "/persona-create", "/radio",
+  "/summarize", "/mood", "/haiku", "/timer",
+  "/sys", "/color", "/whoami",
 ];
 
 export interface ChatInputProps {
@@ -215,6 +217,9 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
           disabled={!ws.connected}
         />
       </label>
+      {input.length > 100 && (
+        <span className="chat-input-counter" style={{ color: "#666", fontSize: "9px", marginRight: "4px" }}>{input.length}/8192</span>
+      )}
       <button
         className="btn btn-primary"
         onClick={onSend}

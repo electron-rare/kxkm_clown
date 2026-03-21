@@ -69,6 +69,7 @@ export const INFO_COMMANDS = new Set([
   "/leaderboard",
   "/tts-voices",
   "/persona-voice",
+  "/sys",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -866,6 +867,14 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         } else {
           send(ws, { type: "system", text: `Nettoyage media:\n${results.join("\n")}` });
         }
+        return;
+      }
+
+      case "/sys": {
+        const mem = process.memoryUsage();
+        const up = Math.floor(process.uptime());
+        const h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
+        send(ws, { type: "system", text: `SYS: ${h}h${m}m | ${Math.round(mem.rss / 1e6)}MB | ${process.version} | ${getPersonas().length} personas | 141+ cmds` });
         return;
       }
 

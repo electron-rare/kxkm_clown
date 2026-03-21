@@ -150,11 +150,12 @@
 
 ### Phase B — Refactoring code
 
-- [ ] **P1** ws-chat.ts: extraction modules (1449 LOC → ~4×350 LOC)
-  - [ ] Extraire `ws-multimodal.ts` (vision, STT, TTS, PDF handlers)
-  - [ ] Extraire `ws-persona-router.ts` (pickResponders, inter-persona, memory)
-  - [ ] Extraire `ws-commands.ts` (slash commands, /web, /imagine)
-  - [ ] Garder `ws-chat.ts` core (WebSocket lifecycle, broadcast, rate limit)
+- [x] **P1** ws-chat.ts: extraction modules (523 LOC core + 5 modules extracted)
+  - [x] `ws-upload-handler.ts` (241 LOC)
+  - [x] `ws-conversation-router.ts` (583 LOC)
+  - [x] `ws-commands-chat.ts` (885 LOC)
+  - [x] `ws-commands-generate.ts` (1841 LOC)
+  - [x] `ws-commands-info.ts` (876 LOC)
 - [ ] **P1** app.ts: extraction routes (1292 LOC → routes/ + middleware/)
   - [ ] Extraire `routes/personas.ts`
   - [ ] Extraire `routes/node-engine.ts`

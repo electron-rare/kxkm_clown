@@ -26,6 +26,8 @@ export const CHAT_COMMANDS = new Set([
   "/speak",
   "/trivia",
   "/echo",
+  "/color",
+  "/whoami",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -58,7 +60,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         send(ws, {
           type: "system",
           text: [
-            "=== 3615 J'ai pete -- 108 commandes ===",
+            "=== 3615 J'ai pete -- 112 commandes ===",
             "",
             "CHAT",
             "  /nick <nom>        Changer de pseudo",
@@ -174,6 +176,10 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "  /weather [ville]    Meteo (wttr.in)",
             "  /ascii <texte>      Texte en gros blocs",
             "  /tr <texte>         Traduction FR↔EN auto",
+            "  /summarize          Resume de la conversation",
+            "  /mood               Analyse de l'ambiance du canal",
+            "  /haiku [sujet]      Haiku d'une persona aleatoire",
+            "  /timer <sec> [msg]  Timer avec notification",
             "",
             "  F1=Chat F2=Voice F3=Personas F4=Compose F5=Images",
             "  F6=Media F7=Admin F8=DAW AI F9=Instruments",
@@ -875,6 +881,23 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
 
         const { synthesizeTTS } = await import("./ws-multimodal.js");
         await synthesizeTTS(persona.nick, speakText, info.channel, broadcast);
+        return;
+      }
+
+      case "/color": {
+        // /color <hex> — cosmetic nick color confirmation (Lot 452)
+        const hex = parts[1]?.replace("#", "") || "";
+        if (!/^[0-9a-f]{6}$/i.test(hex)) {
+          send(ws, { type: "system", text: "Usage: /color <hex> (ex: /color ff6600)" });
+          return;
+        }
+        send(ws, { type: "system", text: `Couleur changee: #${hex}` });
+        return;
+      }
+
+      case "/whoami": {
+        // /whoami — show current session info (Lot 453)
+        send(ws, { type: "system", text: `Nick: ${info.nick}\nCanal: ${info.channel}\nRole: ${(info as any).role || "viewer"}\nSession: ${(info as any).sessionId || "N/A"}` });
         return;
       }
 

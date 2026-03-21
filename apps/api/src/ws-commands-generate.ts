@@ -95,6 +95,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           ...loras.map(m => `    ${m.name}`),
         ];
         if (models.length === 0) lines.push("  (ComfyUI non disponible ou aucun modele trouve)");
+        lines.push(`  --- Total: ${models.length} modeles (${checkpoints.length} checkpoints, ${loras.length} LoRAs) | /imagine --model <name> pour forcer`);
         send(ws, { type: "system", text: lines.join("\n") });
         return;
       }
@@ -1773,6 +1774,14 @@ async function handleImagineCommand({
     cleanPrompt = cleanPrompt.replace(/\s*--style\s+\w+/i, "").trim() + stylePresets[styleMatch[1]];
   }
 
+  // Parse --model to override smart model selection (Lot 450)
+  let userCheckpoint: string | undefined;
+  const modelMatch = cleanPrompt.match(/\s*--model\s+(\S+)/i);
+  if (modelMatch) {
+    userCheckpoint = modelMatch[1];
+    cleanPrompt = cleanPrompt.replace(/\s*--model\s+\S+/i, "").trim();
+  }
+
   // Parse --no for negative prompt (Lot 426)
   let negativePrompt = "ugly, blurry, low quality, deformed";
   const noMatch = cleanPrompt.match(/\s*--no\s+(.+)$/i);
@@ -1808,7 +1817,7 @@ async function handleImagineCommand({
       priority: "normal",
       label: `/imagine "${cleanPrompt.slice(0, 40)}"`,
       vramMB: VRAM_BUDGETS.comfyui,
-      execute: () => generateImage(cleanPrompt, { onProgress, aspectRatio: aspectRatio as any, seed: userSeed }),
+      execute: () => generateImage(cleanPrompt, { onProgress, aspectRatio: aspectRatio as any, seed: userSeed, checkpoint: userCheckpoint }),
     });
     if (!result) {
       broadcast(info.channel, { type: "system", text: "\u{1F3A8} Generation echouee \u2014 verifiez ComfyUI" });

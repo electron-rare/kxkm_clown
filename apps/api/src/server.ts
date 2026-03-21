@@ -42,6 +42,19 @@ async function main() {
 
 
 
+  // Local proxy for openDAW API calls (replaces api.opendaw.studio)
+  app.all("/api/opendaw/*", (req, res) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (req.path.includes("list")) return res.json([]);
+    if (req.path.includes("counter")) return res.json({ ok: true });
+    res.json({ ok: true });
+  });
+  app.all("/api/opendaw-logs/*", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.json({ ok: true });
+  });
+
   // openDAW files at root (for internal absolute imports from /daw)
   app.use((req, res, next) => {
     if (req.path.startsWith("/api/") || req.path === "/ws" || req.path.startsWith("/daw")) return next();

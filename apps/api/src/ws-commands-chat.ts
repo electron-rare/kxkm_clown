@@ -7,7 +7,7 @@ export const CHAT_COMMANDS = new Set([
   "/help", "/nick", "/who", "/clear", "/join", "/channels", "/topic",
   "/pin", "/dm", "/msg", "/whisper", "/w", "/search", "/react",
   "/mute", "/unmute", "/ban", "/unban", "/invite", "/personas",
-  "/web", "/responders", "/voice-test",
+  "/web", "/responders", "/voice-test", "/history-export",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -444,6 +444,46 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         // Import and call synthesizeTTS directly
         const { synthesizeTTS } = await import("./ws-multimodal.js");
         await synthesizeTTS(persona.nick, testText, info.channel, broadcast);
+        return;
+      }
+
+      case "/history-export": {
+        const store = getContextStore?.();
+        if (!store) { send(ws, { type: "system", text: "Context store non disponible." }); return; }
+        try {
+          const context = await store.getContext(info.channel, 500_000);
+          if (!context || context.length < 10) {
+            send(ws, { type: "system", text: "Historique vide." });
+            return;
+          }
+          // Format as markdown
+          const lines = context.split("\n");
+          const md = [
+            `# Historique ${info.channel}`,
+            `> Exporte le ${new Date().toLocaleString("fr-FR")}`,
+            `> ${lines.length} lignes`,
+            "",
+            "---",
+            "",
+            ...lines.map((l: string) => {
+              const match = l.match(/^(.+?):\s*(.+)$/);
+              if (match) return `**${match[1]}**: ${match[2]}`;
+              return l;
+            }),
+          ].join("\n");
+
+          // Save to file and send download link
+          const fsExport = await import("node:fs");
+          const pathExport = await import("node:path");
+          const filename = `history-${info.channel.replace(/[^a-z0-9]/gi, "_")}-${Date.now()}.md`;
+          const filepath = pathExport.join(process.cwd(), "data", "exports", filename);
+          fsExport.mkdirSync(pathExport.dirname(filepath), { recursive: true });
+          fsExport.writeFileSync(filepath, md);
+
+          send(ws, { type: "system", text: `Historique exporte: /api/v2/media/exports/${filename}\n${lines.length} lignes, ${(md.length / 1024).toFixed(1)} KB` });
+        } catch (err) {
+          send(ws, { type: "system", text: `Erreur export: ${err instanceof Error ? err.message : String(err)}` });
+        }
         return;
       }
 

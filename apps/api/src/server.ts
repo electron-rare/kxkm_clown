@@ -146,6 +146,9 @@ async function main() {
     next();
   });
 
+  // Serve exported files (history-export, etc.)
+  app.use("/api/v2/media/exports", express.static(path.join(process.cwd(), "data", "exports")));
+
   const webDistPath = process.env.WEB_DIST_PATH || path.resolve(process.cwd(), "apps/web/dist");
   app.use(express.static(webDistPath));
 

@@ -105,7 +105,7 @@ export interface ConversationRouterDeps {
 export type ConversationRouter = (channel: string, text: string, depth?: number) => Promise<void>;
 
 const DEFAULT_MAX_INTER_PERSONA_DEPTH = 3;
-const PERSONA_COOLDOWN_MS = 1000; // was 3000 — faster persona chains
+const PERSONA_COOLDOWN_MS = 0; // disabled — maxInterPersonaDepth protects against infinite loops
 const DEFAULT_INTER_PERSONA_DELAY_MS = 100; // was 500 — near-instant relay
 
 // Dynamic mood based on time of day (Lot 405)

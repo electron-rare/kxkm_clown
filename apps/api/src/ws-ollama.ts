@@ -406,15 +406,28 @@ export async function streamOllamaChatWithTools(
       // If no tool calls, use the response directly
       if (!toolCalls || toolCalls.length === 0) {
         let content = stripThinking(probeData.message?.content || "");
-    // If thinking was enabled and content is empty, extract from thinking field
-    if (!content && probeData.message?.thinking) {
-      content = probeData.message.thinking.replace(/^.*?(?:Answer|Response|Reponse|Output):\s*/si, "").trim();
-      // If still looks like thinking (starts with reasoning markers), take the last paragraph
-      if (content.startsWith("1.") || content.startsWith("*") || content.startsWith("Here")) {
-        const paragraphs = content.split("\n\n").filter(p => p.trim().length > 20);
-        content = paragraphs[paragraphs.length - 1] || content;
-      }
-    }
+        // qwen3.5 thinking mode: content may be empty with reasoning in thinking field
+        if (!content && probeData.message?.thinking) {
+          const thinking = probeData.message.thinking;
+          // Strip <think>...</think> tags first
+          const stripped = thinking.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+          if (stripped) {
+            content = stripped;
+          } else {
+            // Try to extract answer after markers (FR/EN)
+            const answerMatch = thinking.match(/(?:Answer|Response|Réponse|Output|Conclusion)\s*:\s*([\s\S]+)$/i);
+            if (answerMatch) {
+              content = answerMatch[1].trim();
+            } else {
+              // Last resort: take last substantial paragraph
+              const paragraphs = thinking.split("\n\n").filter(p => p.trim().length > 20);
+              content = paragraphs[paragraphs.length - 1]?.trim() || thinking.trim();
+            }
+          }
+          if (content) {
+            logger.debug("[ollama] extracted content from thinking field (tool probe)");
+          }
+        }
         if (content) {
           onChunk(content);
         }

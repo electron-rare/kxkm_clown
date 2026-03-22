@@ -202,31 +202,28 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Pro
 }
 
 // ---------------------------------------------------------------------------
-// Streaming: direct Ollama (mascarade /send is non-streaming)
-// When mascarade adds streaming support, we can route through it.
-// For now: non-streaming probe via mascarade, streaming via Ollama.
+// Streaming: mascarade SSE for cloud providers, direct Ollama for local
 // ---------------------------------------------------------------------------
 
 export async function* streamChat(
   messages: ChatMessage[],
   opts: ChatOptions = {},
 ): AsyncGenerator<string, ChatResponse> {
-  // Streaming = ALWAYS direct Ollama for minimum latency.
-  // mascarade /v1/chat/completions is non-streaming → would add 2-3s overhead.
-  // Only use mascarade for non-streaming calls (tool probes, /agent, /orchestrate).
-  // When mascarade adds SSE streaming, we can route through it.
-  const { model } = parseModel(opts.model);
   const isCloudProvider = opts.model && /^(claude|openai|mistral-api|google|bedrock):/.test(opts.model);
 
-  // Exception: if user explicitly requests a cloud provider, use mascarade (non-streaming)
+  // Cloud providers → stream via mascarade SSE (real streaming, not dump-all)
   if (isCloudProvider && shouldTryMascarade()) {
     try {
-      const result = await chatViaMascarade(messages, opts);
-      if (result.content) { yield result.content; return result; }
-    } catch { /* fall through to Ollama */ }
+      return yield* streamViaMascarade(messages, opts);
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, "[llm] mascarade stream failed, falling back to Ollama");
+      mascaradeAvailable = false;
+      mascaradeLastCheck = Date.now();
+      mascaradeFailCount++;
+    }
   }
 
-  // Stream via Ollama (fastest path for real-time chat)
+  // Local models → stream via Ollama directly (fastest path)
   return yield* streamViaOllama(messages, opts);
 }
 
@@ -258,11 +255,29 @@ async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Pro
 
     const data = await resp.json() as {
       model?: string;
-      choices?: Array<{ message?: { content?: string } }>;
+      choices?: Array<{ message?: { content?: string; thinking?: string } }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
 
     const choice = data.choices?.[0];
+    // If content is empty but thinking field has content (qwen3.5 thinking mode),
+    // extract the actual response from thinking
+    let content = choice?.message?.content || "";
+    if (!content && choice?.message?.thinking) {
+      const thinking = choice.message.thinking;
+      // Strip <think>...</think> tags if present
+      const stripped = thinking.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+      if (stripped) {
+        content = stripped;
+      } else {
+        // Thinking field contains raw reasoning — extract answer after markers
+        const answerMatch = thinking.match(/(?:Answer|Response|Réponse|Output|Conclusion)\s*:\s*([\s\S]+)$/i);
+        content = answerMatch ? answerMatch[1].trim() : thinking.split("\n\n").pop()?.trim() || "";
+      }
+      if (content) {
+        logger.debug("[llm] mascarade: extracted content from thinking field");
+      }
+    }
 
     logger.debug({
       model: data.model || modelStr,
@@ -270,7 +285,7 @@ async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Pro
     }, "[llm] mascarade /v1/chat/completions response");
 
     return {
-      content: choice?.message?.content || "",
+      content,
       model: data.model || modelStr,
       provider: "mascarade",
       usage: data.usage ? {
@@ -278,6 +293,92 @@ async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Pro
         completionTokens: data.usage.completion_tokens || 0,
         totalTokens: data.usage.total_tokens || 0,
       } : undefined,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mascarade SSE streaming (cloud providers: Claude, OpenAI, Mistral, Google)
+// ---------------------------------------------------------------------------
+
+async function* streamViaMascarade(
+  messages: ChatMessage[],
+  opts: ChatOptions,
+): AsyncGenerator<string, ChatResponse> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+  const { provider, model } = parseModel(opts.model);
+  const modelStr = provider ? `${provider}:${model}` : model;
+
+  try {
+    const resp = await fetch(`${MASCARADE_URL}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(MASCARADE_API_KEY ? { Authorization: `Bearer ${MASCARADE_API_KEY}` } : {}),
+      },
+      body: JSON.stringify({
+        model: modelStr,
+        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        temperature: opts.temperature ?? 0.7,
+        max_tokens: opts.maxTokens || 800,
+        stream: true,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) throw new Error(`mascarade stream ${resp.status}: ${resp.statusText}`);
+
+    // Mark mascarade as available on successful connection
+    mascaradeAvailable = true;
+    mascaradeFailCount = 0;
+    mascaradeLastCheck = Date.now();
+
+    const reader = resp.body?.getReader();
+    if (!reader) throw new Error("No response body from mascarade");
+
+    const decoder = new TextDecoder();
+    let fullText = "";
+    let respModel = modelStr;
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+        const payload = trimmed.slice(6); // Remove "data: " prefix
+        if (payload === "[DONE]") continue;
+
+        try {
+          const chunk = JSON.parse(payload) as {
+            model?: string;
+            choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+          };
+          if (chunk.model) respModel = chunk.model;
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) {
+            fullText += content;
+            yield content;
+          }
+        } catch { /* partial JSON, skip */ }
+      }
+    }
+
+    logger.debug({ model: respModel, chars: fullText.length }, "[llm] mascarade SSE stream complete");
+
+    return {
+      content: fullText,
+      model: respModel,
+      provider: "mascarade",
     };
   } finally {
     clearTimeout(timeout);

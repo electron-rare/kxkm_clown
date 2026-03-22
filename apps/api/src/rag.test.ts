@@ -64,7 +64,7 @@ describe("LocalRAG", () => {
     assert.equal(body.input, "hello");
   });
 
-  it("embed() uses default model nomic-embed-text", async () => {
+  it("embed() uses default model bge-m3", async () => {
     fetchMock.mock.mockImplementation(() =>
       Promise.resolve(ollamaEmbedResponse([1])),
     );
@@ -73,7 +73,7 @@ describe("LocalRAG", () => {
     await rag.embed("test");
 
     const body = JSON.parse((fetchMock.mock.calls[0].arguments[1] as any).body);
-    assert.equal(body.model, "nomic-embed-text");
+    assert.equal(body.model, "bge-m3");
   });
 
   it("embed() throws on non-ok response", async () => {

@@ -10,7 +10,7 @@ import { logChatMessage } from "./ws-chat-logger.js";
 import { send, generateNick, checkRateLimit, MAX_WS_MESSAGE_BYTES, MAX_TEXT_LENGTH } from "./ws-chat-helpers.js";
 import { replayHistory } from "./ws-chat-history.js";
 import { wsMessageSchema } from "./schemas.js";
-import { recordLatency } from "./perf.js";
+import { recordLatency, incrementCounter, setWsConnections } from "./perf.js";
 
 import type {
   ChatPersona,
@@ -383,6 +383,8 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     }
 
     clients.set(ws, info);
+    incrementCounter("ws_connections");
+    setWsConnections(clients.size);
 
     // Initialize user stats if first time
     if (!userStats.has(nick)) {
@@ -519,8 +521,10 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         }
 
         if (message.type === "command") {
+          incrementCounter("ws_commands");
           await handleCommand({ ws, info, text });
         } else if (message.type === "message") {
+          incrementCounter("ws_messages");
           await handleChatMessage(ws, info, text);
         }
         recordLatency("ws_message", performance.now() - wsStart);
@@ -550,6 +554,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         text: `${info.nick} a quitte ${info.channel}`,
       });
       clients.delete(ws);
+      setWsConnections(clients.size);
       broadcastUserlist(info.channel);
     });
   });

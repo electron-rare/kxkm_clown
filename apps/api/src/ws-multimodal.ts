@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import type { OutboundMessage } from "./chat-types.js";
 import logger from "./logger.js";
 import { trackError } from "./error-tracker.js";
+import { incrementCounter } from "./perf.js";
 import { resolvePreferredPythonBin, resolveVoiceSamplePath } from "./voice-samples.js";
 import { getPersonaVoice } from "./persona-voices.js";
 
@@ -134,6 +135,7 @@ export async function synthesizeTTS(
   broadcastFn: (channel: string, msg: OutboundMessage) => void,
 ): Promise<void> {
   if (!text || text.length < 10) return;
+  incrementCounter("tts_requests");
 
   const truncated = cleanTextForTTS(text).slice(0, 1000);
   if (truncated.length < 10) return; // nothing left after cleaning

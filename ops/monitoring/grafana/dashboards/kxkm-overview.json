@@ -1,0 +1,120 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Active WebSocket Connections",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [{ "expr": "kxkm_ws_connections", "legendFormat": "{{instance}}" }],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 50 }] } }
+      }
+    },
+    {
+      "title": "Chat Messages / min",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [{ "expr": "rate(kxkm_ws_messages_total[5m]) * 60", "legendFormat": "msg/min" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } } }
+    },
+    {
+      "title": "LLM Calls Total",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [
+        { "expr": "kxkm_llm_ollama_calls_total", "legendFormat": "Ollama" },
+        { "expr": "kxkm_llm_mascarade_calls_total", "legendFormat": "mascarade" },
+        { "expr": "kxkm_llm_mascarade_stream_total", "legendFormat": "mascarade SSE" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } } }
+    },
+    {
+      "title": "Memory (RSS)",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [{ "expr": "kxkm_memory_rss_bytes / 1024 / 1024", "legendFormat": "RSS MB" }],
+      "fieldConfig": { "defaults": { "unit": "decmbytes", "min": 0, "max": 2048, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 512 }, { "color": "red", "value": 1024 }] } } }
+    },
+    {
+      "title": "TTS Requests",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [{ "expr": "kxkm_tts_requests_total", "legendFormat": "TTS" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "purple", "value": null }] } } }
+    },
+    {
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "targets": [{ "expr": "kxkm_uptime_seconds / 3600", "legendFormat": "hours" }],
+      "fieldConfig": { "defaults": { "unit": "h", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } } }
+    },
+    {
+      "title": "HTTP Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "kxkm_http_duration_ms{quantile=\"0.5\"}", "legendFormat": "p50" },
+        { "expr": "kxkm_http_duration_ms{quantile=\"0.95\"}", "legendFormat": "p95" },
+        { "expr": "kxkm_http_duration_ms{quantile=\"0.99\"}", "legendFormat": "p99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "fillOpacity": 10, "pointSize": 3 } } }
+    },
+    {
+      "title": "Persona Response Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "kxkm_persona_response_duration_ms{quantile=\"0.5\"}", "legendFormat": "p50" },
+        { "expr": "kxkm_persona_response_duration_ms{quantile=\"0.95\"}", "legendFormat": "p95" },
+        { "expr": "kxkm_persona_response_duration_ms{quantile=\"0.99\"}", "legendFormat": "p99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "fillOpacity": 10, "pointSize": 3 } } }
+    },
+    {
+      "title": "WebSocket Message Latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "kxkm_ws_message_duration_ms{quantile=\"0.5\"}", "legendFormat": "p50" },
+        { "expr": "kxkm_ws_message_duration_ms{quantile=\"0.95\"}", "legendFormat": "p95" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "fillOpacity": 10 } } }
+    },
+    {
+      "title": "Heap Memory",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "expr": "kxkm_memory_heap_used_bytes / 1024 / 1024", "legendFormat": "Heap Used MB" },
+        { "expr": "kxkm_memory_rss_bytes / 1024 / 1024", "legendFormat": "RSS MB" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "decmbytes", "custom": { "drawStyle": "line", "fillOpacity": 15 } } }
+    },
+    {
+      "title": "Cumulative Counters",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "targets": [
+        { "expr": "rate(kxkm_ws_messages_total[5m]) * 60", "legendFormat": "Chat msg/min" },
+        { "expr": "rate(kxkm_ws_commands_total[5m]) * 60", "legendFormat": "Commands/min" },
+        { "expr": "rate(kxkm_llm_ollama_calls_total[5m]) * 60", "legendFormat": "LLM Ollama/min" },
+        { "expr": "rate(kxkm_llm_mascarade_calls_total[5m]) * 60", "legendFormat": "LLM mascarade/min" },
+        { "expr": "rate(kxkm_tts_requests_total[5m]) * 60", "legendFormat": "TTS/min" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 50 } } }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["kxkm", "clown", "3615"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "3615 KXKM — Overview",
+  "uid": "kxkm-overview",
+  "version": 1
+}

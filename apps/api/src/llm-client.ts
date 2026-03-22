@@ -9,6 +9,7 @@
  */
 
 import logger from "./logger.js";
+import { incrementCounter } from "./perf.js";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -279,6 +280,9 @@ async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Pro
       }
     }
 
+    incrementCounter("llm_mascarade_calls");
+    if (data.usage?.total_tokens) incrementCounter("llm_tokens", data.usage.total_tokens);
+
     logger.debug({
       model: data.model || modelStr,
       usage: data.usage,
@@ -373,6 +377,7 @@ async function* streamViaMascarade(
       }
     }
 
+    incrementCounter("llm_mascarade_stream");
     logger.debug({ model: respModel, chars: fullText.length }, "[llm] mascarade SSE stream complete");
 
     return {
@@ -415,6 +420,7 @@ async function chatViaOllama(messages: ChatMessage[], opts: ChatOptions): Promis
     });
 
     if (!resp.ok) throw new Error(`Ollama ${resp.status}: ${resp.statusText}`);
+    incrementCounter("llm_ollama_calls");
 
     const data = await resp.json() as {
       message?: { content?: string; thinking?: string; tool_calls?: ChatResponse["toolCalls"] };

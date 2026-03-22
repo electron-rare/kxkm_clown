@@ -1,4 +1,5 @@
 import logger from "./logger.js";
+import { getErrorCounts } from "./error-tracker.js";
 
 // ---------------------------------------------------------------------------
 // Latency metrics collector with percentile support (p50, p95, p99)
@@ -57,10 +58,30 @@ export function resetMetrics(): void {
   metrics.clear();
 }
 
+// ---------------------------------------------------------------------------
+// Business counters (LLM, TTS, WS, image gen)
+// ---------------------------------------------------------------------------
+
+const counters = new Map<string, number>();
+
+export function incrementCounter(name: string, delta = 1): void {
+  counters.set(name, (counters.get(name) || 0) + delta);
+}
+
+export function getCounter(name: string): number {
+  return counters.get(name) || 0;
+}
+
+// Active WebSocket connections (gauge — can go up and down)
+let wsActiveConnections = 0;
+export function setWsConnections(n: number): void { wsActiveConnections = n; }
+
 /** Prometheus-compatible text exposition format */
 export function prometheusMetrics(): string {
   const lines: string[] = [];
   const mem = process.memoryUsage();
+
+  // Process metrics
   lines.push("# HELP kxkm_memory_rss_bytes Resident set size");
   lines.push("# TYPE kxkm_memory_rss_bytes gauge");
   lines.push(`kxkm_memory_rss_bytes ${mem.rss}`);
@@ -70,6 +91,11 @@ export function prometheusMetrics(): string {
   lines.push("# HELP kxkm_uptime_seconds Process uptime");
   lines.push("# TYPE kxkm_uptime_seconds gauge");
   lines.push(`kxkm_uptime_seconds ${Math.floor(process.uptime())}`);
+  lines.push("# HELP kxkm_ws_connections Active WebSocket connections");
+  lines.push("# TYPE kxkm_ws_connections gauge");
+  lines.push(`kxkm_ws_connections ${wsActiveConnections}`);
+
+  // Latency metrics (summaries)
   for (const [label, m] of metrics) {
     const safe = label.replace(/[^a-zA-Z0-9_]/g, "_");
     lines.push(`# HELP kxkm_${safe}_total Total requests`);
@@ -83,5 +109,25 @@ export function prometheusMetrics(): string {
     lines.push(`kxkm_${safe}_duration_ms{quantile="0.99"} ${Math.round(percentile(sorted, 99))}`);
     lines.push(`kxkm_${safe}_duration_ms_max ${Math.round(m.maxMs)}`);
   }
+
+  // Business counters
+  for (const [name, value] of counters) {
+    const safe = name.replace(/[^a-zA-Z0-9_]/g, "_");
+    lines.push(`# TYPE kxkm_${safe}_total counter`);
+    lines.push(`kxkm_${safe}_total ${value}`);
+  }
+
+  // Error counters from error-tracker
+  const errorCounts = getErrorCounts();
+  const totalErrors = Object.values(errorCounts).reduce((a, b) => a + b, 0);
+  if (totalErrors > 0) {
+    lines.push("# HELP kxkm_errors_total Error count by label");
+    lines.push("# TYPE kxkm_errors_total counter");
+    for (const [label, count] of Object.entries(errorCounts)) {
+      const safe = label.replace(/[^a-zA-Z0-9_]/g, "_");
+      lines.push(`kxkm_errors_total{label="${safe}"} ${count}`);
+    }
+  }
+
   return lines.join("\n") + "\n";
 }

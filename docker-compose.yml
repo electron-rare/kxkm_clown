@@ -343,7 +343,49 @@ services:
       retries: 3
       start_period: 30s
 
+  # -------------------------------------------------------------------------
+  # Prometheus — metrics collection
+  # Usage: docker compose --profile monitoring up -d
+  # -------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    profiles: [monitoring]
+    extra_hosts: *extra-hosts
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./ops/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+
+  # -------------------------------------------------------------------------
+  # Grafana — dashboards & visualization
+  # Usage: docker compose --profile monitoring up -d
+  # Default login: admin / admin
+  # -------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    profiles: [monitoring]
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-kxkm}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./ops/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
 volumes:
   app-data:
   pg-data:
   ollama-data:
+  prometheus-data:
+  grafana-data:

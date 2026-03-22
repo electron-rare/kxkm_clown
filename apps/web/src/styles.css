@@ -3921,13 +3921,38 @@ code {
 }
 .img-swap-btn:hover { color: #ffb300; border-color: #ffb300; }
 
-/* --- Webcam capture --- */
-.img-webcam { margin: 4px 0; }
-.img-webcam-btn { background: none; border: 1px dashed rgba(255,255,255,0.2); border-radius: 4px; padding: 6px 12px; color: #aaa; cursor: pointer; font-family: var(--font-mono); font-size: 11px; width: 100%; }
-.img-webcam-btn:hover { border-color: #ffb300; color: #ffb300; }
-.img-webcam-preview { position: relative; }
-.img-webcam-video { width: 100%; max-width: 256px; border-radius: 4px; border: 1px solid rgba(255,179,0,0.3); }
-.img-webcam-capture { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); padding: 4px 16px; background: rgba(0,0,0,0.7); border: 1px solid #ffb300; color: #ffb300; border-radius: 3px; cursor: pointer; font-family: var(--font-mono); font-size: 12px; }
+/* --- Unified Live Webcam --- */
+.webcam-live { margin-top: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; }
+.webcam-live-active { border-color: rgba(244,67,54,0.3); }
+.webcam-live-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: rgba(0,0,0,0.3); }
+.webcam-live-mode { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; color: #aaa; }
+.webcam-live-active .webcam-live-mode { color: #f44; }
+.webcam-live-actions { display: flex; align-items: center; gap: 6px; }
+.webcam-fps { font-size: 10px; color: #4caf50; font-family: var(--font-mono); }
+.webcam-processing { animation: spin-webcam 1s linear infinite; font-size: 12px; }
+@keyframes spin-webcam { to { transform: rotate(360deg); } }
+.webcam-btn-toggle, .webcam-btn-flip, .webcam-btn-capture {
+  padding: 3px 10px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px;
+  cursor: pointer; border: 1px solid; background: transparent; letter-spacing: 0.5px;
+}
+.webcam-btn-start { color: #4caf50; border-color: #4caf50; }
+.webcam-btn-start:hover { background: rgba(76,175,80,0.15); }
+.webcam-btn-stop { color: #f44; border-color: #f44; }
+.webcam-btn-stop:hover { background: rgba(244,67,54,0.15); }
+.webcam-btn-flip { color: #888; border-color: rgba(255,255,255,0.15); font-size: 14px; padding: 2px 6px; }
+.webcam-btn-capture { display: block; margin: 6px auto 0; color: #ffb300; border-color: #ffb300; }
+.webcam-live-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 4px; padding: 8px; align-items: center; }
+.webcam-live-panel { text-align: center; }
+.webcam-live-label { font-size: 9px; color: #666; letter-spacing: 1px; margin-bottom: 4px; font-family: var(--font-mono); }
+.webcam-live-video, .webcam-live-result { width: 100%; max-width: 280px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); }
+.webcam-live-result { border-color: rgba(255,179,0,0.3); transition: opacity 0.3s; }
+.webcam-live-arrow { text-align: center; font-size: 20px; color: #555; }
+.webcam-frame-count { display: block; font-size: 9px; color: #666; font-family: var(--font-mono); }
+.webcam-live-placeholder { width: 100%; max-width: 280px; aspect-ratio: 1; border: 1px dashed rgba(255,255,255,0.1); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #444; font-size: 11px; margin: 0 auto; }
+@media (max-width: 700px) {
+  .webcam-live-grid { grid-template-columns: 1fr; }
+  .webcam-live-arrow { transform: rotate(90deg); padding: 4px 0; }
+}
 
 /* --- AI auto-prompt --- */
 .img-auto-prompt { background: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; padding: 3px 10px; color: #888; cursor: pointer; font-family: var(--font-mono); font-size: 11px; }
@@ -4445,17 +4470,4 @@ code {
 .user-guide-list li::before { content: "» "; color: var(--ink, #39ff14); }
 
 /* Live Face Swap Stream */
-.live-swap { margin-top: 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; background: rgba(0,0,0,0.2); }
-.live-swap-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.live-swap-title { font-family: var(--font-mono, "VT323", monospace); font-size: 12px; color: #f44; letter-spacing: 2px; }
-.live-swap-toggle { padding: 4px 12px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px; cursor: pointer; border: 1px solid; background: transparent; letter-spacing: 1px; }
-.live-swap-toggle:not(.live-swap-active) { color: #4caf50; border-color: #4caf50; }
-.live-swap-toggle:not(.live-swap-active):hover { background: rgba(76,175,80,0.15); }
-.live-swap-active { color: #f44; border-color: #f44; animation: pulse-warn 1s infinite; }
-.live-swap-preview { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
-.live-swap-col { text-align: center; }
-.live-swap-video, .live-swap-result { width: 100%; max-width: 256px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); }
-.live-swap-result { border-color: rgba(255,179,0,0.3); }
-.live-swap-arrow { font-size: 24px; color: #666; }
-.live-swap-placeholder { width: 100%; max-width: 256px; aspect-ratio: 1; border: 1px dashed rgba(255,255,255,0.15); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; margin: 0 auto; }
-@media (max-width: 600px) { .live-swap-preview { grid-template-columns: 1fr; } .live-swap-arrow { transform: rotate(90deg); } }
+/* old .live-swap-* styles removed — replaced by .webcam-live-* above */

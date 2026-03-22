@@ -88,47 +88,221 @@ const TXT2IMG_PRESETS: { label: string; suffix: string }[] = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  WebcamCapture — capture face photo from webcam                     */
+/*  LiveWebcam — unified webcam for capture / faceswap / img2img / style */
 /* ------------------------------------------------------------------ */
 
-function WebcamCapture({ onCapture }: { onCapture: (base64: string) => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [streaming, setStreaming] = useState(false);
+interface LiveWebcamProps {
+  mode: "capture" | "faceswap" | "img2img" | "style";
+  onCapture?: (base64: string) => void;
+  target?: string;
+  prompt?: string;
+  strength?: number;
+  style?: string;
+  onResult?: (r: ImageResult) => void;
+}
 
-  const startCamera = async () => {
+function LiveWebcam({ mode, onCapture, target, prompt, strength, style: styleProp, onResult }: LiveWebcamProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [active, setActive] = useState(false);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+  const [lastFrame, setLastFrame] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [fps, setFps] = useState(0);
+  const [frameCount, setFrameCount] = useState(0);
+  const runningRef = useRef(false);
+  const streamRef = useRef<MediaStream | null>(null);
+  const facingModeRef = useRef(facingMode);
+  facingModeRef.current = facingMode;
+  const propsRef = useRef({ prompt, strength, style: styleProp, target });
+  propsRef.current = { prompt, strength, style: styleProp, target };
+
+  const startCamera = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 512, height: 512 } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facingModeRef.current, width: { ideal: 512 }, height: { ideal: 512 } },
+      });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setStreaming(true);
+        streamRef.current = stream;
+        setActive(true);
+        if (mode !== "capture") {
+          runningRef.current = true;
+          runLoop();
+        }
       }
-    } catch { alert("Camera non disponible"); }
-  };
+    } catch { alert("Camera non disponible ou bloquee"); }
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const capture = () => {
-    if (!videoRef.current) return;
-    const canvas = document.createElement("canvas");
+  const stopCamera = useCallback(() => {
+    runningRef.current = false;
+    setActive(false);
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  }, []);
+
+  const flipCamera = useCallback(() => {
+    const newFacing = facingModeRef.current === "user" ? "environment" : "user";
+    setFacingMode(newFacing);
+    facingModeRef.current = newFacing;
+    if (streamRef.current) {
+      runningRef.current = false;
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      setTimeout(() => startCamera(), 100);
+    }
+  }, [startCamera]);
+
+  const captureFrame = useCallback((): string | null => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video || video.readyState < 2) return null;
     canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(videoRef.current, 0, 0, 512, 512);
-    const base64 = canvas.toDataURL("image/png").split(",")[1];
-    onCapture(base64);
-    // Stop stream
-    const stream = videoRef.current.srcObject as MediaStream;
-    stream?.getTracks().forEach(t => t.stop());
-    setStreaming(false);
+    if (facingModeRef.current === "user") {
+      ctx.translate(512, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0, 512, 512);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    return canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+  }, []);
+
+  const handleCapture = useCallback(() => {
+    const b64 = captureFrame();
+    if (b64) {
+      setLastFrame(`data:image/jpeg;base64,${b64}`);
+      onCapture?.(b64);
+      // Flash effect
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext("2d")!;
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.fillRect(0, 0, 512, 512);
+      }
+    }
+  }, [captureFrame, onCapture]);
+
+  const runLoop = async () => {
+    let localFrameCount = 0;
+    while (runningRef.current) {
+      const t0 = Date.now();
+      setProcessing(true);
+      try {
+        const b64 = captureFrame();
+        if (!b64) { await new Promise(r => setTimeout(r, 300)); continue; }
+        setLastFrame(`data:image/jpeg;base64,${b64}`);
+
+        let endpoint = "";
+        let body: Record<string, unknown> = {};
+        const p = propsRef.current;
+
+        if (mode === "faceswap" && p.target) {
+          endpoint = "/api/v2/comfyui/faceswap";
+          body = { source: b64, target: p.target };
+        } else if (mode === "img2img" && p.prompt) {
+          endpoint = "/api/v2/comfyui/img2img";
+          body = { image: b64, prompt: p.prompt, strength: p.strength || 0.5 };
+        } else if (mode === "style" && p.style) {
+          endpoint = "/api/v2/comfyui/style";
+          body = { image: b64, style: p.style, prompt: p.prompt || "", strength: p.strength || 0.6 };
+        }
+
+        if (endpoint) {
+          const resp = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const json = await resp.json();
+          if (json.ok && json.data?.imageBase64) {
+            const resultSrc = `data:image/png;base64,${json.data.imageBase64}`;
+            setLastResult(resultSrc);
+            localFrameCount++;
+            setFrameCount(localFrameCount);
+            setFps(Math.round(1000 / (Date.now() - t0)));
+            if (onResult && localFrameCount % 5 === 0) {
+              onResult({
+                prompt: `[Live ${mode}] ${p.prompt || "webcam"}`,
+                imageData: json.data.imageBase64,
+                imageMime: "image/png",
+                mode: `live-${mode}`,
+              });
+            }
+          }
+        }
+      } catch {
+        await new Promise(r => setTimeout(r, 1000));
+      } finally {
+        setProcessing(false);
+      }
+    }
   };
 
+  useEffect(() => () => { runningRef.current = false; streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
+
+  const isLiveMode = mode !== "capture";
+
   return (
-    <div className="img-webcam">
-      {!streaming ? (
-        <button type="button" className="img-webcam-btn" onClick={startCamera}>📷 WEBCAM</button>
-      ) : (
-        <div className="img-webcam-preview">
-          <video ref={videoRef} autoPlay playsInline muted className="img-webcam-video" />
-          <button type="button" className="img-webcam-capture" onClick={capture}>📸 CAPTURER</button>
+    <div className={`webcam-live ${active ? "webcam-live-active" : ""}`}>
+      <div className="webcam-live-toolbar">
+        <span className="webcam-live-mode">{mode === "capture" ? "\uD83D\uDCF7 CAPTURE" : `\uD83D\uDD34 LIVE ${mode.toUpperCase()}`}</span>
+        <div className="webcam-live-actions">
+          {active && <button type="button" className="webcam-btn-flip" onClick={flipCamera} title="Retourner camera">{"\uD83D\uDD04"}</button>}
+          {active && fps > 0 && <span className="webcam-fps">{fps} fps</span>}
+          {active && processing && <span className="webcam-processing">{"\u27F3"}</span>}
+          <button
+            type="button"
+            className={`webcam-btn-toggle ${active ? "webcam-btn-stop" : "webcam-btn-start"}`}
+            onClick={active ? stopCamera : startCamera}
+          >
+            {active ? "\u23F9 STOP" : "\u25B6 START"}
+          </button>
+        </div>
+      </div>
+
+      {active && (
+        <div className="webcam-live-grid">
+          <div className="webcam-live-panel">
+            <div className="webcam-live-label">WEBCAM</div>
+            <video
+              ref={videoRef}
+              autoPlay playsInline muted
+              className="webcam-live-video"
+              style={facingMode === "user" ? { transform: "scaleX(-1)" } : undefined}
+            />
+            {mode === "capture" && (
+              <button type="button" className="webcam-btn-capture" onClick={handleCapture}>{"\uD83D\uDCF8"} CAPTURER</button>
+            )}
+          </div>
+
+          {isLiveMode && (
+            <>
+              <div className="webcam-live-arrow">
+                <span>{processing ? "\u27F3" : "\u2192"}</span>
+                {frameCount > 0 && <span className="webcam-frame-count">#{frameCount}</span>}
+              </div>
+              <div className="webcam-live-panel">
+                <div className="webcam-live-label">RESULTAT</div>
+                {lastResult ? (
+                  <img src={lastResult} alt="Live result" className="webcam-live-result" />
+                ) : (
+                  <div className="webcam-live-placeholder">En attente...</div>
+                )}
+              </div>
+            </>
+          )}
+
+          {mode === "capture" && lastFrame && (
+            <div className="webcam-live-panel">
+              <div className="webcam-live-label">CAPTURE</div>
+              <img src={lastFrame} alt="Captured" className="webcam-live-result" />
+            </div>
+          )}
         </div>
       )}
+
+      <canvas ref={canvasRef} style={{ display: "none" }} />
     </div>
   );
 }
@@ -399,95 +573,11 @@ function Img2ImgForm({
       </button>
 
       {/* LIVE IMG2IMG */}
-      {prompt.trim() && <LiveImg2Img prompt={prompt} strength={strength} onResult={onResult} />}
+      {prompt.trim() && <LiveWebcam mode="img2img" prompt={prompt} strength={strength} onResult={onResult} />}
     </form>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  LiveImg2Img — continuous webcam → img2img stream                    */
-/* ------------------------------------------------------------------ */
-
-function LiveImg2Img({ prompt, strength, onResult }: { prompt: string; strength: number; onResult: (r: ImageResult) => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [running, setRunning] = useState(false);
-  const [lastResult, setLastResult] = useState<string | null>(null);
-  const [fps, setFps] = useState(0);
-  const runningRef = useRef(false);
-  const streamRef = useRef<MediaStream | null>(null);
-  const promptRef = useRef(prompt);
-  const strengthRef = useRef(strength);
-  promptRef.current = prompt;
-  strengthRef.current = strength;
-
-  const start = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 512, height: 512 } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setRunning(true);
-        runningRef.current = true;
-        loopFn();
-      }
-    } catch { alert("Camera non disponible"); }
-  };
-
-  const stop = () => {
-    runningRef.current = false;
-    setRunning(false);
-    streamRef.current?.getTracks().forEach(t => t.stop());
-  };
-
-  const loopFn = async () => {
-    while (runningRef.current) {
-      const t0 = Date.now();
-      try {
-        const canvas = canvasRef.current;
-        const video = videoRef.current;
-        if (!canvas || !video || video.readyState < 2) { await new Promise(r => setTimeout(r, 500)); continue; }
-        canvas.width = 512; canvas.height = 512;
-        canvas.getContext("2d")!.drawImage(video, 0, 0, 512, 512);
-        const imgB64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
-        const resp = await fetch("/api/v2/comfyui/img2img", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: imgB64, prompt: promptRef.current, strength: strengthRef.current }),
-        });
-        const json = await resp.json();
-        if (json.ok && json.data?.imageBase64) {
-          setLastResult(`data:image/png;base64,${json.data.imageBase64}`);
-          setFps(Math.round(1000 / (Date.now() - t0)));
-        }
-      } catch { await new Promise(r => setTimeout(r, 2000)); }
-    }
-  };
-
-  useEffect(() => () => { runningRef.current = false; streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
-
-  return (
-    <div className="live-swap">
-      <div className="live-swap-header">
-        <span className="live-swap-title">LIVE IMG2IMG</span>
-        <button type="button" className={`live-swap-toggle ${running ? "live-swap-active" : ""}`} onClick={running ? stop : start}>
-          {running ? `⏹ STOP (${fps} fps)` : "▶ START LIVE"}
-        </button>
-      </div>
-      <div className="live-swap-preview">
-        <div className="live-swap-col">
-          <video ref={videoRef} autoPlay playsInline muted className="live-swap-video" style={{ display: running ? "block" : "none" }} />
-          <canvas ref={canvasRef} style={{ display: "none" }} />
-          {!running && <div className="live-swap-placeholder">Webcam</div>}
-        </div>
-        <div className="live-swap-arrow">{"\u2192"}</div>
-        <div className="live-swap-col">
-          {lastResult ? <img src={lastResult} alt="Live img2img" className="live-swap-result" /> : <div className="live-swap-placeholder">Resultat</div>}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  StyleForm                                                          */
@@ -584,6 +674,9 @@ function StyleForm({
       >
         {busy ? "GENERATION..." : "GENERER"}
       </button>
+
+      {/* LIVE STYLE TRANSFER */}
+      {style && <LiveWebcam mode="style" style={style} prompt={prompt} strength={strength} onResult={onResult} />}
     </form>
   );
 }
@@ -655,12 +748,12 @@ function FaceSwapForm({
       <div className="img-upload-pair">
         <div>
           <ImageUpload label="Source face" value={source} onChange={setSource} />
-          <WebcamCapture onCapture={(b64) => { setSource(b64); if (target) setLiveMode(true); }} />
+          <LiveWebcam mode="capture" onCapture={(b64) => { setSource(b64); if (target) setLiveMode(true); }} />
         </div>
         <button type="button" className="img-swap-btn" onClick={swapImages} title="Echanger">{"\u21C4"}</button>
         <div>
           <ImageUpload label="Target image" value={target} onChange={setTarget} />
-          <WebcamCapture onCapture={(b64) => { setTarget(b64); if (source) setLiveMode(true); }} />
+          <LiveWebcam mode="capture" onCapture={(b64) => { setTarget(b64); if (source) setLiveMode(true); }} />
         </div>
       </div>
       {error && <div className="img-error">{error}</div>}
@@ -673,115 +766,11 @@ function FaceSwapForm({
       </button>
 
       {/* LIVE STREAM MODE */}
-      {target && <LiveFaceSwap target={target} onResult={onResult} />}
+      {target && <LiveWebcam mode="faceswap" target={target} onResult={onResult} />}
     </form>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  LiveFaceSwap — continuous webcam → face swap stream                 */
-/* ------------------------------------------------------------------ */
-
-function LiveFaceSwap({ target, onResult }: { target: string; onResult: (r: ImageResult) => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [running, setRunning] = useState(false);
-  const [lastResult, setLastResult] = useState<string | null>(null);
-  const [fps, setFps] = useState(0);
-  const runningRef = useRef(false);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  const start = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: 512, height: 512 },
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setRunning(true);
-        runningRef.current = true;
-        loop();
-      }
-    } catch {
-      alert("Camera non disponible");
-    }
-  };
-
-  const stop = () => {
-    runningRef.current = false;
-    setRunning(false);
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-  };
-
-  const loop = async () => {
-    while (runningRef.current) {
-      const t0 = Date.now();
-      try {
-        // Capture frame
-        const canvas = canvasRef.current;
-        const video = videoRef.current;
-        if (!canvas || !video || video.readyState < 2) {
-          await new Promise(r => setTimeout(r, 500));
-          continue;
-        }
-        canvas.width = 512;
-        canvas.height = 512;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(video, 0, 0, 512, 512);
-        const sourceB64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
-
-        // Send to face swap API
-        const resp = await fetch("/api/v2/comfyui/faceswap", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source: sourceB64, target }),
-        });
-        const json = await resp.json();
-        if (json.ok && json.data?.imageBase64) {
-          setLastResult(`data:image/png;base64,${json.data.imageBase64}`);
-          setFps(Math.round(1000 / (Date.now() - t0)));
-        }
-      } catch {
-        await new Promise(r => setTimeout(r, 2000));
-      }
-    }
-  };
-
-  // Cleanup on unmount
-  useEffect(() => () => { runningRef.current = false; streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
-
-  return (
-    <div className="live-swap">
-      <div className="live-swap-header">
-        <span className="live-swap-title">LIVE FACE SWAP</span>
-        <button
-          type="button"
-          className={`live-swap-toggle ${running ? "live-swap-active" : ""}`}
-          onClick={running ? stop : start}
-        >
-          {running ? `⏹ STOP (${fps} fps)` : "▶ START LIVE"}
-        </button>
-      </div>
-      <div className="live-swap-preview">
-        <div className="live-swap-col">
-          <video ref={videoRef} autoPlay playsInline muted className="live-swap-video" style={{ display: running ? "block" : "none" }} />
-          <canvas ref={canvasRef} style={{ display: "none" }} />
-          {!running && <div className="live-swap-placeholder">Webcam</div>}
-        </div>
-        <div className="live-swap-arrow">{"\u2192"}</div>
-        <div className="live-swap-col">
-          {lastResult ? (
-            <img src={lastResult} alt="Live swap result" className="live-swap-result" />
-          ) : (
-            <div className="live-swap-placeholder">Resultat</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  VideoForm                                                          */

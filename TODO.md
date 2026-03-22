@@ -192,8 +192,8 @@
 
 - [x] ACE-Step 1.5 production — AI Bridge /generate/music-ai + openDIAW.be AceStep instrument
 - [x] `/compose` command (prompt → musique) — lots 320+, full composition pipeline
-- [ ] Flux 2 dans ComfyUI
-- [ ] A2A Protocol evaluation
+- [ ] Flux 2 dans ComfyUI (blocked — needs 12GB checkpoint download)
+- [x] A2A Protocol — Agent Card + JSON-RPC /a2a endpoint (lot 502)
 
 ## Lot 20 - Deep Analyse Continue & Execution Chainee `[en cours]`
 

@@ -187,9 +187,12 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Pro
 
   if (shouldTryMascarade()) {
     try {
-      return await chatViaMascarade(messages, opts);
+      const result = await chatViaMascarade(messages, opts);
+      // If mascarade returns empty content, fall through to Ollama
+      if (result.content) return result;
+      logger.warn("[llm] mascarade returned empty content, falling back to Ollama");
     } catch (err) {
-      logger.warn({ err: (err as Error).message }, "[llm] mascarade /v1/chat/completions failed, falling back to Ollama");
+      logger.warn({ err: (err as Error).message }, "[llm] mascarade failed, falling back to Ollama");
       mascaradeAvailable = false;
       mascaradeLastCheck = Date.now();
       mascaradeFailCount++;

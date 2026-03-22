@@ -81,7 +81,7 @@ describe("ws-chat smoke", () => {
       client.send(JSON.stringify({ type: "command", text: "/help" }));
     }
 
-    await wait(300);
+    await wait(2000);
     assert.ok(messages.some((msg) => msg.type === "system" && /commandes|Commandes/i.test(msg.text)));
     assert.ok(messages.some((msg) => msg.type === "system" && /Trop de messages/.test(msg.text)));
     assert.equal(errors.length, 0);

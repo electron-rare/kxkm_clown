@@ -43,24 +43,66 @@ docker compose --profile v2 --profile ollama up -d
 
 Par defaut, Ollama est attendu en natif sur le host (port 11434).
 
-## Services (13)
+## Services (17+)
 
 | Service | Port | Description |
 | --- | --- | --- |
-| API V1 | 3333 | Monolithe Express (chat + admin) |
+| API V1 | 3333 | Monolithe Express (chat + admin + AI Bridge proxy) |
 | API V2 | 4180 | API TypeScript (REST + WS) |
 | Frontend | 5173 | React/Vite (dev) |
-| Ollama | 11434 | LLM local (qwen3:8b, mistral:7b) |
+| Ollama | 11434 | LLM local (qwen3.5:9b, llama3.1:8b, bge-m3) |
 | PostgreSQL | 5432 | Persistence (personas, runs, logs) |
 | SearXNG | 8080 | Recherche web self-hosted |
 | TTS Sidecar | 9100 | Piper + Chatterbox (dual backend) |
-| Qwen3-TTS | 9300 | Qwen3-TTS 0.6B CustomVoice (9 speakers) |
-| ACE-Step | 9400 | Generation musicale (35 styles, GPU) |
-| Reranker | 8787 | BGE/Jina reranking |
-| Docling | 5001 | Extraction PDF (tables, OCR) |
+| Kokoro TTS | 9201 | Kokoro TTS rapide (12 voix) |
+| AI Bridge | 8301 | Hub audio 19 backends (instruments, TTS, music gen, stems) |
+| ACE-Step | 9200 | Generation musicale (35 styles, GPU) |
+| Reranker | 9500 | BGE/Jina reranking |
+| Docling | 9400 | Extraction PDF (tables, OCR) |
+| LightRAG | 9621 | Graph RAG knowledge base |
 | ComfyUI | 8188 | Generation images (32 checkpoints + 24 LoRAs) |
+| openDIAW.be | 8300 | DAW studio (9 instruments custom) |
 | Worker | --- | Node Engine job processor (GPU) |
 | Discord Bot | --- | Pharmacius bridge (2 salons) |
+
+## openDIAW.be — DAW AI Integration
+
+Fork d'[openDAW](https://github.com/andremichelle/openDAW) avec 9 instruments custom pour la performance live.
+
+| Instrument | Type | Description |
+| --- | --- | --- |
+| Drone | DSP temps reel | Unison oscillateurs + LP filter + LFO |
+| Grain | DSP temps reel | Synthese granulaire (micro-grains) |
+| Glitch | DSP temps reel | Buffer repeat + stutter + bit crush |
+| Circus | DSP temps reel | Orgue de barbarie (4 registres harmoniques) |
+| Honk | DSP temps reel | Klaxon / sirene / corne (3 modes) |
+| Magenta | Browser AI | Magenta.js (MelodyRNN, DrumsRNN, ImprovRNN) |
+| AceStep | AI backend | Generation musicale par prompt |
+| KokoroTTS | AI backend | Synthese vocale rapide (12 voix) |
+| Piper | AI backend | Synthese vocale Piper/Chatterbox |
+
+Repo public: [github.com/electron-rare/openDIAW.be](https://github.com/electron-rare/openDIAW.be)
+
+## Protocoles
+
+### MCP (Model Context Protocol)
+
+6 outils MCP via stdio (`scripts/mcp-server.js`):
+- `kxkm_chat` — envoyer un message aux personas
+- `kxkm_personas` — lister les personas actives
+- `kxkm_web_search` — recherche web SearXNG
+- `kxkm_status` — statut systeme
+- `kxkm_music_generate` — generation audio (19 backends)
+- `kxkm_ai_bridge_health` — sante AI Bridge
+
+### A2A (Agent-to-Agent Protocol)
+
+Agent Card: `GET /.well-known/agent.json` (5 skills)
+JSON-RPC: `POST /a2a` (spec v0.3)
+
+### Prometheus Metrics
+
+`GET /metrics` — metriques text exposition (RSS, heap, uptime, latences HTTP + WS)
 
 ## Fonctionnalites
 
@@ -147,7 +189,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | `PYTHON_BIN` | `python3` | Python avec libs ML (PyTorch, faster-whisper, piper-tts) |
 | `SCRIPTS_DIR` | `./scripts` | Chemin vers les scripts Python (TTS, STT, training) |
 
-## Commandes slash (55)
+## Commandes slash (112+)
 
 | Commande | Description | Admin |
 | --- | --- | --- |
@@ -204,8 +246,15 @@ npm run check        # Lint V1 + TypeScript V2
 npm run check:v2     # TypeScript V2 uniquement
 npm run smoke        # Tests d'integration V1
 npm run smoke:v2     # Tests d'integration V2 (22 tests)
-npm run test:v2      # Tests unitaires V2 (425 tests)
+npm run -w @kxkm/api test   # 211 tests unitaires API (0 fail)
+npm run -w @kxkm/web test   # 54 tests unitaires Web (0 fail)
 npm run turbo:build  # Build complet
+
+# E2E Playwright (14 tests instruments + commandes + DAW)
+bash scripts/run-playwright-e2e.sh run apps/web/e2e/instruments.spec.ts
+
+# Tests instruments serveur (23 curl tests)
+bash scripts/test-instruments.sh
 ```
 
 ## Administration

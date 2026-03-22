@@ -40,6 +40,7 @@ services:
       WEB_SEARCH_API_BASE: "${WEB_SEARCH_API_BASE:-}"
       OWNER_NICK: "${OWNER_NICK:-}"
       MAX_GENERAL_RESPONDERS: "${MAX_GENERAL_RESPONDERS:-4}"
+      CHAT_PAUSED: "${CHAT_PAUSED:-0}"
     volumes:
       - app-data:/app/data
     depends_on:

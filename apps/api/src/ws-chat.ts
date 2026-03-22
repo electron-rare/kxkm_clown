@@ -30,6 +30,28 @@ import {
 } from "./ws-multimodal.js";
 
 // ---------------------------------------------------------------------------
+// Chat pause (maintenance mode) — file-based for hot toggle without restart
+// ---------------------------------------------------------------------------
+
+const PAUSE_FILE = path.join(process.cwd(), "data", "chat-paused");
+
+export function isChatPaused(): boolean {
+  if (process.env.CHAT_PAUSED === "1") return true;
+  try { return fs.existsSync(PAUSE_FILE); } catch { return false; }
+}
+
+export function setChatPaused(paused: boolean): void {
+  if (paused) {
+    fs.mkdirSync(path.dirname(PAUSE_FILE), { recursive: true });
+    fs.writeFileSync(PAUSE_FILE, new Date().toISOString());
+    logger.info("[ws-chat] Chat PAUSED (maintenance mode)");
+  } else {
+    try { fs.unlinkSync(PAUSE_FILE); } catch {}
+    logger.info("[ws-chat] Chat UNPAUSED");
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Per-channel sequence counter
 // ---------------------------------------------------------------------------
 
@@ -468,6 +490,17 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         }
 
         const text = (message as InboundChatMessage).text;
+
+        // Maintenance pause: block all chat except /help /who /status /pause /unpause
+        if (isChatPaused()) {
+          const PAUSE_ALLOWED = ["/help", "/who", "/status", "/nick ", "/unpause"];
+          if (message.type === "command" && PAUSE_ALLOWED.some((c) => text.startsWith(c))) {
+            await handleCommand({ ws, info, text });
+          } else {
+            send(ws, { type: "system", text: "\u23F8 Chat en pause — session de fine-tuning en cours. Les personas seront bientôt de retour !" });
+          }
+          return;
+        }
 
         // Guest mode: allow /nick + read-only commands, block chat
         if (info.isGuest) {

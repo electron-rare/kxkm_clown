@@ -44,6 +44,7 @@
     "turbo:test": "turbo run test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.1",
     "@modelcontextprotocol/sdk": "^1.27.1",

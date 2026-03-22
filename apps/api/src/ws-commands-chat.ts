@@ -58,6 +58,8 @@ export const CHAT_COMMANDS = new Set([
   "/memory-wipe",
   "/stage",
   "/radio-station",
+  "/pause",
+  "/unpause",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -1492,6 +1494,28 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         }, 45000);
 
         (globalThis as any).__radioTimers.set(info.channel + "_station", rsTimer);
+        return;
+      }
+
+      case "/pause": {
+        const { setChatPaused, isChatPaused } = await import("./ws-chat.js");
+        if (isChatPaused()) {
+          send(ws, { type: "system", text: "\u23F8 Chat deja en pause." });
+        } else {
+          setChatPaused(true);
+          broadcast(info.channel, { type: "system", text: "\u23F8 Chat mis en pause par " + info.nick + " — maintenance en cours." });
+        }
+        return;
+      }
+
+      case "/unpause": {
+        const { setChatPaused, isChatPaused } = await import("./ws-chat.js");
+        if (!isChatPaused()) {
+          send(ws, { type: "system", text: "\u25B6 Chat deja actif." });
+        } else {
+          setChatPaused(false);
+          broadcast(info.channel, { type: "system", text: "\u25B6 Chat reactive par " + info.nick + " — les personas sont de retour !" });
+        }
         return;
       }
 

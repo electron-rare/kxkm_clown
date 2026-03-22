@@ -255,10 +255,10 @@ Fait sur ce lot:
 
 - [ ] **P1** lot-95: E2E Playwright tests (login, chat, upload, admin)
 - [ ] **P2** lot-96: Persona DPO automation pipeline (feedback → pairs → training)
-- [ ] **P2** lot-97: Multi-channel support (create/join channels)
-- [ ] **P3** lot-98: File sharing between users (upload → gallery)
+- [x] **P2** lot-97: Multi-channel support (/join, /channels, channel selector UI)
+- [x] **P3** lot-98: File sharing — POST/GET/DELETE /api/v2/media/shared (lot 536)
 - [ ] **P2** lot-99: Mobile responsive deep pass (touch, bottom nav, viewport)
-- [ ] **P3** lot-100: Public demo mode (read-only guest access)
+- [x] **P3** lot-100: Public demo mode — guest_N auto-nick, read-only until /nick
 
 ## P14 Lot 24 — Deep Analyse 3 + Reactivity `[done]`
 
@@ -304,9 +304,9 @@ Fait sur ce lot:
 
 - [ ] **P1** lot-25: Structured logging (pino, 39 console.log DEBUG → logger)
 - [ ] **P2** lot-26: Tests integration (mocks HTTP, load test concurrence)
-- [ ] **P2** lot-28: RAG configurable (chunk size, similarity, model env vars)
-- [ ] **P2** lot-29: Systemd units (LightRAG + TTS, retirer tmux)
-- [ ] **P3** lot-27: Effets CRT WebGL (MinitelFrame)
+- [x] **P2** lot-28: RAG configurable — 4 env vars (CHUNK_SIZE, MIN_SIMILARITY, MAX_RESULTS, EMBEDDING_MODEL)
+- [x] **P2** lot-29: Systemd units — 12 user units on kxkm-ai
+- [x] **P3** lot-27: CRT effects — CSS barrel distortion + vignette + phosphor glow (lot 538)
 
 ## Phase Session 2026-03-20 (lots 128-143)
 - [x] /changelog, /version commands
@@ -360,13 +360,13 @@ Fait sur ce lot:
 - [ ] Form label associations (htmlFor)
 - [ ] Admin health error details
 - [ ] AI suggestion ranking by frequency
-- [ ] Media semantic search (CLIP + vector DB)
+- [x] Media search — text filter on title/source/type in MediaGallery (lot 539)
 - [ ] Unbounded in-memory maps LRU (userStats, channelSeq)
 - [ ] Context store single-pass read (summary + recent in one disk read)
 - [ ] ws-chat.ts extraction (1449 LOC → 4×350)
-- [ ] Chatterbox TTS upgrade (MIT, 24K stars, beats ElevenLabs)
+- [x] Chatterbox TTS — already primary backend (chatterbox-remote)
 - [ ] Transformers.js v4 browser STT (client-side Whisper)
 - [ ] Stable Audio Open integration (fine-tunable sound design)
-- [ ] Claude Agent SDK (TypeScript, native MCP)
+- [x] Claude Agent SDK — scripts/claude-agent.js (5 tools, interactive mode, lot 533)
 - [ ] IndexTTS-2 emotion control (theater-grade expressiveness)
 - [ ] RAVE real-time audio style transfer (IRCAM)

@@ -19,6 +19,7 @@ const PAGE_SIZE = 24;
 export default function MediaGallery() {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -123,8 +124,15 @@ export default function MediaGallery() {
     setLoading(false);
   }
 
-  const filtered =
-    filter === "all" ? items : items.filter((i) => i.type === filter);
+  const filtered = items.filter((i) => {
+    if (filter !== "all" && i.type !== filter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const searchable = [i.title, i.source, i.type, i.id].filter(Boolean).join(" ").toLowerCase();
+      return searchable.includes(q);
+    }
+    return true;
+  });
   const visible = filtered.slice(0, visibleCount);
 
   const countFor = useCallback(
@@ -142,6 +150,14 @@ export default function MediaGallery() {
       />
 
       <div className="mg-filters">
+        <input
+          type="text"
+          className="mg-search"
+          placeholder="Rechercher (prompt, nick, type)..."
+          value={searchQuery}
+          onChange={(e) => { setSearchQuery(e.target.value); setVisibleCount(PAGE_SIZE); }}
+          style={{ flex: 1, minWidth: 120, maxWidth: 300, padding: "4px 8px", fontFamily: "inherit", fontSize: "0.8em", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border, rgba(51,255,51,0.15))", color: "var(--ink, #39ff14)", borderRadius: 3 }}
+        />
         {(["all", "image", "audio", "video"] as FilterType[]).map((f) => (
           <button
             key={f}

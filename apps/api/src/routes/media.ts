@@ -115,4 +115,61 @@ router.get("/compositions/:id/tracks/:trackId", (req, res) => {
   res.sendFile(trackPath);
 });
 
+// ── Shared Files ──
+
+const SHARED_DIR = path.join(process.cwd(), "data", "shared");
+
+// POST /api/v2/media/shared — upload a file to shared gallery
+router.post("/shared", (req, res, next) => {
+  // Parse raw body manually for ESM compatibility
+  const chunks: Buffer[] = [];
+  req.on("data", (chunk: Buffer) => chunks.push(chunk));
+  req.on("end", () => { (req as any).body = Buffer.concat(chunks); next(); });
+}, (req, res) => {
+  try {
+    fs.mkdirSync(SHARED_DIR, { recursive: true });
+    const nick = String(req.query.nick || "anonymous");
+    const name = String(req.query.name || `file-${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const ext = name.includes(".") ? "" : ".bin";
+    const filename = `${Date.now()}-${nick}-${name}${ext}`;
+    const filepath = path.join(SHARED_DIR, filename);
+    fs.writeFileSync(filepath, req.body);
+    const meta = { filename, nick, name, size: req.body.length, uploadedAt: new Date().toISOString() };
+    fs.appendFileSync(path.join(SHARED_DIR, "index.jsonl"), JSON.stringify(meta) + "\n");
+    res.json({ ok: true, url: `/api/v2/media/shared/${filename}`, ...meta });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });
+  }
+});
+
+// GET /api/v2/media/shared — list shared files
+router.get("/shared", (_req, res) => {
+  try {
+    const indexPath = path.join(SHARED_DIR, "index.jsonl");
+    if (!fs.existsSync(indexPath)) return res.json([]);
+    const lines = fs.readFileSync(indexPath, "utf-8").trim().split("\n").filter(Boolean);
+    const files = lines.map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
+    res.json(files.reverse().slice(0, 100));
+  } catch {
+    res.json([]);
+  }
+});
+
+// GET /api/v2/media/shared/:filename — serve shared file
+router.get("/shared/:filename", (req, res) => {
+  const safe = req.params.filename.replace(/[^a-zA-Z0-9._-]/g, "");
+  const filepath = path.join(SHARED_DIR, safe);
+  if (!fs.existsSync(filepath)) return res.status(404).json({ error: "Not found" });
+  res.sendFile(filepath);
+});
+
+// DELETE /api/v2/media/shared/:filename — delete shared file
+router.delete("/shared/:filename", (req, res) => {
+  const safe = req.params.filename.replace(/[^a-zA-Z0-9._-]/g, "");
+  const filepath = path.join(SHARED_DIR, safe);
+  if (!fs.existsSync(filepath)) return res.status(404).json({ error: "Not found" });
+  fs.unlinkSync(filepath);
+  res.json({ ok: true });
+});
+
 export default router;

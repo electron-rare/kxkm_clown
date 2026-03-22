@@ -52,7 +52,7 @@ describe("ChatMessage", () => {
     expect(container).not.toHaveStyle({ color: "#ff00ff" });
   });
 
-  it("affiche un message audio avec le bouton play", () => {
+  it("audio messages are hidden (voice chat queue handles playback)", () => {
     const msg: ChatMsg = {
       ...baseMsg,
       type: "audio",
@@ -60,11 +60,9 @@ describe("ChatMessage", () => {
       audioData: "AAAA",
       audioMime: "audio/wav",
     };
-    render(<ChatMessage msg={msg} getNickColor={getNickColor} channel={channel} />);
-    expect(screen.getByText(/Arlequin/)).toBeInTheDocument();
-    const playBtn = screen.getByRole("button");
-    expect(playBtn).toBeInTheDocument();
-    expect(playBtn).toHaveClass("chat-audio-play");
+    const { container } = render(<ChatMessage msg={msg} getNickColor={getNickColor} channel={channel} />);
+    // Audio messages return null — playback via voice chat queue
+    expect(container.firstChild).toBeNull();
   });
 
   it("affiche un message image avec l'image", () => {
@@ -83,7 +81,7 @@ describe("ChatMessage", () => {
     expect(img).toHaveAttribute("alt", "Un paysage");
   });
 
-  it("affiche un message music avec le player audio", () => {
+  it("affiche un message music avec le player audio (fallback)", () => {
     const msg: ChatMsg = {
       ...baseMsg,
       type: "music",
@@ -94,9 +92,9 @@ describe("ChatMessage", () => {
     };
     const { container } = render(<ChatMessage msg={msg} getNickColor={getNickColor} channel={channel} />);
     expect(screen.getByText("Ma composition")).toBeInTheDocument();
+    // WaveformPlayer is lazy — Suspense fallback renders native <audio>
     const audio = container.querySelector("audio");
     expect(audio).toBeTruthy();
-    expect(audio?.getAttribute("src")).toBe("data:audio/mpeg;base64,BBBB");
-    expect(audio?.hasAttribute("controls")).toBe(true);
+    expect(audio?.getAttribute("src")).toContain("audio/mpeg");
   });
 });

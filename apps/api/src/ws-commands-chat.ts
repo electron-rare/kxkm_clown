@@ -54,6 +54,10 @@ export const CHAT_COMMANDS = new Set([
   "/kb",
   "/provider",
   "/orchestrate",
+  "/director",
+  "/memory-wipe",
+  "/stage",
+  "/radio-station",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -1393,6 +1397,101 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             broadcast(info.channel, { type: "system", text: `[Orchestration]\n${result.content || JSON.stringify(result).slice(0, 800)}` });
           } else { send(ws, { type: "system", text: `Orchestration erreur: ${resp.status}` }); }
         } catch (err) { send(ws, { type: "system", text: `Orchestration timeout: ${(err as Error).message}` }); }
+        return;
+      }
+
+      case "/director": {
+        // /director [theme] — AI director orchestrates a conversation
+        const theme = text.slice(10).trim() || "l'art numerique et le collectif";
+        const personas = getPersonas().filter(p => (p as any).enabled !== false);
+        const cast = [...personas].sort(() => Math.random() - 0.5).slice(0, 4);
+
+        broadcast(info.channel, { type: "system", text: [
+          "🎬 === MISE EN SCENE ===",
+          `Theme: "${theme}"`,
+          `Distribution: ${cast.map(p => p.nick).join(", ")}`,
+          "Acte 1 commence...",
+        ].join("\n") });
+
+        // Scene 1: first persona introduces
+        if (cast.length >= 2 && typeof routeToPersonas === "function") {
+          await routeToPersonas(info.channel, `@${cast[0].nick} Tu ouvres la discussion sur "${theme}". Sois bref (2 phrases max) et mentionne @${cast[1].nick} pour qu'il reagisse.`);
+        }
+        return;
+      }
+
+      case "/memory-wipe": {
+        const mwNick = parts[1];
+        if (!mwNick) { send(ws, { type: "system", text: "Usage: /memory-wipe <persona>" }); return; }
+        const mwPersona = getPersonas().find(p => p.nick.toLowerCase() === mwNick.toLowerCase());
+        if (!mwPersona) { send(ws, { type: "system", text: `Persona "${mwNick}" inconnue.` }); return; }
+        const fs = await import("node:fs/promises");
+        const path = await import("node:path");
+        const memFile = path.join(process.cwd(), "data", "persona-memory", `${mwPersona.nick}.json`);
+        try {
+          await fs.writeFile(memFile, JSON.stringify({ nick: mwPersona.nick, facts: [], summary: "", lastUpdated: new Date().toISOString() }));
+          send(ws, { type: "system", text: `Memoire de ${mwPersona.nick} effacee.` });
+        } catch { send(ws, { type: "system", text: "Erreur effacement memoire." }); }
+        return;
+      }
+
+      case "/stage": {
+        // Send a special message that triggers fullscreen performance mode in the frontend
+        broadcast(info.channel, { type: "system", text: "__stage_mode__" });
+        return;
+      }
+
+      case "/radio-station": {
+        const rsAction = parts[1] || "on";
+        if (rsAction === "off") {
+          const existing = (globalThis as any).__radioTimers?.get(info.channel + "_station");
+          if (existing) { clearInterval(existing); (globalThis as any).__radioTimers.delete(info.channel + "_station"); }
+          broadcast(info.channel, { type: "system", text: "📻 Radio station OFF." });
+          return;
+        }
+
+        if (!(globalThis as any).__radioTimers) (globalThis as any).__radioTimers = new Map();
+        if ((globalThis as any).__radioTimers.has(info.channel + "_station")) {
+          send(ws, { type: "system", text: "Radio station deja active. /radio-station off" }); return;
+        }
+
+        broadcast(info.channel, { type: "system", text: "📻 RADIO STATION ON — musique + voix + jingles toutes les 45s" });
+
+        const AI_BRIDGE = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+        let segment = 0;
+
+        const rsTimer = setInterval(async () => {
+          segment++;
+          const rsPersonas = getPersonas().filter(p => (p as any).enabled !== false);
+
+          if (segment % 3 === 1) {
+            // Music segment
+            try {
+              const types = ["pad", "drums", "bass"];
+              const t = types[Math.floor(Math.random() * types.length)];
+              const resp = await fetch(`${AI_BRIDGE}/instrument/${t}`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ duration: 15 }), signal: AbortSignal.timeout(15_000),
+              });
+              if (resp.ok) {
+                const buf = Buffer.from(await resp.arrayBuffer());
+                broadcast(info.channel, { type: "music", nick: "Radio", text: `[🎵 ${t}]`, audioData: buf.toString("base64"), audioMime: "audio/wav" } as any);
+              }
+            } catch {}
+          } else if (segment % 3 === 2) {
+            // Voice segment
+            const p = rsPersonas[Math.floor(Math.random() * rsPersonas.length)];
+            if (p && typeof routeToPersonas === "function") {
+              const topics = ["une pensee du moment", "un conseil", "une anecdote", "une reflexion sur le son"];
+              await routeToPersonas(info.channel, `@${p.nick} Partage ${topics[Math.floor(Math.random() * topics.length)]} en 2 phrases.`);
+            }
+          } else {
+            // Jingle
+            broadcast(info.channel, { type: "system", text: "📻 ~~~ 3615 J'ai pete Radio ~~~" });
+          }
+        }, 45000);
+
+        (globalThis as any).__radioTimers.set(info.channel + "_station", rsTimer);
         return;
       }
 

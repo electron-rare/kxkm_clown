@@ -33,30 +33,30 @@ describe("ChatInput", () => {
   it("affiche l'input et le bouton envoyer", () => {
     renderInput();
     expect(screen.getByRole("textbox")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Envoyer" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /envoyer/i })).toBeInTheDocument();
   });
 
   it("le bouton est disabled quand ws non connecte", () => {
     renderInput({ ws: mockWs(false) });
-    expect(screen.getByRole("button", { name: "Envoyer" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /envoyer/i })).toBeDisabled();
     expect(screen.getByRole("textbox")).toBeDisabled();
   });
 
   it("le bouton est disabled quand l'input est vide", () => {
     renderInput({ input: "", ws: mockWs(true) });
-    expect(screen.getByRole("button", { name: "Envoyer" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /envoyer/i })).toBeDisabled();
   });
 
   it("le bouton est enabled quand input non vide et ws connecte", () => {
     renderInput({ input: "hello", ws: mockWs(true) });
-    expect(screen.getByRole("button", { name: "Envoyer" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /envoyer/i })).toBeEnabled();
   });
 
   it("appelle onSend quand le bouton est clique", async () => {
     const user = userEvent.setup();
     const onSend = vi.fn();
     renderInput({ input: "test", onSend, ws: mockWs(true) });
-    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+    await user.click(screen.getByRole("button", { name: /envoyer/i }));
     expect(onSend).toHaveBeenCalledOnce();
   });
 

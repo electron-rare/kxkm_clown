@@ -55,6 +55,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Training", page: "training", roles: ["admin", "operator"] },
   { label: "Stats", page: "analytics", roles: ["admin"] },
   { label: "Administration", page: "admin" },
+  { label: "Live Audio FX", page: "livefx" },
+  { label: "Visual Synth", page: "visual-synth" },
   { label: "3615 ULLA", page: "ulla" },
 ];
 

@@ -101,7 +101,8 @@ const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1"
 // Ollama concurrency limiter (replaces manual semaphore)
 // ---------------------------------------------------------------------------
 
-const ollamaLimit = pLimit(Number(process.env.MAX_OLLAMA_CONCURRENT) || 5);
+// Match OLLAMA_NUM_PARALLEL (set via sudo-optimize.sh)
+const ollamaLimit = pLimit(Number(process.env.MAX_OLLAMA_CONCURRENT) || 2);
 
 // ---------------------------------------------------------------------------
 // Ollama streaming chat

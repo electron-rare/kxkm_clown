@@ -27,6 +27,7 @@ import {
   createPerfTracker,
 } from "./app-middleware.js";
 import { agentCardRoute, a2aRpcRoute } from "./a2a-agent-card.js";
+import { prometheusMetrics as prometheusMetricsExport } from "./perf.js";
 
 const COOKIE_NAME = "kxkm_v2_session";
 
@@ -79,9 +80,8 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
   app.use(perfTracker.middleware);
   app.get("/api/v2/perf", perfTracker.route);
   app.get("/metrics", (_req, res) => {
-    const { prometheusMetrics } = require("./perf.js");
     res.setHeader("Content-Type", "text/plain; version=0.0.4");
-    res.send(prometheusMetrics());
+    res.send(prometheusMetricsExport());
   });
 
   // A2A Agent Card discovery + JSON-RPC endpoint

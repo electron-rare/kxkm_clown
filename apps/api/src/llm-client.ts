@@ -208,30 +208,22 @@ export async function* streamChat(
   messages: ChatMessage[],
   opts: ChatOptions = {},
 ): AsyncGenerator<string, ChatResponse> {
-  const { route, complexity } = routeByComplexity(messages);
+  // Streaming = ALWAYS direct Ollama for minimum latency.
+  // mascarade /v1/chat/completions is non-streaming → would add 2-3s overhead.
+  // Only use mascarade for non-streaming calls (tool probes, /agent, /orchestrate).
+  // When mascarade adds SSE streaming, we can route through it.
+  const { model } = parseModel(opts.model);
+  const isCloudProvider = opts.model && /^(claude|openai|mistral-api|google|bedrock):/.test(opts.model);
 
-  // Try mascarade for ALL models (mascarade handles Ollama routing too)
-  // Only skip if RouteLLM explicitly routes to ollama for simple messages
-  if (route !== "ollama" && shouldTryMascarade()) {
-    logger.debug({ complexity, threshold: ROUTELLM_THRESHOLD }, "[llm] stream → mascarade");
+  // Exception: if user explicitly requests a cloud provider, use mascarade (non-streaming)
+  if (isCloudProvider && shouldTryMascarade()) {
     try {
       const result = await chatViaMascarade(messages, opts);
-      // Emit the full response as a single chunk then return
-      yield result.content;
-      return result;
-    } catch (err) {
-      logger.warn({ err: (err as Error).message }, "[llm] mascarade failed for stream, falling back to Ollama");
-      mascaradeAvailable = false;
-      mascaradeLastCheck = Date.now();
-      mascaradeFailCount++;
-    }
+      if (result.content) { yield result.content; return result; }
+    } catch { /* fall through to Ollama */ }
   }
 
-  if (route === "ollama") {
-    logger.debug({ complexity, threshold: ROUTELLM_THRESHOLD }, "[llm] routeLLM stream → ollama (simple)");
-  }
-
-  // Default / fallback: stream via Ollama
+  // Stream via Ollama (fastest path for real-time chat)
   return yield* streamViaOllama(messages, opts);
 }
 

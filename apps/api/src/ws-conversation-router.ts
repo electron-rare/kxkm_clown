@@ -157,7 +157,9 @@ export async function buildConversationInput(
   const sections = [text];
 
   // Run context + RAG in PARALLEL (saves 100-500ms vs sequential)
-  const useRag = rag && rag.size > 0 && text.length > 60; // Skip RAG for short messages (<60 chars)
+  // Skip RAG for short messages (<80 chars) — RAG embedding is expensive
+  const useRag = rag && rag.size > 0 && text.length > 80;
+  // Short messages get minimal context (faster)
   const [contextStr, ragResults] = await Promise.all([
     getContextString(channel).catch(() => ""),
     useRag

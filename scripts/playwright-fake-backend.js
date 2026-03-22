@@ -245,6 +245,110 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // AI Bridge health stub
+    if (req.method === "GET" && url.pathname === "/api/v2/ai-bridge/health") {
+      json(res, 200, {
+        ok: true,
+        service: "ai-bridge",
+        backends: [
+          "tts", "musicgen", "noise", "ollama", "drums", "bass", "pad", "choir", "fx",
+          "kokoro-tts", "ace-step", "demucs", "drone", "grain", "glitch", "circus", "honk",
+          "sound-design", "voice-clone",
+        ],
+      });
+      return;
+    }
+
+    // AI Bridge instrument stubs — return minimal WAV
+    if (req.method === "POST" && url.pathname.startsWith("/api/v2/ai-bridge/instrument/")) {
+      const wavHeader = Buffer.alloc(44);
+      wavHeader.write("RIFF", 0);
+      wavHeader.writeUInt32LE(36, 4);
+      wavHeader.write("WAVE", 8);
+      wavHeader.write("fmt ", 12);
+      wavHeader.writeUInt32LE(16, 16);
+      wavHeader.writeUInt16LE(1, 20);
+      wavHeader.writeUInt16LE(2, 22);
+      wavHeader.writeUInt32LE(44100, 24);
+      wavHeader.writeUInt32LE(176400, 28);
+      wavHeader.writeUInt16LE(4, 32);
+      wavHeader.writeUInt16LE(16, 34);
+      wavHeader.write("data", 36);
+      wavHeader.writeUInt32LE(0, 40);
+      res.writeHead(200, { "Content-Type": "audio/wav" });
+      res.end(wavHeader);
+      return;
+    }
+
+    // AI Bridge generation stubs
+    if (req.method === "POST" && url.pathname.startsWith("/api/v2/ai-bridge/generate/")) {
+      const wavHeader = Buffer.alloc(44);
+      wavHeader.write("RIFF", 0);
+      wavHeader.writeUInt32LE(36, 4);
+      wavHeader.write("WAVE", 8);
+      wavHeader.write("fmt ", 12);
+      wavHeader.writeUInt32LE(16, 16);
+      wavHeader.writeUInt16LE(1, 20);
+      wavHeader.writeUInt16LE(2, 22);
+      wavHeader.writeUInt32LE(44100, 24);
+      wavHeader.writeUInt32LE(176400, 28);
+      wavHeader.writeUInt16LE(4, 32);
+      wavHeader.writeUInt16LE(16, 34);
+      wavHeader.write("data", 36);
+      wavHeader.writeUInt32LE(0, 40);
+      res.writeHead(200, { "Content-Type": "audio/wav" });
+      res.end(wavHeader);
+      return;
+    }
+
+    // A2A Agent Card stub
+    if (req.method === "GET" && url.pathname === "/.well-known/agent.json") {
+      json(res, 200, {
+        name: "3615-KXKM",
+        version: "1.0.0",
+        skills: [
+          { id: "chat", name: "Chat IA" },
+          { id: "music_generate", name: "Generation musicale" },
+          { id: "voice_synthesize", name: "Synthese vocale" },
+          { id: "image_generate", name: "Generation d'images" },
+          { id: "web_search", name: "Recherche web" },
+        ],
+      });
+      return;
+    }
+
+    // Prometheus metrics stub
+    if (req.method === "GET" && url.pathname === "/metrics") {
+      res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
+      res.end("# HELP kxkm_memory_rss_bytes Resident set size\n# TYPE kxkm_memory_rss_bytes gauge\nkxkm_memory_rss_bytes 100000000\n# HELP kxkm_uptime_seconds Uptime\n# TYPE kxkm_uptime_seconds gauge\nkxkm_uptime_seconds 3600\n");
+      return;
+    }
+
+    // DAW stub
+    if (req.method === "GET" && url.pathname.startsWith("/daw")) {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end("<html><head><title>openDIAW.be</title></head><body>stub</body></html>");
+      return;
+    }
+
+    // LLM providers stub
+    if (req.method === "GET" && url.pathname === "/api/v2/llm-providers") {
+      json(res, 200, { data: { mascarade: true, providers: ["ollama", "mascarade"] } });
+      return;
+    }
+
+    // Scheduler stub
+    if (req.method === "GET" && url.pathname === "/api/v2/scheduler") {
+      json(res, 200, { data: { activeGpuTasks: 0, gpuQueue: 0, activeCpuTasks: 0 } });
+      return;
+    }
+
+    // ComfyUI workflows stub
+    if (req.method === "GET" && url.pathname === "/api/v2/comfyui/workflows") {
+      json(res, 200, { ok: true, data: [] });
+      return;
+    }
+
     json(res, 404, { error: "not_found", path: url.pathname });
   } catch (error) {
     json(res, 500, { error: error instanceof Error ? error.message : String(error) });

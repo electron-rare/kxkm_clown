@@ -72,6 +72,9 @@ export const INFO_COMMANDS = new Set([
   "/sys",
   "/persona-stats",
   "/credits",
+  "/commands",
+  "/server",
+  "/lot500",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -913,6 +916,52 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           "",
           "\"Le bruit est relatif au silence qui le precede.\"",
         ].join("\n") });
+        return;
+      }
+
+      case "/commands": {
+        // Lot 495
+        send(ws, { type: "system", text: "175+ commandes disponibles. /help pour la liste complete." });
+        return;
+      }
+
+      case "/server": {
+        // Lot 496
+        const os = await import("node:os");
+        send(ws, { type: "system", text: [
+          `Serveur: ${os.hostname()}`,
+          `  OS: ${os.platform()} ${os.release()}`,
+          `  CPU: ${os.cpus()[0]?.model || "?"}`,
+          `  RAM: ${Math.round(os.totalmem() / 1e9)}GB total, ${Math.round(os.freemem() / 1e9)}GB libre`,
+          `  Node: ${process.version}`,
+        ].join("\n") });
+        return;
+      }
+
+      case "/lot500": {
+        // Lot 500 — MILESTONE
+        const art = [
+          "╔═══════════════════════════════════════════════════╗",
+          "║                                                   ║",
+          "║   ███████╗ ██████╗  ██████╗                       ║",
+          "║   ██╔════╝██╔═══██╗██╔═══██╗                      ║",
+          "║   ███████╗██║   ██║██║   ██║                      ║",
+          "║   ╚════██║██║   ██║██║   ██║                      ║",
+          "║   ███████║╚██████╔╝╚██████╔╝                      ║",
+          "║   ╚══════╝ ╚═════╝  ╚═════╝                       ║",
+          "║                                                   ║",
+          "║   3615 J'ai pete — LOT 500                        ║",
+          "║                                                   ║",
+          "║   175+ commandes | 33 personas | 16+ services     ║",
+          "║   6 instruments | 5 workflows | 7 voix TTS        ║",
+          "║   STT | webcam | mascarade | openDAW              ║",
+          "║   211 tests | 19 E2E | Prometheus | backup        ║",
+          "║                                                   ║",
+          "║   Le chaos sonore continue.                       ║",
+          "║                                                   ║",
+          "╚═══════════════════════════════════════════════════╝",
+        ];
+        broadcast(info.channel, { type: "system", text: art.join("\n") });
         return;
       }
 

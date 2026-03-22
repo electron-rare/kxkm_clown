@@ -42,6 +42,10 @@ export const CHAT_COMMANDS = new Set([
   "/rate",
   "/alias",
   "/whosonline",
+  "/riddle",
+  "/compliment",
+  "/8ball",
+  "/whisper-all",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -1136,6 +1140,46 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         // Lot 490
         const users = channelUsers(info.channel).filter((u: string) => !getPersonas().some((p: any) => p.nick === u));
         send(ws, { type: "system", text: `En ligne: ${users.length > 0 ? users.join(", ") : "(personne)"}` });
+        return;
+      }
+
+      case "/riddle": {
+        // Lot 491 — AI riddle
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "qwen3.5:9b", messages: [{ role: "user", content: "Pose une devinette courte et amusante en francais avec la reponse. Format: Devinette: ... Reponse: ..." }], stream: false, options: { num_predict: 200 }, keep_alive: "30m", think: false }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (resp.ok) { const d = await resp.json() as any; broadcast(info.channel, { type: "system", text: `🤔 ${d.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim() || "?"}` }); }
+        } catch { broadcast(info.channel, { type: "system", text: "Devinette indisponible." }); }
+        return;
+      }
+
+      case "/compliment": {
+        // Lot 492
+        const target = parts[1] || info.nick;
+        const compliments = ["un genie incompris", "une force de la nature", "un artiste du chaos", "une legende vivante", "un pixel de lumiere dans la matrice", "le son qui fait vibrer les murs"];
+        broadcast(info.channel, { type: "system", text: `💫 ${target} est ${compliments[Math.floor(Math.random() * compliments.length)]} !` });
+        return;
+      }
+
+      case "/8ball": {
+        // Lot 493
+        const answers = ["Oui", "Non", "Peut-etre", "Sans aucun doute", "C'est certain", "J'en doute", "Redemande plus tard", "Les astres sont favorables", "Le chaos decide", "Absolument pas", "Evidemment", "La reponse est dans le bruit"];
+        send(ws, { type: "system", text: `🎱 ${answers[Math.floor(Math.random() * answers.length)]}` });
+        return;
+      }
+
+      case "/whisper-all": {
+        // Lot 494 — whisper to all personas
+        const whisperMsg = text.slice(13).trim();
+        if (!whisperMsg) { send(ws, { type: "system", text: "Usage: /whisper-all <message secret>" }); return; }
+        send(ws, { type: "system", text: `🤫 (murmure a toutes les personas): "${whisperMsg}"` });
+        if (typeof routeToPersonas === "function") {
+          await routeToPersonas(info.channel, whisperMsg);
+        }
         return;
       }
 

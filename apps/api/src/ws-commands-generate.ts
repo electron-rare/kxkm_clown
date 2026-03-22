@@ -38,6 +38,7 @@ export const GENERATE_COMMANDS = new Set([
   "/jam",
   "/mixtape",
   "/imagine-compare",
+  "/help-compose",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1768,6 +1769,38 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             }
           } catch {}
         }
+        return;
+      }
+
+      case "/help-compose": {
+        // Lot 499 — comprehensive compose help
+        send(ws, { type: "system", text: [
+          "=== COMPOSE — Guide complet ===",
+          "",
+          "CREATION:",
+          "  /comp new [nom]    Nouvelle composition",
+          "  /layer <prompt>    Piste musicale (MusicGen/ACE-Step)",
+          "  /voice <p> \"texte\" Piste voix",
+          "  /noise <type> <dur> Bruit (white/pink/brown/sine/drone)",
+          "  /drone [note] [dur] Drone synthetique",
+          "  /grain [dur]       Texture granulaire",
+          "  /sfx <type>        Effet sonore (riser/drop/sweep/impact)",
+          "  /jam [bpm]         Jam instant (drums+bass+pad)",
+          "  /mixtape [style]   4 pistes auto-generees",
+          "",
+          "EDITION:",
+          "  /fx [#] <effet>    Appliquer effet",
+          "  /stem [#]          Separer en stems (Demucs)",
+          "  /normalize [#]     Normaliser volume",
+          "  /trim # <start> <end>  Couper",
+          "",
+          "MIX/EXPORT:",
+          "  /mix               Mixer toutes les pistes",
+          "  /master [ref#]     Masteriser (AI ou ffmpeg)",
+          "  /mp3               Export MP3 192kbps",
+          "  /preview [#]       Ecouter",
+          "  /bounce            Exporter le mix final",
+        ].join("\n") });
         return;
       }
 

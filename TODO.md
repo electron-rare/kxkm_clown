@@ -133,7 +133,7 @@
 
 ### Phase D — Déploiement & Docs
 - [x] Docker — `Dockerfile` (multi-stage Node 22 alpine) + `docker-compose.yml` (5 services) + `.dockerignore`
-- [ ] Documentation utilisateur
+- [x] Documentation utilisateur — UserGuide.tsx (8 sections accordion, lot 472)
 - [x] Performance profiling — deep analysis API (21 findings) + frontend (15 findings), 9 fixes applied
 
 ## P11 Lot 17 — Deep Audit & Refactoring
@@ -170,8 +170,8 @@
 
 - [x] SearXNG dans docker-compose — kxkm_clown-searxng-1 :8080 (healthy)
 - [x] MinerU/Docling dans docker-compose — kxkm_clown-docling-1 :9400 (healthy)
-- [ ] Spike BGE-M3 embeddings (upgrade nomic-embed-text)
-- [ ] Déployer deep-audit.js sur kxkm-ai (cron quotidien)
+- [x] Spike BGE-M3 embeddings — default changed to bge-m3 (lot 471)
+- [x] Déployer deep-audit.js sur kxkm-ai — cron 3am daily (lot 469)
 - [x] Créer utilisateur Discord **Pharmacius** — kxkm_clown-discord-bot-1 (up 4 days)
 
 ### Phase D — Nouveaux node types
@@ -184,7 +184,7 @@
 
 - [ ] XTTS-v2 voice cloning par persona
 - [ ] LLMRTC WebRTC streaming (TypeScript, VAD, barge-in)
-- [ ] MCP SDK integration (personas = MCP servers)
+- [x] MCP SDK integration — 6 MCP tools (chat, personas, search, status, music_generate, ai_bridge_health)
 - [ ] PCL + OpenCharacter pipeline fine-tune
 - [x] Chatterbox TTS evaluation — deployed as fallback TTS, remote backend on :9100
 

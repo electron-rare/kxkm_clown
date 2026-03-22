@@ -12,9 +12,12 @@ function useAudioQueue(enabled: boolean) {
   const queueRef = useRef<string[]>([]);
   const playingRef = useRef(false);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
 
   const playNext = useCallback(() => {
-    if (!enabled || queueRef.current.length === 0) {
+    // Always check ref (not closure) for latest enabled state
+    if (!enabledRef.current || queueRef.current.length === 0) {
       playingRef.current = false;
       currentAudioRef.current = null;
       return;
@@ -27,7 +30,7 @@ function useAudioQueue(enabled: boolean) {
     audio.onended = () => playNext();
     audio.onerror = () => playNext();
     audio.play().catch(() => playNext());
-  }, [enabled]);
+  }, []); // no deps — uses refs only
 
   // Stop immediately when disabled
   useEffect(() => {
@@ -36,16 +39,18 @@ function useAudioQueue(enabled: boolean) {
       playingRef.current = false;
       if (currentAudioRef.current) {
         currentAudioRef.current.pause();
+        currentAudioRef.current.currentTime = 0;
+        currentAudioRef.current.src = "";
         currentAudioRef.current = null;
       }
     }
   }, [enabled]);
 
   const enqueue = useCallback((dataUri: string) => {
-    if (!enabled) return;
+    if (!enabledRef.current) return;
     queueRef.current.push(dataUri);
     if (!playingRef.current) playNext();
-  }, [enabled, playNext]);
+  }, [playNext]);
 
   return { enqueue };
 }

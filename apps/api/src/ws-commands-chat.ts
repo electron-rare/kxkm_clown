@@ -50,6 +50,10 @@ export const CHAT_COMMANDS = new Set([
   "/wisdom",
   "/goodnight",
   "/challenge",
+  "/agent",
+  "/kb",
+  "/provider",
+  "/orchestrate",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -207,6 +211,12 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "  /math <expr>        Calculatrice",
             "  /emojify <texte>    Ajouter des emojis",
             "  /countdown <1-30>   Compte a rebours",
+            "",
+            "MASCARADE (orchestrateur LLM)",
+            "  /agent list|run <nom> <prompt>  Agents mascarade",
+            "  /kb search <query>  Knowledge base",
+            "  /provider list|metrics  Providers LLM",
+            "  /orchestrate <prompt>  Multi-agent parallele",
             "",
             "  F1=Chat F2=Voice F3=Personas F4=Compose F5=Images",
             "  F6=Media F7=Admin F8=DAW AI F9=Instruments",
@@ -1243,6 +1253,146 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
           "Genere 4 /variations du prompt 'a cat programming in Rust'.",
         ];
         broadcast(info.channel, { type: "system", text: `🏆 CHALLENGE: ${challenges[Math.floor(Math.random() * challenges.length)]}` });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Lot 516 — /agent: mascarade agents
+      // -----------------------------------------------------------------
+      case "/agent": {
+        const sub = parts[1] || "list";
+        const MASCARADE_URL = process.env.MASCARADE_URL || "http://127.0.0.1:8100";
+        const MASCARADE_KEY = process.env.MASCARADE_API_KEY || "";
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (MASCARADE_KEY) headers["Authorization"] = `Bearer ${MASCARADE_KEY}`;
+
+        if (sub === "list") {
+          try {
+            const resp = await fetch(`${MASCARADE_URL}/agents`, { headers, signal: AbortSignal.timeout(5000) });
+            if (resp.ok) {
+              const agents = await resp.json();
+              const list = Array.isArray(agents) ? agents : agents.agents || [];
+              send(ws, { type: "system", text: `=== Agents mascarade (${list.length}) ===\n${list.map((a: any) => `  ${a.name}: ${a.description || a.model || "?"}`).join("\n")}` });
+            }
+          } catch { send(ws, { type: "system", text: "Agents mascarade non disponibles." }); }
+          return;
+        }
+
+        if (sub === "run") {
+          const agentName = parts[2];
+          const agentPrompt = parts.slice(3).join(" ");
+          if (!agentName || !agentPrompt) { send(ws, { type: "system", text: "Usage: /agent run <nom> <prompt>" }); return; }
+          send(ws, { type: "system", text: `Agent ${agentName}: "${agentPrompt.slice(0, 50)}..."` });
+          try {
+            const resp = await fetch(`${MASCARADE_URL}/agents/${agentName}/run`, {
+              method: "POST", headers,
+              body: JSON.stringify({ messages: [{ role: "user", content: agentPrompt }] }),
+              signal: AbortSignal.timeout(30_000),
+            });
+            if (resp.ok) {
+              const result = await resp.json();
+              broadcast(info.channel, { type: "system", text: `[Agent ${agentName}]\n${result.content || result.text || JSON.stringify(result).slice(0, 500)}` });
+            } else { send(ws, { type: "system", text: `Agent erreur: ${resp.status}` }); }
+          } catch (err) { send(ws, { type: "system", text: `Agent timeout: ${(err as Error).message}` }); }
+          return;
+        }
+
+        send(ws, { type: "system", text: "Usage: /agent list | /agent run <nom> <prompt>" });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Lot 517 — /kb: knowledge base search
+      // -----------------------------------------------------------------
+      case "/kb": {
+        const sub = parts[1] || "search";
+        const query = parts.slice(2).join(" ");
+        const MASCARADE_URL = process.env.MASCARADE_URL || "http://127.0.0.1:8100";
+        const MASCARADE_KEY = process.env.MASCARADE_API_KEY || "";
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (MASCARADE_KEY) headers["Authorization"] = `Bearer ${MASCARADE_KEY}`;
+
+        if (sub === "search" && query) {
+          try {
+            const resp = await fetch(`${MASCARADE_URL}/knowledge-base/search?query=${encodeURIComponent(query)}&limit=5`, { headers, signal: AbortSignal.timeout(5000) });
+            if (resp.ok) {
+              const results = await resp.json();
+              const items = Array.isArray(results) ? results : results.results || [];
+              if (items.length === 0) { send(ws, { type: "system", text: `KB: aucun resultat pour "${query}"` }); return; }
+              send(ws, { type: "system", text: `=== KB: "${query}" (${items.length}) ===\n${items.map((r: any) => `  ${r.title || r.name || "?"}: ${(r.content || r.url || "").slice(0, 100)}`).join("\n")}` });
+            }
+          } catch { send(ws, { type: "system", text: "Knowledge base non disponible." }); }
+          return;
+        }
+
+        send(ws, { type: "system", text: "Usage: /kb search <query>" });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Lot 518 — /provider: LLM providers info
+      // -----------------------------------------------------------------
+      case "/provider": {
+        const sub = parts[1] || "list";
+        const MASCARADE_URL = process.env.MASCARADE_URL || "http://127.0.0.1:8100";
+        const MASCARADE_KEY = process.env.MASCARADE_API_KEY || "";
+        const headers: Record<string, string> = {};
+        if (MASCARADE_KEY) headers["Authorization"] = `Bearer ${MASCARADE_KEY}`;
+
+        if (sub === "list") {
+          try {
+            const resp = await fetch(`${MASCARADE_URL}/providers`, { headers, signal: AbortSignal.timeout(5000) });
+            if (resp.ok) {
+              const providers = await resp.json();
+              const list = Array.isArray(providers) ? providers : Object.entries(providers).map(([k, v]: any) => ({ name: k, ...v }));
+              send(ws, { type: "system", text: `=== Providers LLM ===\n${list.map((p: any) => `  ${p.name || p}: ${p.status || p.model || "?"}`).join("\n")}` });
+            }
+          } catch { send(ws, { type: "system", text: "Providers non disponibles." }); }
+          return;
+        }
+
+        if (sub === "metrics") {
+          try {
+            const resp = await fetch(`${MASCARADE_URL}/router/metrics`, { headers, signal: AbortSignal.timeout(5000) });
+            if (resp.ok) {
+              const metrics = await resp.json();
+              send(ws, { type: "system", text: `=== Router Metrics ===\n${JSON.stringify(metrics, null, 2).slice(0, 500)}` });
+            }
+          } catch { send(ws, { type: "system", text: "Metrics non disponibles." }); }
+          return;
+        }
+
+        send(ws, { type: "system", text: "Usage: /provider list | /provider metrics" });
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // Lot 519 — /orchestrate: multi-agent orchestration
+      // -----------------------------------------------------------------
+      case "/orchestrate": {
+        const orchPrompt = text.slice(13).trim();
+        if (!orchPrompt) { send(ws, { type: "system", text: "Usage: /orchestrate <prompt>" }); return; }
+
+        const MASCARADE_URL = process.env.MASCARADE_URL || "http://127.0.0.1:8100";
+        const MASCARADE_KEY = process.env.MASCARADE_API_KEY || "";
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (MASCARADE_KEY) headers["Authorization"] = `Bearer ${MASCARADE_KEY}`;
+
+        send(ws, { type: "system", text: `Orchestration multi-agent: "${orchPrompt.slice(0, 50)}..."` });
+        try {
+          const resp = await fetch(`${MASCARADE_URL}/orchestrate`, {
+            method: "POST", headers,
+            body: JSON.stringify({
+              messages: [{ role: "user", content: orchPrompt }],
+              mode: "parallel",
+            }),
+            signal: AbortSignal.timeout(60_000),
+          });
+          if (resp.ok) {
+            const result = await resp.json();
+            broadcast(info.channel, { type: "system", text: `[Orchestration]\n${result.content || JSON.stringify(result).slice(0, 800)}` });
+          } else { send(ws, { type: "system", text: `Orchestration erreur: ${resp.status}` }); }
+        } catch (err) { send(ws, { type: "system", text: `Orchestration timeout: ${(err as Error).message}` }); }
         return;
       }
 

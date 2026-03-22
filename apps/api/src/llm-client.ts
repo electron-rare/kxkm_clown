@@ -1,9 +1,9 @@
 /**
- * LLM Client — routes through mascarade (/send) with Ollama fallback
+ * LLM Client — routes through mascarade /v1/chat/completions with Ollama fallback
  *
- * mascarade /send endpoint:
- *   POST { messages, strategy, provider, model, system, temperature, max_tokens }
- *   Returns: { content, model, provider, tokens_used, cached }
+ * mascarade /v1/chat/completions endpoint (OpenAI-compatible):
+ *   POST { model, messages, temperature, max_tokens }
+ *   Returns: { model, choices: [{ message: { content } }], usage }
  *
  * Fallback: direct Ollama /api/chat if mascarade is unavailable
  */
@@ -189,7 +189,7 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Pro
     try {
       return await chatViaMascarade(messages, opts);
     } catch (err) {
-      logger.warn({ err: (err as Error).message }, "[llm] mascarade /send failed, falling back to Ollama");
+      logger.warn({ err: (err as Error).message }, "[llm] mascarade /v1/chat/completions failed, falling back to Ollama");
       mascaradeAvailable = false;
       mascaradeLastCheck = Date.now();
       mascaradeFailCount++;
@@ -210,17 +210,17 @@ export async function* streamChat(
 ): AsyncGenerator<string, ChatResponse> {
   const { route, complexity } = routeByComplexity(messages);
 
-  // RouteLLM: for complex messages, try mascarade non-streaming first
-  // (mascarade /send is non-streaming but gives access to stronger models)
-  if (route === "mascarade" && shouldTryMascarade()) {
-    logger.debug({ complexity, threshold: ROUTELLM_THRESHOLD }, "[llm] routeLLM stream → mascarade (complex)");
+  // Try mascarade for ALL models (mascarade handles Ollama routing too)
+  // Only skip if RouteLLM explicitly routes to ollama for simple messages
+  if (route !== "ollama" && shouldTryMascarade()) {
+    logger.debug({ complexity, threshold: ROUTELLM_THRESHOLD }, "[llm] stream → mascarade");
     try {
       const result = await chatViaMascarade(messages, opts);
       // Emit the full response as a single chunk then return
       yield result.content;
       return result;
     } catch (err) {
-      logger.warn({ err: (err as Error).message }, "[llm] mascarade failed for complex stream, falling back to Ollama");
+      logger.warn({ err: (err as Error).message }, "[llm] mascarade failed for stream, falling back to Ollama");
       mascaradeAvailable = false;
       mascaradeLastCheck = Date.now();
       mascaradeFailCount++;
@@ -236,67 +236,52 @@ export async function* streamChat(
 }
 
 // ---------------------------------------------------------------------------
-// Mascarade /send (non-streaming, with full routing + cache + metrics)
+// Mascarade /v1/chat/completions (OpenAI-compatible, with full routing)
 // ---------------------------------------------------------------------------
 
 async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (MASCARADE_API_KEY) headers["Authorization"] = `Bearer ${MASCARADE_API_KEY}`;
-
-  const { provider, model } = parseModel(opts.model);
-
-  // Extract system message from messages array
-  const systemMsg = messages.find(m => m.role === "system");
-  const chatMessages = messages.filter(m => m.role !== "system").map(m => ({
-    role: m.role,
-    content: m.content,
-  }));
 
   try {
-    const resp = await fetch(`${MASCARADE_URL}/send`, {
+    const { provider, model } = parseModel(opts.model);
+    const modelStr = provider ? `${provider}:${model}` : model;
+
+    const resp = await fetch(`${MASCARADE_URL}/v1/chat/completions`, {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: chatMessages,
-        system: systemMsg?.content || undefined,
-        provider: provider || undefined,
-        model: model,
+        model: modelStr,
+        messages: messages.map(m => ({ role: m.role, content: m.content })),
         temperature: opts.temperature ?? 0.7,
         max_tokens: opts.maxTokens || 800,
       }),
       signal: controller.signal,
     });
 
-    if (!resp.ok) throw new Error(`mascarade /send ${resp.status}: ${resp.statusText}`);
+    if (!resp.ok) throw new Error(`mascarade ${resp.status}: ${resp.statusText}`);
 
     const data = await resp.json() as {
-      content?: string;
       model?: string;
-      provider?: string;
-      tokens_used?: number;
-      cached?: boolean;
-      error?: string;
+      choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
 
-    if (data.error) throw new Error(`mascarade: ${data.error}`);
+    const choice = data.choices?.[0];
 
     logger.debug({
-      provider: data.provider,
-      model: data.model,
-      tokens: data.tokens_used,
-      cached: data.cached,
-    }, "[llm] mascarade response");
+      model: data.model || modelStr,
+      usage: data.usage,
+    }, "[llm] mascarade /v1/chat/completions response");
 
     return {
-      content: data.content || "",
-      model: data.model || model,
-      provider: data.provider || "mascarade",
-      usage: data.tokens_used ? {
-        promptTokens: 0,
-        completionTokens: data.tokens_used,
-        totalTokens: data.tokens_used,
+      content: choice?.message?.content || "",
+      model: data.model || modelStr,
+      provider: "mascarade",
+      usage: data.usage ? {
+        promptTokens: data.usage.prompt_tokens || 0,
+        completionTokens: data.usage.completion_tokens || 0,
+        totalTokens: data.usage.total_tokens || 0,
       } : undefined,
     };
   } finally {

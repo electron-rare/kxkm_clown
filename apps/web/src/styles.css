@@ -4443,3 +4443,19 @@ code {
   font-size: 0.8em; color: rgba(255,255,255,0.7); line-height: 1.6;
 }
 .user-guide-list li::before { content: "» "; color: var(--ink, #39ff14); }
+
+/* Live Face Swap Stream */
+.live-swap { margin-top: 12px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; background: rgba(0,0,0,0.2); }
+.live-swap-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.live-swap-title { font-family: var(--font-mono, "VT323", monospace); font-size: 12px; color: #f44; letter-spacing: 2px; }
+.live-swap-toggle { padding: 4px 12px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px; cursor: pointer; border: 1px solid; background: transparent; letter-spacing: 1px; }
+.live-swap-toggle:not(.live-swap-active) { color: #4caf50; border-color: #4caf50; }
+.live-swap-toggle:not(.live-swap-active):hover { background: rgba(76,175,80,0.15); }
+.live-swap-active { color: #f44; border-color: #f44; animation: pulse-warn 1s infinite; }
+.live-swap-preview { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+.live-swap-col { text-align: center; }
+.live-swap-video, .live-swap-result { width: 100%; max-width: 256px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.15); }
+.live-swap-result { border-color: rgba(255,179,0,0.3); }
+.live-swap-arrow { font-size: 24px; color: #666; }
+.live-swap-placeholder { width: 100%; max-width: 256px; aspect-ratio: 1; border: 1px dashed rgba(255,255,255,0.15); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #555; font-size: 12px; margin: 0 auto; }
+@media (max-width: 600px) { .live-swap-preview { grid-template-columns: 1fr; } .live-swap-arrow { transform: rotate(90deg); } }

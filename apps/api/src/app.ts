@@ -84,6 +84,10 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
     res.send(prometheusMetrics());
   });
 
+  // A2A Agent Card discovery + JSON-RPC endpoint
+  app.get("/.well-known/agent.json", agentCardRoute);
+  app.post("/a2a", a2aRpcRoute);
+
   // -----------------------------------------------------------------------
   // Routes (extracted to routes/ modules)
   // -----------------------------------------------------------------------

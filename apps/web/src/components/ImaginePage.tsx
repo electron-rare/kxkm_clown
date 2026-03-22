@@ -583,7 +583,115 @@ function FaceSwapForm({
       >
         {busy ? "GENERATION..." : "GENERER"}
       </button>
+
+      {/* LIVE STREAM MODE */}
+      {target && <LiveFaceSwap target={target} onResult={onResult} />}
     </form>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  LiveFaceSwap — continuous webcam → face swap stream                 */
+/* ------------------------------------------------------------------ */
+
+function LiveFaceSwap({ target, onResult }: { target: string; onResult: (r: ImageResult) => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState<string | null>(null);
+  const [fps, setFps] = useState(0);
+  const runningRef = useRef(false);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const start = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: 512, height: 512 },
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        streamRef.current = stream;
+        setRunning(true);
+        runningRef.current = true;
+        loop();
+      }
+    } catch {
+      alert("Camera non disponible");
+    }
+  };
+
+  const stop = () => {
+    runningRef.current = false;
+    setRunning(false);
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  };
+
+  const loop = async () => {
+    while (runningRef.current) {
+      const t0 = Date.now();
+      try {
+        // Capture frame
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+        if (!canvas || !video || video.readyState < 2) {
+          await new Promise(r => setTimeout(r, 500));
+          continue;
+        }
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(video, 0, 0, 512, 512);
+        const sourceB64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
+
+        // Send to face swap API
+        const resp = await fetch("/api/v2/comfyui/faceswap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source: sourceB64, target }),
+        });
+        const json = await resp.json();
+        if (json.ok && json.data?.imageBase64) {
+          setLastResult(`data:image/png;base64,${json.data.imageBase64}`);
+          setFps(Math.round(1000 / (Date.now() - t0)));
+        }
+      } catch {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => () => { runningRef.current = false; streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
+
+  return (
+    <div className="live-swap">
+      <div className="live-swap-header">
+        <span className="live-swap-title">LIVE FACE SWAP</span>
+        <button
+          type="button"
+          className={`live-swap-toggle ${running ? "live-swap-active" : ""}`}
+          onClick={running ? stop : start}
+        >
+          {running ? `⏹ STOP (${fps} fps)` : "▶ START LIVE"}
+        </button>
+      </div>
+      <div className="live-swap-preview">
+        <div className="live-swap-col">
+          <video ref={videoRef} autoPlay playsInline muted className="live-swap-video" style={{ display: running ? "block" : "none" }} />
+          <canvas ref={canvasRef} style={{ display: "none" }} />
+          {!running && <div className="live-swap-placeholder">Webcam</div>}
+        </div>
+        <div className="live-swap-arrow">{"\u2192"}</div>
+        <div className="live-swap-col">
+          {lastResult ? (
+            <img src={lastResult} alt="Live swap result" className="live-swap-result" />
+          ) : (
+            <div className="live-swap-placeholder">Resultat</div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

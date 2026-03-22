@@ -558,9 +558,14 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       return;
     }
 
-    // Pre-warm persona memory IN PARALLEL with enrichment (saves 10-30ms per persona)
+    // For inter-persona chains (depth > 0): SKIP enrichment — context is already fresh
+    // This saves 50-500ms per relay hop
+    const enrichmentPromise = depth > 0
+      ? Promise.resolve(text) // pass through raw text, no context/RAG
+      : buildConversationInput(text, channel, getContextString, rag);
+
     const [enrichedText, ...memories] = await Promise.all([
-      buildConversationInput(text, channel, getContextString, rag),
+      enrichmentPromise,
       ...responders.map(p => cachedLoadMemory(p.nick).catch(() => ({ nick: p.nick, facts: [], summary: "", lastUpdated: "" } as PersonaMemory))),
     ]);
 

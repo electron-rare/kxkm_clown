@@ -108,13 +108,21 @@ function LiveWebcam({ mode, onCapture, target, prompt, strength, style: stylePro
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const [lastFrame, setLastFrame] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [prevResult, setPrevResult] = useState<string | null>(null); // for crossfade
   const [processing, setProcessing] = useState(false);
   const [fps, setFps] = useState(0);
+  const [latencyMs, setLatencyMs] = useState(0);
   const [frameCount, setFrameCount] = useState(0);
+  const [resolution, setResolution] = useState(256); // 256 for speed, 512 for quality
+  const [blendOpacity, setBlendOpacity] = useState(1.0); // 0=webcam, 1=result
+  const [history, setHistory] = useState<string[]>([]); // last N result thumbnails
+  const [fullscreen, setFullscreen] = useState(false);
   const runningRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   const facingModeRef = useRef(facingMode);
   facingModeRef.current = facingMode;
+  const resRef = useRef(resolution);
+  resRef.current = resolution;
   const propsRef = useRef({ prompt, strength, style: styleProp, target });
   propsRef.current = { prompt, strength, style: styleProp, target };
 
@@ -154,34 +162,47 @@ function LiveWebcam({ mode, onCapture, target, prompt, strength, style: stylePro
     }
   }, [startCamera]);
 
-  const captureFrame = useCallback((): string | null => {
+  const captureFrame = useCallback((forceHiRes = false): string | null => {
     const canvas = canvasRef.current;
     const video = videoRef.current;
     if (!canvas || !video || video.readyState < 2) return null;
-    canvas.width = 512; canvas.height = 512;
+    const res = forceHiRes ? 512 : resRef.current;
+    canvas.width = res; canvas.height = res;
     const ctx = canvas.getContext("2d")!;
     if (facingModeRef.current === "user") {
-      ctx.translate(512, 0);
+      ctx.translate(res, 0);
       ctx.scale(-1, 1);
     }
-    ctx.drawImage(video, 0, 0, 512, 512);
+    ctx.drawImage(video, 0, 0, res, res);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    return canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+    const quality = forceHiRes ? 0.92 : 0.7; // lower quality in live for speed
+    return canvas.toDataURL("image/jpeg", quality).split(",")[1];
   }, []);
 
   const handleCapture = useCallback(() => {
-    const b64 = captureFrame();
+    const b64 = captureFrame(true); // hi-res for capture
     if (b64) {
       setLastFrame(`data:image/jpeg;base64,${b64}`);
       onCapture?.(b64);
-      // Flash effect
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext("2d")!;
         ctx.fillStyle = "rgba(255,255,255,0.5)";
-        ctx.fillRect(0, 0, 512, 512);
+        ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
       }
     }
   }, [captureFrame, onCapture]);
+
+  // Snapshot: save current result to gallery at hi-res
+  const handleSnapshot = useCallback(() => {
+    if (lastResult) {
+      onResult?.({
+        prompt: `[Snapshot ${mode}] ${propsRef.current.prompt || "webcam"}`,
+        imageData: lastResult.split(",")[1] || "",
+        imageMime: "image/png",
+        mode: `snapshot-${mode}`,
+      });
+    }
+  }, [lastResult, mode, onResult]);
 
   const runLoop = async () => {
     let localFrameCount = 0;
@@ -217,18 +238,16 @@ function LiveWebcam({ mode, onCapture, target, prompt, strength, style: stylePro
           const json = await resp.json();
           if (json.ok && json.data?.imageBase64) {
             const resultSrc = `data:image/png;base64,${json.data.imageBase64}`;
-            setLastResult(resultSrc);
+            // Crossfade: store previous result
+            setPrevResult(prev => prev);
+            setLastResult(prev => { setPrevResult(prev); return resultSrc; });
             localFrameCount++;
             setFrameCount(localFrameCount);
-            setFps(Math.round(1000 / (Date.now() - t0)));
-            if (onResult && localFrameCount % 5 === 0) {
-              onResult({
-                prompt: `[Live ${mode}] ${p.prompt || "webcam"}`,
-                imageData: json.data.imageBase64,
-                imageMime: "image/png",
-                mode: `live-${mode}`,
-              });
-            }
+            const elapsed = Date.now() - t0;
+            setLatencyMs(elapsed);
+            setFps(Math.round(1000 / elapsed));
+            // History: keep last 8 thumbnails
+            setHistory(h => [resultSrc, ...h].slice(0, 8));
           }
         }
       } catch {
@@ -246,11 +265,26 @@ function LiveWebcam({ mode, onCapture, target, prompt, strength, style: stylePro
   return (
     <div className={`webcam-live ${active ? "webcam-live-active" : ""}`}>
       <div className="webcam-live-toolbar">
-        <span className="webcam-live-mode">{mode === "capture" ? "\uD83D\uDCF7 CAPTURE" : `\uD83D\uDD34 LIVE ${mode.toUpperCase()}`}</span>
+        <span className="webcam-live-mode">
+          {mode === "capture" ? "\uD83D\uDCF7 CAPTURE" : `\uD83D\uDD34 LIVE ${mode.toUpperCase()}`}
+          {active && latencyMs > 0 && <span className="webcam-latency">{latencyMs}ms</span>}
+        </span>
         <div className="webcam-live-actions">
-          {active && <button type="button" className="webcam-btn-flip" onClick={flipCamera} title="Retourner camera">{"\uD83D\uDD04"}</button>}
-          {active && fps > 0 && <span className="webcam-fps">{fps} fps</span>}
-          {active && processing && <span className="webcam-processing">{"\u27F3"}</span>}
+          {active && (
+            <>
+              <button type="button" className="webcam-btn-flip" onClick={flipCamera} title="Retourner camera">{"\uD83D\uDD04"}</button>
+              <select className="webcam-res-select" value={resolution} onChange={e => setResolution(parseInt(e.target.value))} title="Resolution">
+                <option value={192}>192px</option>
+                <option value={256}>256px</option>
+                <option value={384}>384px</option>
+                <option value={512}>512px</option>
+              </select>
+              {fps > 0 && <span className="webcam-fps">{fps}fps</span>}
+              {processing && <span className="webcam-processing">{"\u27F3"}</span>}
+              {lastResult && <button type="button" className="webcam-btn-snap" onClick={handleSnapshot} title="Sauvegarder ce frame">{"\uD83D\uDCF8"}</button>}
+              {lastResult && <button type="button" className="webcam-btn-full" onClick={() => setFullscreen(!fullscreen)} title="Plein ecran">{fullscreen ? "\u2716" : "\u26F6"}</button>}
+            </>
+          )}
           <button
             type="button"
             className={`webcam-btn-toggle ${active ? "webcam-btn-stop" : "webcam-btn-start"}`}
@@ -262,43 +296,90 @@ function LiveWebcam({ mode, onCapture, target, prompt, strength, style: stylePro
       </div>
 
       {active && (
-        <div className="webcam-live-grid">
-          <div className="webcam-live-panel">
-            <div className="webcam-live-label">WEBCAM</div>
-            <video
-              ref={videoRef}
-              autoPlay playsInline muted
-              className="webcam-live-video"
-              style={facingMode === "user" ? { transform: "scaleX(-1)" } : undefined}
-            />
-            {mode === "capture" && (
-              <button type="button" className="webcam-btn-capture" onClick={handleCapture}>{"\uD83D\uDCF8"} CAPTURER</button>
+        <>
+          <div className="webcam-live-grid">
+            <div className="webcam-live-panel">
+              <div className="webcam-live-label">WEBCAM</div>
+              <div className="webcam-video-wrap">
+                <video
+                  ref={videoRef}
+                  autoPlay playsInline muted
+                  className="webcam-live-video"
+                  style={facingMode === "user" ? { transform: "scaleX(-1)" } : undefined}
+                />
+                {/* Blend overlay: show result on top of webcam */}
+                {isLiveMode && lastResult && blendOpacity < 1 && (
+                  <img src={lastResult} alt="" className="webcam-blend-overlay" style={{ opacity: blendOpacity }} />
+                )}
+              </div>
+              {mode === "capture" && (
+                <button type="button" className="webcam-btn-capture" onClick={handleCapture}>{"\uD83D\uDCF8"} CAPTURER</button>
+              )}
+            </div>
+
+            {isLiveMode && (
+              <>
+                <div className="webcam-live-arrow">
+                  <span className={processing ? "webcam-processing" : ""}>{processing ? "\u27F3" : "\u2192"}</span>
+                  {frameCount > 0 && <span className="webcam-frame-count">#{frameCount}</span>}
+                </div>
+                <div className="webcam-live-panel">
+                  <div className="webcam-live-label">RESULTAT</div>
+                  <div className="webcam-result-wrap">
+                    {/* Crossfade: previous result fades out behind current */}
+                    {prevResult && <img src={prevResult} alt="" className="webcam-live-result webcam-result-prev" />}
+                    {lastResult ? (
+                      <img
+                        src={lastResult}
+                        alt="Live result"
+                        className="webcam-live-result webcam-result-current"
+                        onClick={() => setFullscreen(true)}
+                      />
+                    ) : (
+                      <div className="webcam-live-placeholder">En attente...</div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {mode === "capture" && lastFrame && (
+              <div className="webcam-live-panel">
+                <div className="webcam-live-label">CAPTURE</div>
+                <img src={lastFrame} alt="Captured" className="webcam-live-result" />
+              </div>
             )}
           </div>
 
-          {isLiveMode && (
-            <>
-              <div className="webcam-live-arrow">
-                <span>{processing ? "\u27F3" : "\u2192"}</span>
-                {frameCount > 0 && <span className="webcam-frame-count">#{frameCount}</span>}
-              </div>
-              <div className="webcam-live-panel">
-                <div className="webcam-live-label">RESULTAT</div>
-                {lastResult ? (
-                  <img src={lastResult} alt="Live result" className="webcam-live-result" />
-                ) : (
-                  <div className="webcam-live-placeholder">En attente...</div>
-                )}
-              </div>
-            </>
-          )}
-
-          {mode === "capture" && lastFrame && (
-            <div className="webcam-live-panel">
-              <div className="webcam-live-label">CAPTURE</div>
-              <img src={lastFrame} alt="Captured" className="webcam-live-result" />
+          {/* Controls: blend opacity slider */}
+          {isLiveMode && active && (
+            <div className="webcam-controls">
+              <label className="webcam-control-label">
+                Blend: <input type="range" min={0} max={1} step={0.05} value={blendOpacity} onChange={e => setBlendOpacity(parseFloat(e.target.value))} className="webcam-blend-slider" />
+                <span className="webcam-control-val">{Math.round(blendOpacity * 100)}%</span>
+              </label>
             </div>
           )}
+
+          {/* History thumbnails */}
+          {history.length > 1 && (
+            <div className="webcam-history">
+              {history.map((src, i) => (
+                <img key={i} src={src} alt={`#${history.length - i}`} className="webcam-history-thumb" onClick={() => { setLastResult(src); setFullscreen(true); }} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Fullscreen overlay */}
+      {fullscreen && lastResult && (
+        <div className="webcam-fullscreen" onClick={() => setFullscreen(false)}>
+          <img src={lastResult} alt="Fullscreen result" className="webcam-fullscreen-img" />
+          <div className="webcam-fullscreen-bar">
+            <button onClick={(e) => { e.stopPropagation(); handleSnapshot(); }}>SAUVEGARDER</button>
+            <button onClick={() => setFullscreen(false)}>FERMER</button>
+          </div>
         </div>
       )}
 

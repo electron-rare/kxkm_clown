@@ -11,19 +11,34 @@ import type { ChatMsg } from "./chat-types";
 function useAudioQueue(enabled: boolean) {
   const queueRef = useRef<string[]>([]);
   const playingRef = useRef(false);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const playNext = useCallback(() => {
     if (!enabled || queueRef.current.length === 0) {
       playingRef.current = false;
+      currentAudioRef.current = null;
       return;
     }
     playingRef.current = true;
     const src = queueRef.current.shift()!;
     const audio = new Audio(src);
+    currentAudioRef.current = audio;
     audio.volume = 0.8;
     audio.onended = () => playNext();
     audio.onerror = () => playNext();
     audio.play().catch(() => playNext());
+  }, [enabled]);
+
+  // Stop immediately when disabled
+  useEffect(() => {
+    if (!enabled) {
+      queueRef.current = [];
+      playingRef.current = false;
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+    }
   }, [enabled]);
 
   const enqueue = useCallback((dataUri: string) => {

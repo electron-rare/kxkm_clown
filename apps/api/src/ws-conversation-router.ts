@@ -105,8 +105,8 @@ export interface ConversationRouterDeps {
 export type ConversationRouter = (channel: string, text: string, depth?: number) => Promise<void>;
 
 const DEFAULT_MAX_INTER_PERSONA_DEPTH = 3;
-const PERSONA_COOLDOWN_MS = 3000;
-const DEFAULT_INTER_PERSONA_DELAY_MS = 500;
+const PERSONA_COOLDOWN_MS = 1000; // was 3000 — faster persona chains
+const DEFAULT_INTER_PERSONA_DELAY_MS = 100; // was 500 — near-instant relay
 
 // Dynamic mood based on time of day (Lot 405)
 function getPersonaMood(): string {
@@ -439,7 +439,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       }
 
       setTimeoutFn(() => {
-        const contextMessage = `${persona.nick} a dit: "${fullText.slice(0, 500)}". @${nextPersona.nick}, réponds-lui.`;
+        // Keep inter-persona context short for speed (max 200 chars of previous response)
+        const contextMessage = `@${nextPersona.nick} ${persona.nick}: "${fullText.slice(0, 200)}"`;
         routeToPersonas(channel, contextMessage, depth + 1).catch((err) => {
           trackError("inter_persona", err, { persona: nextPersona.nick, depth: depth + 1 });
         });

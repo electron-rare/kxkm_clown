@@ -10,6 +10,7 @@ import { logChatMessage } from "./ws-chat-logger.js";
 import { send, generateNick, checkRateLimit, MAX_WS_MESSAGE_BYTES, MAX_TEXT_LENGTH } from "./ws-chat-helpers.js";
 import { replayHistory } from "./ws-chat-history.js";
 import { wsMessageSchema } from "./schemas.js";
+import { recordLatency } from "./perf.js";
 
 import type {
   ChatPersona,
@@ -431,6 +432,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
       idleTimer = startIdleTimer();
 
       processingChain = processingChain.then(async () => {
+        const wsStart = performance.now();
         if (raw.length > MAX_WS_MESSAGE_BYTES) return;
 
         if (checkRateLimit(info)) {
@@ -488,6 +490,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
         } else if (message.type === "message") {
           await handleChatMessage(ws, info, text);
         }
+        recordLatency("ws_message", performance.now() - wsStart);
       }).catch((err) => {
         logger.error({ err: err instanceof Error ? err.message : String(err) }, "[ws-chat] handler error");
       });

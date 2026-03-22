@@ -56,3 +56,32 @@ export function getMetrics(): Record<string, { count: number; avgMs: number; p50
 export function resetMetrics(): void {
   metrics.clear();
 }
+
+/** Prometheus-compatible text exposition format */
+export function prometheusMetrics(): string {
+  const lines: string[] = [];
+  const mem = process.memoryUsage();
+  lines.push("# HELP kxkm_memory_rss_bytes Resident set size");
+  lines.push("# TYPE kxkm_memory_rss_bytes gauge");
+  lines.push(`kxkm_memory_rss_bytes ${mem.rss}`);
+  lines.push("# HELP kxkm_memory_heap_used_bytes Heap used");
+  lines.push("# TYPE kxkm_memory_heap_used_bytes gauge");
+  lines.push(`kxkm_memory_heap_used_bytes ${mem.heapUsed}`);
+  lines.push("# HELP kxkm_uptime_seconds Process uptime");
+  lines.push("# TYPE kxkm_uptime_seconds gauge");
+  lines.push(`kxkm_uptime_seconds ${Math.floor(process.uptime())}`);
+  for (const [label, m] of metrics) {
+    const safe = label.replace(/[^a-zA-Z0-9_]/g, "_");
+    lines.push(`# HELP kxkm_${safe}_total Total requests`);
+    lines.push(`# TYPE kxkm_${safe}_total counter`);
+    lines.push(`kxkm_${safe}_total ${m.count}`);
+    const sorted = [...m.buckets].sort((a, b) => a - b);
+    lines.push(`# HELP kxkm_${safe}_duration_ms Latency`);
+    lines.push(`# TYPE kxkm_${safe}_duration_ms summary`);
+    lines.push(`kxkm_${safe}_duration_ms{quantile="0.5"} ${Math.round(percentile(sorted, 50))}`);
+    lines.push(`kxkm_${safe}_duration_ms{quantile="0.95"} ${Math.round(percentile(sorted, 95))}`);
+    lines.push(`kxkm_${safe}_duration_ms{quantile="0.99"} ${Math.round(percentile(sorted, 99))}`);
+    lines.push(`kxkm_${safe}_duration_ms_max ${Math.round(m.maxMs)}`);
+  }
+  return lines.join("\n") + "\n";
+}

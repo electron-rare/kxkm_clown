@@ -75,6 +75,10 @@ export const INFO_COMMANDS = new Set([
   "/commands",
   "/server",
   "/lot500",
+  "/matrix",
+  "/neofetch",
+  "/help-all",
+  "/session-stats",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -962,6 +966,57 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           "╚═══════════════════════════════════════════════════╝",
         ];
         broadcast(info.channel, { type: "system", text: art.join("\n") });
+        return;
+      }
+
+      case "/matrix": {
+        // Lot 505 — fun matrix rain
+        const matrixChars = "ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ01";
+        const matrixLines = Array.from({ length: 5 }, () => Array.from({ length: 40 }, () => matrixChars[Math.floor(Math.random() * matrixChars.length)]).join(""));
+        send(ws, { type: "system", text: matrixLines.join("\n") });
+        return;
+      }
+
+      case "/neofetch": {
+        // Lot 506 — system summary
+        const up = process.uptime();
+        const nfH = Math.floor(up / 3600), nfM = Math.floor((up % 3600) / 60);
+        send(ws, { type: "system", text: [
+          "  ╭─────────────────╮",
+          "  │  3615 J'ai pete  │",
+          "  ╰─────────────────╯",
+          `  OS: ${os.platform()} ${os.arch()}`,
+          `  Host: ${os.hostname()}`,
+          `  Uptime: ${nfH}h ${nfM}m`,
+          `  RAM: ${Math.round(process.memoryUsage().rss / 1e6)}MB / ${Math.round(os.totalmem() / 1e9)}GB`,
+          `  Node: ${process.version}`,
+          `  Personas: ${getPersonas().length}`,
+          `  Lots: 500+`,
+          `  Cmds: ${INFO_COMMANDS.size + GENERATE_COMMANDS.size + CHAT_COMMANDS.size}+`,
+        ].join("\n") });
+        return;
+      }
+
+      case "/help-all": {
+        // Lot 507 — list ALL command names (compact)
+        const allCmds = [...INFO_COMMANDS, ...GENERATE_COMMANDS, ...CHAT_COMMANDS].sort();
+        send(ws, { type: "system", text: `${allCmds.length} commandes:\n${allCmds.join("  ")}` });
+        return;
+      }
+
+      case "/session-stats": {
+        // Lot 510 — session stats summary
+        send(ws, { type: "system", text: [
+          "=== SESSION STATS ===",
+          `  Lots cette session: 177+`,
+          `  Commandes ajoutees: ${INFO_COMMANDS.size + GENERATE_COMMANDS.size + CHAT_COMMANDS.size}+`,
+          `  Uptime: ${Math.floor(process.uptime() / 60)}min`,
+          `  RAM: ${Math.round(process.memoryUsage().rss / 1e6)}MB`,
+          `  Personas: ${getPersonas().length}`,
+          "",
+          "Milestones: /lot400, /lot500",
+          "Credits: /credits | About: /about",
+        ].join("\n") });
         return;
       }
 

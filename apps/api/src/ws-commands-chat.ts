@@ -46,6 +46,10 @@ export const CHAT_COMMANDS = new Set([
   "/compliment",
   "/8ball",
   "/whisper-all",
+  "/roast",
+  "/wisdom",
+  "/goodnight",
+  "/challenge",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -1180,6 +1184,65 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         if (typeof routeToPersonas === "function") {
           await routeToPersonas(info.channel, whisperMsg);
         }
+        return;
+      }
+
+      case "/roast": {
+        // Lot 501 — friendly roast from random persona
+        const target = parts[1] || info.nick;
+        const personas = getPersonas().filter(p => (p as any).enabled !== false);
+        const p = personas[Math.floor(Math.random() * personas.length)];
+        if (!p) return;
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        try {
+          const resp = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: p.model, messages: [{ role: "system", content: p.systemPrompt }, { role: "user", content: `Fais un petit roast amical et drole de "${target}" dans ton style. Maximum 2 phrases. Reste bienveillant.` }], stream: false, options: { num_predict: 150 }, keep_alive: "30m", think: false }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (resp.ok) { const d = await resp.json() as any; broadcast(info.channel, { type: "system", text: `🔥 ${p.nick} roast ${target}: ${d.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim() || "..."}` }); }
+        } catch { broadcast(info.channel, { type: "system", text: "Roast indisponible." }); }
+        return;
+      }
+
+      case "/wisdom": {
+        // Lot 502
+        const wisdoms = [
+          "Le code qui compile n'est pas forcement correct, mais celui qui ne compile pas est forcement incorrect.",
+          "Dans le doute, redemarrez Ollama.",
+          "Un bon prompt vaut mille lignes de code.",
+          "La VRAM est comme le temps: on n'en a jamais assez.",
+          "Le silence est le meilleur debug tool.",
+          "Chaque bug est une opportunite deguisee en erreur 500.",
+          "Le refactoring est l'art de casser ce qui marche pour le rendre plus beau.",
+          "Un bon commit message explique le pourquoi, pas le quoi.",
+          "La documentation, c'est comme le sport: tout le monde sait qu'il faudrait en faire.",
+          "Le premier pas vers l'IA c'est d'accepter qu'on ne comprend pas tout.",
+        ];
+        send(ws, { type: "system", text: `🧘 ${wisdoms[Math.floor(Math.random() * wisdoms.length)]}` });
+        return;
+      }
+
+      case "/goodnight": {
+        // Lot 503
+        const goodnights = ["Bonne nuit les artistes du bruit.", "Que vos reves soient en 24-bit 96kHz.", "Le silence de la nuit est la plus belle composition.", "Dormez bien, les personas veillent.", "A demain dans le chaos sonore."];
+        broadcast(info.channel, { type: "system", text: `🌙 ${info.nick}: ${goodnights[Math.floor(Math.random() * goodnights.length)]}` });
+        return;
+      }
+
+      case "/challenge": {
+        // Lot 504 — creative challenge
+        const challenges = [
+          "Genere une image avec /imagine en utilisant seulement 3 mots.",
+          "Compose un haiku avec /haiku sur un sujet absurde.",
+          "Lance un /debate entre deux personas improbables.",
+          "Cree un /jam a 200 BPM (bonne chance).",
+          "Demande a 3 personas leur avis sur le fromage avec /collab.",
+          "Fais un /blind-test et devine l'instrument en moins de 5 secondes.",
+          "Traduis un virelangue avec /translate.",
+          "Genere 4 /variations du prompt 'a cat programming in Rust'.",
+        ];
+        broadcast(info.channel, { type: "system", text: `🏆 CHALLENGE: ${challenges[Math.floor(Math.random() * challenges.length)]}` });
         return;
       }
 

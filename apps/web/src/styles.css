@@ -4557,3 +4557,60 @@ code {
     inset 0 0 20px rgba(51, 255, 51, 0.03),
     0 0 30px rgba(51, 255, 51, 0.05);
 }
+
+/* ═══ Mobile Deep Pass ═══ */
+
+/* Safe area insets for notched phones */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .minitel-service-bottom {
+    padding-bottom: calc(4px + env(safe-area-inset-bottom));
+  }
+  .chat-input {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Touch-friendly: minimum tap targets 44px */
+@media (max-width: 768px) {
+  .chat-input input[type="text"] {
+    font-size: 16px; /* prevents iOS zoom on focus */
+    min-height: 44px;
+  }
+  .chat-input button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .chat-upload-btn {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .minitel-nav-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+  /* Channel selector compact */
+  .chat-channel-btn { font-size: 12px; }
+  .chat-channel-menu { max-height: 60vh; overflow-y: auto; }
+  /* Composition cards stack */
+  .cmp-tracks { max-height: 40vh; overflow-y: auto; }
+}
+
+/* Ultra-compact for small phones */
+@media (max-width: 380px) {
+  .minitel-fkey { font-size: 7px; padding: 2px 2px; letter-spacing: 0; }
+  .minitel-service-top { font-size: 11px; }
+  .chat-msg { font-size: 11px; line-height: 1.4; }
+  .chat-nick { font-size: 11px; }
+  .chat-ts { font-size: 8px; }
+  .daw-ai-gen-title { font-size: 10px; }
+  .mg-filter { font-size: 10px; padding: 3px 6px; }
+}
+
+/* Landscape phone: hide top bar, maximize content */
+@media (max-height: 500px) and (orientation: landscape) {
+  .minitel-service-top { display: none; }
+  .minitel-content { height: calc(100vh - 32px); }
+}

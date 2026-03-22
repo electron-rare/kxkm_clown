@@ -32,6 +32,16 @@ const MediaExplorer = lazy(() => import("./components/MediaExplorer"));
 const MediaGallery = lazy(() => import("./components/MediaGallery"));
 const UserGuide = lazy(() => import("./components/UserGuide"));
 const LiveFXPage = lazy(() => import("./components/LiveFXPage"));
+
+// Prefetch heavy routes on idle
+if (typeof requestIdleCallback !== "undefined") {
+  requestIdleCallback(() => {
+    import("./components/ComposePage");
+    import("./components/ImaginePage");
+    import("./components/DawAIPanel");
+    import("./components/MediaGallery");
+  });
+}
 const VisualSynth = lazy(() => import("./components/VisualSynth"));
 
 // ---------------------------------------------------------------------------

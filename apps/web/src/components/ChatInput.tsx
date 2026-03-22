@@ -91,12 +91,14 @@ export const ChatInput = React.memo(function ChatInput({ input, setInput, onSend
     ? personas.filter(p => p.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 8)
     : [];
 
-  // Filter commands matching the typed prefix (fuzzy: includes, not just startsWith)
+  // Filter commands: startsWith first, then includes (ranked)
   const cmdSuggestions = cmdQuery !== null
-    ? ALL_COMMANDS.filter(c => {
+    ? (() => {
         const q = cmdQuery.toLowerCase();
-        return c.toLowerCase().includes(q);
-      }).slice(0, 8)
+        const prefix = ALL_COMMANDS.filter(c => c.toLowerCase().startsWith("/" + q));
+        const fuzzy = ALL_COMMANDS.filter(c => !c.toLowerCase().startsWith("/" + q) && c.toLowerCase().includes(q));
+        return [...prefix, ...fuzzy].slice(0, 8);
+      })()
     : [];
 
   const activeSuggestions = mentionSuggestions.length > 0 ? "mention" : cmdSuggestions.length > 0 ? "cmd" : null;

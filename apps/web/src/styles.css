@@ -4426,3 +4426,20 @@ code {
 .chat-search-count { color: #888; font-size: 10px; min-width: 60px; }
 .chat-search-close { background: none; border: none; color: #888; cursor: pointer; font-size: 14px; }
 .chat-msg-highlight { background: rgba(255,179,0,0.15) !important; border-left: 2px solid #ffb300; }
+
+/* ── User Guide ── */
+.user-guide { padding: 8px 16px; max-width: 600px; }
+.user-guide-sections { display: flex; flex-direction: column; gap: 2px; }
+.user-guide-section { border-bottom: 1px solid rgba(51, 255, 51, 0.1); }
+.user-guide-toggle {
+  width: 100%; text-align: left; background: none; border: none;
+  color: var(--ink, #39ff14); font-family: inherit; font-size: 0.9em;
+  padding: 8px 4px; cursor: pointer;
+}
+.user-guide-toggle:hover { background: rgba(51, 255, 51, 0.05); }
+.user-guide-toggle.open { color: var(--minitel-green, #33ff33); }
+.user-guide-list {
+  list-style: none; padding: 0 0 8px 16px; margin: 0;
+  font-size: 0.8em; color: rgba(255,255,255,0.7); line-height: 1.6;
+}
+.user-guide-list li::before { content: "» "; color: var(--ink, #39ff14); }

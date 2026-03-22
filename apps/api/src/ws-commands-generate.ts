@@ -36,6 +36,8 @@ export const GENERATE_COMMANDS = new Set([
   "/help-imagine",
   "/sfx",
   "/jam",
+  "/mixtape",
+  "/imagine-compare",
 ]);
 
 export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
@@ -1710,6 +1712,62 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           }
         }
         broadcast(info.channel, { type: "system", text: `🎶 Jam terminee: ${results.filter(r => r.status === "fulfilled").length}/3 pistes.` });
+        return;
+      }
+
+      case "/mixtape": {
+        // /mixtape [style] — auto-generate 4-track composition (Lot 485)
+        const mixStyle = text.slice(9).trim() || "experimental";
+        broadcast(info.channel, { type: "system", text: `🎵 Mixtape "${mixStyle}" — generation de 4 pistes...` });
+        const AI_BRIDGE = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
+        const mixTracks = [
+          { name: "Drums", endpoint: "/instrument/drums", body: { bpm: 120, pattern: "kick|snare|hihat", bars: 8 } },
+          { name: "Bass", endpoint: "/instrument/bass", body: { note: "C2", waveform: "saw", duration: 20, pattern: "pulse", bpm: 120 } },
+          { name: "Pad", endpoint: "/instrument/pad", body: { type: "warm", duration: 20, chord: "Cm" } },
+          { name: "FX", endpoint: "/instrument/fx", body: { type: "sweep", duration: 20 } },
+        ];
+        for (const t of mixTracks) {
+          try {
+            const resp = await fetch(`${AI_BRIDGE}${t.endpoint}`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(t.body), signal: AbortSignal.timeout(15_000),
+            });
+            if (resp.ok) {
+              const buf = Buffer.from(await resp.arrayBuffer());
+              broadcast(info.channel, {
+                type: "music", nick: info.nick,
+                text: `[Mixtape: ${t.name} — ${mixStyle}]`,
+                audioData: buf.toString("base64"), audioMime: "audio/wav",
+              } as any);
+            }
+          } catch {}
+        }
+        broadcast(info.channel, { type: "system", text: `🎵 Mixtape "${mixStyle}" terminee. /mix pour combiner.` });
+        return;
+      }
+
+      case "/imagine-compare": {
+        // /imagine-compare <prompt> — compare 2 models (Lot 489)
+        const comparePrompt = text.slice(17).trim();
+        if (!comparePrompt) { send(ws, { type: "system", text: "Usage: /imagine-compare <prompt> — compare 2 modeles" }); return; }
+        const models = ["sdxl_lightning_4step.safetensors", "dreamshaperXL_lightningDPMSDE.safetensors"];
+        broadcast(info.channel, { type: "system", text: `Comparaison: "${comparePrompt.slice(0, 40)}..." sur ${models.length} modeles...` });
+        for (const model of models) {
+          try {
+            const result = await scheduler.submit({
+              id: crypto.randomUUID(), device: "gpu", priority: "normal",
+              label: `compare-${model.slice(0, 15)}`, vramMB: VRAM_BUDGETS.comfyui,
+              execute: () => generateImage(comparePrompt, { checkpoint: model }),
+            });
+            if (result) {
+              broadcast(info.channel, {
+                type: "image", nick: info.nick,
+                text: `[Compare: ${model.replace(".safetensors", "")} — "${comparePrompt}"]`,
+                imageData: (result as any).imageBase64, imageMime: "image/png",
+              } as OutboundMessage);
+            }
+          } catch {}
+        }
         return;
       }
 

@@ -30,6 +30,7 @@ const AIInstruments = lazy(() => import("./components/AIInstruments"));
 const AdminPage = lazy(() => import("./components/AdminPage"));
 const MediaExplorer = lazy(() => import("./components/MediaExplorer"));
 const MediaGallery = lazy(() => import("./components/MediaGallery"));
+const UserGuide = lazy(() => import("./components/UserGuide"));
 
 // ---------------------------------------------------------------------------
 // App state phases:
@@ -179,6 +180,9 @@ export default function App() {
 
       case "media":
         return <MediaGallery />;
+
+      case "guide":
+        return <UserGuide />;
 
       case "chat":
       default:

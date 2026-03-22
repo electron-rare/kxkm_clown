@@ -40,6 +40,8 @@ export const CHAT_COMMANDS = new Set([
   "/blind-test",
   "/lore",
   "/rate",
+  "/alias",
+  "/whosonline",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -1116,6 +1118,24 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const stars = Math.min(5, Math.max(1, parseInt(parts[1]) || 3));
         const starStr = "★".repeat(stars) + "☆".repeat(5 - stars);
         broadcast(info.channel, { type: "system", text: `${info.nick} note: ${starStr} (${stars}/5)` });
+        return;
+      }
+
+      case "/alias": {
+        // /alias name command — create shortcut (Lot 487)
+        const aliasName = parts[1];
+        const aliasCmd = parts.slice(2).join(" ");
+        if (!aliasName || !aliasCmd) { send(ws, { type: "system", text: "Usage: /alias <nom> <commande>\nEx: /alias j /jam 140" }); return; }
+        if (!(globalThis as any).__aliases) (globalThis as any).__aliases = new Map();
+        (globalThis as any).__aliases.set(aliasName.toLowerCase(), aliasCmd);
+        send(ws, { type: "system", text: `Alias cree: /${aliasName} → ${aliasCmd}` });
+        return;
+      }
+
+      case "/whosonline": {
+        // Lot 490
+        const users = channelUsers(info.channel).filter((u: string) => !getPersonas().some((p: any) => p.nick === u));
+        send(ws, { type: "system", text: `En ligne: ${users.length > 0 ? users.join(", ") : "(personne)"}` });
         return;
       }
 

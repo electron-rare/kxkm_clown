@@ -70,6 +70,8 @@ export const INFO_COMMANDS = new Set([
   "/tts-voices",
   "/persona-voice",
   "/sys",
+  "/persona-stats",
+  "/credits",
 ]);
 
 export function createInfoCommandHandler(deps: CommandHandlerDeps) {
@@ -875,6 +877,42 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         const up = Math.floor(process.uptime());
         const h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60);
         send(ws, { type: "system", text: `SYS: ${h}h${m}m | ${Math.round(mem.rss / 1e6)}MB | ${process.version} | ${getPersonas().length} personas | 141+ cmds` });
+        return;
+      }
+
+      case "/persona-stats": {
+        // Lot 486 — quick stats overview
+        const personas = getPersonas();
+        const enabled = personas.filter((p: any) => p.enabled !== false).length;
+        const disabled = personas.length - enabled;
+        send(ws, { type: "system", text: [
+          `=== Personas: ${personas.length} total ===`,
+          `  Actives: ${enabled}`,
+          `  Desactivees: ${disabled}`,
+          `  Modeles: ${[...new Set(personas.map((p: any) => p.model))].join(", ")}`,
+        ].join("\n") });
+        return;
+      }
+
+      case "/credits": {
+        // Lot 488
+        send(ws, { type: "system", text: [
+          "=== CREDITS ===",
+          "",
+          "3615 J'ai pete — Plateforme IA multi-persona",
+          "",
+          "Conception & Dev: L'electron rare + Claude Opus 4.6",
+          "Collectif: KXKM",
+          "",
+          "Stack: Node.js, React, Vite, Express, WebSocket",
+          "IA: Ollama (qwen3.5:9b), mascarade, ComfyUI",
+          "Audio: Kokoro TTS, Piper FR, ACE-Step, Demucs, Matchering",
+          "DAW: openDAW (LGPL), Magenta.js (Apache 2.0)",
+          "",
+          `${getPersonas().length} personas | 169+ commandes | 479+ lots`,
+          "",
+          "\"Le bruit est relatif au silence qui le precede.\"",
+        ].join("\n") });
         return;
       }
 

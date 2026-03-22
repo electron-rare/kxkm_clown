@@ -177,7 +177,7 @@
 ### Phase D — Nouveaux node types
 
 - [x] `music_generation` node (ACE-Step 1.5 + AI Bridge 17 backends)
-- [ ] `voice_clone` node (XTTS-v2, zero-shot 6s reference)
+- [x] `voice_clone` — XTTS-v2 via AI Bridge /generate/voice-clone (lot 504)
 - [x] `document_extraction` node (Docling :9400)
 
 ## P12 Lot 18 — Voice & MCP (futur)

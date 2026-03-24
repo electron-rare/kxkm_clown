@@ -400,3 +400,11 @@ Fait sur ce lot:
 - [x] lot-542: Async ffmpeg (~35 calls unblocked from event loop)
 - [x] lot-543: Worker index.ts unified on worker-runtime.ts (583→155 LOC)
 - [x] lot-544: Chat render memoization (wordCount + searchMatches useMemo)
+
+## Execution Queue 2026-03-24 (P1/P2) [in-progress]
+
+- [x] lot-545: Sync statuts PLAN/TODO/docs/AGENTS (lots 95-100, 178-200)
+- [x] lot-546: lot-178 ACE-Step direct API pour /compose duration fiable
+- [ ] lot-547 (en cours): lot-180 timeline model v1 (tracks/clips/markers + schema)
+- [ ] lot-548: lot-194 waveform timeline UI v1 (desktop + mobile)
+- [ ] lot-549: composition tests renfort (store/remix/export/timeline)

@@ -1888,6 +1888,7 @@ async function handleComposeCommand({
   });
 
   const ttsUrl = process.env.TTS_URL || "http://127.0.0.1:9100";
+  const aiBridgeUrl = process.env.AI_BRIDGE_URL || "http://127.0.0.1:8301";
   const startTime = Date.now();
 
   const progressInterval = setInterval(() => {
@@ -1901,12 +1902,23 @@ async function handleComposeCommand({
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 300_000);
 
-    const resp = await fetch(`${ttsUrl}/compose`, {
+    let resp = await fetch(`${aiBridgeUrl}/generate/music`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: musicPrompt, duration }),
+      body: JSON.stringify({ prompt: musicPrompt, duration, style: "experimental" }),
       signal: controller.signal,
     });
+    let source: "ai-bridge" | "tts-sidecar" = "ai-bridge";
+
+    if (!resp.ok) {
+      resp = await fetch(`${ttsUrl}/compose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: musicPrompt, duration }),
+        signal: controller.signal,
+      });
+      source = "tts-sidecar";
+    }
 
     clearTimeout(timeout);
     clearInterval(progressInterval);
@@ -1929,7 +1941,7 @@ async function handleComposeCommand({
     broadcast(info.channel, {
       type: "music",
       nick: info.nick,
-      text: `[Musique: "${musicPrompt}" \u2014 ${elapsed}s]`,
+      text: `[Musique: "${musicPrompt}" \u2014 ${elapsed}s, source:${source}]`,
       audioData: audioBase64,
       audioMime: "audio/wav",
     } as OutboundMessage);

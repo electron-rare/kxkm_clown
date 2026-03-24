@@ -67,7 +67,7 @@ flowchart TD
     OSSAgent --> |hf| OSSHF[HuggingFace models]
 ```
 
-## Todo agents (lot 17+ — mis a jour 2026-03-20)
+## Todo agents (lot 17+ — mis a jour 2026-03-24)
 
 ### Coordinateur
 
@@ -75,8 +75,8 @@ flowchart TD
 - [x] Synchroniser FEATURE_MAP.md matrice
 - [x] Mettre a jour TODO.md avec backlog Phase session 2026-03-19/20
 - [x] Documenter actions dans ops/v2/logs/
-- [ ] lot-95: Coordonner E2E Playwright test plan
-- [ ] lot-100: Design public demo mode access control
+- [x] lot-95: Coordonner E2E Playwright test plan
+- [x] lot-100: Design public demo mode access control
 
 ### Backend API
 
@@ -93,8 +93,8 @@ flowchart TD
 - [x] /speed command for latency diagnostics
 - [ ] lot-178: ACE-Step API direct integration (duration fix)
 - [ ] lot-180: Timeline data model
-- [ ] lot-97: Multi-channel support (create/join channels)
-- [ ] lot-100: Public demo mode read-only routes
+- [x] lot-97: Multi-channel support (create/join channels)
+- [x] lot-100: Public demo mode read-only routes
 
 ### Node Engine
 
@@ -113,8 +113,18 @@ flowchart TD
 - [ ] lot-181: TTS voiceover mix into timeline
 - [ ] lot-182: Audio effects pipeline (reverb, delay, EQ, compression)
 - [ ] lot-183: DAW export (stems, markers, project file)
-- [ ] lot-187: Auto-mastering (loudness normalization, limiting)
-- [ ] lot-188: Stem separation (vocals, drums, bass, other)
+- [x] lot-184: Multi-track composition (/layer, composition-store)
+- [x] lot-185: Composition UI (track lanes, play/pause/seek)
+- [x] lot-186: Arrangement tools (/comp structure, section markers)
+- [x] lot-187: Auto-mastering (/mix master, loudness normalization, limiter)
+- [x] lot-188: /voice TTS voiceover injected into composition
+- [x] lot-189: /noise 5 types (white, pink, brown, rain, wind)
+- [x] lot-190: /fx 9 audio effects (reverb, delay, chorus, flanger, distortion, bitcrusher, EQ, compressor, tremolo)
+- [x] lot-191: /ambient scene generator (forest, ocean, city, space, cave)
+- [ ] lot-194: Waveform visualization (wavesurfer.js)
+- [ ] lot-195: /remix re-generate specific track
+- [ ] lot-199: Stem separation (Demucs v4 htdemucs, 6-stem, MIT)
+- [x] lot-200: Full DAW export (WAV stems + JSON project)
 
 ### Personas
 
@@ -138,10 +148,10 @@ flowchart TD
 - [x] 5 CSS themes (minitel, crt, hacker, synthwave, default)
 - [x] Mobile responsive pass (touch, bottom nav, viewport units)
 - [x] Guest mode read-only UI
-- [ ] lot-185: Composition timeline UI (waveform view, track lanes)
-- [ ] lot-194: FX rack UI (drag-drop effects chain)
-- [ ] lot-95: E2E Playwright tests (login, chat, upload, admin)
-- [ ] lot-98: File sharing UI (upload → gallery)
+- [x] lot-185: Composition timeline UI (waveform view, track lanes)
+- [ ] lot-194: Waveform visualization (wavesurfer.js)
+- [x] lot-95: E2E Playwright tests (login, chat, upload, admin)
+- [x] lot-98: File sharing UI (upload → gallery)
 
 ### Ops/TUI
 

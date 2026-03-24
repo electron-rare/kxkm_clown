@@ -336,4 +336,53 @@ describe("/compose", () => {
     const msg = deps.send.mock.calls[0].arguments[1] as { type: string; text: string };
     assert.ok(msg.text.includes("Usage"));
   });
+
+  it("prefers AI Bridge direct endpoint", async () => {
+    const originalFetch = globalThis.fetch;
+    const fakeFetch = mock.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/generate/music")) {
+        return new Response(Buffer.from("RIFFtest"), { status: 200, headers: { "Content-Type": "audio/wav" } });
+      }
+      return new Response(JSON.stringify({ error: "unexpected" }), { status: 500, headers: { "Content-Type": "application/json" } });
+    });
+    (globalThis as any).fetch = fakeFetch;
+
+    try {
+      const deps = makeDeps();
+      const handle = createCommandHandler(deps);
+      await handle({ ws: fakeWs, info: makeInfo(), text: "/compose ambient drone, 10s" });
+
+      assert.ok(fakeFetch.mock.calls.some((c) => String(c.arguments[0]).includes("/generate/music")));
+      assert.ok(!fakeFetch.mock.calls.some((c) => String(c.arguments[0]).includes("/compose")));
+    } finally {
+      (globalThis as any).fetch = originalFetch;
+    }
+  });
+
+  it("falls back to TTS /compose when AI Bridge fails", async () => {
+    const originalFetch = globalThis.fetch;
+    const fakeFetch = mock.fn<typeof fetch>(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/generate/music")) {
+        return new Response(JSON.stringify({ error: "down" }), { status: 503, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/compose")) {
+        return new Response(Buffer.from("RIFFfallback"), { status: 200, headers: { "Content-Type": "audio/wav" } });
+      }
+      return new Response(JSON.stringify({ error: "unexpected" }), { status: 500, headers: { "Content-Type": "application/json" } });
+    });
+    (globalThis as any).fetch = fakeFetch;
+
+    try {
+      const deps = makeDeps();
+      const handle = createCommandHandler(deps);
+      await handle({ ws: fakeWs, info: makeInfo(), text: "/compose dark noise, 12s" });
+
+      assert.ok(fakeFetch.mock.calls.some((c) => String(c.arguments[0]).includes("/generate/music")));
+      assert.ok(fakeFetch.mock.calls.some((c) => String(c.arguments[0]).includes("/compose")));
+    } finally {
+      (globalThis as any).fetch = originalFetch;
+    }
+  });
 });

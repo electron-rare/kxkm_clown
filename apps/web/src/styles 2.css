@@ -1,0 +1,3818 @@
+/* KXKM_Clown V2 — IRC-inspired warm earth tones
+   Tokens are published by @kxkm/ui and mirrored here with safe fallbacks. */
+:root {
+  color-scheme: light;
+  --bg: var(--kxkm-shell-background, #f6f0df);
+  --panel: var(--kxkm-shell-panel, rgba(255, 249, 237, 0.95));
+  --ink: var(--kxkm-shell-ink, #20170f);
+  --muted: var(--kxkm-shell-muted, #6f5d4f);
+  --accent: var(--kxkm-shell-accent, #c84c0c);
+  --border: var(--kxkm-shell-border, #2f2218);
+  --border-light: var(--kxkm-shell-border-light, rgba(47, 34, 24, 0.2));
+
+  /* STATUS_COLORS */
+  --status-info: var(--kxkm-status-info, #2c6e49);
+  --status-warn: var(--kxkm-status-warn, #c77d00);
+  --status-danger: var(--kxkm-status-danger, #b00020);
+
+  /* Run statuses */
+  --status-running: var(--kxkm-status-running, #2c6e49);
+  --status-queued: var(--kxkm-status-queued, #c77d00);
+  --status-completed: var(--kxkm-status-completed, #2c6e49);
+  --status-failed: var(--kxkm-status-failed, #b00020);
+  --status-cancelled: var(--kxkm-status-cancelled, #6f5d4f);
+  --status-muted: var(--muted);
+
+  /* Typography + spacing */
+  --font-mono: var(--kxkm-font-mono, "Courier New", Courier, monospace);
+  --font-display: var(--kxkm-font-display, "Courier New", Courier, monospace);
+  --gap: var(--kxkm-gap, 16px);
+  --radius: var(--kxkm-radius, 0);
+}
+
+/* ── Theme variants (via /theme command) ── */
+[data-theme="noir"] {
+  --bg: #0a0a0a; --panel: rgba(20, 20, 20, 0.95); --ink: #ccc; --muted: #777;
+  --accent: #ff4444; --border: #333; --border-light: rgba(255, 255, 255, 0.1);
+}
+[data-theme="matrix"] {
+  --bg: #000; --panel: rgba(0, 20, 0, 0.95); --ink: #00ff00; --muted: #009900;
+  --accent: #00cc00; --border: #003300; --border-light: rgba(0, 255, 0, 0.1);
+}
+[data-theme="amber"] {
+  --bg: #1a1000; --panel: rgba(30, 20, 0, 0.95); --ink: #ffb000; --muted: #996600;
+  --accent: #ff8800; --border: #332200; --border-light: rgba(255, 176, 0, 0.1);
+}
+[data-theme="ocean"] {
+  --bg: #001020; --panel: rgba(0, 16, 40, 0.95); --ink: #88ccff; --muted: #446688;
+  --accent: #0088ff; --border: #003366; --border-light: rgba(0, 136, 255, 0.1);
+}
+[data-theme="noir"] body, [data-theme="matrix"] body,
+[data-theme="amber"] body, [data-theme="ocean"] body {
+  background: var(--bg);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.9), transparent 35%),
+    linear-gradient(180deg, #d5b892 0%, var(--bg) 100%);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent);
+}
+
+code {
+  font-family: var(--font-mono);
+  background: rgba(51, 255, 51, 0.06);
+  padding: 2px 6px;
+}
+
+/* ── Eyebrow / Lead / Muted ── */
+.eyebrow {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.lead {
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ── Page header ── */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--gap);
+}
+
+.page-header h2 {
+  margin: 0;
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-block;
+  padding: 8px 14px;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+}
+
+.btn-secondary:hover {
+  background: rgba(51, 255, 51, 0.08);
+}
+
+.btn-danger {
+  background: var(--status-danger);
+  color: white;
+  border-color: var(--status-danger);
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Panels / Cards ── */
+.panel {
+  border: 2px solid var(--border);
+  background: var(--panel);
+  padding: 18px;
+  box-shadow: 6px 6px 0 rgba(51, 255, 51, 0.05);
+  margin-bottom: var(--gap);
+}
+
+.banner {
+  border: 2px solid var(--status-danger);
+  background: rgba(255, 51, 51, 0.08);
+  padding: 10px 14px;
+  margin-bottom: var(--gap);
+  color: var(--status-danger);
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--gap);
+}
+
+.card {
+  border: 2px solid var(--border);
+  background: var(--panel);
+  padding: 16px;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 rgba(51, 255, 51, 0.04);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.card:hover {
+  box-shadow: 6px 6px 0 rgba(51, 255, 51, 0.08);
+  transform: translate(-1px, -1px);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.card-desc {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ── Persona cards ── */
+.color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.model-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--border-light);
+  font-size: 11px;
+  color: var(--accent);
+}
+
+/* ── Persona admin ── */
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot-on {
+  background: var(--status-info);
+  box-shadow: 0 0 4px var(--status-info);
+}
+
+.status-dot-off {
+  background: var(--status-danger);
+  box-shadow: 0 0 4px var(--status-danger);
+}
+
+.persona-card-disabled {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.persona-toggle-btn {
+  margin-left: auto;
+  padding: 3px 10px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.persona-status-on {
+  color: var(--status-info);
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.persona-status-off {
+  color: var(--status-danger);
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.persona-summary-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.feedback-date {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.edit-form select {
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  background: rgba(10, 10, 10, 0.8);
+  color: var(--ink);
+  font-family: var(--font-mono);
+}
+
+/* ── Status strip ── */
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+
+.status-card {
+  border: 2px solid var(--border);
+  background: var(--panel);
+  padding: 14px;
+  box-shadow: 4px 4px 0 rgba(51, 255, 51, 0.04);
+}
+
+.status-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.status-card.clickable {
+  cursor: pointer;
+}
+
+.status-card.clickable:hover {
+  border-color: var(--accent);
+}
+
+/* ── Status badges ── */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid;
+}
+
+.status-running {
+  color: var(--status-running);
+  border-color: var(--status-running);
+}
+
+.status-queued {
+  color: var(--status-queued);
+  border-color: var(--status-queued);
+}
+
+.status-completed {
+  color: var(--status-completed);
+  border-color: var(--status-completed);
+}
+
+.status-failed {
+  color: var(--status-failed);
+  border-color: var(--status-failed);
+}
+
+.status-cancelled {
+  color: var(--status-cancelled);
+  border-color: var(--status-cancelled);
+}
+
+.status-muted {
+  color: var(--status-muted);
+  border-color: var(--status-muted);
+}
+
+/* ── Detail layout ── */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap);
+}
+
+.detail-row {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.detail-label {
+  color: var(--muted);
+  min-width: 100px;
+  flex-shrink: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Forms ── */
+.edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.edit-form label span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.edit-form input,
+.edit-form textarea,
+.inline-form input {
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  background: rgba(10, 10, 10, 0.8);
+  color: var(--ink);
+}
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.edit-form textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.inline-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.inline-form input {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* ── Lists ── */
+.feedback-list,
+.run-list,
+.node-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.feedback-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 13px;
+}
+
+.feedback-kind {
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+
+.run-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+}
+
+.run-item:hover {
+  background: rgba(51, 255, 51, 0.06);
+}
+
+.node-list li {
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+/* ── Run progress ── */
+.run-progress {
+  margin-top: 16px;
+}
+
+.progress-steps {
+  display: flex;
+  gap: 2px;
+}
+
+.progress-step {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--border-light);
+  color: var(--muted);
+  background: rgba(51, 255, 51, 0.03);
+}
+
+.step-active {
+  background: rgba(255, 105, 180, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.step-done {
+  background: rgba(51, 255, 51, 0.1);
+  border-color: var(--status-running);
+  color: var(--status-running);
+}
+
+.step-failed {
+  background: rgba(255, 51, 51, 0.1);
+  border-color: var(--status-danger);
+  color: var(--status-danger);
+}
+
+/* ── Chat ── */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: none;
+  background: transparent;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 2px solid var(--border);
+  background: rgba(51, 255, 51, 0.03);
+}
+
+.chat-channel {
+  font-weight: bold;
+  letter-spacing: 0.04em;
+}
+
+.chat-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border: 1px solid;
+}
+
+.chat-status-on {
+  color: var(--status-info);
+  border-color: var(--status-info);
+}
+
+.chat-status-off {
+  color: var(--status-danger);
+  border-color: var(--status-danger);
+}
+
+.chat-status-warn {
+  color: var(--warn, #c77d00);
+  border-color: var(--warn, #c77d00);
+}
+
+.chat-count { font-size: 0.8em; opacity: 0.6; margin-left: 8px; }
+
+.chat-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chat-msg {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 1px 0;
+}
+
+.chat-msg-system {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.chat-msg-user {
+  color: var(--ink);
+}
+
+.chat-msg-persona {
+  /* color set inline via persona color */
+}
+
+.chat-nick {
+  font-weight: bold;
+}
+
+.chat-text {
+  /* inherits color from parent */
+}
+
+.chat-users {
+  width: 160px;
+  flex-shrink: 0;
+  border-left: 2px solid var(--border);
+  overflow-y: auto;
+  padding: 8px 0;
+  background: rgba(51, 255, 51, 0.02);
+}
+
+.chat-users-header {
+  padding: 4px 12px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 4px;
+}
+
+.chat-user {
+  padding: 2px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-input {
+  display: flex;
+  gap: 0;
+  border-top: 1px solid var(--minitel-green, #33ff33);
+  background: var(--minitel-black, #0a0a0a);
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 14px;
+  color: var(--minitel-green, #33ff33);
+  outline: none;
+  caret-color: var(--minitel-green, #33ff33);
+  caret-shape: block;
+}
+
+.chat-input input::placeholder {
+  color: rgba(51, 255, 51, 0.3);
+}
+
+.chat-input input:focus {
+  background: rgba(51, 255, 51, 0.03);
+}
+
+.chat-input input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chat-input .btn {
+  border: none;
+  border-left: 1px solid var(--minitel-green, #33ff33);
+  background: #1a3a1a;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+.chat-input .btn:hover {
+  background: #2a5a2a;
+}
+
+/* Recording button */
+.chat-record-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg, var(--ink));
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+}
+.chat-record-btn.recording {
+  color: #ff4444;
+  border-color: #ff4444;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.chat-record-duration {
+  font-size: 0.8em;
+  color: #ff4444;
+  margin-left: 4px;
+  display: flex;
+  align-items: center;
+}
+
+/* TTS toggle */
+.chat-tts-toggle {
+  cursor: pointer;
+  margin-left: 4px;
+  opacity: 0.7;
+  background: none;
+  border: none;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+.chat-tts-toggle:hover { opacity: 1; }
+
+/* Audio message */
+.chat-msg-audio { opacity: 0.9; }
+.chat-audio-indicator { margin-right: 4px; }
+.chat-audio-play {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 1px 6px;
+  font-size: 0.8em;
+  margin-left: 4px;
+  font-family: inherit;
+}
+.chat-audio-play:hover { background: rgba(51, 255, 51, 0.08); }
+
+/* ── Node Editor ── */
+.node-editor-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.node-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--border);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+
+.node-editor-title {
+  margin: 0;
+  flex: 1;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-editor-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.node-editor-status {
+  padding: 6px 16px;
+  background: rgba(44, 110, 73, 0.1);
+  border-bottom: 1px solid rgba(44, 110, 73, 0.3);
+  color: var(--status-info);
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.node-editor-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.node-editor-flow {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Override react-flow background for theme */
+.node-editor-flow .react-flow__background {
+  background: var(--bg);
+}
+
+/* Add Node Panel */
+.node-editor-panel {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 2px solid var(--border);
+  background: var(--panel);
+  overflow-y: auto;
+  padding: 0;
+  z-index: 10;
+}
+
+.node-editor-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 13px;
+}
+
+.node-editor-family-group {
+  margin-bottom: 4px;
+}
+
+.node-editor-family-label {
+  padding: 8px 14px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border-left: 4px solid #666;
+}
+
+.node-editor-add-btn {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 6px 14px 6px 18px;
+  background: none;
+  border: none;
+  border-left: 4px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.node-editor-add-btn:hover {
+  background: rgba(51, 255, 51, 0.08);
+}
+
+.node-editor-add-io {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* ── Custom Engine Node ── */
+.engine-node {
+  border: 2px solid var(--minitel-dim);
+  background: var(--panel);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  box-shadow: 3px 3px 0 rgba(51, 255, 51, 0.04);
+  min-width: 160px;
+}
+
+.engine-node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  color: white;
+  font-size: 11px;
+  gap: 6px;
+}
+
+.engine-node-label {
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.engine-node-runtime {
+  font-size: 9px;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.25);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.engine-node-body {
+  padding: 6px 10px;
+  position: relative;
+}
+
+.engine-node-port {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.engine-node-input {
+  justify-content: flex-start;
+}
+
+.engine-node-output {
+  justify-content: flex-end;
+}
+
+.engine-node-port-label {
+  text-transform: lowercase;
+}
+
+.engine-node-empty {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.engine-node-params-toggle {
+  display: block;
+  width: 100%;
+  padding: 3px 0;
+  margin-top: 4px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border-light);
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--accent);
+  text-align: center;
+  font-family: inherit;
+}
+
+.engine-node-params-toggle:hover {
+  text-decoration: underline;
+}
+
+.engine-node-params {
+  margin-top: 4px;
+  border-top: 1px solid var(--border-light);
+  padding-top: 4px;
+}
+
+.engine-node-param-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 10px;
+  padding: 1px 0;
+}
+
+.engine-node-param-key {
+  color: var(--muted);
+}
+
+.engine-node-param-val {
+  color: var(--ink);
+  font-weight: bold;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
+/* React Flow handle overrides */
+.engine-node .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid white;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-form {
+    flex-direction: column;
+  }
+
+  .inline-form input {
+    width: 100%;
+  }
+
+  .chat-users {
+    display: none;
+  }
+
+  .chat-container {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+/* ========================================================================
+   3615-KXKM — Minitel 1B Physical Terminal Theme
+   ======================================================================== */
+
+:root {
+  --minitel-black: #0a0a0a;
+  --minitel-green: #33ff33;
+  --minitel-amber: #ffb000;
+  --minitel-pink: #ff69b4;
+  --minitel-white: #c0c0c0;
+  --minitel-blue: #3333ff;
+  --minitel-red: #ff3333;
+  --minitel-cyan: #33ffff;
+  --minitel-dim: #555555;
+  --minitel-glow: 0 0 8px rgba(51, 255, 51, 0.3);
+  --minitel-font: "VT323", "Glass TTY VT220", "Courier New", monospace;
+  --minitel-body-color: #d4c9a8;
+  --minitel-body-dark: #c4b998;
+  --minitel-body-highlight: #e0d8c2;
+  --minitel-bezel: #1a1a1a;
+  --minitel-keys: #3a3a3a;
+}
+
+/* ── Terminal wrapper — centers on page ── */
+/* ── Terminal wrapper — fullscreen physical Minitel ── */
+.minitel-terminal {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  min-height: 100vh;
+  height: 100vh;
+  padding: 0;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(60, 50, 40, 0.15), transparent 70%),
+    linear-gradient(180deg, #2a2420 0%, #1a1614 100%);
+  overflow: hidden;
+}
+
+/* ── Physical Minitel body — fills viewport ── */
+.minitel-body {
+  width: 100%;
+  height: 100vh;
+  background:
+    linear-gradient(180deg,
+      var(--minitel-body-highlight) 0%,
+      var(--minitel-body-color) 8%,
+      var(--minitel-body-color) 85%,
+      var(--minitel-body-dark) 100%
+    );
+  padding: 10px 12px 4px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 80px;
+  grid-template-rows: 1fr 32px 40px;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* ── Screen bezel ── */
+.minitel-screen-bezel {
+  grid-column: 1 / 2;
+  grid-row: 1 / 2;
+  background:
+    linear-gradient(145deg, #222 0%, var(--minitel-bezel) 50%, #111 100%);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.8),
+    inset 0 -1px 4px rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.1);
+  border: 1px solid #111;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── CRT Screen — fills available space ── */
+.minitel-screen {
+  background: var(--minitel-black);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  /* CRT curvature illusion */
+  box-shadow:
+    inset 0 0 80px rgba(0, 0, 0, 0.5),
+    inset 0 0 20px rgba(0, 0, 0, 0.3),
+    0 0 2px rgba(51, 255, 51, 0.1);
+}
+
+/* Scanlines overlay */
+.minitel-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.12) 0px,
+    rgba(0, 0, 0, 0.12) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 10;
+  border-radius: 8px;
+}
+
+/* Vignette — darker at edges like a real CRT */
+.minitel-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  pointer-events: none;
+  z-index: 11;
+  border-radius: 8px;
+}
+
+/* Very subtle flicker */
+.minitel-flicker {
+  position: absolute;
+  inset: 0;
+  background: rgba(51, 255, 51, 0.015);
+  animation: crt-flicker 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 12;
+  border-radius: 8px;
+}
+
+@keyframes crt-flicker {
+  0%, 100% { opacity: 0.97; }
+  25% { opacity: 1; }
+  50% { opacity: 0.98; }
+  75% { opacity: 1; }
+}
+
+/* ── Top service bar: 3615 KXKM ── */
+.minitel-service-top {
+  background: var(--minitel-green);
+  color: var(--minitel-black);
+  font-family: var(--minitel-font);
+  font-size: 16px;
+  font-weight: bold;
+  padding: 4px 12px;
+  display: flex;
+  justify-content: space-between;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 5;
+  text-shadow: none;
+}
+
+/* ── Bottom service bar: function keys ── */
+.minitel-service-bottom {
+  background: #1e1e1e;
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  padding: 4px 8px;
+  display: flex;
+  justify-content: space-around;
+  letter-spacing: 1px;
+  position: relative;
+  z-index: 5;
+  border-top: 1px solid #333;
+}
+
+.minitel-fkey {
+  padding: 2px 8px;
+  border: 1px solid #444;
+  border-radius: 2px;
+  background: #2a2a2a;
+  color: var(--minitel-green);
+  font-size: 12px;
+  opacity: 0.8;
+  transition: opacity 0.2s, background 0.2s;
+  cursor: pointer;
+  font-family: var(--minitel-font);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.minitel-fkey:hover {
+  opacity: 1;
+  background: #3a3a3a;
+}
+
+.minitel-fkey-active {
+  opacity: 1;
+  background: #1a3a1a;
+  border-color: var(--minitel-green);
+  color: #33ff33;
+}
+
+.minitel-fkey-envoi {
+  background: #1a4a1a;
+  border-color: #33aa33;
+  color: #33ff33;
+  font-weight: bold;
+}
+
+/* ── Minitel brand link (clickable 3615 KXKM) ── */
+.minitel-brand-link {
+  cursor: pointer;
+  text-decoration: none;
+}
+.minitel-brand-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Minitel user display ── */
+.minitel-user {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* ── Status indicators ── */
+.minitel-status-on { color: var(--minitel-black); }
+.minitel-status-off { color: #ff4444; font-weight: bold; }
+
+/* ── Navigation drawer (sommaire overlay) ── */
+.minitel-nav-drawer {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.minitel-nav-panel {
+  background: #0a0a0a;
+  border: 2px solid var(--minitel-green);
+  padding: 20px;
+  min-width: 280px;
+  max-width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.minitel-nav-title {
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
+  font-size: 18px;
+  text-align: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 6px;
+  letter-spacing: 2px;
+}
+
+.minitel-nav-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.minitel-nav-btn:hover {
+  background: #2a2a2a;
+  border-color: var(--minitel-green);
+}
+
+.minitel-nav-active {
+  background: #1a3a1a;
+  border-color: var(--minitel-green);
+  color: #33ff33;
+  font-weight: bold;
+}
+
+.minitel-nav-fin {
+  margin-top: 10px;
+  border-color: #aa3333;
+  color: #ff6b6b;
+}
+
+.minitel-nav-fin:hover {
+  background: #3a1a1a;
+  border-color: #ff4444;
+}
+
+/* ── Minitel Login ── */
+.minitel-login {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  flex: 1;
+  min-height: 0;
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
+}
+
+.minitel-login-header {
+  font-size: 20px;
+  letter-spacing: 3px;
+  margin-bottom: 16px;
+  color: var(--minitel-pink, #ff69b4);
+}
+
+.minitel-login-art {
+  white-space: pre;
+  font-size: 13px;
+  line-height: 1.3;
+  margin-bottom: 20px;
+  color: var(--minitel-green);
+  opacity: 0.8;
+}
+
+.minitel-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.minitel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.minitel-field label {
+  font-size: 12px;
+  letter-spacing: 1px;
+  opacity: 0.7;
+}
+
+.minitel-input {
+  background: #0a0a0a;
+  border: 1px solid #444;
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
+  font-size: 16px;
+  padding: 6px 10px;
+  outline: none;
+}
+
+.minitel-input:focus {
+  border-color: var(--minitel-green);
+  box-shadow: 0 0 4px rgba(0, 255, 0, 0.2);
+}
+
+.minitel-login-btn {
+  background: #1a3a1a;
+  border: 1px solid var(--minitel-green);
+  color: #33ff33;
+  font-family: var(--minitel-font);
+  font-size: 16px;
+  padding: 8px 16px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  margin-top: 8px;
+  transition: background 0.2s;
+}
+
+.minitel-login-btn:hover:not(:disabled) {
+  background: #2a5a2a;
+}
+
+.minitel-login-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.minitel-login-error {
+  color: #ff6b6b;
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.minitel-login-footer {
+  margin-top: 20px;
+  font-size: 11px;
+  opacity: 0.5;
+  letter-spacing: 1px;
+}
+
+.minitel-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+
+.minitel-error {
+  background: #3a1a1a;
+  color: #ff6b6b;
+  padding: 6px 12px;
+  font-family: var(--minitel-font);
+  font-size: 13px;
+  border-bottom: 1px solid #ff4444;
+}
+
+/* ── Content area (chat goes here) ── */
+.minitel-content {
+  flex: 1;
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+
+  /* ── Variable remap: old IRC tokens → Minitel phosphore ── */
+  --bg: var(--minitel-black);
+  --panel: rgba(20, 20, 20, 0.95);
+  --ink: var(--minitel-green);
+  --muted: var(--minitel-dim);
+  --accent: var(--minitel-pink);
+  --border: var(--minitel-dim);
+  --border-light: rgba(85, 85, 85, 0.4);
+  --status-info: var(--minitel-green);
+  --status-warn: var(--minitel-amber);
+  --status-danger: var(--minitel-red);
+  --status-running: var(--minitel-green);
+  --status-queued: var(--minitel-amber);
+  --status-completed: var(--minitel-green);
+  --status-failed: var(--minitel-red);
+  --status-cancelled: var(--minitel-dim);
+  --status-muted: var(--minitel-dim);
+  --font-mono: var(--minitel-font);
+  --font-display: var(--minitel-font);
+  color: var(--minitel-green);
+}
+
+/* ── Speaker grille (right side of body) ── */
+.minitel-speaker {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+  width: 80px;
+  margin-left: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding-top: 10px;
+}
+
+.minitel-speaker-grille {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 12px 8px;
+  background:
+    linear-gradient(180deg, #c0b590, #b8ad88);
+  border-radius: 6px;
+  border: 1px solid #a89a78;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.minitel-speaker-hole {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8a7f68;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.minitel-knobs {
+  display: flex;
+  gap: 16px;
+}
+
+.minitel-knob {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 35%, #a09080, #7a7060);
+  border: 1px solid #6e6555;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  position: relative;
+}
+
+.minitel-knob::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 6px;
+  background: #555;
+  border-radius: 1px;
+}
+
+/* ── Label area below screen ── */
+.minitel-label {
+  grid-column: 1 / -1;
+  grid-row: 2 / 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 2px;
+  border-top: 1px solid #b0a688;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.minitel-brand {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 18px;
+  font-weight: bold;
+  color: #6e6555;
+  letter-spacing: 3px;
+}
+
+.minitel-telecom {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 10px;
+  color: #9a9080;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.minitel-power-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #33aa33;
+  box-shadow: 0 0 6px rgba(51, 255, 51, 0.6);
+  margin-left: auto;
+  animation: led-pulse 2s ease-in-out infinite;
+}
+
+@keyframes led-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(51, 255, 51, 0.4); }
+  50% { box-shadow: 0 0 8px rgba(51, 255, 51, 0.8); }
+}
+
+/* ── Keyboard hint (decorative) ── */
+.minitel-keyboard-hint {
+  grid-column: 1 / -1;
+  grid-row: 3 / 4;
+  overflow: hidden;
+  border-radius: 0 0 8px 8px;
+  opacity: 0.5;
+  max-height: 36px;
+  transition: opacity 0.3s;
+}
+
+.minitel-keyboard-hint:hover {
+  opacity: 0.9;
+}
+
+.minitel-kb-img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ═══════════════════════════════════════════════
+   Chat overrides inside the Minitel terminal
+   ═══════════════════════════════════════════════ */
+
+.minitel-terminal .chat-container {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  font-family: var(--minitel-font);
+  color: var(--minitel-green);
+  flex: 1;
+  min-height: 0;
+}
+
+.minitel-terminal .chat-header {
+  background: transparent;
+  border-bottom: 1px solid var(--minitel-dim);
+  color: var(--minitel-amber);
+  font-family: var(--minitel-font);
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.minitel-terminal .chat-channel {
+  color: var(--minitel-pink);
+  font-weight: bold;
+}
+
+.minitel-terminal .chat-status-on {
+  color: var(--minitel-green);
+  border-color: var(--minitel-green);
+}
+
+.minitel-terminal .chat-status-off {
+  color: var(--minitel-red);
+  border-color: var(--minitel-red);
+}
+
+/* Messages */
+.minitel-terminal .chat-messages {
+  background: transparent;
+  color: var(--minitel-green);
+  text-shadow: var(--minitel-glow);
+  line-height: 1.6;
+  font-size: 16px;
+  font-family: var(--minitel-font);
+}
+
+.minitel-terminal .chat-msg {
+  padding: 2px 8px;
+}
+
+.minitel-terminal .chat-msg-system {
+  color: var(--minitel-cyan);
+  font-style: normal;
+}
+
+.minitel-terminal .chat-msg-user .chat-nick {
+  color: var(--minitel-amber) !important;
+}
+
+.minitel-terminal .chat-msg-persona .chat-nick {
+  color: var(--minitel-pink) !important;
+  font-weight: bold;
+}
+
+/* Persona messages get the >>> NICK <<< treatment */
+.minitel-terminal .chat-msg-persona .chat-nick::before {
+  content: ">>> ";
+  color: var(--minitel-pink);
+}
+
+.minitel-terminal .chat-msg-persona .chat-nick::after {
+  content: " <<<";
+  color: var(--minitel-pink);
+}
+
+.minitel-terminal .chat-msg-persona .chat-text {
+  color: var(--minitel-white);
+}
+
+.minitel-terminal .chat-msg-user .chat-text {
+  color: var(--minitel-green);
+}
+
+/* Audio messages */
+.minitel-terminal .chat-msg-audio {
+  color: var(--minitel-cyan);
+}
+
+.minitel-terminal .chat-audio-play {
+  color: var(--minitel-pink);
+  border-color: var(--minitel-pink);
+  font-family: var(--minitel-font);
+}
+
+/* Users sidebar */
+.minitel-terminal .chat-users {
+  background: rgba(10, 10, 10, 0.5);
+  border-left: 1px solid var(--minitel-dim);
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
+}
+
+.minitel-terminal .chat-users-header {
+  color: var(--minitel-amber);
+  border-bottom: 1px solid var(--minitel-dim);
+  font-family: var(--minitel-font);
+}
+
+/* Input area */
+.minitel-terminal .chat-input {
+  background: transparent;
+  border-top: 1px solid var(--minitel-dim);
+}
+
+.minitel-terminal .chat-input input {
+  background: rgba(10, 10, 10, 0.6);
+  color: var(--minitel-green);
+  border: 1px solid var(--minitel-dim);
+  font-family: var(--minitel-font);
+  font-size: 16px;
+  caret-color: var(--minitel-green);
+  text-shadow: var(--minitel-glow);
+}
+
+.minitel-terminal .chat-input input:focus {
+  border-color: var(--minitel-green);
+  box-shadow: 0 0 6px rgba(51, 255, 51, 0.2);
+  background: rgba(10, 10, 10, 0.8);
+}
+
+.minitel-terminal .chat-input input::placeholder {
+  color: var(--minitel-dim);
+  font-family: var(--minitel-font);
+}
+
+/* Buttons */
+.minitel-terminal .btn {
+  font-family: var(--minitel-font);
+  border-radius: 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 15px;
+}
+
+.minitel-terminal .btn-primary {
+  background: var(--minitel-pink);
+  color: var(--minitel-black);
+  border: none;
+  font-weight: bold;
+}
+
+.minitel-terminal .btn-primary:hover {
+  background: #ff85c8;
+  box-shadow: 0 0 8px rgba(255, 105, 180, 0.3);
+}
+
+.minitel-terminal .btn-secondary {
+  background: transparent;
+  color: var(--minitel-green);
+  border: 1px solid var(--minitel-green);
+}
+
+.minitel-terminal .chat-record-btn {
+  color: var(--minitel-green);
+  border-color: var(--minitel-green);
+  font-family: var(--minitel-font);
+}
+
+.minitel-terminal .chat-record-btn.recording {
+  color: var(--minitel-red);
+  border-color: var(--minitel-red);
+}
+
+/* TTS toggle */
+.minitel-terminal .chat-tts-toggle {
+  color: var(--minitel-amber);
+}
+
+/* Upload button */
+.minitel-terminal .chat-upload-btn {
+  color: var(--minitel-green);
+  border: 1px solid var(--minitel-green);
+  background: transparent;
+  font-family: var(--minitel-font);
+}
+
+/* Scrollbar */
+.minitel-terminal .chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+.minitel-terminal .chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+.minitel-terminal .chat-messages::-webkit-scrollbar-thumb {
+  background: var(--minitel-dim);
+  border-radius: 3px;
+}
+
+/* ── Minitel Connect Animation ── */
+.minitel-connect {
+  flex: 1;
+  min-height: 0;
+  background: var(--minitel-black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.minitel-connect-screen {
+  font-family: var(--minitel-font);
+  color: var(--minitel-green);
+  font-size: 18px;
+  text-shadow: var(--minitel-glow);
+  max-width: 400px;
+  padding: 20px;
+}
+.minitel-connect-line {
+  margin-bottom: 4px;
+  animation: type-in 0.1s ease-out;
+}
+@keyframes type-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.minitel-cursor {
+  animation: minitel-cursor-blink 0.8s step-end infinite;
+  color: var(--minitel-green);
+}
+@keyframes minitel-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ========================================================================
+   VIDEOTEX Mosaïques — Blocs semi-graphiques 2×3
+   Réplique les caractères mosaïques du standard CCETT (1980)
+   ======================================================================== */
+
+/* ── Color variants ── */
+.vtx-green  { color: var(--minitel-green); }
+.vtx-pink   { color: var(--minitel-pink); }
+.vtx-amber  { color: var(--minitel-amber); }
+.vtx-cyan   { color: var(--minitel-cyan); }
+
+/* ── Separator: horizontal mosaic line ── */
+.vtx-separator {
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+  padding: 4px 0;
+  opacity: 0.6;
+  letter-spacing: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ── Page header: boxed title with double-line border ── */
+.vtx-page-header {
+  font-family: var(--minitel-font);
+  font-size: 16px;
+  line-height: 1.3;
+  margin-bottom: 12px;
+  user-select: none;
+}
+
+.vtx-line {
+  white-space: pre;
+  text-shadow: var(--minitel-glow);
+}
+
+.vtx-dim {
+  opacity: 0.6;
+}
+
+/* ── Border: mosaic box ── */
+.vtx-border {
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.vtx-border-top,
+.vtx-border-bottom {
+  white-space: pre;
+  overflow: hidden;
+  opacity: 0.5;
+  user-select: none;
+}
+
+.vtx-border-content {
+  padding: 8px 12px;
+  border-left: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  opacity: 0.15;
+}
+
+.vtx-border-content > * {
+  opacity: 1;
+}
+
+/* ── Banner: inline mosaic alert ── */
+.vtx-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.vtx-banner-deco {
+  font-size: 18px;
+  opacity: 0.6;
+  user-select: none;
+}
+
+.vtx-banner-text {
+  flex: 1;
+}
+
+/* ── Decorative blocks ── */
+.vtx-blocks {
+  font-family: var(--minitel-font);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--minitel-green);
+  opacity: 0.15;
+  overflow: hidden;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* ── Responsive: tablet ── */
+@media (max-width: 720px) {
+  .minitel-body {
+    padding: 8px 8px 6px;
+    grid-template-columns: 1fr;
+  }
+
+  .minitel-speaker {
+    display: none;
+  }
+
+  .minitel-screen-bezel {
+    grid-column: 1 / -1;
+  }
+
+  .minitel-keyboard-hint {
+    max-height: 60px;
+  }
+
+  .minitel-terminal .chat-users {
+    display: none;
+  }
+}
+
+/* Legacy class compat: .minitel-frame maps to .minitel-terminal */
+.minitel-frame {
+  /* Alias — old references still work */
+}
+
+.minitel-frame .chat-container {
+  background: transparent;
+  font-family: var(--minitel-font);
+  color: var(--minitel-green);
+}
+
+/* ========================================
+   VOICE CHAT — Chat Vocal Interface
+   ======================================== */
+
+.voice-chat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+  background: var(--minitel-black, #0a0a0a);
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--font-mono);
+}
+
+.voice-chat-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--minitel-green, #33ff33);
+  color: var(--minitel-black, #0a0a0a);
+  font-weight: bold;
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+
+.voice-status {
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.voice-status-on {
+  color: var(--minitel-black, #0a0a0a);
+}
+
+.voice-status-off {
+  color: #660000;
+}
+
+.voice-active-speaker {
+  font-size: 24px;
+  color: var(--minitel-pink, #ff69b4);
+  margin: 24px 0 12px;
+  min-height: 60px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-active-speaker.speaking {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { text-shadow: 0 0 8px rgba(255, 105, 180, 0.3); }
+  50% { text-shadow: 0 0 20px rgba(255, 105, 180, 0.8); }
+}
+
+.voice-speaker-label {
+  font-size: 11px;
+  color: var(--minitel-dim, #555);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+
+.voice-speaker-name {
+  font-size: 28px;
+  font-weight: bold;
+  letter-spacing: 3px;
+}
+
+.voice-thinking {
+  font-size: 16px;
+  color: var(--minitel-amber, #ffb000);
+  animation: blink-text 1s step-end infinite;
+}
+
+@keyframes blink-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.voice-speaker-idle {
+  font-size: 16px;
+  color: var(--minitel-dim, #555);
+}
+
+.voice-transcript {
+  background: rgba(51, 255, 51, 0.05);
+  border: 1px solid var(--minitel-dim, #555);
+  padding: 16px;
+  margin: 12px 20px;
+  min-height: 60px;
+  width: 80%;
+  max-width: 500px;
+  text-align: center;
+  font-style: italic;
+  color: var(--minitel-amber, #ffb000);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-recording-text {
+  color: var(--minitel-red, #ff3333);
+  animation: blink-text 0.8s step-end infinite;
+}
+
+.voice-transcript-placeholder {
+  color: var(--minitel-dim, #555);
+  font-style: italic;
+}
+
+.voice-mic-btn {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid var(--minitel-green, #33ff33);
+  background: transparent;
+  color: var(--minitel-green, #33ff33);
+  font-size: 40px;
+  cursor: pointer;
+  margin: 20px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-mic-btn:hover {
+  background: rgba(51, 255, 51, 0.1);
+  box-shadow: 0 0 20px rgba(51, 255, 51, 0.3);
+}
+
+.voice-mic-btn.recording {
+  border-color: var(--minitel-red, #ff3333);
+  color: var(--minitel-red, #ff3333);
+  animation: pulse 1s infinite;
+  box-shadow: 0 0 30px rgba(255, 51, 51, 0.4);
+}
+
+.voice-mic-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.voice-mic-label {
+  font-size: 14px;
+  margin-top: -8px;
+  margin-bottom: 8px;
+  color: var(--minitel-dim, #555);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Audio level meter */
+.voice-level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-family: var(--minitel-font);
+  font-size: 14px;
+}
+
+.voice-level-bar {
+  color: var(--minitel-green);
+  letter-spacing: -1px;
+  text-shadow: var(--minitel-glow);
+}
+
+.voice-level-time {
+  color: var(--minitel-amber);
+  font-size: 12px;
+  min-width: 30px;
+}
+
+.voice-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 16px;
+  color: var(--minitel-dim, #555);
+  font-size: 13px;
+}
+
+.voice-volume input[type="range"] {
+  width: 120px;
+  accent-color: var(--minitel-green, #33ff33);
+}
+
+.voice-history {
+  width: 90%;
+  max-width: 600px;
+  border-top: 1px solid var(--minitel-dim, #555);
+  margin-top: 8px;
+  padding: 8px 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 13px;
+  flex: 1;
+}
+
+.voice-history-title {
+  color: var(--minitel-amber, #ffb000);
+  font-size: 12px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.voice-history-empty {
+  color: var(--minitel-dim, #555);
+  font-style: italic;
+  text-align: center;
+  padding: 12px;
+}
+
+.voice-history-entry {
+  padding: 2px 0;
+  opacity: 0.8;
+}
+
+.voice-history-entry .voice-nick {
+  font-weight: bold;
+}
+
+.voice-history-entry .voice-nick-user {
+  color: var(--minitel-green, #33ff33);
+}
+
+.voice-history-entry .voice-nick-persona {
+  color: var(--minitel-pink, #ff69b4);
+}
+
+.voice-history-entry .voice-audio-icon {
+  color: var(--minitel-cyan, #33ffff);
+  cursor: pointer;
+}
+
+.voice-history-entry .voice-audio-icon:hover {
+  text-shadow: 0 0 6px rgba(51, 255, 255, 0.6);
+}
+
+.voice-entry-text {
+  color: var(--minitel-green, #33ff33);
+  opacity: 0.7;
+}
+
+/* ========================================================================
+   PERSONA TREE VIEW (Minitel style)
+   ======================================================================== */
+
+.minitel-tree-view {
+  padding: 12px;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+}
+
+.minitel-tree-header {
+  font-size: 18px;
+  letter-spacing: 3px;
+  text-align: center;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--minitel-pink, #ff69b4);
+}
+
+.minitel-tree-stats {
+  font-size: 12px;
+  color: var(--minitel-green, #33ff33);
+  opacity: 0.7;
+}
+
+.minitel-tree-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.minitel-tree-btn {
+  padding: 4px 12px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 12px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+.minitel-tree-btn:hover {
+  background: #2a2a2a;
+  border-color: var(--minitel-green, #33ff33);
+}
+
+.minitel-create-form {
+  background: #0a0a0a;
+  border: 1px solid var(--minitel-green, #33ff33);
+  padding: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.minitel-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--minitel-green, #33ff33);
+}
+
+.minitel-tree {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.minitel-tree-branch {
+  margin-bottom: 4px;
+}
+
+.minitel-tree-model {
+  cursor: pointer;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #111;
+  border-left: 3px solid var(--minitel-green, #33ff33);
+  transition: background 0.15s;
+}
+
+.minitel-tree-model:hover {
+  background: #1a1a1a;
+}
+
+.minitel-tree-toggle {
+  width: 16px;
+  text-align: center;
+  color: var(--minitel-amber, #ffb000);
+  font-weight: bold;
+}
+
+.minitel-tree-model-name {
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.minitel-tree-model-count {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.minitel-tree-leaves {
+  padding-left: 20px;
+}
+
+.minitel-tree-leaf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-left: 1px solid #333;
+}
+
+.minitel-tree-leaf:hover {
+  background: #1a1a1a;
+}
+
+.minitel-tree-leaf-off {
+  opacity: 0.5;
+}
+
+.minitel-tree-pipe {
+  color: #444;
+  font-size: 12px;
+}
+
+.minitel-tree-dot .dot-on {
+  color: var(--minitel-green, #33ff33);
+}
+
+.dot-on {
+  color: var(--minitel-green, #33ff33);
+}
+
+.dot-off {
+  color: #666;
+}
+
+.minitel-tree-name {
+  flex: 1;
+  letter-spacing: 1px;
+}
+
+.minitel-tree-toggle-btn {
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid #444;
+  background: #1a1a1a;
+  color: var(--minitel-green, #33ff33);
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+.minitel-tree-toggle-btn:hover {
+  border-color: var(--minitel-green, #33ff33);
+}
+
+/* ========================================================================
+   RESPONSIVE — Minitel adaptatif
+   ======================================================================== */
+
+/* Tablette portrait (≤768px) */
+@media (max-width: 768px) {
+  /* Barre de service — texte plus compact */
+  .minitel-service-top {
+    font-size: 13px;
+    padding: 3px 8px;
+    letter-spacing: 1px;
+  }
+
+  .minitel-service-top .minitel-user {
+    display: none;
+  }
+
+  .minitel-service-bottom {
+    padding: 3px 4px;
+    gap: 2px;
+  }
+
+  .minitel-fkey {
+    font-size: 10px;
+    padding: 2px 5px;
+    letter-spacing: 0;
+  }
+
+  /* Login — ajuster marges */
+  .minitel-login {
+    padding: 12px;
+  }
+
+  .minitel-login-art {
+    font-size: 11px;
+  }
+
+  .minitel-login-form {
+    max-width: 100%;
+  }
+
+  /* Navigation drawer plein écran */
+  .minitel-nav-panel {
+    min-width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  /* Tree view — moins de padding */
+  .minitel-tree-view {
+    padding: 8px;
+  }
+
+  .minitel-tree-leaves {
+    padding-left: 12px;
+  }
+
+  .minitel-tree-header {
+    font-size: 15px;
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+  }
+
+  /* Chat — flex fill */
+  .chat-container {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .chat-users {
+    display: none;
+  }
+
+  /* Voice chat compact */
+  .voice-mic-btn {
+    width: 90px;
+    height: 90px;
+    font-size: 32px;
+  }
+
+  .voice-active-speaker {
+    font-size: 18px;
+  }
+
+  .voice-speaker-name {
+    font-size: 22px;
+  }
+
+  .voice-history {
+    max-height: 150px;
+    width: 95%;
+  }
+
+  /* Cards compact */
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Mobile (≤480px) — mode portrait Minitel */
+@media (max-width: 480px) {
+  .minitel-body {
+    padding: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .minitel-speaker,
+  .minitel-keyboard-hint,
+  .minitel-label {
+    display: none;
+  }
+
+  .minitel-screen-bezel {
+    grid-column: 1 / -1;
+    border-radius: 0;
+    border: none;
+    padding: 2px;
+  }
+
+  .minitel-screen {
+    border-radius: 0;
+  }
+
+  /* Service bars — sticky */
+  .minitel-service-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    font-size: 12px;
+    padding: 3px 6px;
+  }
+
+  .minitel-service-bottom {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: #1e1e1e;
+    padding: 4px 2px;
+    border-top: 1px solid var(--minitel-green, #33ff33);
+  }
+
+  .minitel-fkey {
+    font-size: 9px;
+    padding: 3px 4px;
+    flex: 1;
+    text-align: center;
+  }
+
+  /* Content scrollable entre les barres */
+  .minitel-content {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+  }
+
+  /* Login adapté */
+  .minitel-login {
+    padding: 16px 12px;
+    justify-content: flex-start;
+    padding-top: 10vh;
+  }
+
+  .minitel-login-art {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+
+  .minitel-login-header {
+    font-size: 16px;
+    letter-spacing: 2px;
+  }
+
+  .minitel-input {
+    font-size: 14px;
+  }
+
+  /* Connect animation */
+  .minitel-connect {
+    padding: 20px 12px;
+  }
+
+  .minitel-connect-screen {
+    font-size: 13px;
+  }
+
+  /* Navigation drawer — fullscreen */
+  .minitel-nav-panel {
+    min-width: 100%;
+    border: none;
+    padding: 16px;
+  }
+
+  .minitel-nav-btn {
+    padding: 10px 16px;
+    font-size: 15px;
+  }
+
+  .minitel-nav-title {
+    font-size: 16px;
+  }
+
+  /* Tree view compact */
+  .minitel-tree-model {
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  .minitel-tree-leaf {
+    padding: 4px 6px;
+    font-size: 13px;
+  }
+
+  .minitel-tree-leaves {
+    padding-left: 8px;
+  }
+
+  /* Chat fullscreen */
+  .chat-container {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .chat-input-row {
+    padding: 4px 6px;
+  }
+
+  .chat-input-row input {
+    font-size: 14px;
+  }
+
+  /* Voice — compact */
+  .voice-chat {
+    min-height: auto;
+    padding-bottom: 60px;
+  }
+
+  .voice-mic-btn {
+    width: 80px;
+    height: 80px;
+    font-size: 28px;
+    margin: 12px;
+  }
+
+  .voice-transcript {
+    width: 95%;
+    margin: 8px auto;
+    padding: 10px;
+  }
+
+  /* Analytics compact */
+  .analytics-chart {
+    font-size: 11px;
+  }
+
+  /* General — prevent horizontal scroll */
+  * {
+    max-width: 100vw;
+    box-sizing: border-box;
+  }
+}
+
+/* ========================================================================
+   ULLA PAGE — Easter egg 3615 ULLA
+   ======================================================================== */
+
+.ulla-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 20px;
+  cursor: pointer;
+  background: radial-gradient(ellipse at 50% 30%, rgba(255, 105, 180, 0.08), transparent 70%);
+}
+
+.ulla-screen {
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 14px;
+  line-height: 1.4;
+  color: #ff69b4;
+  white-space: pre;
+  text-shadow: 0 0 6px rgba(255, 105, 180, 0.4);
+}
+
+.ulla-line {
+  animation: ulla-appear 0.15s ease-out;
+}
+
+@keyframes ulla-appear {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Connection animation phases ── */
+.minitel-connect-modem {
+  color: var(--minitel-green, #33ff33);
+}
+
+.minitel-connect-ulla {
+  color: var(--minitel-pink, #ff69b4);
+  text-shadow: 0 0 8px rgba(255, 105, 180, 0.5);
+}
+
+.minitel-connect-kxkm {
+  color: var(--minitel-green, #33ff33);
+}
+
+/* ── Login tabs ── */
+.minitel-login-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #444;
+}
+
+.minitel-tab {
+  flex: 1;
+  padding: 8px 16px;
+  background: #111;
+  border: 1px solid #333;
+  border-bottom: none;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 13px;
+  cursor: pointer;
+  opacity: 0.6;
+  letter-spacing: 1px;
+}
+
+.minitel-tab:hover { opacity: 0.8; }
+
+.minitel-tab-active {
+  opacity: 1;
+  background: #1a3a1a;
+  border-color: var(--minitel-green, #33ff33);
+}
+
+/* ── Navigation separator ── */
+.minitel-nav-sep {
+  border-top: 1px solid #333;
+  margin: 8px 0;
+}
+
+/* ── Fin button (red) ── */
+.minitel-fkey-fin {
+  background: #3a1a1a;
+  border-color: #aa3333;
+  color: #ff6b6b;
+}
+
+.minitel-fkey-fin:hover {
+  background: #4a2a2a;
+  border-color: #ff4444;
+}
+
+/* ── F-key shortcut label ── */
+.minitel-fkey-shortcut {
+  font-size: 8px;
+  opacity: 0.5;
+  display: block;
+  line-height: 1;
+  margin-bottom: 1px;
+}
+
+/* ── Sommaire button ── */
+.minitel-fkey-sommaire {
+  font-size: 16px;
+  padding: 2px 10px;
+}
+
+/* ── Top bar page name ── */
+.minitel-top-page {
+  opacity: 0.7;
+  font-size: 13px;
+}
+
+/* ── Dashboard Minitel ── */
+.minitel-dashboard {
+  padding: 16px;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+}
+
+.minitel-dash-title {
+  font-size: 18px;
+  letter-spacing: 3px;
+  text-align: center;
+  margin-bottom: 12px;
+  color: var(--minitel-pink, #ff69b4);
+}
+
+.minitel-dash-user {
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.7;
+  margin-bottom: 16px;
+}
+
+.minitel-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.minitel-dash-card {
+  padding: 12px;
+  background: #111;
+  border: 1px solid #333;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: center;
+  letter-spacing: 1px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.minitel-dash-card:hover {
+  background: #1a1a1a;
+  border-color: var(--minitel-green, #33ff33);
+}
+
+/* ── Typing indicator ── */
+.chat-typing {
+  padding: 2px 12px;
+  font-size: 12px;
+  color: var(--minitel-amber, #ffb000);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  letter-spacing: 1px;
+  background: rgba(255, 176, 0, 0.05);
+  border-top: 1px solid rgba(255, 176, 0, 0.2);
+}
+
+.chat-typing-dots {
+  animation: typing-dots 1.2s step-end infinite;
+}
+
+@keyframes typing-dots {
+  0% { content: "."; }
+  33% { content: ".."; }
+  66% { content: "..."; }
+}
+
+/* ========================================================================
+   CHAT SIDEBAR — Personas tree + connected users
+   ======================================================================== */
+
+.chat-sidebar {
+  width: 160px;
+  min-width: 160px;
+  border-left: 1px solid #333;
+  background: #0a0a0a;
+  overflow-y: auto;
+  font-family: var(--minitel-font, "Courier New", monospace);
+  font-size: 12px;
+  color: var(--minitel-green, #33ff33);
+}
+
+.chat-sidebar-section {
+  border-bottom: 1px solid #222;
+}
+
+.chat-sidebar-title {
+  padding: 6px 8px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  opacity: 0.7;
+  background: #111;
+}
+
+.chat-sidebar-title:hover {
+  opacity: 1;
+  background: #1a1a1a;
+}
+
+.chat-sidebar-personas {
+  padding: 2px 4px;
+}
+
+.chat-sidebar-persona {
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-sidebar-persona:hover {
+  background: #1a1a1a;
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .chat-sidebar {
+    display: none;
+  }
+}
+
+/* ========================================================================
+   COMPOSE PAGE — Music generation
+   ======================================================================== */
+
+.compose-page,
+.imagine-page {
+  padding: 16px;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.compose-header {
+  font-size: 18px;
+  letter-spacing: 3px;
+  text-align: center;
+  color: var(--minitel-pink, #ff69b4);
+  margin-bottom: 4px;
+}
+
+.compose-subtitle {
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.6;
+  margin-bottom: 16px;
+}
+
+.compose-form {
+  max-width: 500px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compose-textarea {
+  resize: vertical;
+  min-height: 60px;
+  font-family: var(--minitel-font, "Courier New", monospace);
+}
+
+.compose-options {
+  display: flex;
+  gap: 12px;
+}
+
+.compose-options .minitel-field {
+  flex: 1;
+}
+
+/* ── Progress bar VIDEOTEX ── */
+.vtx-progress {
+  margin: 16px auto;
+  max-width: 500px;
+  color: var(--minitel-green);
+  font-family: var(--minitel-font);
+}
+
+.vtx-progress.vtx-amber {
+  color: var(--minitel-amber);
+}
+
+.vtx-progress-label {
+  font-size: 13px;
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+}
+
+.vtx-progress-bar {
+  border: 1px solid currentColor;
+  height: 20px;
+  background: rgba(10, 10, 10, 0.8);
+  overflow: hidden;
+  position: relative;
+}
+
+.vtx-progress-fill {
+  height: 100%;
+  background: currentColor;
+  opacity: 0.3;
+  color: currentColor;
+  font-size: 10px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: width 0.2s linear;
+}
+
+.vtx-progress-pct {
+  font-size: 12px;
+  text-align: right;
+  margin-top: 2px;
+  opacity: 0.7;
+}
+
+/* ── Track list (Compose results) ── */
+.compose-results {
+  margin-top: 16px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.compose-results-title {
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.7;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--minitel-dim);
+  padding-bottom: 8px;
+}
+
+.vtx-track {
+  border: 1px solid var(--minitel-dim);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.vtx-track:hover {
+  border-color: var(--minitel-green);
+}
+
+.vtx-track-active {
+  border-color: var(--minitel-pink);
+}
+
+.vtx-track-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.vtx-track-icon {
+  font-size: 16px;
+  color: var(--minitel-pink);
+  flex-shrink: 0;
+}
+
+.vtx-track-title {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vtx-track-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid var(--minitel-green);
+  color: var(--minitel-green);
+  flex-shrink: 0;
+}
+
+.vtx-player {
+  padding: 6px 10px 10px;
+  border-top: 1px solid var(--minitel-dim);
+}
+
+.vtx-audio {
+  width: 100%;
+  height: 36px;
+  filter: hue-rotate(100deg) saturate(2) brightness(0.8);
+}
+
+/* ========================================================================
+   IMAGINE PAGE — Image generation
+   ======================================================================== */
+
+.imagine-results {
+  margin-top: 16px;
+}
+
+.imagine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.imagine-result {
+  border: 1px solid var(--minitel-dim);
+  background: #0a0a0a;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.imagine-result:hover {
+  border-color: var(--minitel-amber);
+}
+
+.imagine-img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.imagine-prompt {
+  padding: 6px 8px;
+  font-size: 11px;
+  opacity: 0.7;
+  border-top: 1px solid #222;
+}
+
+/* ── Image viewer overlay ── */
+.vtx-viewer {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.vtx-viewer-frame {
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.vtx-viewer-img {
+  max-width: 100%;
+  max-height: 70vh;
+  border: 2px solid var(--minitel-amber);
+  box-shadow: 0 0 40px rgba(255, 176, 0, 0.15);
+}
+
+.vtx-viewer-caption {
+  margin-top: 10px;
+  font-family: var(--minitel-font);
+  font-size: 13px;
+  color: var(--minitel-amber);
+  text-align: center;
+  max-width: 600px;
+}
+
+.vtx-viewer-nav {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.vtx-viewer-btn {
+  background: none;
+  border: 1px solid var(--minitel-amber);
+  color: var(--minitel-amber);
+  font-family: var(--minitel-font);
+  font-size: 14px;
+  padding: 6px 16px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+.vtx-viewer-btn:hover {
+  background: rgba(255, 176, 0, 0.1);
+}
+
+.vtx-viewer-close {
+  border-color: var(--minitel-red);
+  color: var(--minitel-red);
+}
+
+.vtx-viewer-close:hover {
+  background: rgba(255, 51, 51, 0.1);
+}
+
+/* ========================================================================
+   MEDIA EXPLORER — Mediatheque images & audio
+   ======================================================================== */
+
+.media-explorer {
+  padding: 16px;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Tabs */
+.media-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+}
+
+.media-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--minitel-dim);
+  color: var(--minitel-dim);
+  font-family: var(--minitel-font);
+  font-size: 13px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+
+.media-tab:hover {
+  border-color: var(--minitel-green);
+  color: var(--minitel-green);
+}
+
+.media-tab-active {
+  background: rgba(51, 255, 51, 0.08);
+  border-color: var(--minitel-green);
+  color: var(--minitel-green);
+}
+
+.media-tab-refresh {
+  flex: 0;
+  padding: 8px 16px;
+  color: var(--minitel-amber);
+  border-color: var(--minitel-amber);
+}
+
+.media-tab-refresh:hover {
+  background: rgba(255, 176, 0, 0.08);
+}
+
+.media-empty {
+  text-align: center;
+  padding: 40px 20px;
+  opacity: 0.5;
+  font-size: 14px;
+}
+
+/* Image grid */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.media-card {
+  border: 1px solid var(--minitel-dim);
+  background: rgba(10, 10, 10, 0.6);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.media-card:hover {
+  border-color: var(--minitel-cyan);
+}
+
+.media-thumb {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.media-card-info {
+  padding: 6px 8px;
+}
+
+.media-card-prompt {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-card-meta {
+  font-size: 10px;
+  color: var(--minitel-dim);
+  margin-top: 2px;
+}
+
+/* Image viewer additions */
+.vtx-viewer-meta {
+  margin-top: 4px;
+  font-family: var(--minitel-font);
+  font-size: 11px;
+  color: var(--minitel-dim);
+}
+
+/* Audio playlist */
+.media-playlist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.media-track {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--minitel-dim);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.media-track:hover {
+  border-color: var(--minitel-pink);
+}
+
+.media-track-playing {
+  border-color: var(--minitel-pink);
+  background: rgba(255, 105, 180, 0.06);
+}
+
+.media-track-icon {
+  font-size: 18px;
+  color: var(--minitel-pink);
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.media-track-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.media-track-prompt {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-track-meta {
+  font-size: 10px;
+  color: var(--minitel-dim);
+  margin-top: 2px;
+}
+
+/* Sticky player bar */
+.media-player-bar {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--minitel-pink);
+  background: rgba(10, 10, 10, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.media-player-title {
+  font-size: 12px;
+  color: var(--minitel-pink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ========================================================================
+   ADMIN PAGE
+   ======================================================================== */
+
+.admin-page {
+  padding: 16px;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.admin-login-form {
+  max-width: 360px;
+  margin: 20px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-user {
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.7;
+  margin-bottom: 16px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.admin-card {
+  padding: 12px 8px;
+  background: #111;
+  border: 1px solid #333;
+  color: var(--minitel-green, #33ff33);
+  font-family: var(--minitel-font, "Courier New", monospace);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.admin-card:hover {
+  border-color: var(--minitel-green, #33ff33);
+  background: #1a1a1a;
+}
+
+.admin-card-title {
+  font-size: 11px;
+  opacity: 0.7;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.admin-card-value {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.admin-runs {
+  border: 1px solid #333;
+  padding: 10px;
+  margin-bottom: 16px;
+  background: #0a0a0a;
+}
+
+.admin-runs-title {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+.admin-runs-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.admin-count-active {
+  color: var(--minitel-amber, #ffb000);
+  font-weight: bold;
+}
+
+.admin-actions {
+  border-top: 1px solid #333;
+  padding-top: 12px;
+}
+
+.admin-actions-title {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+}
+
+.admin-actions .minitel-nav-btn {
+  margin-bottom: 4px;
+}
+
+/* Large desktop (≥1200px) — larger text, exploits space */
+@media (min-width: 1200px) {
+  .minitel-screen {
+    font-size: 16px;
+  }
+
+  .minitel-service-top {
+    font-size: 18px;
+    padding: 6px 16px;
+    letter-spacing: 3px;
+  }
+
+  .minitel-service-bottom {
+    padding: 5px 12px;
+  }
+
+  .minitel-fkey {
+    font-size: 13px;
+    padding: 3px 12px;
+  }
+
+  .minitel-login-art {
+    font-size: 15px;
+  }
+
+  .minitel-login-form {
+    max-width: 360px;
+  }
+
+  .minitel-login-btn {
+    font-size: 18px;
+    padding: 10px 20px;
+  }
+
+  .chat-messages {
+    font-size: 15px;
+  }
+
+  .minitel-tree {
+    column-count: 2;
+    column-gap: 24px;
+  }
+
+  .minitel-tree-branch {
+    break-inside: avoid;
+  }
+
+  .minitel-nav-panel {
+    min-width: 400px;
+    max-width: 500px;
+  }
+
+  .minitel-nav-btn {
+    font-size: 16px;
+    padding: 10px 20px;
+  }
+
+  .minitel-speaker {
+    width: 100px;
+  }
+
+  .minitel-brand {
+    font-size: 22px;
+  }
+}
+
+/* Ultra-wide (≥1600px) — generous spacing */
+@media (min-width: 1600px) {
+  .minitel-body {
+    padding: 16px 20px 12px;
+  }
+
+  .minitel-service-top {
+    font-size: 20px;
+    padding: 8px 20px;
+  }
+
+  .minitel-fkey {
+    font-size: 14px;
+    padding: 4px 16px;
+  }
+
+  .chat-messages {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  .chat-msg {
+    padding: 2px 8px;
+  }
+
+  .voice-mic-btn {
+    width: 140px;
+    height: 140px;
+    font-size: 48px;
+  }
+
+  .voice-active-speaker {
+    font-size: 28px;
+  }
+
+  .minitel-tree {
+    column-count: 3;
+    column-gap: 32px;
+  }
+
+  .minitel-login {
+    padding: 40px;
+  }
+
+  .minitel-speaker {
+    width: 120px;
+  }
+}
+
+/* Timestamps */
+.chat-ts {
+  color: var(--muted, #666);
+  font-size: 0.8em;
+  margin-right: 6px;
+  opacity: 0.6;
+  user-select: none;
+}
+
+/* Streaming cursor */
+.chat-cursor {
+  animation: blink-cursor 0.6s step-end infinite;
+  color: var(--accent, #0f0);
+  margin-left: 2px;
+}
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.chat-msg-streaming {
+  opacity: 0.9;
+}
+
+/* ══════════════════════════════════════════════════════════
+   CRT PHOSPHOR EFFECT — boot animation, glow, kill switch
+   ══════════════════════════════════════════════════════════ */
+
+/* CRT turn-on animation */
+@keyframes crt-turn-on {
+  0%   { transform: scaleY(0.005) scaleX(0.3); filter: brightness(10); opacity: 1; }
+  30%  { transform: scaleY(0.005) scaleX(1);   filter: brightness(5);  opacity: 1; }
+  50%  { transform: scaleY(1) scaleX(1);       filter: brightness(2);  opacity: 1; }
+  100% { transform: scaleY(1) scaleX(1);       filter: brightness(1);  opacity: 1; }
+}
+
+.crt-boot {
+  animation: crt-turn-on 0.8s ease-out;
+  transform-origin: center center;
+}
+
+/* Phosphor glow on all content text */
+.minitel-content {
+  text-shadow: 0 0 2px rgba(51, 255, 51, 0.25);
+}
+
+/* ── CRT off mode — disable all effects via ?crt=off ── */
+.crt-off .minitel-scanlines,
+.crt-off .minitel-vignette,
+.crt-off .minitel-flicker {
+  display: none !important;
+}
+.crt-off .minitel-screen {
+  box-shadow: none !important;
+}
+.crt-off .minitel-content {
+  text-shadow: none !important;
+}
+.crt-off .crt-boot {
+  animation: none !important;
+}
+
+/* ── Mobile: reduce scanline intensity for FPS ── */
+@media (max-width: 768px) {
+  .minitel-scanlines {
+    opacity: 0.5;
+  }
+  .minitel-flicker {
+    animation: none;
+  }
+}
+
+/* ── Accessibility: skip-to-content link (WCAG 2.1 AA) ── */
+.minitel-skip-link {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  z-index: 9999;
+  padding: 0.5em 1em;
+  background: #000;
+  color: #0f0;
+  font-family: inherit;
+  font-size: 1rem;
+  text-decoration: underline;
+  outline: 2px solid #0f0;
+}
+.minitel-skip-link:focus {
+  top: 0;
+}
+
+/* ── @mention highlighting (lot-113) ── */
+.chat-mention {
+  color: var(--accent, #c84c0c);
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* ── Code block rendering (lot-137) ── */
+.chat-code-block {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 4px 0;
+  overflow-x: auto;
+  font-size: 0.85em;
+}
+
+/* ── Mobile responsive pass (lot-148) ── */
+@media (max-width: 768px) {
+  .chat-body { flex-direction: column; }
+  .chat-header { font-size: 0.85em; padding: 4px 8px; }
+  .chat-input { font-size: 16px; } /* prevent iOS zoom */
+  .chat-msg { font-size: 0.9em; padding: 2px 4px; }
+  .minitel-bottom-bar { font-size: 0.8em; }
+  .admin-grid { grid-template-columns: 1fr; }
+  .media-grid { grid-template-columns: 1fr 1fr; }
+  .compose-form, .imagine-form { padding: 8px; }
+}
+
+@media (max-width: 480px) {
+  .chat-ts { display: none; }
+  .chat-nick { font-size: 0.85em; }
+  .media-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Compose multi-track UI ── */
+.compose-comp-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; max-width: 500px; margin-left: auto; margin-right: auto; }
+.compose-comp-header .minitel-input { flex: 1; }
+.compose-track-count { color: var(--minitel-dim, #666); font-size: 0.85em; white-space: nowrap; }
+.compose-tracks { margin: 8px auto; max-width: 500px; }
+.compose-track { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--minitel-dim, #333); }
+.compose-track-num { color: var(--minitel-pink, #ff69b4); font-weight: bold; width: 30px; flex-shrink: 0; }
+.compose-track-prompt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compose-track-info { color: var(--minitel-dim, #666); font-size: 0.8em; width: 100px; flex-shrink: 0; }
+.compose-volume { width: 80px; flex-shrink: 0; }
+.compose-audio { height: 28px; max-width: 150px; flex-shrink: 0; }
+.compose-track-del { background: none; border: none; color: var(--minitel-pink, #ff69b4); cursor: pointer; font-size: 1.2em; padding: 2px 6px; flex-shrink: 0; }
+.compose-track-del:hover { color: #ff0040; }
+.compose-mix { margin: 8px auto; max-width: 500px; }
+.compose-mix-controls { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+
+/* ── Compose Timeline (mini-DAW) ── */
+.compose-timeline {
+  margin: 8px auto;
+  max-width: 500px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  padding: 8px;
+  overflow-x: auto;
+}
+
+.timeline-ruler {
+  position: relative;
+  height: 20px;
+  border-bottom: 1px solid var(--muted, #666);
+  margin-bottom: 4px;
+}
+
+.timeline-tick {
+  position: absolute;
+  font-size: 0.7em;
+  color: var(--muted, #666);
+  transform: translateX(-50%);
+}
+
+.timeline-lane {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  margin: 2px 0;
+}
+
+.timeline-label {
+  width: 50px;
+  font-size: 0.8em;
+  color: var(--muted, #666);
+  flex-shrink: 0;
+}
+
+.timeline-track-area {
+  flex: 1;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+  position: relative;
+}
+
+.timeline-block {
+  height: 100%;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.timeline-block:hover {
+  filter: brightness(1.2);
+}
+
+.timeline-block-text {
+  font-size: 0.7em;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compose — button rows (lot-230) */
+.compose-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin: 4px 0;
+}
+.compose-btn-label {
+  color: var(--muted, #666);
+  font-size: 0.8em;
+  width: 60px;
+  flex-shrink: 0;
+}
+
+/* Compose — per-track actions (lot-231) */
+.compose-track-actions { display: flex; gap: 2px; }
+.compose-track-btn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid var(--border, #333);
+  color: var(--fg, #ccc);
+  font-size: 0.7em;
+  padding: 2px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.compose-track-btn:hover { background: rgba(255,255,255,0.2); }
+
+/* Compose — status bar (lot-232) */
+.compose-status-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg, #000);
+  border-top: 1px solid var(--border, #333);
+  padding: 4px 8px;
+  font-size: 0.8em;
+  color: var(--muted, #666);
+  display: flex;
+  justify-content: space-between;
+}
+.compose-status-msg { color: var(--accent, #c84c0c); }

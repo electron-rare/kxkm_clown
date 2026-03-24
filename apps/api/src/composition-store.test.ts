@@ -161,4 +161,72 @@ describe("composition-store", () => {
     assert.equal(sfxTrack!.type, "sfx");
     assert.equal(sfxTrack!.filePath, undefined, "filePath should be undefined when not set");
   });
+
+  it("createComposition initializes timeline model v1", async () => {
+    const { createComposition, getTimeline } = await storePromise;
+    const comp = createComposition("ivy", "#timeline", "Timeline V1");
+    const timeline = getTimeline(comp.id);
+
+    assert.ok(timeline, "timeline should exist");
+    assert.equal(timeline!.version, 1);
+    assert.equal(timeline!.bpm, 120);
+    assert.deepEqual(timeline!.timeSignature, [4, 4]);
+    assert.equal(timeline!.tracks.length, 0);
+    assert.equal(timeline!.clips.length, 0);
+    assert.equal(timeline!.markers.length, 0);
+  });
+
+  it("addTrack creates a default clip in timeline", async () => {
+    const { createComposition, addTrack, getTimeline } = await storePromise;
+    const comp = createComposition("jules", "#timeline", "Track Clip");
+    const track = addTrack(comp.id, {
+      type: "music",
+      prompt: "test clip",
+      duration: 12,
+      volume: 70,
+      startMs: 2500,
+    });
+
+    assert.ok(track);
+    const timeline = getTimeline(comp.id);
+    assert.ok(timeline);
+    assert.equal(timeline!.tracks.length, 1);
+    assert.equal(timeline!.clips.length, 1);
+    assert.equal(timeline!.clips[0].trackId, track!.id);
+    assert.equal(timeline!.clips[0].startMs, 2500);
+    assert.equal(timeline!.clips[0].durationMs, 12000);
+    assert.equal(timeline!.clips[0].gain, 70);
+  });
+
+  it("updates timeline settings and persists markers", async () => {
+    const {
+      createComposition,
+      updateTimelineSettings,
+      addTimelineMarker,
+      listTimelineMarkers,
+    } = await storePromise;
+    const comp = createComposition("kate", "#timeline", "Tempo + Markers");
+
+    const updated = updateTimelineSettings(comp.id, { bpm: 98, timeSignature: [3, 4] });
+    assert.ok(updated);
+    assert.equal(updated!.bpm, 98);
+    assert.deepEqual(updated!.timeSignature, [3, 4]);
+
+    const marker = addTimelineMarker(comp.id, { label: "Intro", atMs: 4000, color: "#ff66b2" });
+    assert.ok(marker);
+    assert.equal(marker!.label, "Intro");
+
+    const markers = listTimelineMarkers(comp.id);
+    assert.equal(markers.length, 1);
+    assert.equal(markers[0].label, "Intro");
+    assert.equal(markers[0].atMs, 4000);
+
+    const jsonPath = path.join(testDir, "data", "compositions", comp.id, "composition.json");
+    const onDisk = JSON.parse(readFileSync(jsonPath, "utf-8"));
+    assert.ok(onDisk.timeline, "timeline should be persisted");
+    assert.equal(onDisk.timeline.version, 1);
+    assert.equal(onDisk.timeline.bpm, 98);
+    assert.equal(onDisk.timeline.markers.length, 1);
+    assert.equal(onDisk.timeline.markers[0].label, "Intro");
+  });
 });

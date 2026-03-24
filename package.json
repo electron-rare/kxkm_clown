@@ -39,6 +39,11 @@
     "smoke:spikes": "bash ops/v2/run-spike-checks.sh all --yes",
     "v2:autoresearch": "node scripts/v2-autoresearch-loop.js --config ops/v2/autoresearch.example.json",
     "v2:finetune": "bash scripts/finetune-persona.sh",
+    "infra:537-540": "bash scripts/infra-lots-537-540.sh --all",
+    "infra:537": "bash scripts/infra-lot-537-mascarade-systemd.sh",
+    "infra:538": "bash scripts/infra-lot-538-firewall-persistent.sh",
+    "infra:539": "bash scripts/infra-lot-539-tailscale-tower.sh",
+    "infra:540": "bash scripts/infra-lot-540-nginx-https.sh",
     "turbo:build": "turbo run build",
     "turbo:check": "turbo run check",
     "turbo:test": "turbo run test"

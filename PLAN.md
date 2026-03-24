@@ -1,10 +1,10 @@
 # PLAN.md — KXKM_Clown
 
-Updated: 2026-03-21T12:00:00Z
+Updated: 2026-03-24T19:30:00Z
 
 ## Summary
 
-- **535+ lots executed** in sessions 2026-03-19/20/21/24
+- **544+ lots executed** in sessions 2026-03-19/20/21/24
 - **425 tests**, 0 fail
 - **112+ commands**, 14 services, 9 spec docs, 4 machines deployed
 - **All SEC-01-05 resolved**
@@ -496,37 +496,37 @@ Updated: 2026-03-20T12:00:00Z
 - Description: health-check.sh bash TUI with 19 service checks
 - Summary: Colored output, pass/fail per service, summary line.
 
-## lot-95-e2e-playwright [planned]
+## lot-95-e2e-playwright [done]
 
 - Description: End-to-end tests with Playwright (login, chat, upload, admin)
 - Owner: Frontend + Backend API
 - Priority: P1
 
-## lot-96-persona-dpo-automation [planned]
+## lot-96-persona-dpo-automation [done]
 
 - Description: Automated DPO pipeline (feedback collection, pair generation, training trigger)
 - Owner: Training
 - Priority: P2
 
-## lot-97-multi-channel [planned]
+## lot-97-multi-channel [done]
 
 - Description: Multi-channel support (create/join custom channels, per-channel personas)
 - Owner: Backend API + Frontend
 - Priority: P2
 
-## lot-98-file-sharing [planned]
+## lot-98-file-sharing [done]
 
 - Description: File sharing between users (upload to shared gallery, download links)
 - Owner: Backend API + Frontend
 - Priority: P3
 
-## lot-99-mobile-responsive [planned]
+## lot-99-mobile-responsive [done]
 
 - Description: Mobile responsive deep pass (touch gestures, bottom nav, viewport units)
 - Owner: Frontend
 - Priority: P2
 
-## lot-100-public-demo [planned]
+## lot-100-public-demo [done]
 
 - Description: Public demo mode (read-only guest access, rate-limited, no admin)
 - Owner: Backend API + Frontend
@@ -916,7 +916,7 @@ Updated: 2026-03-20T12:00:00Z
 ### Objectif
 - Executer un lot de fiabilisation en 4 commits atomiques, testables et rollbackables.
 
-### lot-541-regex-intent-fix [planned]
+### lot-541-regex-intent-fix [done]
 - Description: Corriger l extraction des prompts auto image/musique dans le routeur conversation.
 - Owner: Backend API
 - Fichiers cibles: apps/api/src/ws-conversation-router.ts, apps/api/src/ws-conversation-router.test.ts
@@ -924,7 +924,7 @@ Updated: 2026-03-20T12:00:00Z
 - Checks: npm run -w @kxkm/api test
 - Done criteria: prompts correctement extraits pour /imagine et /compose depuis langage naturel.
 
-### lot-542-audio-eventloop-unblock [planned]
+### lot-542-audio-eventloop-unblock [done]
 - Description: Sortir les traitements ffmpeg bloquants du chemin synchrone WS.
 - Owner: Backend API + Multimodal
 - Fichiers cibles: apps/api/src/ws-commands-generate.ts
@@ -932,7 +932,7 @@ Updated: 2026-03-20T12:00:00Z
 - Checks: npm run -w @kxkm/api test, smoke WS compose/mix
 - Done criteria: pas de blocage event-loop sur mix/export, latence WS stable sous charge.
 
-### lot-543-worker-runtime-unification [planned]
+### lot-543-worker-runtime-unification [done]
 - Description: Unifier l execution worker autour de worker-runtime pour eviter la divergence index/runtime.
 - Owner: Node Engine
 - Fichiers cibles: apps/worker/src/index.ts, apps/worker/src/worker-runtime.ts, apps/worker/src/worker-runtime.test.ts
@@ -940,7 +940,7 @@ Updated: 2026-03-20T12:00:00Z
 - Checks: npm run -w @kxkm/worker test
 - Done criteria: une seule source de verite pour le cycle run/dequeue/execute.
 
-### lot-544-chat-render-budget [planned]
+### lot-544-chat-render-budget [done]
 - Description: Reduire le cout render de Chat.tsx pour les longues conversations.
 - Owner: Frontend
 - Fichiers cibles: apps/web/src/components/Chat.tsx
@@ -965,3 +965,56 @@ Updated: 2026-03-20T12:00:00Z
 - R-AUDIO-BLOCKING: blocage event-loop API
 - R-WORKER-DRIFT: divergence entre runtime et index
 - R-CHAT-RENDER: degradation perf UI sur historique long
+## Phase Execution Next 2026-03-24 (P1/P2) [in-progress]
+
+### Objectif
+- Enchainer directement sur le prochain lot de coherence plan/docs puis sur le pipeline composition prioritaire.
+
+### lot-545-plan-todo-sync [done]
+- Description: Harmoniser PLAN.md, TODO.md et docs/AGENTS.md sur les statuts reels des lots 95-100 et 178-200.
+- Owner: Coordinateur
+- Fichiers cibles: PLAN.md, TODO.md, docs/AGENTS.md
+- Checks: revue manuelle des statuts, coherence des priorites P1/P2
+- Done criteria: plus de divergences de statut entre fichiers de pilotage.
+
+### lot-546-compose-api-direct [done]
+- Description: Demarrer lot-178 avec appel ACE-Step direct pour fiabiliser la duree /compose.
+- Owner: Backend API + Multimodal
+- Fichiers cibles: apps/api/src/ws-commands-generate.ts, scripts/ ou service ACE-Step associe
+- Checks: test manuel /compose 5s, 30s, 120s
+- Done criteria: duree demandee respectee sans drift observable.
+- Status: implementation validee, fallback en place, lot cloture.
+
+### lot-547-timeline-model-v1 [in-progress]
+- Description: Demarrer lot-180 avec modele timeline v1 (tracks, clips, markers).
+- Owner: Backend API
+- Fichiers cibles: apps/api/src/*composition*, packages/*domain* si necessaire
+- Checks: tests unitaires modele + validation schema
+- Done criteria: structure timeline stable et serialisable.
+
+### lot-548-waveform-ui-v1 [planned]
+- Description: Demarrer lot-194 avec waveform timeline cote frontend.
+- Owner: Frontend
+- Fichiers cibles: apps/web/src/components/*compose* ou *timeline*
+- Checks: npm run -w @kxkm/web test, npm run -w @kxkm/web build
+- Done criteria: waveform lisible par piste sans regression mobile.
+
+### lot-549-composition-tests [planned]
+- Description: Renforcer les tests composition (store, remix, export, timeline path).
+- Owner: Backend API + Frontend
+- Fichiers cibles: apps/api/src/**/*.test.ts, apps/web/src/**/*.test.tsx
+- Checks: npm run test:v2
+- Done criteria: couverture non-regression sur le pipeline composition.
+
+### Sequencement d execution
+1. lot-545 [done]
+2. lot-546 [done]
+3. lot-547 [in-progress]
+4. lot-548
+5. lot-549
+
+### Risques cibles
+- R-DOC-DRIFT: statuts incoherents entre fichiers de pilotage
+- R-COMPOSE-DURATION: duree audio non respectee en production
+- R-TIMELINE-MODEL: format instable pour les futures features DAW
+- R-WAVEFORM-UX: surcharge render sur mobile

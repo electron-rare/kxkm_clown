@@ -2,6 +2,7 @@ import type { WebSocket } from "ws";
 import type { OutboundMessage } from "./chat-types.js";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
 import { searchWeb } from "./web-search.js";
+import { deepResearch } from "./deep-research.js";
 
 export const CHAT_COMMANDS = new Set([
   "/help", "/nick", "/who", "/clear", "/join", "/channels", "/topic",
@@ -60,6 +61,8 @@ export const CHAT_COMMANDS = new Set([
   "/radio-station",
   "/pause",
   "/unpause",
+  "/deepresearch",
+  "/dr",
 ]);
 
 export function createChatCommandHandler(deps: CommandHandlerDeps) {
@@ -118,6 +121,10 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "  /persona-create <nom> <model> <desc>  Creer une persona",
             "  /radio [on|off]     Radio auto (persona toutes les 30s)",
             "  @NomPersona         Interpeller une persona",
+            "",
+            "RECHERCHE",
+            "  /web <query>        Recherche web rapide (SearXNG)",
+            "  /deepresearch <q>   Recherche approfondie multi-etapes (alias: /dr)",
             "",
             "GENERATION IMAGES (F5)",
             "  /imagine <prompt>   Generer une image",
@@ -303,6 +310,64 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
           send(ws, {
             type: "system",
             text: `Recherche \u00e9chou\u00e9e: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+        return;
+      }
+
+      case "/deepresearch":
+      case "/dr": {
+        const query = text.replace(/^\/(deepresearch|dr)\s*/i, "").trim();
+        if (!query) {
+          send(ws, { type: "system", text: "Usage: /deepresearch <question>\nAlias: /dr\n\nRecherche approfondie multi-étapes (search → visit → extract → refine → synthesize)" });
+          return;
+        }
+        send(ws, { type: "system", text: `🔬 Recherche approfondie: "${query}"...` });
+
+        const startTime = Date.now();
+        try {
+          const rag = deps.getContextStore?.()
+            ? undefined // RAG passed separately if available
+            : undefined;
+
+          const result = await deepResearch(
+            query,
+            (step, idx, total) => {
+              const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+              const icons: Record<string, string> = { search: "🔎", visit: "🌐", think: "🧠", synthesize: "📝" };
+              const icon = icons[step.type] || "⏳";
+              const detail = step.query || step.url || "";
+              send(ws, {
+                type: "system",
+                text: `${icon} [${elapsed}s] Étape ${idx + 1} — ${step.type}${detail ? `: ${detail}` : ""} (${step.durationMs}ms)`,
+              });
+            },
+            rag,
+          );
+
+          const elapsed = (result.totalDurationMs / 1000).toFixed(1);
+          const header = `═══ Recherche approfondie ═══\n📋 "${query}"\n⏱ ${elapsed}s — ${result.steps.length} étapes — ${result.sources.length} sources\n${"═".repeat(40)}\n\n`;
+          broadcast(info.channel, {
+            type: "system",
+            text: header + result.answer,
+          });
+
+          if (result.sources.length > 0) {
+            send(ws, {
+              type: "system",
+              text: `\n📚 Sources:\n${result.sources.map((s, i) => `  ${i + 1}. ${s}`).join("\n")}`,
+            });
+          }
+
+          // Let personas comment on the findings
+          await routeToPersonas(
+            info.channel,
+            `Recherche approfondie sur "${query}":\n${result.answer.slice(0, 1500)}\n\nCommente ces découvertes avec ton expertise.`,
+          );
+        } catch (err) {
+          send(ws, {
+            type: "system",
+            text: `Recherche échouée: ${err instanceof Error ? err.message : String(err)}`,
           });
         }
         return;

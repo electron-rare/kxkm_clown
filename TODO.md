@@ -412,12 +412,28 @@ Fait sur ce lot:
 
 ## Delta Session 2026-03-24
 
-- [ ] lot-550 (en cours): lot-192 ws-commands extraction phases 1-2 (compose core + gestion composition) + audit SOTA 2026
-- [ ] lot-551: lot-192 phase 3 extraction edition avancee (concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize)
-- [ ] lot-549: composition tests renfort (store/remix/export/timeline)
+- [x] lot-550: lot-192 ws-commands extraction phases 1-2 (compose core + gestion composition) + audit SOTA 2026
+- [x] lot-551: lot-192 phase 3 extraction edition avancee (concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize)
+- [x] lot-552: cloture documentaire et durcissement final lot-192
+- [ ] lot-549 (en cours): composition tests renfort (store/remix/export/timeline)
 ## Delta Session 2026-03-24 — phase 3
 
 - [x] lot-551: lot-192 phase 3 extraction edition avancee (concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize)
-- [ ] lot-552: cloture documentaire et durcissement final lot-192
-- [ ] lot-549: composition tests renfort (store/remix/export/timeline)
+- [x] lot-552: cloture documentaire et durcissement final lot-192
+- [ ] lot-549 (en cours): composition tests renfort (store/remix/export/timeline)
 - [ ] lot-548: waveform timeline UI v1 (desktop + mobile)
+## Delta Session 2026-03-24 — validation compose + waveform
+
+- [x] lot-549: composition tests renfort (store/remix/export/timeline)
+- [x] lot-548: waveform timeline UI v1 (desktop + mobile)
+- [ ] prochain lot suggere: capture QA visuelle compose timeline + nettoyage des doublons UI compose
+## Delta Session 2026-03-24 — cleanup compose
+
+- [x] lot-553: cleanup doublon ComposePage non reference
+- [x] validation frontend apres cleanup (`npm run check`)
+- [ ] prochain lot suggere: passe QA visuelle Playwright sur timeline compose waveform
+## Delta Session 2026-03-24 — QA visuelle compose
+
+- [x] lot-554: passe Playwright visuelle ciblee Compose/timeline
+- [x] verification captures `10-compose-page.png` et `18-composition-timeline.png`
+- [ ] prochain lot suggere: triage et purge artefacts test-results non necessaires au commit

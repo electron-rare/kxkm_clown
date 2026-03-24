@@ -1,7 +1,10 @@
 import { describe, it, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createCommandHandler } from "./ws-commands.js";
-import { addTrack, createComposition } from "./composition-store.js";
+import { addTrack, createComposition, getActiveComposition } from "./composition-store.js";
 import type { ClientInfo, ChatPersona, OutboundMessage } from "./chat-types.js";
 import type { WebSocket } from "ws";
 
@@ -20,6 +23,14 @@ function makeInfo(overrides?: Partial<ClientInfo>): ClientInfo {
     isGuest: false,
     ...overrides,
   };
+}
+
+function makeComposeInfo(prefix: string): ClientInfo {
+  const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return makeInfo({
+    nick: `${prefix}-${suffix}`,
+    channel: `#${prefix.toLowerCase()}-${suffix}`,
+  });
 }
 
 function makeDeps(overrides?: Partial<Record<string, unknown>>) {
@@ -389,12 +400,93 @@ describe("/compose", () => {
 });
 
 /* ------------------------------------------------------------------ */
+/*  /comp and extracted composition commands                           */
+/* ------------------------------------------------------------------ */
+
+describe("/comp", () => {
+  it("creates a composition and emits the load payload", async () => {
+    const info = makeComposeInfo("ComposerNew");
+    const deps = makeDeps();
+    const handle = createCommandHandler(deps);
+
+    await handle({ ws: fakeWs, info, text: "/comp new Session test" });
+
+    assert.equal(deps.send.mock.callCount(), 2);
+    const createdMsg = deps.send.mock.calls[0].arguments[1] as { type: string; text: string };
+    const loadedMsg = deps.send.mock.calls[1].arguments[1] as { type: string; text: string };
+    assert.equal(createdMsg.type, "system");
+    assert.ok(createdMsg.text.includes("Composition creee"));
+    assert.ok(createdMsg.text.includes("Session test"));
+    assert.ok(loadedMsg.text.startsWith("__comp_loaded__"));
+
+    const match = createdMsg.text.match(/\((comp_[^)]+)\)/);
+    assert.ok(match, "should expose created composition id");
+    rmSync(path.join(process.cwd(), "data", "compositions", match![1]), { recursive: true, force: true });
+  });
+
+  it("loads an existing composition by id", async () => {
+    const info = makeComposeInfo("ComposerLoad");
+    const comp = createComposition("OtherNick", "#other", "Existing comp");
+    const deps = makeDeps();
+    const handle = createCommandHandler(deps);
+
+    try {
+      await handle({ ws: fakeWs, info, text: `/comp load ${comp.id}` });
+
+      assert.equal(deps.send.mock.callCount(), 2);
+      const statusMsg = deps.send.mock.calls[0].arguments[1] as { type: string; text: string };
+      const loadedMsg = deps.send.mock.calls[1].arguments[1] as { type: string; text: string };
+      assert.equal(statusMsg.type, "system");
+      assert.ok(statusMsg.text.includes("Composition chargee"));
+      assert.ok(statusMsg.text.includes("Existing comp"));
+      assert.ok(loadedMsg.text.startsWith("__comp_loaded__"));
+    } finally {
+      rmSync(path.join(process.cwd(), "data", "compositions", comp.id), { recursive: true, force: true });
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /*  composition management routing                                     */
 /* ------------------------------------------------------------------ */
 
+describe("/mix", () => {
+  it("mixes a single available track and exposes download paths", async () => {
+    const info = makeComposeInfo("ComposerMix");
+    const comp = createComposition(info.nick, info.channel, "Mix test");
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), "kxkm-mix-"));
+    const sourcePath = path.join(tempDir, "track.wav");
+    writeFileSync(sourcePath, Buffer.from("RIFFtest-wave"));
+    const track = addTrack(comp.id, { type: "music", prompt: "drone test", duration: 7, volume: 80, startMs: 0 });
+    assert.ok(track);
+    track!.filePath = sourcePath;
+
+    const deps = makeDeps();
+    const handle = createCommandHandler(deps);
+
+    try {
+      await handle({ ws: fakeWs, info, text: "/mix" });
+
+      const broadcastMusic = deps.broadcast.mock.calls.find((call) => {
+        const msg = call.arguments[1] as { type?: string };
+        return msg.type === "music";
+      });
+      assert.ok(broadcastMusic, "should broadcast mixed audio");
+
+      const systemMsg = deps.send.mock.calls.at(-1)?.arguments[1] as { type: string; text: string };
+      assert.equal(systemMsg.type, "system");
+      assert.ok(systemMsg.text.includes(`/api/v2/media/compositions/${comp.id}/mix`));
+      assert.ok(existsSync(path.join(process.cwd(), "data", "compositions", comp.id, "mix.wav")));
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+      rmSync(path.join(process.cwd(), "data", "compositions", comp.id), { recursive: true, force: true });
+    }
+  });
+});
+
 describe("/rename", () => {
   it("renames the active composition through the extracted compose handler", async () => {
-    const info = makeInfo({ nick: "ComposerRename", channel: "#compose-rename" });
+    const info = makeComposeInfo("ComposerRename");
     createComposition(info.nick, info.channel, "Ancien nom");
 
     const deps = makeDeps();
@@ -409,7 +501,7 @@ describe("/rename", () => {
 
 describe("/tracks", () => {
   it("lists tracks through the extracted compose management handler", async () => {
-    const info = makeInfo({ nick: "ComposerTracks", channel: "#compose-tracks" });
+    const info = makeComposeInfo("ComposerTracks");
     const comp = createComposition(info.nick, info.channel, "Track test");
     addTrack(comp.id, { type: "music", prompt: "drone test", duration: 12, volume: 80, startMs: 0 });
 
@@ -426,10 +518,12 @@ describe("/tracks", () => {
 
 describe("/delete", () => {
   it("deletes a track through the extracted compose advanced handler", async () => {
-    const info = makeInfo({ nick: "ComposerDelete", channel: "#compose-delete" });
-    const comp = createComposition(info.nick, info.channel, "Delete test");
-    addTrack(comp.id, { type: "music", prompt: "first track", duration: 8, volume: 100, startMs: 0 });
-    addTrack(comp.id, { type: "music", prompt: "second track", duration: 9, volume: 100, startMs: 0 });
+    const info = makeComposeInfo("ComposerDelete");
+    createComposition(info.nick, info.channel, "Delete test");
+    let activeComp = getActiveComposition(info.nick, info.channel);
+    assert.ok(activeComp);
+    addTrack(activeComp!.id, { type: "music", prompt: "first track", duration: 8, volume: 100, startMs: 0 });
+    addTrack(activeComp!.id, { type: "music", prompt: "second track", duration: 9, volume: 100, startMs: 0 });
 
     const deps = makeDeps();
     const handle = createCommandHandler(deps);
@@ -438,14 +532,16 @@ describe("/delete", () => {
     const msg = deps.send.mock.calls.at(-1)?.arguments[1] as { type: string; text: string };
     assert.equal(msg.type, "system");
     assert.ok(msg.text.includes("supprimee"));
-    assert.equal(comp.tracks.length, 1);
-    assert.ok(comp.tracks[0].prompt.includes("second track"));
+    activeComp = getActiveComposition(info.nick, info.channel);
+    assert.ok(activeComp);
+    assert.equal(activeComp!.tracks.length, 1);
+    assert.ok(activeComp!.tracks[0].prompt.includes("second track"));
   });
 });
 
 describe("/marker", () => {
   it("adds and lists markers through the extracted compose advanced handler", async () => {
-    const info = makeInfo({ nick: "ComposerMarker", channel: "#compose-marker" });
+    const info = makeComposeInfo("ComposerMarker");
     createComposition(info.nick, info.channel, "Marker test");
 
     const deps = makeDeps();
@@ -457,5 +553,43 @@ describe("/marker", () => {
     assert.equal(lastMsg.type, "system");
     assert.ok(lastMsg.text.includes("intro"));
     assert.ok(lastMsg.text.includes("12s"));
+  });
+});
+
+describe("/snapshot", () => {
+  it("writes a snapshot file for the active composition", async () => {
+    const info = makeComposeInfo("ComposerSnapshot");
+    const comp = createComposition(info.nick, info.channel, "Snapshot test");
+    addTrack(comp.id, { type: "music", prompt: "frozen pulse", duration: 11, volume: 70, startMs: 0 });
+
+    const deps = makeDeps();
+    const handle = createCommandHandler(deps);
+    const snapshotPath = path.join(process.cwd(), "data", "compositions", comp.id, "snapshots", "v1.json");
+
+    try {
+      await handle({ ws: fakeWs, info, text: "/snapshot v1" });
+
+      const msg = deps.send.mock.calls.at(-1)?.arguments[1] as { type: string; text: string };
+      assert.equal(msg.type, "system");
+      assert.ok(msg.text.includes('Snapshot "v1" sauvegarde'));
+      assert.ok(existsSync(snapshotPath));
+    } finally {
+      rmSync(path.join(process.cwd(), "data", "compositions", comp.id), { recursive: true, force: true });
+    }
+  });
+});
+
+describe("/template", () => {
+  it("lists available templates when the requested one is unknown", async () => {
+    const deps = makeDeps();
+    const handle = createCommandHandler(deps);
+
+    await handle({ ws: fakeWs, info: makeInfo(), text: "/template inconnu" });
+
+    const msg = deps.send.mock.calls.at(-1)?.arguments[1] as { type: string; text: string };
+    assert.equal(msg.type, "system");
+    assert.ok(msg.text.includes("Templates:"));
+    assert.ok(msg.text.includes("ambient-4"));
+    assert.ok(msg.text.includes("Usage: /template <nom>"));
   });
 });

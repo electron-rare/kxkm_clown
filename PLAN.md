@@ -1022,13 +1022,34 @@ Updated: 2026-03-20T12:00:00Z
 
 ## Delta Session 2026-03-24
 
-- lot-192-ws-commands-extraction reste en cours.
-- Phases 1-2 executees: extraction de /comp, /layer, /mix, /voice, /tracks, /undo, /solo, /unsolo, /rename, /dup, /bpm, /clear-comp, /preview, /gain, /loop, /swap et /info vers apps/api/src/ws-commands-compose.ts.
-- Validation: diagnostics TS OK, suite @kxkm/api relancee avec ws-commands.test.ts OK.
-- Prochaine etape: phase 3 sur concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize, puis lot-193 tests composition.
+- lot-192-ws-commands-extraction est cloture.
+- Phases 1-3 executees: extraction de /comp, /layer, /mix, /voice, /tracks, /undo, /solo, /unsolo, /rename, /dup, /bpm, /clear-comp, /preview, /gain, /loop, /swap, /info, /concat, /silence, /template, /marker, /metronome, /delete, /suggest, /snapshot et /randomize vers apps/api/src/ws-commands-compose.ts.
+- Validation: diagnostics TS OK, suite @kxkm/api relancee avec ws-commands.test.ts OK, cloture documentaire lot-552 appliquee.
+- Prochaine etape: lot-549 tests composition, puis lot-548 waveform/timeline UI.
 ## Delta Session 2026-03-24 — phase 3
 
 - lot-192-ws-commands-extraction: phases 1-3 executees.
 - Bloc compose complet extrait vers apps/api/src/ws-commands-compose.ts, incluant maintenant concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize.
 - Validation: diagnostics TS OK, suite @kxkm/api relancee avec ws-commands.test.ts OK.
-- Prochaine etape: lot-193 tests composition, puis lot-194 waveform/timeline UI.
+- lot-552: synchronisation PLAN/TODO/AGENTS + rapport QA webdesign + veille OSS ciblee sur waveform/tests/orchestration.
+- Prochaine etape: lot-549 tests composition, puis lot-194 waveform/timeline UI.
+## Delta Session 2026-03-24 — validation compose + waveform
+
+- lot-549-composition-tests est valide.
+- Couverture ajoutee sur `apps/api/src/composition-store.test.ts` et `apps/api/src/ws-commands.test.ts` pour rebind composition active, clamps timeline, `/comp load`, `/mix`, `/snapshot`, `/template` et `/delete`.
+- Validation lot-549: `../../node_modules/.bin/tsx --test src/composition-store.test.ts src/ws-commands.test.ts` => 44/44 tests OK.
+- lot-548-waveform-ui-v1 est implemente dans `apps/web/src/components/ComposePage.tsx` avec `wavesurfer.js` pour les apercus de pistes et blocs timeline.
+- Validation lot-548: `npm run check` dans `apps/web` OK.
+- Prochaine etape recommandee: capture visuelle Playwright du compose timeline + nettoyage du doublon `ComposePage 2.tsx`.
+## Delta Session 2026-03-24 — cleanup compose
+
+- lot-553-cleanup-compose-doublon execute.
+- Suppression du fichier duplique non reference `apps/web/src/components/ComposePage 2.tsx`.
+- Validation: `npm run check` dans `apps/web` OK.
+- Risque reduit: suppression d'une source de divergence entre UI compose legacy et UI active.
+## Delta Session 2026-03-24 — QA visuelle compose
+
+- lot-554-qa-compose-timeline execute.
+- Validation Playwright ciblee sur `apps/web/e2e/visual-qa.spec.ts` (grep `ComposePage|composition timeline`).
+- Resultat: 2/2 tests OK, captures regenerees `10-compose-page.png` et `18-composition-timeline.png`.
+- Conclusion: rendu Compose/timeline stable apres migration waveform + cleanup doublon.

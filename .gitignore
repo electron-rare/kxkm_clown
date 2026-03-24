@@ -22,3 +22,6 @@ data/*
 !data/manifeste.md
 !data/manifeste_references_nouvelles.md
 .claude/
+apps/*
+test-results/playwright-html/*
+test-results/

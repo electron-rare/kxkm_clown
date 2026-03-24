@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import WaveSurfer from "wavesurfer.js";
 import { VideotexPageHeader } from "./VideotexMosaic";
 
 interface Track {
@@ -43,32 +44,80 @@ const NOISE_TYPES = ["drone", "pink", "white", "brown", "sine"];
 const STYLES = ["experimental", "ambient", "drone", "noise", "glitch", "industrial", "techno", "minimal", "concrete", "jazz", "classical", "dark", "lo-fi", "post-rock"];
 const PERSONAS = ["Pharmacius", "Docteur Maboul", "Gargantua", "Nostradamus", "Piaf"];
 
-function drawWaveform(canvas: HTMLCanvasElement, audioData: string, _audioMime: string, color: string) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  // Decode base64 audio to get raw samples (simplified: use byte visualization from data)
-  const bytes = atob(audioData.slice(0, 2000)); // sample first 2KB
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let i = 0; i < w; i++) {
-    const byteIdx = Math.floor((i / w) * bytes.length);
-    const val = (bytes.charCodeAt(byteIdx % bytes.length) / 255) * h;
-    if (i === 0) ctx.moveTo(i, val); else ctx.lineTo(i, val);
-  }
-  ctx.stroke();
+function toAudioDataUrl(audioData: string, audioMime: string) {
+  return `data:${audioMime};base64,${audioData}`;
 }
 
-function WaveformCanvas({ audioData, audioMime, color }: { audioData: string; audioMime: string; color: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+function WaveformPreview({
+  audioData,
+  audioMime,
+  color,
+  className,
+  height,
+  barWidth,
+}: {
+  audioData: string;
+  audioMime: string;
+  color: string;
+  className: string;
+  height: number;
+  barWidth?: number;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    if (canvasRef.current && audioData) {
-      drawWaveform(canvasRef.current, audioData, audioMime, color);
-    }
-  }, [audioData, audioMime, color]);
-  return <canvas ref={canvasRef} width={120} height={30} className="cmp-waveform" />;
+    if (!containerRef.current || !audioData) return;
+
+    const wave = WaveSurfer.create({
+      container: containerRef.current,
+      waveColor: `${color}55`,
+      progressColor: color,
+      cursorColor: "rgba(255,255,255,0.18)",
+      height,
+      normalize: true,
+      interact: false,
+      hideScrollbar: true,
+      dragToSeek: false,
+      barWidth,
+      barGap: 1,
+      barRadius: 2,
+      cursorWidth: 0,
+    });
+
+    wave.load(toAudioDataUrl(audioData, audioMime));
+
+    return () => {
+      wave.destroy();
+    };
+  }, [audioData, audioMime, barWidth, color, height]);
+
+  return <div ref={containerRef} className={className} aria-hidden="true" />;
+}
+
+function TrackWaveform({ audioData, audioMime, color }: { audioData: string; audioMime: string; color: string }) {
+  return (
+    <WaveformPreview
+      audioData={audioData}
+      audioMime={audioMime}
+      color={color}
+      className="cmp-waveform cmp-waveform-preview"
+      height={30}
+      barWidth={2}
+    />
+  );
+}
+
+function TimelineWaveform({ audioData, audioMime, color }: { audioData: string; audioMime: string; color: string }) {
+  return (
+    <WaveformPreview
+      audioData={audioData}
+      audioMime={audioMime}
+      color={color}
+      className="cmp-tl-waveform"
+      height={18}
+      barWidth={1}
+    />
+  );
 }
 
 export default function ComposePage() {
@@ -457,7 +506,7 @@ export default function ComposePage() {
                 {track.generating ? `${track.genElapsed || 0}s` : "\u25B6"}
               </button>
               {track.audioData && track.audioMime && (
-                <WaveformCanvas audioData={track.audioData} audioMime={track.audioMime} color={track.color} />
+                <TrackWaveform audioData={track.audioData} audioMime={track.audioMime} color={track.color} />
               )}
             </div>
 
@@ -518,6 +567,9 @@ export default function ComposePage() {
                   onPointerDown={e => startDrag(e, i)}
                   onContextMenu={e => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, trackIdx: i }); }}
                 >
+                  {track.audioData && track.audioMime && (
+                    <TimelineWaveform audioData={track.audioData} audioMime={track.audioMime} color={track.color} />
+                  )}
                   <span className="cmp-tl-text">{track.prompt?.slice(0, 20) || track.label}</span>
                   <span className="cmp-tl-dur">{track.duration}s</span>
                   {/* Resize handle */}

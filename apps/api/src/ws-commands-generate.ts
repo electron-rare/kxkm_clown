@@ -1,7 +1,10 @@
 import path from "node:path";
 import crypto from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import fs from "node:fs";
+
+const execFileAsync = promisify(execFile);
 import { scheduler, VRAM_BUDGETS } from "./inference-scheduler.js";
 import type { WebSocket } from "ws";
 import { generateImage, type ImageProgress } from "./comfyui.js";
@@ -234,7 +237,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         }
 
         broadcast(info.channel, { type: "system", text: `\u{1F39B}\uFE0F Mixage de ${comp.tracks.length} pistes...` });
-        const { execFileSync } = await import("node:child_process");
+        // execFileAsync already imported at module level
         const outPath = path.join(process.cwd(), "data", "compositions", comp.id, "mix.wav");
 
         try {
@@ -266,7 +269,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             ffmpegArgs.push("-filter_complex", filterParts.join(";"));
             ffmpegArgs.push("-map", "[out]", "-ar", "44100", "-ac", "2", "-y", outPath);
 
-            execFileSync("ffmpeg", ffmpegArgs, { timeout: 60000 });
+            await execFileAsync("ffmpeg", ffmpegArgs, { timeout: 60000 });
           }
 
           const mixBuffer = fs.readFileSync(outPath);
@@ -278,7 +281,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           // Also generate MP3 version
           try {
             const mp3Path = outPath.replace(".wav", ".mp3");
-            execFileSync("ffmpeg", ["-i", outPath, "-codec:a", "libmp3lame", "-b:a", "192k", "-y", mp3Path], { timeout: 30000 });
+            await execFileAsync("ffmpeg", ["-i", outPath, "-codec:a", "libmp3lame", "-b:a", "192k", "-y", mp3Path], { timeout: 30000 });
           } catch { /* MP3 conversion optional */ }
 
           send(ws, { type: "system", text: `\u2705 Mix termine. Download: /api/v2/media/compositions/${comp.id}/mix (WAV) | /api/v2/media/compositions/${comp.id}/mp3 (MP3)` });
@@ -390,7 +393,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             const fadeDur = parseInt(fxParam || "3");
             if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
               const tmpPath = targetTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `afade=t=in:d=${fadeDur}`, "-y", tmpPath], { timeout: 30000 });
+              await execFileAsync("ffmpeg", ["-i", targetTrack.filePath, "-af", `afade=t=in:d=${fadeDur}`, "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1F50A} Fade-in ${fadeDur}s applique a piste #${targetNum}` });
               broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "fade-in" });
@@ -402,7 +405,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             const fadeDur = parseInt(fxParam || "3");
             if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
               const tmpPath = targetTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `areverse,afade=t=in:d=${fadeDur},areverse`, "-y", tmpPath], { timeout: 30000 });
+              await execFileAsync("ffmpeg", ["-i", targetTrack.filePath, "-af", `areverse,afade=t=in:d=${fadeDur},areverse`, "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1F50A} Fade-out ${fadeDur}s applique a piste #${targetNum}` });
               broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "fade-out" });
@@ -412,7 +415,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           case "reverse": {
             if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
               const tmpPath = targetTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "areverse", "-y", tmpPath], { timeout: 30000 });
+              await execFileAsync("ffmpeg", ["-i", targetTrack.filePath, "-af", "areverse", "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1F504} Reverse applique a piste #${targetNum}` });
               broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "reverse" });
@@ -422,7 +425,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           case "reverb": {
             if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
               const tmpPath = targetTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "aecho=0.8:0.88:60:0.4", "-y", tmpPath], { timeout: 30000 });
+              await execFileAsync("ffmpeg", ["-i", targetTrack.filePath, "-af", "aecho=0.8:0.88:60:0.4", "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1F30A} Reverb applique a piste #${targetNum}` });
               broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "reverb" });
@@ -434,7 +437,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
               const tmpPath = targetTrack.filePath + ".tmp.wav";
               const factor = Math.pow(2, semitones / 12);
-              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `asetrate=32000*${factor},aresample=32000`, "-y", tmpPath], { timeout: 30000 });
+              await execFileAsync("ffmpeg", ["-i", targetTrack.filePath, "-af", `asetrate=32000*${factor},aresample=32000`, "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1f3b5} Pitch ${semitones > 0 ? "+" : ""}${semitones} demi-tons piste #${targetNum}` });
               broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "pitch" });
@@ -445,7 +448,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             const speed = parseFloat(fxParam || "1.5");
             if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
               const tmpPath = targetTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", `atempo=${Math.min(4, Math.max(0.25, speed))}`, "-y", tmpPath], { timeout: 30000 });
+              await execFileAsync("ffmpeg", ["-i", targetTrack.filePath, "-af", `atempo=${Math.min(4, Math.max(0.25, speed))}`, "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u23e9 Speed x${speed} piste #${targetNum}` });
               broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "speed" });
@@ -455,7 +458,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           case "echo": {
             if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
               const tmpPath = targetTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "aecho=0.6:0.3:500|1000:0.3|0.2", "-y", tmpPath], { timeout: 30000 });
+              await execFileAsync("ffmpeg", ["-i", targetTrack.filePath, "-af", "aecho=0.6:0.3:500|1000:0.3|0.2", "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1f501} Echo applique piste #${targetNum}` });
               broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "echo" });
@@ -466,7 +469,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           case "distort": {
             if (targetTrack.filePath && fs.existsSync(targetTrack.filePath)) {
               const tmpPath = targetTrack.filePath + ".tmp.wav";
-              execFileSync("ffmpeg", ["-i", targetTrack.filePath, "-af", "acrusher=samples=10:bits=8:mix=0.5", "-y", tmpPath], { timeout: 30000 });
+              await execFileAsync("ffmpeg", ["-i", targetTrack.filePath, "-af", "acrusher=samples=10:bits=8:mix=0.5", "-y", tmpPath], { timeout: 30000 });
               fs.renameSync(tmpPath, targetTrack.filePath);
               send(ws, { type: "system", text: `\u{1f4a5} Distortion applique piste #${targetNum}` });
               broadcastCompUpdate(broadcast, info.channel, comp.id, "fx_applied", { trackIdx: targetNum, effect: "distortion" });
@@ -482,7 +485,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         const num = trackNum || comp.tracks.length;
         if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
         const tmp = track.filePath + ".norm.wav";
-        execFileSync("ffmpeg", ["-i", track.filePath, "-af", "loudnorm", "-y", tmp], { timeout: 30000 });
+        await execFileAsync("ffmpeg", ["-i", track.filePath, "-af", "loudnorm", "-y", tmp], { timeout: 30000 });
         fs.renameSync(tmp, track.filePath);
         send(ws, { type: "system", text: `\u{1F4CA} Piste #${num} normalisee` });
         return;
@@ -501,7 +504,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           send(ws, { type: "system", text: "Les deux pistes doivent avoir des fichiers." }); return;
         }
         const out = tA.filePath + ".xfade.wav";
-        execFileSync("ffmpeg", ["-i", tA.filePath, "-i", tB.filePath, "-filter_complex", `acrossfade=d=${dur}:c1=tri:c2=tri`, "-y", out], { timeout: 60000 });
+        await execFileAsync("ffmpeg", ["-i", tA.filePath, "-i", tB.filePath, "-filter_complex", `acrossfade=d=${dur}:c1=tri:c2=tri`, "-y", out], { timeout: 60000 });
         fs.renameSync(out, tA.filePath);
         tA.prompt += ` + ${tB.prompt.slice(0, 30)}`;
         tA.duration += tB.duration - dur;
@@ -527,7 +530,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         if (start > 0) ffArgs.push("-ss", String(start));
         if (end > 0) ffArgs.push("-to", String(end));
         ffArgs.push("-y", tmp);
-        execFileSync("ffmpeg", ffArgs, { timeout: 30000 });
+        await execFileAsync("ffmpeg", ffArgs, { timeout: 30000 });
         fs.renameSync(tmp, track.filePath);
         track.duration = end > 0 ? end - start : track.duration - start;
         send(ws, { type: "system", text: `\u2702\uFE0F Piste #${trackNum+1} trimmee: ${start}s \u2192 ${end || "fin"}s (${track.duration}s)` });
@@ -547,7 +550,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         const tmp = track.filePath + ".stutter.wav";
         const segDur = 0.1;
         const filter = `[0]atrim=0:${segDur},aloop=${count}:size=${Math.floor(32000*segDur)}[s];[0][s]amix=inputs=2:duration=first`;
-        execFileSync("ffmpeg", ["-i", track.filePath, "-filter_complex", filter, "-y", tmp], { timeout: 30000 });
+        await execFileAsync("ffmpeg", ["-i", track.filePath, "-filter_complex", filter, "-y", tmp], { timeout: 30000 });
         fs.renameSync(tmp, track.filePath);
         send(ws, { type: "system", text: `\u26A1 Stutter x${count} piste #${trackNum+1}` });
         return;
@@ -565,7 +568,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
         const tmp = track.filePath + ".pan.wav";
         const clampedPan = Math.min(1, Math.max(-1, panVal));
-        execFileSync("ffmpeg", ["-i", track.filePath, "-af", `pan=stereo|c0=${1-clampedPan}*c0|c1=${1+clampedPan}*c0`, "-y", tmp], { timeout: 30000 });
+        await execFileAsync("ffmpeg", ["-i", track.filePath, "-af", `pan=stereo|c0=${1-clampedPan}*c0|c1=${1+clampedPan}*c0`, "-y", tmp], { timeout: 30000 });
         fs.renameSync(tmp, track.filePath);
         const label = clampedPan < -0.3 ? "gauche" : clampedPan > 0.3 ? "droite" : "centre";
         send(ws, { type: "system", text: `\u{1F508} Pan piste #${trackNum+1}: ${clampedPan} (${label})` });
@@ -605,12 +608,12 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             fs.writeFileSync(masterPath, masterBuf);
           } catch (err) {
             send(ws, { type: "system", text: `Erreur Matchering: ${err instanceof Error ? err.message : String(err)}. Fallback ffmpeg...` });
-            execFileSync("ffmpeg", ["-i", mixPath, "-af", "loudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50,alimiter=limit=0.95", "-ar", "44100", "-y", masterPath], { timeout: 60000 });
+            await execFileAsync("ffmpeg", ["-i", mixPath, "-af", "loudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50,alimiter=limit=0.95", "-ar", "44100", "-y", masterPath], { timeout: 60000 });
           }
         } else {
           // No reference → ffmpeg mastering
           broadcast(info.channel, { type: "system", text: "\u{1F39B}\uFE0F Mastering (loudnorm + compressor)..." });
-          execFileSync("ffmpeg", ["-i", mixPath, "-af", "loudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50,alimiter=limit=0.95", "-ar", "44100", "-y", masterPath], { timeout: 60000 });
+          await execFileAsync("ffmpeg", ["-i", mixPath, "-af", "loudnorm,acompressor=threshold=-20dB:ratio=4:attack=5:release=50,alimiter=limit=0.95", "-ar", "44100", "-y", masterPath], { timeout: 60000 });
         }
 
         const audioBuffer = fs.readFileSync(masterPath);
@@ -665,7 +668,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             priority: "low",
             label: `/noise ${noiseType} ${noiseDur}s`,
             execute: async () => {
-              execFileSync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", String(noiseDur), "-ar", "32000", "-ac", "1", trackPath], { timeout: 30000 });
+              await execFileAsync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", String(noiseDur), "-ar", "32000", "-ac", "1", trackPath], { timeout: 30000 });
             },
           });
 
@@ -926,7 +929,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         const track = comp.tracks[trackNum];
         if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
         const tmp = track.filePath + ".gain.wav";
-        execFileSync("ffmpeg", ["-i", track.filePath, "-af", `volume=${db}dB`, "-y", tmp], { timeout: 30000 });
+        await execFileAsync("ffmpeg", ["-i", track.filePath, "-af", `volume=${db}dB`, "-y", tmp], { timeout: 30000 });
         fs.renameSync(tmp, track.filePath);
         send(ws, { type: "system", text: `\u{1F50A} Gain ${db > 0 ? "+" : ""}${db}dB piste #${trackNum + 1}` });
         return;
@@ -948,7 +951,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         const concatFile = track.filePath + ".concat.txt";
         fs.writeFileSync(concatFile, Array(times).fill(`file '${track.filePath}'`).join("\n"));
         const tmpPath = track.filePath + ".loop.wav";
-        execFileSync("ffmpeg", ["-f", "concat", "-safe", "0", "-i", concatFile, "-y", tmpPath], { timeout: 30000 });
+        await execFileAsync("ffmpeg", ["-f", "concat", "-safe", "0", "-i", concatFile, "-y", tmpPath], { timeout: 30000 });
         fs.renameSync(tmpPath, track.filePath);
         fs.unlinkSync(concatFile);
         track.duration *= times;
@@ -1009,7 +1012,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         const concatFile = tA.filePath + ".concat.txt";
         fs.writeFileSync(concatFile, `file '${tA.filePath}'\nfile '${tB.filePath}'`);
         const tmp = tA.filePath + ".cat.wav";
-        execFileSync("ffmpeg", ["-f", "concat", "-safe", "0", "-i", concatFile, "-y", tmp], { timeout: 30000 });
+        await execFileAsync("ffmpeg", ["-f", "concat", "-safe", "0", "-i", concatFile, "-y", tmp], { timeout: 30000 });
         fs.renameSync(tmp, tA.filePath);
         fs.unlinkSync(concatFile);
         tA.duration += tB.duration;
@@ -1028,7 +1031,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         if (track) {
           const trackPath = path.join(process.cwd(), "data", "compositions", comp.id, `${track.id}.wav`);
           fs.mkdirSync(path.dirname(trackPath), { recursive: true });
-          execFileSync("ffmpeg", ["-f", "lavfi", "-i", "anullsrc=r=32000:cl=mono", "-t", String(dur), trackPath], { timeout: 15000 });
+          await execFileAsync("ffmpeg", ["-f", "lavfi", "-i", "anullsrc=r=32000:cl=mono", "-t", String(dur), trackPath], { timeout: 15000 });
           track.filePath = trackPath;
         }
         send(ws, { type: "system", text: `⏸️ Silence ${dur}s ajoute (piste ${comp.tracks.length})` });
@@ -1084,13 +1087,13 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             // Generate noise inline
             const track = addTrack(comp.id, { type: "noise" as any, prompt: `${noiseType} noise ${dur}s`, duration: parseInt(dur), volume: 100, startMs: 0 });
             if (track) {
-              const { execFileSync } = await import("node:child_process");
+              // execFileAsync already imported at module level
               const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
               fs.mkdirSync(trackDir, { recursive: true });
               const trackPath = path.join(trackDir, `${track.id}.wav`);
               const types: Record<string, string> = { white: "anoisesrc=d=DUR:c=white", pink: "anoisesrc=d=DUR:c=pink", brown: "anoisesrc=d=DUR:c=brown", sine: "sine=frequency=220:duration=DUR", drone: "sine=frequency=55:duration=DUR,tremolo=f=0.1:d=0.7" };
               const filter = (types[noiseType] || types.white).replace(/DUR/g, dur);
-              execFileSync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", dur, "-ar", "32000", "-ac", "1", trackPath], { timeout: 15000 });
+              await execFileAsync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", dur, "-ar", "32000", "-ac", "1", trackPath], { timeout: 15000 });
               track.filePath = trackPath;
             }
           } else if (t.type === "voice") {
@@ -1147,7 +1150,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
           fs.mkdirSync(trackDir, { recursive: true });
           const trackPath = path.join(trackDir, `${track.id}.wav`);
           const beatInterval = 60 / bpmVal;
-          execFileSync("ffmpeg", ["-f", "lavfi", "-i", `sine=frequency=1000:duration=0.05,apad=whole_dur=${dur}`, "-af", `aecho=1:1:${Math.round(beatInterval*1000)}:1`, "-t", String(dur), "-ar", "32000", "-ac", "1", "-y", trackPath], { timeout: 15000 });
+          await execFileAsync("ffmpeg", ["-f", "lavfi", "-i", `sine=frequency=1000:duration=0.05,apad=whole_dur=${dur}`, "-af", `aecho=1:1:${Math.round(beatInterval*1000)}:1`, "-t", String(dur), "-ar", "32000", "-ac", "1", "-y", trackPath], { timeout: 15000 });
           track.filePath = trackPath;
           const buf = fs.readFileSync(trackPath);
           broadcast(info.channel, { type: "music", nick: info.nick, text: `[Metronome ${bpmVal} BPM]`, audioData: buf.toString("base64"), audioMime: "audio/wav" } as any);
@@ -1232,7 +1235,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             const trackPath = path.join(process.cwd(), "data", "compositions", comp.id, `${track.id}.wav`);
             const types: Record<string, string> = { white: "anoisesrc=d=DUR:c=white", pink: "anoisesrc=d=DUR:c=pink", brown: "anoisesrc=d=DUR:c=brown", sine: "sine=frequency=" + (100 + Math.floor(Math.random() * 500)) + ":duration=DUR", drone: "sine=frequency=" + (40 + Math.floor(Math.random() * 80)) + ":duration=DUR,tremolo=f=" + (0.05 + Math.random() * 0.2).toFixed(2) + ":d=0.7" };
             const filter = (types[noiseType] || types.white).replace(/DUR/g, String(trackDur));
-            execFileSync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", String(trackDur), "-ar", "32000", "-ac", "1", "-y", trackPath], { timeout: 15000 });
+            await execFileAsync("ffmpeg", ["-f", "lavfi", "-i", filter, "-t", String(trackDur), "-ar", "32000", "-ac", "1", "-y", trackPath], { timeout: 15000 });
             track.filePath = trackPath;
           }
         }
@@ -1253,7 +1256,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         const tmp = track.filePath + ".glitch.wav";
         const bits = 4 + Math.floor(Math.random() * 8);
         const freq = (1 + Math.random() * 10).toFixed(1);
-        execFileSync("ffmpeg", ["-i", track.filePath, "-af", `acrusher=bits=${bits}:mix=0.7,tremolo=f=${freq}:d=0.8,aphaser=type=t:speed=2`, "-y", tmp], { timeout: 30000 });
+        await execFileAsync("ffmpeg", ["-i", track.filePath, "-af", `acrusher=bits=${bits}:mix=0.7,tremolo=f=${freq}:d=0.8,aphaser=type=t:speed=2`, "-y", tmp], { timeout: 30000 });
         fs.renameSync(tmp, track.filePath);
         send(ws, { type: "system", text: `\ud83d\udd00 Glitch piste #${trackNum+1} (bits:${bits} trem:${freq}Hz)` });
         return;
@@ -1271,7 +1274,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         if (!track.filePath || !fs.existsSync(track.filePath)) { send(ws, { type: "system", text: "Piste sans fichier." }); return; }
         const clamp = Math.min(4, Math.max(0.5, factor));
         const tmp = track.filePath + ".stretch.wav";
-        execFileSync("ffmpeg", ["-i", track.filePath, "-af", `atempo=${1/clamp}`, "-y", tmp], { timeout: 30000 });
+        await execFileAsync("ffmpeg", ["-i", track.filePath, "-af", `atempo=${1/clamp}`, "-y", tmp], { timeout: 30000 });
         fs.renameSync(tmp, track.filePath);
         track.duration = Math.round(track.duration * clamp);
         send(ws, { type: "system", text: `\u23f3 Stretch x${clamp} piste #${trackNum+1} (${track.duration}s)` });
@@ -1311,16 +1314,16 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
             const mixInputs = inputs.map((_: any, i: number) => `[a${i}]`).join("");
             filterParts.push(`${mixInputs}amix=inputs=${inputs.length}:duration=longest[out]`);
             ffArgs.push("-filter_complex", filterParts.join(";"), "-map", "[out]", "-ar", "44100", "-ac", "2", "-y", mixPath);
-            execFileSync("ffmpeg", ffArgs, { timeout: 60000 });
+            await execFileAsync("ffmpeg", ffArgs, { timeout: 60000 });
           }
 
           // Convert to target format
           if (format === "wav") {
             fs.copyFileSync(mixPath, outPath);
           } else if (format === "mp3") {
-            execFileSync("ffmpeg", ["-i", mixPath, "-codec:a", "libmp3lame", "-b:a", "320k", "-y", outPath], { timeout: 30000 });
+            await execFileAsync("ffmpeg", ["-i", mixPath, "-codec:a", "libmp3lame", "-b:a", "320k", "-y", outPath], { timeout: 30000 });
           } else if (format === "flac") {
-            execFileSync("ffmpeg", ["-i", mixPath, "-codec:a", "flac", "-y", outPath], { timeout: 30000 });
+            await execFileAsync("ffmpeg", ["-i", mixPath, "-codec:a", "flac", "-y", outPath], { timeout: 30000 });
           }
 
           const size = fs.statSync(outPath).size;
@@ -1429,7 +1432,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         broadcast(info.channel, { type: "system", text: "Export MP3 en cours..." });
 
         try {
-          execFileSync("ffmpeg", [
+          await execFileAsync("ffmpeg", [
             "-i", sourcePath,
             "-codec:a", "libmp3lame",
             "-b:a", "192k",

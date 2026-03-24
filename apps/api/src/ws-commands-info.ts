@@ -1,6 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { promisify } from "node:util";
 import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";

@@ -179,6 +179,42 @@ export async function buildConversationInput(
   return sections.join("\n\n");
 }
 
+/** Detect image or music generation intent in natural language. */
+export function detectGenerationIntent(text: string): { type: "image" | "music" | null; prompt: string } {
+  if (text.length < 15) return { type: null, prompt: text };
+  const lower = text.toLowerCase();
+
+  const imageKeywords = [
+    "fais.moi une image", "fait.moi une image", "genere.moi une image",
+    "dessine", "draw", "imagine", "cree.moi une image", "montre.moi",
+    "genere une image", "generate an image", "make an image", "picture of",
+    "illustration de", "portrait de", "photo de",
+  ];
+  for (const kw of imageKeywords) {
+    const kwRegex = kw.replace(/\./g, "[- ]?");
+    if (new RegExp(kwRegex, "i").test(lower)) {
+      const match = text.match(new RegExp(kwRegex + "\\s*(?:de |d'|of |:)?\\s*(.*)", "i"));
+      return { type: "image", prompt: match?.[1]?.trim() || text };
+    }
+  }
+
+  const musicKeywords = [
+    "fais.moi un son", "fait.moi un son", "fais.moi de la musique",
+    "genere.moi une musique", "compose.moi", "genere un son",
+    "genere une musique", "generate music", "make music", "make a sound",
+    "cree.moi une musique", "joue.moi",
+  ];
+  for (const kw of musicKeywords) {
+    const kwRegex = kw.replace(/\./g, "[- ]?");
+    if (new RegExp(kwRegex, "i").test(lower)) {
+      const match = text.match(new RegExp(kwRegex + "\\s*(?:de |d'|of |:)?\\s*(.*)", "i"));
+      return { type: "music", prompt: match?.[1]?.trim() || text };
+    }
+  }
+
+  return { type: null, prompt: text };
+}
+
 export function createConversationRouter(deps: ConversationRouterDeps): ConversationRouter {
   const {
     ollamaUrl,
@@ -485,46 +521,6 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         text: `${persona.nick}: erreur de connexion`,
       });
     }
-  }
-
-  // Auto-detect image/music generation requests in natural language
-  function detectGenerationIntent(text: string): { type: "image" | "music" | null; prompt: string } {
-    // Do not trigger auto-generate on very short messages
-    if (text.length < 15) return { type: null, prompt: text };
-    const lower = text.toLowerCase();
-
-    // Image generation keywords (French + English)
-    const imageKeywords = [
-      "fais.moi une image", "fait.moi une image", "genere.moi une image",
-      "dessine", "draw", "imagine", "cree.moi une image", "montre.moi",
-      "genere une image", "generate an image", "make an image", "picture of",
-      "illustration de", "portrait de", "photo de",
-    ];
-    for (const kw of imageKeywords) {
-      const regex = new RegExp(kw.replace(/\./g, "[- ]?"), "i");
-      if (regex.test(lower)) {
-        // Extract the prompt (everything after the keyword match)
-        const match = text.match(new RegExp(kw.replace(/\./g, "[- ]?") + "\s*(?:de |d'|of |:)?\s*(.*)", "i"));
-        return { type: "image", prompt: match?.[1]?.trim() || text };
-      }
-    }
-
-    // Music generation keywords
-    const musicKeywords = [
-      "fais.moi un son", "fait.moi un son", "fais.moi de la musique",
-      "genere.moi une musique", "compose.moi", "genere un son",
-      "genere une musique", "generate music", "make music", "make a sound",
-      "cree.moi une musique", "joue.moi",
-    ];
-    for (const kw of musicKeywords) {
-      const regex = new RegExp(kw.replace(/\./g, "[- ]?"), "i");
-      if (regex.test(lower)) {
-        const match = text.match(new RegExp(kw.replace(/\./g, "[- ]?") + "\s*(?:de |d'|of |:)?\s*(.*)", "i"));
-        return { type: "music", prompt: match?.[1]?.trim() || text };
-      }
-    }
-
-    return { type: null, prompt: text };
   }
 
   async function routeToPersonas(channel: string, text: string, depth: number = 0): Promise<void> {

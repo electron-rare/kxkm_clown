@@ -1,6 +1,6 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildConversationInput, createConversationRouter, type ConversationRouterDeps } from "./ws-conversation-router.js";
+import { buildConversationInput, createConversationRouter, detectGenerationIntent, type ConversationRouterDeps } from "./ws-conversation-router.js";
 import type { ChatLogEntry, ChatPersona, OutboundMessage } from "./chat-types.js";
 
 const PERSONAS: ChatPersona[] = [
@@ -237,5 +237,87 @@ describe("ws-conversation-router", () => {
     await assert.doesNotReject(() => routeToPersonas("#general", "message casse"));
     const systemMessages = harness.broadcasts.filter((entry) => entry.msg.type === "system");
     assert.ok(systemMessages.some((entry) => entry.msg.type === "system" && entry.msg.text.includes("erreur Ollama — boom")));
+  });
+});
+
+describe("detectGenerationIntent", () => {
+  // Image detection — French
+  it("detects 'fais-moi une image de' as image intent", () => {
+    const r = detectGenerationIntent("fais-moi une image de chat cosmique");
+    assert.equal(r.type, "image");
+    assert.equal(r.prompt, "chat cosmique");
+  });
+
+  it("detects 'fais moi une image' (with space) as image intent", () => {
+    const r = detectGenerationIntent("fais moi une image d'un dragon");
+    assert.equal(r.type, "image");
+    assert.match(r.prompt, /dragon/);
+  });
+
+  it("detects 'genere une image' as image intent", () => {
+    const r = detectGenerationIntent("genere une image de paysage futuriste");
+    assert.equal(r.type, "image");
+    assert.equal(r.prompt, "paysage futuriste");
+  });
+
+  it("detects 'dessine un portrait' as image intent", () => {
+    const r = detectGenerationIntent("dessine un portrait de clown triste");
+    assert.equal(r.type, "image");
+    assert.match(r.prompt, /portrait/);
+  });
+
+  // Image detection — English
+  it("detects 'generate an image of' as image intent", () => {
+    const r = detectGenerationIntent("generate an image of a sunset over mountains");
+    assert.equal(r.type, "image");
+    assert.match(r.prompt, /sunset/);
+  });
+
+  it("detects 'picture of' as image intent", () => {
+    const r = detectGenerationIntent("picture of a cyberpunk city at night");
+    assert.equal(r.type, "image");
+    assert.match(r.prompt, /cyberpunk/);
+  });
+
+  // Music detection — French
+  it("detects 'fais-moi de la musique' as music intent", () => {
+    const r = detectGenerationIntent("fais-moi de la musique electro ambient");
+    assert.equal(r.type, "music");
+    assert.match(r.prompt, /electro/);
+  });
+
+  it("detects 'compose-moi' as music intent", () => {
+    const r = detectGenerationIntent("compose-moi un morceau de jazz lo-fi");
+    assert.equal(r.type, "music");
+    assert.match(r.prompt, /jazz/);
+  });
+
+  it("detects 'genere une musique' as music intent", () => {
+    const r = detectGenerationIntent("genere une musique de meditation calme");
+    assert.equal(r.type, "music");
+    assert.match(r.prompt, /meditation/);
+  });
+
+  // Music detection — English
+  it("detects 'make music' as music intent", () => {
+    const r = detectGenerationIntent("make music with a deep bass drone");
+    assert.equal(r.type, "music");
+    assert.match(r.prompt, /deep bass/);
+  });
+
+  // Negative cases
+  it("returns null for short messages", () => {
+    const r = detectGenerationIntent("salut");
+    assert.equal(r.type, null);
+  });
+
+  it("returns null for unrelated long messages", () => {
+    const r = detectGenerationIntent("je voudrais comprendre comment fonctionne le systeme de routing des personas");
+    assert.equal(r.type, null);
+  });
+
+  it("returns null for messages that just contain 'image' without a generation verb", () => {
+    const r = detectGenerationIntent("j'ai vu une belle image dans le journal hier soir");
+    assert.equal(r.type, null);
   });
 });

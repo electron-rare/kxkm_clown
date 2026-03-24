@@ -640,7 +640,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
 
       case "/theme": {
         const theme = text.slice(7).trim().toLowerCase();
-        const themes = ["minitel", "noir", "matrix", "amber", "ocean"];
+        const themes = ["minitel", "noir", "matrix", "amber", "ocean", "dark", "light"];
         if (!theme || !themes.includes(theme)) {
           send(ws, { type: "system", text: `Themes: ${themes.join(", ")}. Usage: /theme <nom>` });
           return;

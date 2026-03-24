@@ -4601,6 +4601,26 @@ code {
 /* Ultra-compact for small phones */
 @media (max-width: 380px) {
   .minitel-fkey { font-size: 7px; padding: 2px 2px; letter-spacing: 0; }
+}
+
+/* Très petits écrans (≤340px) — barre fkey en scroll horizontal */
+@media (max-width: 340px) {
+  .minitel-service-bottom {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    justify-content: flex-start;
+    padding: 3px 4px;
+  }
+  .minitel-service-bottom::-webkit-scrollbar { display: none; }
+  .minitel-fkey {
+    flex-shrink: 0;
+    font-size: 8px;
+    padding: 3px 5px;
+    min-width: 28px;
+  }
   .minitel-service-top { font-size: 11px; }
   .chat-msg { font-size: 11px; line-height: 1.4; }
   .chat-nick { font-size: 11px; }

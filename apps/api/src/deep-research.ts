@@ -13,6 +13,7 @@
 import logger from "./logger.js";
 import { searchWeb } from "./web-search.js";
 import { chat, type ChatMessage, type ChatOptions } from "./llm-client.js";
+import { incrementCounter, recordLatency } from "./perf.js";
 import type { LocalRAG } from "./rag.js";
 
 // ---------------------------------------------------------------------------
@@ -290,11 +291,15 @@ export async function deepResearch(
   steps.push(synthStep);
   onProgress?.(synthStep, stepIndex++, stepIndex);
 
+  const totalMs = Date.now() - t0;
+  incrementCounter("deep_research");
+  recordLatency("deep_research", totalMs);
+
   return {
     question,
     answer,
     steps,
     sources,
-    totalDurationMs: Date.now() - t0,
+    totalDurationMs: totalMs,
   };
 }

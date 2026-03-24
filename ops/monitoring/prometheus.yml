@@ -8,8 +8,22 @@ scrape_configs:
     static_configs:
       - targets: ["host.docker.internal:3333"]
         labels:
-          instance: "api"
-      # Add satellite machines if reachable:
-      # - targets: ["192.168.0.120:3334"]
+          instance: "kxkm-ai"
+      - targets: ["192.168.0.120:3334"]
+        labels:
+          instance: "tower"
+      # Mac satellite (:3335) — uncomment when running
+      # - targets: ["192.168.0.X:3335"]
       #   labels:
-      #     instance: "tower"
+      #     instance: "mac"
+
+  - job_name: "mascarade"
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["host.docker.internal:8100"]
+        labels:
+          instance: "mascarade-local"
+      - targets: ["192.168.0.120:8100"]
+        labels:
+          instance: "mascarade-tower"

@@ -4,17 +4,18 @@ Updated: 2026-03-21T12:00:00Z
 
 ## Summary
 
-- **315+ lots executed** (24-286) in sessions 2026-03-19/20/21
+- **535+ lots executed** in sessions 2026-03-19/20/21/24
 - **425 tests**, 0 fail
-- **55 commands**, 13 services, 9 spec docs
+- **112+ commands**, 14 services, 9 spec docs, 4 machines deployed
 - **All SEC-01-05 resolved**
 - Ollama v0.18.2, qwen3.5:9b (256K ctx, adaptive thinking)
+- mascarade 5 providers (Claude, OpenAI, Mistral, Google, Ollama) + SSE streaming
 - 35 music styles, 9 audio effects, 5 CSS themes, 32 ComfyUI checkpoints + 24 LoRAs
-- Composition pipeline: multi-track, voice, noise, effects, mix, timeline UI
-- ComposePage rewritten: direct WS, 5 generation buttons (Musique, Voix, Drone, Pink, White), timeline
-- MusicGen compose fixed (WAV write, VRAM management)
-- TTFC 284ms
-- Next: lots 273+ (wavesurfer waveform, Demucs stems, WAV export, templates, collab, MIDI, automation, FX rack, sample browser, spectral view)
+- openDIAW.be: 9 AI instruments, AI Bridge :8301 (17 backends)
+- ComfyUI 5 modes: txt2img, img2img, style transfer, faceswap, video
+- /deepresearch multi-step search agent (OpenSeeker-inspired)
+- Multi-machine: kxkm-ai (GPU), tower (hub), Mac, cils
+- TTFC 284ms, Prometheus /metrics ready
 
 ---
 
@@ -877,3 +878,59 @@ Updated: 2026-03-20T12:00:00Z
 
 ## lot-315-session-final [done]
 - Summary: 315+ lots, 90 commands, 14 services, E2E 10/10, responsive verified
+
+## lot-531-context-perf [done]
+
+- Summary: Context parallel load (Promise.all), command ranking (startsWith priority), mobile CSS deep pass, route prefetch (requestIdleCallback)
+
+## lot-532-mascarade-sse [done]
+
+- Summary: mascarade SSE streaming confirmed working, thinking field extraction from Python side
+
+## lot-533-grafana-prometheus [done]
+
+- Summary: Grafana + Prometheus monitoring stack, enriched /api/v2/metrics endpoint
+
+## lot-534-deepresearch [done]
+
+- Description: /deepresearch multi-step search agent inspired by OpenSeeker
+- Summary: deep-research.ts agent loop (plan→search→visit→extract→refine→synthesize), SSRF-safe page fetcher, LLM-driven query planning, /deepresearch and /dr commands with real-time progress
+
+## lot-535-thinking-fix [done]
+
+- Description: mascarade thinking field extraction + streaming think suppression
+- Summary: Python side (ollama.py): extract content from thinking field, strip `<think>` from streaming. Node.js side (llm-client.ts): strip inline `<think>`, suppress in SSE stream, clean final text. Double safety net.
+
+## lot-536-grafana-dashboard [in-progress]
+
+- Description: Grafana dashboard provisioning with Prometheus datasource
+- Owner: Ops
+- Priority: P1
+- Tasks:
+  - [ ] Provision Prometheus datasource in Grafana
+  - [ ] Create dashboard JSON (LLM latency, request rate, error rate, WS connections, TTS/RAG/ComfyUI health)
+  - [ ] Auto-provision via docker-compose volume mount
+
+## lot-537-mascarade-systemd [planned]
+
+- Description: mascarade as systemd service on kxkm-ai with proper env vars
+- Owner: Ops
+- Priority: P2
+
+## lot-538-firewall-persist [planned]
+
+- Description: kxkm-ai iptables rules persistent (nftables conflict resolution)
+- Owner: Ops
+- Priority: P2
+
+## lot-539-tailscale-tower [planned]
+
+- Description: Install Tailscale on tower for cross-network access to kxkm-ai GPU
+- Owner: Ops
+- Priority: P3
+
+## lot-540-nginx-https [planned]
+
+- Description: nginx HTTPS reverse proxy (ports 80/443, certbot)
+- Owner: Ops
+- Priority: P3

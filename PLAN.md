@@ -901,36 +901,67 @@ Updated: 2026-03-20T12:00:00Z
 - Description: mascarade thinking field extraction + streaming think suppression
 - Summary: Python side (ollama.py): extract content from thinking field, strip `<think>` from streaming. Node.js side (llm-client.ts): strip inline `<think>`, suppress in SSE stream, clean final text. Double safety net.
 
-## lot-536-grafana-dashboard [in-progress]
+## lot-536-grafana-dashboard [done]
 
-- Description: Grafana dashboard provisioning with Prometheus datasource
-- Owner: Ops
-- Priority: P1
-- Tasks:
-  - [ ] Provision Prometheus datasource in Grafana
-  - [ ] Create dashboard JSON (LLM latency, request rate, error rate, WS connections, TTS/RAG/ComfyUI health)
-  - [ ] Auto-provision via docker-compose volume mount
+- Description: Grafana dashboard 16 panels + Prometheus multi-machine scrape
+- Summary: Top stats (WS, chat/min, LLM calls, tokens, RSS, uptime), latency timeseries (HTTP, Ollama TTFB, persona, RAG), errors by label, throughput, counters table. Scrapes kxkm-ai + tower + mascarade.
 
-## lot-537-mascarade-systemd [planned]
+## lot-537-cloudflare-tunnels [done]
 
-- Description: mascarade as systemd service on kxkm-ai with proper env vars
-- Owner: Ops
-- Priority: P2
+- Description: Cloudflare Tunnels for kxkm-ai + tower (replaces lots 538-540)
+- Summary: 2 tunnels (kxkm-ai-gpu + intello-cockpit), 7 public hostnames, HTTPS auto. kxkm.saillant.cc (app), kxkm-api (API), kxkm-mascarade (LLM), kxkm-comfy (ComfyUI), kxkm-tower, kxkm-grafana, mascarade (Authentik SSO). Anthropic domain verification TXT added.
 
-## lot-538-firewall-persist [planned]
+## Phase Execution Immediate 2026-03-24 (P0/P1) [planned]
 
-- Description: kxkm-ai iptables rules persistent (nftables conflict resolution)
-- Owner: Ops
-- Priority: P2
+### Objectif
+- Executer un lot de fiabilisation en 4 commits atomiques, testables et rollbackables.
 
-## lot-539-tailscale-tower [planned]
+### lot-541-regex-intent-fix [planned]
+- Description: Corriger l extraction des prompts auto image/musique dans le routeur conversation.
+- Owner: Backend API
+- Fichiers cibles: apps/api/src/ws-conversation-router.ts, apps/api/src/ws-conversation-router.test.ts
+- Changes: remplacer les motifs de regex `\s*` mal escapes, ajouter tests unitaires de non-regression.
+- Checks: npm run -w @kxkm/api test
+- Done criteria: prompts correctement extraits pour /imagine et /compose depuis langage naturel.
 
-- Description: Install Tailscale on tower for cross-network access to kxkm-ai GPU
-- Owner: Ops
-- Priority: P3
+### lot-542-audio-eventloop-unblock [planned]
+- Description: Sortir les traitements ffmpeg bloquants du chemin synchrone WS.
+- Owner: Backend API + Multimodal
+- Fichiers cibles: apps/api/src/ws-commands-generate.ts
+- Changes: remplacer les appels `execFileSync` critiques par execution asynchrone via scheduler/subprocess non bloquant.
+- Checks: npm run -w @kxkm/api test, smoke WS compose/mix
+- Done criteria: pas de blocage event-loop sur mix/export, latence WS stable sous charge.
 
-## lot-540-nginx-https [planned]
+### lot-543-worker-runtime-unification [planned]
+- Description: Unifier l execution worker autour de worker-runtime pour eviter la divergence index/runtime.
+- Owner: Node Engine
+- Fichiers cibles: apps/worker/src/index.ts, apps/worker/src/worker-runtime.ts, apps/worker/src/worker-runtime.test.ts
+- Changes: index.ts devient orchestrateur fin, logique run/poll centralisee dans worker-runtime.
+- Checks: npm run -w @kxkm/worker test
+- Done criteria: une seule source de verite pour le cycle run/dequeue/execute.
 
-- Description: nginx HTTPS reverse proxy (ports 80/443, certbot)
-- Owner: Ops
-- Priority: P3
+### lot-544-chat-render-budget [planned]
+- Description: Reduire le cout render de Chat.tsx pour les longues conversations.
+- Owner: Frontend
+- Fichiers cibles: apps/web/src/components/Chat.tsx
+- Changes: memoization des derivees couteuses (compteur de mots, highlights), maintien UX inchange.
+- Checks: npm run -w @kxkm/web test, npm run -w @kxkm/web build
+- Done criteria: baisse du cout CPU render sans regression fonctionnelle.
+
+### Sequencement d execution
+1. lot-541 (P0)
+2. lot-542 (P1 fiabilite runtime)
+3. lot-543 (P1 architecture worker)
+4. lot-544 (P1 perf frontend)
+
+### Checkpoints
+- J0: lot-541 merge + tests API verts
+- J1: lot-542 merge + smoke compose/mix OK
+- J2: lot-543 merge + tests worker verts
+- J3: lot-544 merge + build web OK
+
+### Risques cibles
+- R-INTENT-REGEX: extraction de prompt incorrecte
+- R-AUDIO-BLOCKING: blocage event-loop API
+- R-WORKER-DRIFT: divergence entre runtime et index
+- R-CHAT-RENDER: degradation perf UI sur historique long

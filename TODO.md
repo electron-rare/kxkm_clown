@@ -381,13 +381,40 @@ Fait sur ce lot:
 - [x] **Lot 534** — /deepresearch multi-step search agent (OpenSeeker-inspired)
 - [x] **Lot 535** — mascarade thinking field fix (Python + Node.js double safety net)
 
-### En cours
+- [x] **Lot 536** — Grafana dashboard 16 panels + Prometheus multi-machine
+- [x] **Lot 537** — Cloudflare Tunnel kxkm-ai (remplace lots 538-540)
 
-- [ ] **Lot 536** — Grafana dashboard provisioning (Prometheus prêt, /api/v2/metrics)
+### URLs live
 
-### Backlog session
+- `https://kxkm.saillant.cc` — 3615 J'ai pété (kxkm-ai GPU)
+- `https://kxkm-api.saillant.cc` — API directe
+- `https://kxkm-mascarade.saillant.cc` — mascarade LLM orchestrator
+- `https://kxkm-comfy.saillant.cc` — ComfyUI (image gen)
+- `https://kxkm-tower.saillant.cc` — instance tower (hub)
+- `https://kxkm-grafana.saillant.cc` — Grafana dashboards
+- `https://mascarade.saillant.cc` — mascarade tower (Authentik SSO)
 
-- [ ] **Lot 537** — mascarade systemd service sur kxkm-ai (env vars, auto-restart)
-- [ ] **Lot 538** — kxkm-ai firewall iptables persistent (nftables conflict)
-- [ ] **Lot 539** — Tailscale sur tower (cross-network kxkm-ai GPU)
-- [ ] **Lot 540** — nginx HTTPS reverse proxy (ports 80/443, certbot)
+## Execution Queue 2026-03-24 (P0/P1)
+
+### Sprint court (ordre strict)
+- [ ] lot-541: Corriger regex extraction prompt auto image/musique dans apps/api/src/ws-conversation-router.ts
+- [ ] lot-541: Ajouter tests non-regression pour detectGenerationIntent (cas FR/EN, prompts courts/longs)
+- [ ] lot-542: Remplacer appels ffmpeg synchrones critiques par flux asynchrone dans apps/api/src/ws-commands-generate.ts
+- [ ] lot-542: Ajouter test de non blocage WS pendant mix/export (smoke/integration)
+- [ ] lot-543: Centraliser execution worker sur worker-runtime.ts et simplifier index.ts
+- [ ] lot-543: Etendre tests worker runtime pour garantir parite fonctionnelle
+- [ ] lot-544: Memoizer calculs derives couteux dans apps/web/src/components/Chat.tsx (compteur mots/highlights)
+- [ ] lot-544: Valider absence de regression UX chat (scroll, search, voicechat, typing)
+
+### Definition of Done (globale)
+- [ ] npm run -w @kxkm/api test
+- [ ] npm run -w @kxkm/worker test
+- [ ] npm run -w @kxkm/web test
+- [ ] npm run -w @kxkm/web build
+- [ ] smoke WS compose/mix sans freeze perceptible
+
+### Notes execution
+- Prioriser lot-541 avant toute autre tache (P0).
+- Fusionner par commit atomique (1 lot = 1 commit).
+- En cas d echec test, corriger dans le meme lot avant de passer au suivant.
+- Mettre a jour PLAN.md et TODO.md apres chaque lot termine (trace continue).

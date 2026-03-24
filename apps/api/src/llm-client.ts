@@ -261,19 +261,23 @@ async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Pro
     };
 
     const choice = data.choices?.[0];
-    // If content is empty but thinking field has content (qwen3.5 thinking mode),
-    // extract the actual response from thinking
     let content = choice?.message?.content || "";
+
+    // Strip inline <think>...</think> blocks (qwen3.5 may embed them in content)
+    if (content.includes("<think>")) {
+      content = content.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+    }
+
+    // If content is still empty but thinking field has content (qwen3.5 thinking mode),
+    // extract the actual response from thinking
     if (!content && choice?.message?.thinking) {
       const thinking = choice.message.thinking;
-      // Strip <think>...</think> tags if present
       const stripped = thinking.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
       if (stripped) {
         content = stripped;
       } else {
-        // Thinking field contains raw reasoning — extract answer after markers
         const answerMatch = thinking.match(/(?:Answer|Response|Réponse|Output|Conclusion)\s*:\s*([\s\S]+)$/i);
-        content = answerMatch ? answerMatch[1].trim() : thinking.split("\n\n").pop()?.trim() || "";
+        content = answerMatch ? answerMatch[1]!.trim() : thinking.split("\n\n").pop()?.trim() || "";
       }
       if (content) {
         logger.debug("[llm] mascarade: extracted content from thinking field");
@@ -347,6 +351,7 @@ async function* streamViaMascarade(
     let fullText = "";
     let respModel = modelStr;
     let buffer = "";
+    let inThinking = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -371,17 +376,29 @@ async function* streamViaMascarade(
           const content = chunk.choices?.[0]?.delta?.content;
           if (content) {
             fullText += content;
-            yield content;
+            // Suppress <think>...</think> blocks from streaming to client
+            if (content.includes("<think>")) inThinking = true;
+            if (!inThinking) {
+              yield content;
+            }
+            if (content.includes("</think>")) {
+              inThinking = false;
+              const after = content.split("</think>").pop() || "";
+              if (after.trim()) yield after;
+            }
           }
         } catch { /* partial JSON, skip */ }
       }
     }
 
+    // Strip thinking blocks from final accumulated text
+    const cleanedText = fullText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+
     incrementCounter("llm_mascarade_stream");
-    logger.debug({ model: respModel, chars: fullText.length }, "[llm] mascarade SSE stream complete");
+    logger.debug({ model: respModel, chars: cleanedText.length }, "[llm] mascarade SSE stream complete");
 
     return {
-      content: fullText,
+      content: cleanedText,
       model: respModel,
       provider: "mascarade",
     };

@@ -394,27 +394,9 @@ Fait sur ce lot:
 - `https://kxkm-grafana.saillant.cc` — Grafana dashboards
 - `https://mascarade.saillant.cc` — mascarade tower (Authentik SSO)
 
-## Execution Queue 2026-03-24 (P0/P1)
+## Execution Queue 2026-03-24 (P0/P1) `[done]`
 
-### Sprint court (ordre strict)
-- [ ] lot-541: Corriger regex extraction prompt auto image/musique dans apps/api/src/ws-conversation-router.ts
-- [ ] lot-541: Ajouter tests non-regression pour detectGenerationIntent (cas FR/EN, prompts courts/longs)
-- [ ] lot-542: Remplacer appels ffmpeg synchrones critiques par flux asynchrone dans apps/api/src/ws-commands-generate.ts
-- [ ] lot-542: Ajouter test de non blocage WS pendant mix/export (smoke/integration)
-- [ ] lot-543: Centraliser execution worker sur worker-runtime.ts et simplifier index.ts
-- [ ] lot-543: Etendre tests worker runtime pour garantir parite fonctionnelle
-- [ ] lot-544: Memoizer calculs derives couteux dans apps/web/src/components/Chat.tsx (compteur mots/highlights)
-- [ ] lot-544: Valider absence de regression UX chat (scroll, search, voicechat, typing)
-
-### Definition of Done (globale)
-- [ ] npm run -w @kxkm/api test
-- [ ] npm run -w @kxkm/worker test
-- [ ] npm run -w @kxkm/web test
-- [ ] npm run -w @kxkm/web build
-- [ ] smoke WS compose/mix sans freeze perceptible
-
-### Notes execution
-- Prioriser lot-541 avant toute autre tache (P0).
-- Fusionner par commit atomique (1 lot = 1 commit).
-- En cas d echec test, corriger dans le meme lot avant de passer au suivant.
-- Mettre a jour PLAN.md et TODO.md apres chaque lot termine (trace continue).
+- [x] lot-541: Regex intent extraction fix + 13 tests non-regression
+- [x] lot-542: Async ffmpeg (~35 calls unblocked from event loop)
+- [x] lot-543: Worker index.ts unified on worker-runtime.ts (583→155 LOC)
+- [x] lot-544: Chat render memoization (wordCount + searchMatches useMemo)

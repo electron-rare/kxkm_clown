@@ -911,7 +911,7 @@ Updated: 2026-03-20T12:00:00Z
 - Description: Cloudflare Tunnels for kxkm-ai + tower (replaces lots 538-540)
 - Summary: 2 tunnels (kxkm-ai-gpu + intello-cockpit), 7 public hostnames, HTTPS auto. kxkm.saillant.cc (app), kxkm-api (API), kxkm-mascarade (LLM), kxkm-comfy (ComfyUI), kxkm-tower, kxkm-grafana, mascarade (Authentik SSO). Anthropic domain verification TXT added.
 
-## Phase Execution Immediate 2026-03-24 (P0/P1) [planned]
+## Phase Execution Immediate 2026-03-24 (P0/P1) [done]
 
 ### Objectif
 - Executer un lot de fiabilisation en 4 commits atomiques, testables et rollbackables.

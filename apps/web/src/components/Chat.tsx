@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from "react";
+import React, { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { useChatState } from "../hooks/useChatState";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
@@ -125,9 +125,11 @@ export default function Chat() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const searchMatches = searchOpen && searchQuery.length >= 2
-    ? new Set(messages.filter(m => m.text?.toLowerCase().includes(searchQuery.toLowerCase())).map(m => m.id))
-    : new Set<number>();
+  const searchMatches = useMemo(() => {
+    if (!searchOpen || searchQuery.length < 2) return new Set<number>();
+    const q = searchQuery.toLowerCase();
+    return new Set(messages.filter(m => m.text?.toLowerCase().includes(q)).map(m => m.id));
+  }, [searchOpen, searchQuery, messages]);
 
   // Channel switching — no page reload
   const [channels] = useState(["#general", "#musique", "#images", "#dev", "#random"]);
@@ -195,6 +197,11 @@ export default function Chat() {
     }).catch(() => {});
   }, [channel]);
 
+  const wordCount = useMemo(
+    () => messages.reduce((sum, m) => sum + (m.text?.split(/\s+/).length || 0), 0),
+    [messages],
+  );
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -248,7 +255,7 @@ export default function Chat() {
               ? `reconnexion (${ws.reconnectAttempts})`
               : <>deconnecte<button className="chat-reconnect-btn" onClick={ws.reconnect}>reconnecter</button></>}
         </span>
-        <span className="chat-count">{users.length} en ligne | {messages.length} msgs | {messages.reduce((sum, m) => sum + (m.text?.split(/\s+/).length || 0), 0)} mots</span>
+        <span className="chat-count">{users.length} en ligne | {messages.length} msgs | {wordCount} mots</span>
         <button
           className={`chat-voice-toggle ${voiceChat ? "chat-voice-on" : ""}`}
           onClick={toggleVoiceChat}

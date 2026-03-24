@@ -77,6 +77,7 @@ flowchart TD
 - [x] Documenter actions dans ops/v2/logs/
 - [x] lot-95: Coordonner E2E Playwright test plan
 - [x] lot-100: Design public demo mode access control
+- [ ] Audit SOTA 2026 intelligence + affectation agents par module
 
 ### Backend API
 
@@ -91,6 +92,7 @@ flowchart TD
 - [x] Dynamic context window (4k-32k)
 - [x] NLP auto-detect generation intent (compose vs imagine)
 - [x] /speed command for latency diagnostics
+- [ ] lot-192: ws-commands modular extraction phase 1 (`/comp`, `/layer`, `/mix`, `/voice`)
 - [ ] lot-178: ACE-Step API direct integration (duration fix)
 - [ ] lot-180: Timeline data model
 - [x] lot-97: Multi-channel support (create/join channels)
@@ -250,3 +252,17 @@ stateDiagram-v2
 5. lot-182: Audio effects pipeline (reverb, delay, EQ)
 6. lot-183: DAW export (stems, markers, project)
 7. lot-184-200: Multi-track, arrangement, mastering, stem separation, MIDI, templates, collab, lyrics, FX rack, automation, samples, spectral view, history, render queue, sharing
+
+## Delta Session 2026-03-24
+
+### Coordinateur
+- [x] Audit SOTA 2026 intelligence + affectation agents par module
+
+### Backend API
+- [x] lot-192: ws-commands modular extraction phases 1-2 (`/comp`, `/layer`, `/mix`, `/voice`, gestion composition)
+- [ ] lot-192: phase 3 extraction edition avancee (`/concat`, `/silence`, `/template`, `/marker`, `/metronome`, `/delete`, `/suggest`, `/snapshot`, `/randomize`)
+## Delta Session 2026-03-24 — phase 3
+
+### Backend API
+- [x] lot-192: extraction complete du bloc compose avance (`/concat`, `/silence`, `/template`, `/marker`, `/metronome`, `/delete`, `/suggest`, `/snapshot`, `/randomize`)
+- [ ] lot-193: renfort tests composition et export

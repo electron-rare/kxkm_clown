@@ -1,0 +1,527 @@
+plan_id: 2026-03-24-api-intelligence-audit
+objective: Deep analysis of apps/api/src and intelligence-related packages with focus on RAG, WebSocket chat, tool-calling, multimodal, composition, and personas.
+focus_area: apps-api-src-and-intelligence-packages
+created_at: 2026-03-24
+created_by: GitHub Copilot GPT-5.4
+status: completed
+
+tldr: |
+  - The API intelligence stack is already modular at the seam level: WebSocket transport, conversation routing, tool-calling, multimodal I/O, and RAG are separated enough to evolve independently.
+  - The strongest implementation traits are graceful degradation paths: mascarade -> Ollama fallback, LightRAG -> local cosine fallback, reranker circuit breaker, and multi-backend TTS fallback.
+  - The main technical debt is concentrated around synchronous filesystem I/O inside hot API/media/composition paths and several large god-modules, especially ws-commands-chat.ts.
+  - Test coverage is materially better than average for an experimental AI stack: smoke, integration, route, RAG, tool-calling, upload, and multimodal tests are all present.
+  - The most direct 2026 opportunities are Qwen3.5:9b adoption, LightRAG refresh, stronger multilingual reranking, Docling-based ingestion, and a dedicated realtime voice transport.
+
+research_metadata:
+  methodology: Hybrid retrieval using semantic_search, grep_search, targeted read_file passes, repo instruction loading, and internal docs review for 2026 OSS watch notes. Relationship discovery was performed by following imports and execution seams from ws-chat.ts, ws-conversation-router.ts, ws-ollama.ts, rag.ts, and related packages.
+  scope: Focused on apps/api/src plus related packages/persona-domain and packages/node-engine, with supporting reads in routes/media.ts, server.ts, and 2026 research docs.
+  confidence: high
+  coverage: 78
+
+files_analyzed:
+  - file: ws-chat.ts
+    path: apps/api/src/ws-chat.ts
+    purpose: WebSocket entrypoint, client/session lifecycle, channel state, message dispatch, and persona refresh orchestration.
+    key_elements:
+      - element: attachWebSocketChat
+        type: function
+        location: apps/api/src/ws-chat.ts:136
+        description: Creates the /ws server, refreshes personas, maintains client/channel maps, and dispatches chat, command, and upload flows.
+      - element: saveChannelState
+        type: function
+        location: apps/api/src/ws-chat.ts:61
+        description: Persists topics and pins for channels to disk on a periodic timer.
+      - element: broadcast
+        type: function
+        location: apps/api/src/ws-chat.ts:196
+        description: Broadcasts stamped outbound messages with per-channel sequencing and mute-aware filtering.
+    language: TypeScript
+    lines: 564
+  - file: ws-conversation-router.ts
+    path: apps/api/src/ws-conversation-router.ts
+    purpose: Persona routing, context enrichment, inter-persona chaining, memory loading, tool selection, and streaming response handling.
+    key_elements:
+      - element: ConversationRouterDeps
+        type: interface
+        location: apps/api/src/ws-conversation-router.ts:74
+        description: Defines the dependency-injection seam for routing, tool-calling, RAG, TTS, memory, and command dispatch.
+      - element: buildConversationInput
+        type: function
+        location: apps/api/src/ws-conversation-router.ts:144
+        description: Builds enriched input by combining user text, conversation context, and optional RAG context in parallel.
+      - element: streamPersonaResponse
+        type: function
+        location: apps/api/src/ws-conversation-router.ts:353
+        description: Streams persona output, emits chunks, schedules TTS, logs chat, updates memory, and triggers inter-persona relays.
+    language: TypeScript
+    lines: 587
+  - file: ws-ollama.ts
+    path: apps/api/src/ws-ollama.ts
+    purpose: Low-level LLM streaming, adaptive context sizing, tool-call probe/execute/stream loop, and mascarade-backed fallback routing.
+    key_elements:
+      - element: streamOllamaChat
+        type: function
+        location: apps/api/src/ws-ollama.ts:105
+        description: Streams direct Ollama responses with keep-alive pooling, adaptive token sizing, and fallback model retry.
+      - element: executeToolCall
+        type: function
+        location: apps/api/src/ws-ollama.ts:266
+        description: Maps tool names to concrete web, image, RAG, music, voice, and audio-analysis implementations.
+      - element: streamOllamaChatWithTools
+        type: function
+        location: apps/api/src/ws-ollama.ts:352
+        description: Performs a non-streaming tool probe, executes one tool round, then streams the final answer.
+      - element: streamLLMChat
+        type: function
+        location: apps/api/src/ws-ollama.ts:556
+        description: Uses llm-client as the default provider path while preserving Ollama-compatible streaming semantics.
+    language: TypeScript
+    lines: 602
+  - file: rag.ts
+    path: apps/api/src/rag.ts
+    purpose: In-memory embedding store, LightRAG dual-write/search fallback, and optional reranking.
+    key_elements:
+      - element: LocalRAG
+        type: class
+        location: apps/api/src/rag.ts:34
+        description: Encapsulates document chunking, embedding, LightRAG integration, local cosine retrieval, and reranking.
+      - element: addDocument
+        type: function
+        location: apps/api/src/rag.ts:89
+        description: Dual-writes documents to LightRAG when configured and always indexes locally.
+      - element: search
+        type: function
+        location: apps/api/src/rag.ts:125
+        description: Queries LightRAG first, then falls back to local embedding search and reranking.
+    language: TypeScript
+    lines: 265
+  - file: ws-multimodal.ts
+    path: apps/api/src/ws-multimodal.ts
+    purpose: TTS orchestration, file-processing concurrency guards, and vision/audio utility integration.
+    key_elements:
+      - element: acquireFileProcessor
+        type: function
+        location: apps/api/src/ws-multimodal.ts:18
+        description: Limits concurrent heavy file processors.
+      - element: synthesizeTTS
+        type: function
+        location: apps/api/src/ws-multimodal.ts:131
+        description: Tries Kokoro, Piper, Qwen3-TTS, then Kokoro fallback to synthesize persona audio.
+    language: TypeScript
+    lines: 303
+  - file: ws-upload-handler.ts
+    path: apps/api/src/ws-upload-handler.ts
+    purpose: Secure WebSocket upload ingestion for text, image, audio, PDF, and office files, with downstream persona analysis.
+    key_elements:
+      - element: handleUpload
+        type: function
+        location: apps/api/src/ws-upload-handler.ts:13
+        description: Validates MIME and size, rate-limits uploads, runs extraction/transcription, stores media, and forwards context to personas.
+    language: TypeScript
+    lines: 241
+  - file: ws-commands-chat.ts
+    path: apps/api/src/ws-commands-chat.ts
+    purpose: Large command surface for chat, research, composition, system introspection, and persona interaction.
+    key_elements:
+      - element: CHAT_COMMANDS
+        type: variable
+        location: apps/api/src/ws-commands-chat.ts:6
+        description: Declares the supported chat command set.
+      - element: createChatCommandHandler
+        type: function
+        location: apps/api/src/ws-commands-chat.ts:69
+        description: Implements command parsing and execution for chat, research, persona, and composition features.
+      - element: deepResearch branch
+        type: pattern
+        location: apps/api/src/ws-commands-chat.ts:318
+        description: Exposes multi-step deep research as a chat command.
+    language: TypeScript
+    lines: 1591
+  - file: mcp-tools.ts
+    path: apps/api/src/mcp-tools.ts
+    purpose: Tool schema registry and per-persona tool authorization.
+    key_elements:
+      - element: TOOLS
+        type: variable
+        location: apps/api/src/mcp-tools.ts:18
+        description: Central tool metadata for web, image, RAG, music, voice, and audio analysis.
+      - element: PERSONA_TOOLS
+        type: variable
+        location: apps/api/src/mcp-tools.ts:110
+        description: Restricts tools per persona identity.
+      - element: getToolsForPersona
+        type: function
+        location: apps/api/src/mcp-tools.ts:123
+        description: Returns the authorized tool schema list for a persona.
+    language: TypeScript
+    lines: 130
+  - file: app.ts
+    path: apps/api/src/app.ts
+    purpose: Express app assembly for sessions, personas, node engine, media, A2A, and metrics.
+    key_elements:
+      - element: createApp
+        type: function
+        location: apps/api/src/app.ts:48
+        description: Boots repositories, session middleware, metrics, A2A endpoints, and route modules.
+    language: TypeScript
+    lines: 141
+  - file: routes/media.ts
+    path: apps/api/src/routes/media.ts
+    purpose: Media and composition asset serving, shared-file upload/list/delete endpoints.
+    key_elements:
+      - element: compositions endpoints
+        type: pattern
+        location: apps/api/src/routes/media.ts:40
+        description: Serves mix/master/bounce assets and lists compositions from disk.
+      - element: shared gallery endpoints
+        type: pattern
+        location: apps/api/src/routes/media.ts:118
+        description: Handles raw-body shared file uploads and JSONL indexing.
+    language: TypeScript
+    lines: 182
+  - file: server.ts
+    path: apps/api/src/server.ts
+    purpose: Process bootstrap that wires HTTP server, RAG initialization, context store, and WebSocket chat.
+    key_elements:
+      - element: LocalRAG bootstrap
+        type: pattern
+        location: apps/api/src/server.ts:200
+        description: Creates LocalRAG with LightRAG and reranker URLs and asynchronously indexes manifesto documents.
+      - element: ContextStore bootstrap
+        type: pattern
+        location: apps/api/src/server.ts:233
+        description: Starts the persistent context store with auto-compaction.
+    language: TypeScript
+    lines: 295
+  - file: index.ts
+    path: packages/persona-domain/src/index.ts
+    purpose: Persona domain records, seed catalog, validation, source/feedback/proposal helpers.
+    key_elements:
+      - element: PERSONA_SEED_CATALOG
+        type: variable
+        location: packages/persona-domain/src/index.ts:37
+        description: Defines seeded personas and their base models/summaries.
+      - element: validatePersonaUpdate
+        type: function
+        location: packages/persona-domain/src/index.ts:113
+        description: Sanitizes persona updates and preserves V1-compatible extra fields.
+    language: TypeScript
+    lines: 421
+  - file: editorial.ts
+    path: packages/persona-domain/src/editorial.ts
+    purpose: Editorial state machine and DPO pair extraction for persona evolution.
+    key_elements:
+      - element: createEditorialPipeline
+        type: function
+        location: packages/persona-domain/src/editorial.ts:21
+        description: Creates editorial workflow state for a persona.
+      - element: extractDPOPairs
+        type: function
+        location: packages/persona-domain/src/editorial.ts:50
+        description: Extracts chosen/rejected pairs from feedback signals for DPO-style training.
+    language: TypeScript
+    lines: 111
+  - file: index.ts
+    path: packages/node-engine/src/index.ts
+    purpose: Node graph/run types, topological sort, edge contract validation, and run state machine.
+    key_elements:
+      - element: topologicalSort
+        type: function
+        location: packages/node-engine/src/index.ts:99
+        description: Performs DAG ordering with cycle detection.
+      - element: validateEdgeContracts
+        type: function
+        location: packages/node-engine/src/index.ts:144
+        description: Verifies graph edges against registry-declared inputs/outputs.
+      - element: createRun
+        type: function
+        location: packages/node-engine/src/index.ts:218
+        description: Creates a run snapshot with pending steps for all graph nodes.
+    language: TypeScript
+    lines: 391
+  - file: registry.ts
+    path: packages/node-engine/src/registry.ts
+    purpose: Static node type and family registry for training/data/deployment workflows.
+    key_elements:
+      - element: DEFAULT_NODE_TYPES
+        type: variable
+        location: packages/node-engine/src/registry.ts:31
+        description: Defines typed node schemas, inputs, outputs, params, runtimes, and descriptions.
+    language: TypeScript
+    lines: 296
+
+patterns_found:
+  - category: architecture
+    pattern: dependency-injected seams around high-volatility AI capabilities
+    description: The conversation router receives overridable functions for RAG, tool-calling, TTS, memory, and dispatch instead of hard-wiring infrastructure.
+    examples:
+      - file: apps/api/src/ws-conversation-router.ts
+        location: apps/api/src/ws-conversation-router.ts:74
+        snippet: ConversationRouterDeps exposes getToolsForPersona, streamOllamaChatWithTools, loadPersonaMemory, updatePersonaMemory, synthesizeTTS, and dispatchCommand.
+    prevalence: common
+  - category: architecture
+    pattern: graceful degradation and multi-backend fallback chains
+    description: Several subsystems prefer an advanced backend first but degrade to a simpler local path instead of failing closed.
+    examples:
+      - file: apps/api/src/rag.ts
+        location: apps/api/src/rag.ts:125
+        snippet: LightRAG search falls back to local cosine retrieval when remote graph retrieval fails or is empty.
+      - file: apps/api/src/ws-multimodal.ts
+        location: apps/api/src/ws-multimodal.ts:131
+        snippet: TTS tries Kokoro, then Piper, then Qwen3-TTS, then a last-resort Kokoro voice.
+      - file: apps/api/src/llm-client.ts
+        location: apps/api/src/llm-client.ts:166
+        snippet: chat() attempts mascarade first and then falls back to direct Ollama.
+    prevalence: common
+  - category: performance
+    pattern: latency-aware heuristics on prompt/context/tool execution
+    description: The stack contains explicit heuristics to reduce unnecessary expensive work for trivial messages and short prompts.
+    examples:
+      - file: apps/api/src/ws-conversation-router.ts
+        location: apps/api/src/ws-conversation-router.ts:144
+        snippet: buildConversationInput skips RAG for short messages and fetches context plus RAG in parallel.
+      - file: apps/api/src/ws-ollama.ts
+        location: apps/api/src/ws-ollama.ts:33
+        snippet: estimateNumCtx and estimateMaxTokens adapt token budgets to message length.
+      - file: apps/api/src/ws-ollama.ts
+        location: apps/api/src/ws-ollama.ts:346
+        snippet: mightNeedTools short-circuits the tool probe for messages unlikely to need tools.
+    prevalence: common
+  - category: structure
+    pattern: command-heavy chat surface concentrated in one large handler
+    description: Chat behavior is implemented through a very large switch-based command handler rather than smaller capability modules.
+    examples:
+      - file: apps/api/src/ws-commands-chat.ts
+        location: apps/api/src/ws-commands-chat.ts:69
+        snippet: createChatCommandHandler contains a long switch with chat, research, composition, and system commands.
+    prevalence: common
+  - category: error_handling
+    pattern: structured tracking with selective silent fallbacks
+    description: The code uses trackError/logger in many paths, but also contains silent catches around cleanup and optional backends.
+    examples:
+      - file: apps/api/src/rag.ts
+        location: apps/api/src/rag.ts:165
+        snippet: trackError is used for LightRAG and reranker failures while preserving local fallback behavior.
+      - file: apps/api/src/ws-chat.ts
+        location: apps/api/src/ws-chat.ts:49
+        snippet: setChatPaused swallows unlink errors during maintenance-mode disable.
+    prevalence: occasional
+  - category: testing
+    pattern: seam-focused tests plus smoke coverage for integration hotspots
+    description: Most AI-critical boundaries have dedicated tests instead of relying only on end-to-end coverage.
+    examples:
+      - file: apps/api/src/ws-ollama.test.ts
+        location: apps/api/src/ws-ollama.test.ts:322
+        snippet: streamOllamaChatWithTools is covered directly.
+      - file: apps/api/src/ws-chat-smoke.test.ts
+        location: apps/api/src/ws-chat-smoke.test.ts:46
+        snippet: malformed JSON, rate limiting, and dispatch seams are validated through smoke tests.
+      - file: apps/api/src/mcp-tools.test.ts
+        location: apps/api/src/mcp-tools.test.ts:31
+        snippet: per-persona tool authorization is asserted directly.
+    prevalence: common
+  - category: security
+    pattern: boundary validation is strongest at HTTP/WS ingress, weaker inside internal persistence/media modules
+    description: Zod and MIME checks protect network inputs, but media/composition internals still rely on synchronous raw JSON/filesystem access patterns.
+    examples:
+      - file: apps/api/src/schemas.ts
+        location: apps/api/src/schemas.ts:77
+        snippet: wsMessageSchema constrains inbound WebSocket payload types and sizes.
+      - file: apps/api/src/ws-upload-handler.ts
+        location: apps/api/src/ws-upload-handler.ts:50
+        snippet: MIME magic-byte validation rejects unsafe uploads.
+      - file: apps/api/src/routes/media.ts
+        location: apps/api/src/routes/media.ts:86
+        snippet: compositions are listed by reading JSON directly from disk without repo abstraction.
+    prevalence: common
+
+related_architecture:
+  components_relevant_to_domain:
+    - component: WebSocket chat transport
+      responsibility: Maintains live clients, channels, sequencing, moderation, and message ingress.
+      location: apps/api/src/ws-chat.ts
+      relationship_to_domain: domain entrypoint
+    - component: conversation router
+      responsibility: Enriches prompts with context/RAG, selects personas, streams responses, and manages inter-persona flows.
+      location: apps/api/src/ws-conversation-router.ts
+      relationship_to_domain: core orchestrator
+    - component: LLM backend layer
+      responsibility: Streams Ollama or mascarade responses and executes tool-calling.
+      location: apps/api/src/ws-ollama.ts and apps/api/src/llm-client.ts
+      relationship_to_domain: domain depends on this
+    - component: RAG service
+      responsibility: Embedding, indexing, LightRAG integration, local retrieval, and reranking.
+      location: apps/api/src/rag.ts
+      relationship_to_domain: domain depends on this
+    - component: multimodal service
+      responsibility: TTS, audio/image/document processing helpers, concurrency gating.
+      location: apps/api/src/ws-multimodal.ts and apps/api/src/ws-upload-handler.ts
+      relationship_to_domain: domain depends on this
+    - component: persona domain package
+      responsibility: Persona records, validation, proposal and feedback lifecycle.
+      location: packages/persona-domain/src
+      relationship_to_domain: this uses domain outputs
+    - component: node engine package
+      responsibility: DAG model and execution abstractions for AI/training workflows.
+      location: packages/node-engine/src
+      relationship_to_domain: adjacent intelligence subsystem
+  interfaces_used_by_domain:
+    - interface: ChatOptions
+      location: apps/api/src/chat-types.ts
+      usage_pattern: Passed from server bootstrap to ws-chat to wire rag, contextStore, and persona loader.
+    - interface: ConversationRouterDeps
+      location: apps/api/src/ws-conversation-router.ts
+      usage_pattern: Injection contract for routing capabilities and test seams.
+    - interface: ToolDefinition
+      location: apps/api/src/mcp-tools.ts
+      usage_pattern: Schema passed to Ollama tool-calling and persona authorization.
+    - interface: NodeTypeDefinition
+      location: packages/node-engine/src/registry.ts
+      usage_pattern: Declares graph node contracts for engine/editor layers.
+  data_flow_involving_domain: User messages enter via WebSocket in ws-chat.ts, are validated by wsMessageSchema, enriched by ws-conversation-router.ts using context-store plus rag.ts, optionally invoke tools through ws-ollama.ts and mcp-tools.ts, emit TTS/audio through ws-multimodal.ts, and persist traces/media/compositions to disk or storage-backed route modules. Persona management and training-facing metadata live in packages/persona-domain, while node-engine models adjacent AI workflows as validated DAG runs.
+  key_relationships_to_domain:
+    - from: apps/api/src/server.ts
+      to: apps/api/src/ws-chat.ts
+      relationship: calls
+    - from: apps/api/src/ws-chat.ts
+      to: apps/api/src/ws-conversation-router.ts
+      relationship: calls
+    - from: apps/api/src/ws-conversation-router.ts
+      to: apps/api/src/ws-ollama.ts
+      relationship: calls
+    - from: apps/api/src/ws-conversation-router.ts
+      to: apps/api/src/mcp-tools.ts
+      relationship: imports
+    - from: apps/api/src/ws-conversation-router.ts
+      to: apps/api/src/ws-multimodal.ts
+      relationship: imports
+    - from: apps/api/src/ws-chat.ts
+      to: apps/api/src/ws-upload-handler.ts
+      relationship: calls
+    - from: apps/api/src/app.ts
+      to: packages/persona-domain and storage-backed repos
+      relationship: composes
+    - from: apps/api/src/app.ts
+      to: packages/node-engine
+      relationship: composes
+
+related_technology_stack:
+  languages_used_in_domain:
+    - TypeScript
+    - JavaScript
+    - Python
+  frameworks_used_in_domain:
+    - name: Express
+      usage_in_domain: REST API assembly, middleware, session/auth gates, metrics, and media routes.
+    - name: ws
+      usage_in_domain: WebSocket chat transport and live event streaming.
+    - name: Zod
+      usage_in_domain: Request and inbound WebSocket payload validation.
+  libraries_used_in_domain:
+    - name: p-limit
+      purpose_in_domain: Limits concurrent Ollama requests.
+    - name: file-type
+      purpose_in_domain: Magic-byte detection for upload security.
+    - name: undici
+      purpose_in_domain: Optional keep-alive agent for Ollama fetch reuse.
+    - name: @kxkm/auth
+      purpose_in_domain: Session extraction and permission checks.
+    - name: @kxkm/core
+      purpose_in_domain: Shared IDs, timestamps, auth types, and node-engine overview types.
+  external_apis_used_in_domain:
+    - name: Ollama
+      integration_point: apps/api/src/ws-ollama.ts, apps/api/src/rag.ts, apps/api/src/ws-persona-router.ts
+    - name: mascarade
+      integration_point: apps/api/src/llm-client.ts
+    - name: LightRAG
+      integration_point: apps/api/src/rag.ts and apps/api/src/server.ts
+    - name: ComfyUI
+      integration_point: apps/api/src/comfyui.ts and ws-ollama tool execution
+    - name: SearXNG / DuckDuckGo
+      integration_point: apps/api/src/web-search.ts
+    - name: local TTS backends (Kokoro, Piper, Qwen3-TTS)
+      integration_point: apps/api/src/ws-multimodal.ts
+
+related_conventions:
+  naming_patterns_in_domain: File names are capability-oriented (ws-chat, ws-ollama, ws-multimodal, rag, mcp-tools). Export names are direct and descriptive. Route factories and create* functions are common.
+  structure_of_domain: HTTP app assembly is modularized into route factories, but WebSocket chat capability remains partially split between a thin transport layer and a few large feature modules. Package boundaries are clearer in persona-domain and node-engine than inside the chat command layer.
+  error_handling_in_domain: Structured logger and trackError are common for external system failures. Optional backend failures usually degrade instead of throwing. Some cleanup/file operations still use empty catches.
+  testing_in_domain: Tests sit next to modules and include unit, integration, and smoke coverage for API, WS, RAG, tool-calling, uploads, multimodal, and media behavior.
+  documentation_in_domain: Domain docs are unusually strong for an AI-heavy codebase, especially SPEC_RAG.md, ARCHITECTURE.md, OSS_VEILLE notes, and AGENTS docs.
+
+related_dependencies:
+  internal:
+    - component: apps/api/src/chat-types.ts
+      relationship_to_domain: shared message/persona/runtime types for WS and routing
+      direction: bidirectional
+    - component: apps/api/src/context-store.ts
+      relationship_to_domain: persistent conversational context used by routing
+      direction: outbound
+    - component: packages/persona-domain
+      relationship_to_domain: persona CRUD/editorial concepts for admin and future training loops
+      direction: outbound
+    - component: packages/node-engine
+      relationship_to_domain: adjacent graph execution engine for training and AI workflow expansion
+      direction: outbound
+  external:
+    - name: Ollama
+      purpose_for_domain: local inference, embeddings, and tool-capable chat
+    - name: LightRAG
+      purpose_for_domain: graph-aware retrieval before local fallback
+    - name: ComfyUI
+      purpose_for_domain: image and audio-generation workflows
+    - name: SearXNG
+      purpose_for_domain: current web-search backend without API keys
+    - name: Kokoro / Piper / Qwen3-TTS
+      purpose_for_domain: speech synthesis backends
+
+domain_security_considerations:
+  sensitive_areas:
+    - area: upload ingestion
+      location: apps/api/src/ws-upload-handler.ts
+      concern: Accepts user-supplied binary payloads and spawns Python extractors/transcribers; MIME checking is strong but process and temp-file paths remain critical.
+    - area: session and permission boundaries
+      location: apps/api/src/app-middleware.ts and apps/api/src/app.ts
+      concern: Admin and viewer/operator boundaries are enforced at HTTP middleware level; WebSocket persona interactions are outside that RBAC path.
+    - area: shared/media file serving
+      location: apps/api/src/routes/media.ts
+      concern: Files are served from disk and shared gallery uses raw-body parsing plus JSONL indexing.
+  authentication_patterns_in_domain: Express routes use cookie-backed sessions resolved through createSessionMiddleware and permission gates from @kxkm/auth.
+  authorization_patterns_in_domain: HTTP admin/read/write boundaries are explicit in middleware; persona tool access is also role-like, enforced per persona in mcp-tools.ts.
+  data_validation_in_domain: Zod validates HTTP and WS message bodies; upload handler adds magic-byte verification and explicit size/rate limits.
+
+testing_patterns:
+  framework: node:test style with assert, plus smoke/integration tests adjacent to source files
+  coverage_areas:
+    - WebSocket smoke behavior and malformed input handling
+    - tool registry and per-persona tool permissions
+    - Ollama streaming and tool-calling behavior
+    - RAG search and reranker circuit-breaker behavior
+    - upload security and multimodal processing
+    - app routes for personas, sessions, permissions, and media
+  test_organization: Co-located *.test.ts files across apps/api/src and packages/*/src.
+  mock_patterns:
+    - global fetch replacement for Ollama, search, and backend stubbing
+    - dependency injection into router/handler factories
+    - fake API servers for MCP and HTTP integration tests
+
+open_questions:
+  - question: Is ws-commands-chat.ts intended to remain a monolithic feature switchboard or is further extraction already planned?
+    context: The file is the largest intelligence-facing module and concentrates unrelated command domains, which changes how safe future evolution is.
+  - question: What is the intended persistence boundary for compositions and shared media versus repository-backed storage?
+    context: Composition/media paths bypass the repository abstractions used elsewhere in app.ts and create-repos.ts.
+  - question: Is the default production path supposed to prefer llm-client/mascarade over direct Ollama for all personas?
+    context: ws-conversation-router aliases defaultStreamOllamaChat to streamLLMChat, which changes failure and latency assumptions.
+  - question: How far should persona memory evolve beyond JSON file persistence?
+    context: ws-persona-router currently maintains file-based memory plus cache/LLM summarization, while persona-domain already models richer editorial/training flows.
+
+gaps:
+  - area: full ws-commands-chat.ts command inventory
+    description: Only representative segments and command pivots were read; the entire 1591-line switch was not exhaustively enumerated.
+    impact: Some lower-priority command-specific risks or strengths may be omitted from the analysis.
+  - area: runtime behavior on the remote kxkm-ai host
+    description: The analysis used source and docs, not live end-to-end execution against the target deployment host.
+    impact: Performance and failure-mode conclusions are code-grounded but not runtime-verified in this pass.
+  - area: storage package internals
+    description: packages/storage was not deeply read because the user focus was apps/api/src plus intelligence packages.
+    impact: Persistence tradeoffs were inferred mainly from call sites rather than repository implementation details.

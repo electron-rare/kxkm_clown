@@ -692,10 +692,11 @@ Updated: 2026-03-20T12:00:00Z
 - Owner: Multimodal
 - Summary: /ambient generates layered ambient soundscapes from scene presets.
 
-## lot-192-ws-commands-extraction [planned]
+## lot-192-ws-commands-extraction [in-progress]
 - Description: ws-commands modular extraction (split monolithic command handler into per-command modules)
 - Owner: Backend API
 - Priority: P1
+- Summary: Phase 1 executee le 2026-03-24 avec extraction de /comp, /layer, /mix et /voice vers `apps/api/src/ws-commands-compose.ts`, diagnostics TS OK et regression tests cibles OK.
 
 ## lot-193-composition-tests [planned]
 - Description: Composition tests (unit tests for composition-store, /fx effects)
@@ -1018,3 +1019,16 @@ Updated: 2026-03-20T12:00:00Z
 - R-COMPOSE-DURATION: duree audio non respectee en production
 - R-TIMELINE-MODEL: format instable pour les futures features DAW
 - R-WAVEFORM-UX: surcharge render sur mobile
+
+## Delta Session 2026-03-24
+
+- lot-192-ws-commands-extraction reste en cours.
+- Phases 1-2 executees: extraction de /comp, /layer, /mix, /voice, /tracks, /undo, /solo, /unsolo, /rename, /dup, /bpm, /clear-comp, /preview, /gain, /loop, /swap et /info vers apps/api/src/ws-commands-compose.ts.
+- Validation: diagnostics TS OK, suite @kxkm/api relancee avec ws-commands.test.ts OK.
+- Prochaine etape: phase 3 sur concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize, puis lot-193 tests composition.
+## Delta Session 2026-03-24 — phase 3
+
+- lot-192-ws-commands-extraction: phases 1-3 executees.
+- Bloc compose complet extrait vers apps/api/src/ws-commands-compose.ts, incluant maintenant concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize.
+- Validation: diagnostics TS OK, suite @kxkm/api relancee avec ws-commands.test.ts OK.
+- Prochaine etape: lot-193 tests composition, puis lot-194 waveform/timeline UI.

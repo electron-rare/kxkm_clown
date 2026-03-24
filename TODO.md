@@ -406,5 +406,18 @@ Fait sur ce lot:
 - [x] lot-545: Sync statuts PLAN/TODO/docs/AGENTS (lots 95-100, 178-200)
 - [x] lot-546: lot-178 ACE-Step direct API pour /compose duration fiable
 - [ ] lot-547 (en cours): lot-180 timeline model v1 (tracks/clips/markers + schema)
+- [ ] lot-550 (en cours): lot-192 ws-commands extraction phase 1 (/comp /layer /mix /voice) + audit SOTA 2026
 - [ ] lot-548: lot-194 waveform timeline UI v1 (desktop + mobile)
 - [ ] lot-549: composition tests renfort (store/remix/export/timeline)
+
+## Delta Session 2026-03-24
+
+- [ ] lot-550 (en cours): lot-192 ws-commands extraction phases 1-2 (compose core + gestion composition) + audit SOTA 2026
+- [ ] lot-551: lot-192 phase 3 extraction edition avancee (concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize)
+- [ ] lot-549: composition tests renfort (store/remix/export/timeline)
+## Delta Session 2026-03-24 — phase 3
+
+- [x] lot-551: lot-192 phase 3 extraction edition avancee (concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize)
+- [ ] lot-552: cloture documentaire et durcissement final lot-192
+- [ ] lot-549: composition tests renfort (store/remix/export/timeline)
+- [ ] lot-548: waveform timeline UI v1 (desktop + mobile)

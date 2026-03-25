@@ -270,6 +270,8 @@ bash scripts/test-instruments.sh
 - V2: `http://<host>:4180/api/v2/personas` (API REST)
 - V1: `http://<host>:3333/admin/personas.html`
 - Pipeline editorial: source → feedback → proposals → apply/revert
+- Migration legacy → V2 (fichier par persona): `npm run migrate:personas:v2`
+- Dry-run migration: `npm run migrate:personas:v2:dry`
 
 ### Node Engine
 

@@ -19,7 +19,12 @@ mock.module("./comfyui.js", {
 
 // Mock error-tracker
 mock.module("./error-tracker.js", {
-  namedExports: { trackError: mock.fn() },
+  namedExports: {
+    trackError: mock.fn(),
+    getErrorCounts: mock.fn(() => ({})),
+    getRecentErrors: mock.fn(() => []),
+    resetErrors: mock.fn(),
+  },
 });
 
 // Now import the module under test

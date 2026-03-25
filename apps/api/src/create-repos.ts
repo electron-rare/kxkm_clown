@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   PERSONA_SEED_CATALOG,
@@ -24,11 +24,41 @@ import type { AuthSession, UserRole } from "@kxkm/core";
 function localStoreFiles() {
   const storeDir = path.resolve(process.cwd(), process.env.KXKM_LOCAL_DATA_DIR || "data/v2-local");
   return {
-    personas: path.join(storeDir, "personas.json"),
-    personaSources: path.join(storeDir, "persona-sources.json"),
-    personaFeedback: path.join(storeDir, "persona-feedback.json"),
-    personaProposals: path.join(storeDir, "persona-proposals.json"),
+    personasDir: path.join(storeDir, "personas"),
+    personaSourcesDir: path.join(storeDir, "persona-sources"),
+    personaFeedbackDir: path.join(storeDir, "persona-feedback"),
+    personaProposalsDir: path.join(storeDir, "persona-proposals"),
+    legacyPersonas: path.join(storeDir, "personas.json"),
+    legacyPersonaSources: path.join(storeDir, "persona-sources.json"),
+    legacyPersonaFeedback: path.join(storeDir, "persona-feedback.json"),
+    legacyPersonaProposals: path.join(storeDir, "persona-proposals.json"),
   };
+}
+
+function safePersonaFileName(personaId: string): string {
+  const safe = String(personaId || "").trim().replace(/[^a-zA-Z0-9._-]/g, "_");
+  return `${safe || "persona"}.json`;
+}
+
+function personaFilePath(directory: string, personaId: string): string {
+  return path.join(directory, safePersonaFileName(personaId));
+}
+
+async function readJsonFiles<T>(directory: string): Promise<T[]> {
+  let entries: string[] = [];
+  try {
+    entries = await readdir(directory);
+  } catch {
+    return [];
+  }
+
+  const rows: T[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith(".json")) continue;
+    const record = await readJson<T | null>(path.join(directory, entry), null);
+    if (record !== null) rows.push(record);
+  }
+  return rows;
 }
 
 async function readJson<T>(filePath: string, fallback: T): Promise<T> {
@@ -47,6 +77,22 @@ async function readJson<T>(filePath: string, fallback: T): Promise<T> {
 async function writeJson(filePath: string, data: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+function clonePersonaRecord(persona: PersonaRecord): PersonaRecord {
+  return { ...persona };
+}
+
+function clonePersonaSourceRecord(source: PersonaSourceRecord): PersonaSourceRecord {
+  return { ...source };
+}
+
+function clonePersonaFeedbackRecord(record: PersonaFeedbackRecord): PersonaFeedbackRecord {
+  return { ...record };
+}
+
+function clonePersonaProposalRecord(record: PersonaProposalRecord): PersonaProposalRecord {
+  return { ...record };
 }
 
 // ---------------------------------------------------------------------------
@@ -105,37 +151,44 @@ export function createInMemoryPersonaRepo() {
     if (loaded) return;
     loaded = true;
 
-    const saved = await readJson<PersonaRecord[]>(files.personas, []);
-    if (saved.length > 0) {
-      for (const persona of saved) {
+    const byPersonaFiles = await readJsonFiles<PersonaRecord>(files.personasDir);
+    if (byPersonaFiles.length > 0) {
+      for (const persona of byPersonaFiles) {
         personas.set(persona.id, { ...persona });
       }
       return;
     }
 
-    for (const seed of PERSONA_SEED_CATALOG) {
-      personas.set(seed.id, clonePersona(seed));
+    const saved = await readJson<PersonaRecord[]>(files.legacyPersonas, []);
+    if (saved.length > 0) {
+      for (const persona of saved) {
+        personas.set(persona.id, { ...persona });
+        await writeJson(personaFilePath(files.personasDir, persona.id), persona);
+      }
+      return;
     }
-    await writeJson(files.personas, [...personas.values()]);
-  }
 
-  async function persist(): Promise<void> {
-    await writeJson(files.personas, [...personas.values()]);
+    for (const seed of PERSONA_SEED_CATALOG) {
+      const cloned = clonePersona(seed);
+      personas.set(seed.id, cloned);
+      await writeJson(personaFilePath(files.personasDir, seed.id), cloned);
+    }
   }
 
   return {
     async list(): Promise<PersonaRecord[]> {
       await ensureLoaded();
-      return [...personas.values()];
+      return [...personas.values()].map(clonePersonaRecord);
     },
     async findById(id: string): Promise<PersonaRecord | null> {
       await ensureLoaded();
-      return personas.get(id) || null;
+      const persona = personas.get(id);
+      return persona ? clonePersonaRecord(persona) : null;
     },
     async upsert(persona: PersonaRecord): Promise<PersonaRecord> {
       await ensureLoaded();
       personas.set(persona.id, { ...persona });
-      await persist();
+      await writeJson(personaFilePath(files.personasDir, persona.id), persona);
       return { ...persona };
     },
     async seedCatalog(catalog: PersonaRecord[]): Promise<void> {
@@ -143,13 +196,13 @@ export function createInMemoryPersonaRepo() {
       let changed = false;
       for (const p of catalog) {
         if (!personas.has(p.id)) {
-          personas.set(p.id, clonePersona(p));
+          const cloned = clonePersona(p);
+          personas.set(p.id, cloned);
+          await writeJson(personaFilePath(files.personasDir, p.id), cloned);
           changed = true;
         }
       }
-      if (changed) {
-        await persist();
-      }
+      if (!changed) return;
     },
   };
 }
@@ -228,26 +281,32 @@ export function createInMemoryPersonaSourceRepo() {
   async function ensureLoaded(): Promise<void> {
     if (loaded) return;
     loaded = true;
-    const saved = await readJson<Record<string, PersonaSourceRecord>>(files.personaSources, {});
-    for (const [personaId, source] of Object.entries(saved)) {
-      sources.set(personaId, { ...source });
-    }
-  }
 
-  async function persist(): Promise<void> {
-    const objectView = Object.fromEntries(sources.entries());
-    await writeJson(files.personaSources, objectView);
+    const byPersonaFiles = await readJsonFiles<PersonaSourceRecord>(files.personaSourcesDir);
+    if (byPersonaFiles.length > 0) {
+      for (const source of byPersonaFiles) {
+        sources.set(source.personaId, { ...source });
+      }
+      return;
+    }
+
+    const saved = await readJson<Record<string, PersonaSourceRecord>>(files.legacyPersonaSources, {});
+    for (const source of Object.values(saved)) {
+      sources.set(source.personaId, { ...source });
+      await writeJson(personaFilePath(files.personaSourcesDir, source.personaId), source);
+    }
   }
 
   return {
     async findByPersonaId(personaId: string): Promise<PersonaSourceRecord | null> {
       await ensureLoaded();
-      return sources.get(personaId) || null;
+      const source = sources.get(personaId);
+      return source ? clonePersonaSourceRecord(source) : null;
     },
     async upsert(source: PersonaSourceRecord): Promise<PersonaSourceRecord> {
       await ensureLoaded();
       sources.set(source.personaId, { ...source });
-      await persist();
+      await writeJson(personaFilePath(files.personaSourcesDir, source.personaId), source);
       return { ...source };
     },
   };
@@ -261,30 +320,42 @@ export function createInMemoryPersonaFeedbackRepo() {
   async function ensureLoaded(): Promise<void> {
     if (loaded) return;
     loaded = true;
-    const saved = await readJson<PersonaFeedbackRecord[]>(files.personaFeedback, []);
+
+    const byPersonaFiles = await readJsonFiles<PersonaFeedbackRecord[] | PersonaFeedbackRecord>(files.personaFeedbackDir);
+    if (byPersonaFiles.length > 0) {
+      for (const payload of byPersonaFiles) {
+        const records = Array.isArray(payload) ? payload : [payload];
+        for (const record of records) {
+          const list = feedback.get(record.personaId) || [];
+          list.push({ ...record });
+          feedback.set(record.personaId, list);
+        }
+      }
+      return;
+    }
+
+    const saved = await readJson<PersonaFeedbackRecord[]>(files.legacyPersonaFeedback, []);
     for (const record of saved) {
       const list = feedback.get(record.personaId) || [];
       list.push({ ...record });
       feedback.set(record.personaId, list);
     }
-  }
-
-  async function persist(): Promise<void> {
-    const all = [...feedback.values()].flat();
-    await writeJson(files.personaFeedback, all);
+    for (const [personaId, records] of feedback.entries()) {
+      await writeJson(personaFilePath(files.personaFeedbackDir, personaId), records);
+    }
   }
 
   return {
     async listByPersonaId(personaId: string): Promise<PersonaFeedbackRecord[]> {
       await ensureLoaded();
-      return feedback.get(personaId) || [];
+      return (feedback.get(personaId) || []).map(clonePersonaFeedbackRecord);
     },
     async create(record: PersonaFeedbackRecord): Promise<PersonaFeedbackRecord> {
       await ensureLoaded();
       const list = feedback.get(record.personaId) || [];
       list.push({ ...record });
       feedback.set(record.personaId, list);
-      await persist();
+      await writeJson(personaFilePath(files.personaFeedbackDir, record.personaId), list);
       return { ...record };
     },
   };
@@ -298,39 +369,51 @@ export function createInMemoryPersonaProposalRepo() {
   async function ensureLoaded(): Promise<void> {
     if (loaded) return;
     loaded = true;
-    const saved = await readJson<PersonaProposalRecord[]>(files.personaProposals, []);
+
+    const byPersonaFiles = await readJsonFiles<PersonaProposalRecord[] | PersonaProposalRecord>(files.personaProposalsDir);
+    if (byPersonaFiles.length > 0) {
+      for (const payload of byPersonaFiles) {
+        const records = Array.isArray(payload) ? payload : [payload];
+        for (const record of records) {
+          const list = proposals.get(record.personaId) || [];
+          list.push({ ...record });
+          proposals.set(record.personaId, list);
+        }
+      }
+      return;
+    }
+
+    const saved = await readJson<PersonaProposalRecord[]>(files.legacyPersonaProposals, []);
     for (const record of saved) {
       const list = proposals.get(record.personaId) || [];
       list.push({ ...record });
       proposals.set(record.personaId, list);
     }
-  }
-
-  async function persist(): Promise<void> {
-    const all = [...proposals.values()].flat();
-    await writeJson(files.personaProposals, all);
+    for (const [personaId, records] of proposals.entries()) {
+      await writeJson(personaFilePath(files.personaProposalsDir, personaId), records);
+    }
   }
 
   return {
     async listByPersonaId(personaId: string): Promise<PersonaProposalRecord[]> {
       await ensureLoaded();
-      return proposals.get(personaId) || [];
+      return (proposals.get(personaId) || []).map(clonePersonaProposalRecord);
     },
     async create(record: PersonaProposalRecord): Promise<PersonaProposalRecord> {
       await ensureLoaded();
       const list = proposals.get(record.personaId) || [];
       list.push({ ...record });
       proposals.set(record.personaId, list);
-      await persist();
+      await writeJson(personaFilePath(files.personaProposalsDir, record.personaId), list);
       return { ...record };
     },
     async markApplied(id: string): Promise<void> {
       await ensureLoaded();
-      for (const list of proposals.values()) {
+      for (const [personaId, list] of proposals.entries()) {
         const proposal = list.find((p) => p.id === id);
         if (proposal) {
           proposal.applied = true;
-          await persist();
+          await writeJson(personaFilePath(files.personaProposalsDir, personaId), list);
           return;
         }
       }

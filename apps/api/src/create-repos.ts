@@ -9,7 +9,6 @@ import {
   type PersonaSourceRecord,
 } from "@kxkm/persona-domain";
 import {
-  createNodeGraph,
   type ModelRegistryRecord,
   type NodeGraphRecord,
   type NodeRunRecord,
@@ -83,6 +82,18 @@ function clonePersonaRecord(persona: PersonaRecord): PersonaRecord {
   return { ...persona };
 }
 
+function cloneAuthSession(session: AuthSession): AuthSession {
+  return { ...session };
+}
+
+function cloneNodeGraphRecord(graph: NodeGraphRecord): NodeGraphRecord {
+  return { ...graph };
+}
+
+function cloneNodeRunRecord(run: NodeRunRecord): NodeRunRecord {
+  return { ...run };
+}
+
 function clonePersonaSourceRecord(source: PersonaSourceRecord): PersonaSourceRecord {
   return { ...source };
 }
@@ -119,11 +130,12 @@ export function createLocalSessionRepo() {
       const id = generateSessionToken();
       const session = createSessionRecord({ username: input.username, role: input.role }, id);
       sessions.set(id, session);
-      return session;
+      return cloneAuthSession(session);
     },
     async findById(id: string): Promise<AuthSession | null> {
       maybeCleanupExpired(Date.now());
-      return sessions.get(id) || null;
+      const session = sessions.get(id);
+      return session ? cloneAuthSession(session) : null;
     },
     async deleteById(id: string): Promise<void> {
       sessions.delete(id);
@@ -208,29 +220,28 @@ export function createLocalPersonaRepo() {
 }
 
 export function createLocalNodeGraphRepo() {
-  const graphs = new Map<string, NodeGraphRecord>([
-    ["starter_local_eval", createNodeGraph("starter_local_eval", "Prototype local evaluation graph")],
-  ]);
   const starterGraph: NodeGraphRecord = { id: "starter_local_eval", name: "starter_local_eval", description: "Prototype local evaluation graph" };
-  graphs.set(starterGraph.id, starterGraph);
+  const graphs = new Map<string, NodeGraphRecord>([[starterGraph.id, cloneNodeGraphRecord(starterGraph)]]);
 
   return {
     async list(): Promise<NodeGraphRecord[]> {
-      return [...graphs.values()];
+      return [...graphs.values()].map(cloneNodeGraphRecord);
     },
     async findById(id: string): Promise<NodeGraphRecord | null> {
-      return graphs.get(id) || null;
+      const graph = graphs.get(id);
+      return graph ? cloneNodeGraphRecord(graph) : null;
     },
     async create(graph: NodeGraphRecord): Promise<NodeGraphRecord> {
-      graphs.set(graph.id, { ...graph });
-      return { ...graph };
+      const stored = cloneNodeGraphRecord(graph);
+      graphs.set(stored.id, stored);
+      return cloneNodeGraphRecord(stored);
     },
     async update(id: string, patch: Partial<NodeGraphRecord>): Promise<NodeGraphRecord | null> {
       const graph = graphs.get(id);
       if (!graph) return null;
       if (patch.name !== undefined) graph.name = patch.name;
       if (patch.description !== undefined) graph.description = patch.description;
-      return { ...graph };
+      return cloneNodeGraphRecord(graph);
     },
   };
 }
@@ -239,14 +250,16 @@ export function createLocalNodeRunRepo() {
   const runs = new Map<string, NodeRunRecord>();
   return {
     async list(): Promise<NodeRunRecord[]> {
-      return [...runs.values()];
+      return [...runs.values()].map(cloneNodeRunRecord);
     },
     async findById(id: string): Promise<NodeRunRecord | null> {
-      return runs.get(id) || null;
+      const run = runs.get(id);
+      return run ? cloneNodeRunRecord(run) : null;
     },
     async create(run: NodeRunRecord): Promise<NodeRunRecord> {
-      runs.set(run.id, { ...run });
-      return { ...run };
+      const stored = cloneNodeRunRecord(run);
+      runs.set(stored.id, stored);
+      return cloneNodeRunRecord(stored);
     },
     async updateStatus(id: string, status: NodeRunRecord["status"]): Promise<void> {
       const run = runs.get(id);
@@ -424,15 +437,6 @@ export function createLocalPersonaProposalRepo() {
 // ---------------------------------------------------------------------------
 // Repo interface types (union of Postgres and in-memory)
 // ---------------------------------------------------------------------------
-
-// Backward-compatible aliases while the rest of the codebase converges on local/per-file naming.
-export const createInMemorySessionRepo = createLocalSessionRepo;
-export const createInMemoryPersonaRepo = createLocalPersonaRepo;
-export const createInMemoryNodeGraphRepo = createLocalNodeGraphRepo;
-export const createInMemoryNodeRunRepo = createLocalNodeRunRepo;
-export const createInMemoryPersonaSourceRepo = createLocalPersonaSourceRepo;
-export const createInMemoryPersonaFeedbackRepo = createLocalPersonaFeedbackRepo;
-export const createInMemoryPersonaProposalRepo = createLocalPersonaProposalRepo;
 
 export type SessionRepo = ReturnType<typeof createLocalSessionRepo>;
 export type PersonaRepo = ReturnType<typeof createLocalPersonaRepo>;

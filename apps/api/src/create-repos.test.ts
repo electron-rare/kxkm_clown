@@ -5,10 +5,13 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import type { PersonaFeedbackRecord, PersonaProposalRecord, PersonaSourceRecord } from "@kxkm/persona-domain";
 import {
+  createLocalNodeGraphRepo,
+  createLocalNodeRunRepo,
   createLocalPersonaFeedbackRepo,
   createLocalPersonaProposalRepo,
   createLocalPersonaRepo,
   createLocalPersonaSourceRepo,
+  createLocalSessionRepo,
 } from "./create-repos.js";
 
 async function withTempLocalDataDir(run: (dir: string) => Promise<void>): Promise<void> {
@@ -127,5 +130,42 @@ describe("create-repos personas runtime", { concurrency: false }, () => {
       assert.equal(proposals2.length, 1);
       assert.equal(proposals2[0].applied, false);
     });
+  });
+
+  it("returns defensive clones from session, graph and run repos", async () => {
+    const sessionRepo = createLocalSessionRepo();
+    const graphRepo = createLocalNodeGraphRepo();
+    const runRepo = createLocalNodeRunRepo();
+
+    const session = await sessionRepo.create({ username: "alice", role: "admin" });
+    session.username = "tampered";
+
+    const storedSession = await sessionRepo.findById(session.id);
+    assert.ok(storedSession);
+    assert.equal(storedSession.username, "alice");
+
+    await graphRepo.create({ id: "graph-1", name: "Graph 1", description: "baseline" });
+    const graphs1 = await graphRepo.list();
+    const graph1 = graphs1.find((entry) => entry.id === "graph-1");
+    assert.ok(graph1);
+    graph1.name = "tampered-graph";
+
+    const graph2 = await graphRepo.findById("graph-1");
+    assert.ok(graph2);
+    assert.equal(graph2.name, "Graph 1");
+
+    await runRepo.create({
+      id: "run-1",
+      graphId: "graph-1",
+      status: "queued",
+      createdAt: "2026-03-25T00:00:00.000Z",
+    });
+    const runs1 = await runRepo.list();
+    assert.equal(runs1.length, 1);
+    runs1[0].status = "failed";
+
+    const run2 = await runRepo.findById("run-1");
+    assert.ok(run2);
+    assert.equal(run2.status, "queued");
   });
 });

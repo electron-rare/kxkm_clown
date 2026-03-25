@@ -140,7 +140,7 @@ sequenceDiagram
     WS->>WS: broadcast final message to all clients
     WS->>CTX: addToContext(channel, Sherlock, fullText)
 
-    Note over WS,CTX: Memory update: every 5 messages per persona<br/>LLM extracts facts + summary → persona-memory/{nick}.json
+    Note over WS,CTX: Memory update: every 5 messages per persona<br/>LLM extracts facts + summary → data/v2-local/persona-memory/{personaId}.json<br/>(legacy mirror: data/persona-memory/{nick}.json)
 
     opt TTS_ENABLED=1
         WS->>TTS: POST /synthesize {nick, text}

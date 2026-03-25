@@ -615,23 +615,38 @@ Les images uploadees sont analysees via un modele Ollama compatible vision.
 
 ### Memoire — Principe
 
-Chaque persona accumule des faits et un resume sur ses interactions. La memoire est persistee sur disque dans `data/persona-memory/<nick>.json`.
+Chaque persona accumule des faits et un resume sur ses interactions. La source de verite est persistee sur disque dans `data/v2-local/persona-memory/<personaId>.json`; un miroir de compatibilite legacy reste ecrit dans `data/persona-memory/<nick>.json` pendant la migration douce V1 -> V2.
 
 ### Memoire — Structure
 
 ```json
 {
-  "nick": "Schaeffer",
-  "facts": ["L'utilisateur s'interesse a la musique concrete", "Il travaille sur un projet Arduino"],
-  "summary": "Discussion autour de la synthesis sonore et de l'electroacoustique",
-  "lastUpdated": "2026-03-15T14:22:00.000Z"
+  "version": 2,
+  "personaId": "schaeffer",
+  "personaNick": "Schaeffer",
+  "updatedAt": "2026-03-25T18:42:00.000Z",
+  "workingMemory": {
+    "facts": ["L'utilisateur s'interesse a la musique concrete", "Il travaille sur un projet Arduino"],
+    "summary": "Discussion autour de la synthesis sonore et de l'electroacoustique",
+    "lastSourceMessages": ["Parlons de Schaeffer", "Je veux un patch Arduino pour du bruit"]
+  },
+  "archivalMemory": {
+    "facts": [{ "text": "L'utilisateur s'interesse a la musique concrete", "firstSeenAt": "2026-03-25T18:42:00.000Z", "lastSeenAt": "2026-03-25T18:42:00.000Z", "source": "chat" }],
+    "summaries": [{ "text": "Discussion autour de la synthesis sonore et de l'electroacoustique", "createdAt": "2026-03-25T18:42:00.000Z" }]
+  },
+  "compat": {
+    "facts": ["L'utilisateur s'interesse a la musique concrete", "Il travaille sur un projet Arduino"],
+    "summary": "Discussion autour de la synthesis sonore et de l'electroacoustique",
+    "lastUpdated": "2026-03-25T18:42:00.000Z"
+  }
 }
 ```
 
 ### Memoire — Mise a jour
 
 - Toutes les 5 interactions, la persona recoit ses 10 derniers echanges et genere un JSON de faits + resume via Ollama
-- Les faits sont dedupliques et limites a 20 max
+- Le store charge d'abord le fichier V2 par `personaId`, puis migre automatiquement l'ancien fichier legacy par `nick` s'il est encore seul present
+- Les faits de travail sont dedupliques et limites a 20 max; l'archive est normalisee a 100 faits et 50 resumes
 - La memoire est injectee dans le systemPrompt sous forme de bloc `[Memoire]`
 
 ## 12. Flux principal (mermaid)
@@ -836,7 +851,7 @@ Resume: Discussion autour de la synthese sonore et de l'electroacoustique
 Derniere mise a jour: 2026-03-15T14:22:00.000Z
 ```
 
-Source: `data/persona-memory/<nick>.json` via `loadPersonaMemory()`
+Source: `data/v2-local/persona-memory/<personaId>.json` via `loadPersonaMemory()`; `data/persona-memory/<nick>.json` n'est plus qu'un miroir de compatibilite et une source de migration initiale
 
 #### `/export`
 

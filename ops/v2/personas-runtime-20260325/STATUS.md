@@ -1,6 +1,6 @@
 # EXECUTION STATUS (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T20:06:53Z
+Updated: 2026-03-25T20:16:12Z
 
 ## lot-201-runtime-hardening
 - Status: done
@@ -48,4 +48,11 @@ Updated: 2026-03-25T20:06:53Z
 - Owner: Backend API
 - Execution: manual
 - Checks: npm run check, npm run test:v2
+- Open tasks: none
+
+## lot-207-memory-alignment
+- Status: done
+- Owner: Coordinateur
+- Execution: manual
+- Checks: bash -n scripts/cleanup-logs.sh, bash -n scripts/dpo-export.sh, npm run check
 - Open tasks: none

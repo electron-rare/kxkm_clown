@@ -221,13 +221,14 @@ interface PersonaMemory {
 
 ### Storage
 
-- **Location:** `data/persona-memory/{Nick}.json`
-- **Format:** Pretty-printed JSON (2-space indent)
+- **Source of truth:** `data/v2-local/persona-memory/{personaId}.json`
+- **Legacy compat mirror:** `data/persona-memory/{Nick}.json`
+- **Format:** Pretty-printed JSON (2-space indent), schema V2 with `workingMemory`, `archivalMemory`, and `compat`
 - **Created on demand:** directory created with `recursive: true` on first write
 
 ### Loading (`loadPersonaMemory`)
 
-Called at the start of every `streamPersonaResponse`. Returns empty memory `{ nick, facts: [], summary: "", lastUpdated: "" }` if the file is missing or corrupted. Errors are caught and tracked via `error-tracker`.
+Called at the start of every `streamPersonaResponse`. The loader resolves by `personaId` first, falls back to case-insensitive `nick`, and auto-migrates a legacy-only file into the V2 store on first read. It returns empty memory `{ nick, facts: [], summary: "", lastUpdated: "" }` if no record exists or if the file is corrupted. Errors are caught and tracked via `error-tracker`.
 
 ### Update Cycle (`updatePersonaMemory`)
 

@@ -233,7 +233,7 @@ Chatterbox is included in the `v2` profile but effectively disabled:
 - Context store channels (`data/context/*.jsonl`)
 - Media images (`data/media/images/*.png`)
 - Media audio (`data/media/audio/*.wav`)
-- Persona memory files (`data/persona-memory/*.json`)
+- Persona memory files (`data/v2-local/persona-memory/*.json`, mirror legacy optionnel `data/persona-memory/*.json`)
 
 **API Endpoints (4 checks):**
 - Session login (`POST /api/session/login`)
@@ -427,9 +427,9 @@ Complete table of all environment variables used across docker-compose.yml, Dock
 
 ### Persona Memory (100 KB Trim)
 
-- **Format:** JSON files at `data/persona-memory/*.json`
+- **Format:** JSON files at `data/v2-local/persona-memory/*.json` with optional legacy mirror `data/persona-memory/*.json`
 - **Threshold:** Files exceeding 100 KB (102,400 bytes) are trimmed
-- **Strategy:** Keep only the last 20 facts (`d["facts"] = d["facts"][-20:]`)
+- **Strategy:** Keep runtime caps only (`workingMemory.facts[-20:]`, `workingMemory.lastSourceMessages[-10:]`, `archivalMemory.facts[-100:]`, `archivalMemory.summaries[-50:]`, `compat.facts[-20:]`)
 - **Schedule:** Same daily timer as chat log cleanup
 
 ### Context Store (Auto-Compaction)

@@ -205,7 +205,7 @@ flowchart TD
 | Persistance double | Postgres (production) ou flat-file JSON/JSONL (dev/demo) |
 | Stats utilisateur | Compteurs et metriques par utilisateur |
 | Memoire conversation | Contexte borne par persona/session |
-| Memoire persona | Faits et resume persistants par persona (`data/persona-memory/`) |
+| Memoire persona | Faits et resume persistants par persona (`data/v2-local/persona-memory/`, miroir legacy `data/persona-memory/` pendant migration) |
 | Logging DPO | Paires chosen/rejected pour entrainement RLHF |
 | Chat logs | JSONL quotidien (`data/chat-logs/v2-YYYY-MM-DD.jsonl`) |
 | Export training data | Extraction formatee pour fine-tuning |

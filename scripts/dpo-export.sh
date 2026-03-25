@@ -15,7 +15,6 @@ const fs = require('fs');
 const path = require('path');
 
 const logDir = 'data/chat-logs';
-const memDir = 'data/persona-memory';
 const pairs = [];
 
 // Read recent chat logs

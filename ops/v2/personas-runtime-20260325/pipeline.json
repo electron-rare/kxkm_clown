@@ -99,6 +99,21 @@
         { "id": "frontend-signal-normalization", "query": "Retrouver le prompt cote frontend et envoyer signal react pin hors votes DPO", "status": "done", "owner": "Frontend", "severity": "P1" },
         { "id": "regression-tests", "query": "Verifier par tests domaine et API que l export DPO est alimente par le repo", "status": "done", "owner": "Backend API", "severity": "P1" }
       ]
+    },
+    {
+      "id": "lot-207-memory-alignment",
+      "description": "Nettoyer les artefacts generes evidents et realigner scripts/docs sur le store memoire personas V2",
+      "summary": "Done: cleanup du bruit genere, cleanup script V2-aware, specs et docs alignees sur data/v2-local/persona-memory.",
+      "status": "done",
+      "owner": "Coordinateur",
+      "execution": "manual",
+      "checks": ["bash -n scripts/cleanup-logs.sh", "bash -n scripts/dpo-export.sh", "npm run check"],
+      "depends_on": ["lot-202-memory-schema"],
+      "tasks": [
+        { "id": "cleanup-generated-artifacts", "query": "Restaurer les artefacts generes evidents du worktree sans toucher aux changements utilisateur hors perimetre", "status": "done", "owner": "Ops/TUI", "severity": "P2" },
+        { "id": "align-memory-docs-and-scripts", "query": "Aligner scripts et documentation sur le store memoire actif data/v2-local/persona-memory", "status": "done", "owner": "Coordinateur", "severity": "P1" },
+        { "id": "validation-pass", "query": "Verifier shell scripts et checks apres alignement du runtime memoire personas", "status": "done", "owner": "Coordinateur", "severity": "P1" }
+      ]
     }
   ]
 }

@@ -1,6 +1,6 @@
 # PLAN (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T20:06:53Z
+Updated: 2026-03-25T20:16:12Z
 
 ## lot-201-runtime-hardening [done]
 - Description: Durcir le runtime personas local et basculer le store actif en per-file v2-local
@@ -49,3 +49,11 @@ Updated: 2026-03-25T20:06:53Z
 - Execution: manual
 - Checks: npm run check, npm run test:v2
 - Summary: Done: votes structures, route feedback repo-backed, export DPO unique, compat query alias, frontend vote/signal normalise, tests de non-regression.
+
+## lot-207-memory-alignment [done]
+- Description: Nettoyer les artefacts generes evidents et realigner scripts/docs sur le store memoire personas V2
+- Depends on: lot-202-memory-schema
+- Owner: Coordinateur
+- Execution: manual
+- Checks: bash -n scripts/cleanup-logs.sh, bash -n scripts/dpo-export.sh, npm run check
+- Summary: Done: cleanup du bruit genere, script de retention rendu V2-aware, specs/docs alignees sur `data/v2-local/persona-memory`, references legacy reduites au miroir de compatibilite.

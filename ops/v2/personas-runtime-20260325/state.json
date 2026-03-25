@@ -1,6 +1,6 @@
 {
   "project": "kxkm-personas-runtime-20260325",
-  "updated_at": "2026-03-25T20:06:53Z",
+  "updated_at": "2026-03-25T20:16:12Z",
   "batches": {
     "lot-201-runtime-hardening": {
       "status": "done",
@@ -200,6 +200,33 @@
           "status": "done",
           "attempts": 1,
           "output": "apps/api/src/app.test.ts",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-207-memory-alignment": {
+      "status": "done",
+      "depends_on": [
+        "lot-202-memory-schema"
+      ],
+      "owner": "Coordinateur",
+      "tasks": {
+        "cleanup-generated-artifacts": {
+          "status": "done",
+          "attempts": 1,
+          "output": "apps/api/data/channel-state.json, apps/web/tsconfig.tsbuildinfo",
+          "last_error": ""
+        },
+        "align-memory-docs-and-scripts": {
+          "status": "done",
+          "attempts": 1,
+          "output": "scripts/cleanup-logs.sh",
+          "last_error": ""
+        },
+        "validation-pass": {
+          "status": "done",
+          "attempts": 1,
+          "output": "npm run check",
           "last_error": ""
         }
       }

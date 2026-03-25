@@ -1,6 +1,6 @@
 # TODO (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T20:06:53Z
+Updated: 2026-03-25T20:16:12Z
 
 ## lot-201-runtime-hardening
 - [x] per-file-store (done) | owner: Personas | severity: P1
@@ -38,3 +38,8 @@ Updated: 2026-03-25T20:06:53Z
 - [x] drop-legacy-dpo-duplication (done) | owner: Backend API | severity: P1
 - [x] frontend-signal-normalization (done) | owner: Frontend | severity: P1
 - [x] regression-tests (done) | owner: Backend API | severity: P1
+
+## lot-207-memory-alignment
+- [x] cleanup-generated-artifacts (done) | owner: Ops/TUI | severity: P2
+- [x] align-memory-docs-and-scripts (done) | owner: Coordinateur | severity: P1
+- [x] validation-pass (done) | owner: Coordinateur | severity: P1

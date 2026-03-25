@@ -6,7 +6,7 @@
     {
       "id": "lot-201-runtime-hardening",
       "description": "Durcir le runtime personas local et basculer le store actif en per-file v2-local",
-      "summary": "Done: persistence per-file, merge legacy partiel -> per-file, clones defensifs, tests de non-regression, scripts smoke/build alignes.",
+      "summary": "Done: persistence per-file, merge legacy partiel -> per-file, loaders retryables, clones defensifs, tests de non-regression, scripts smoke/build alignes.",
       "status": "done",
       "owner": "Personas",
       "execution": "manual",
@@ -15,6 +15,7 @@
       "tasks": [
         { "id": "per-file-store", "query": "Migrer le store runtime personas vers data/v2-local fichier par persona", "status": "done", "owner": "Personas", "severity": "P1" },
         { "id": "partial-legacy-merge", "query": "Fusionner les restes legacy aggregates dans un store per-file partiellement migre", "status": "done", "owner": "Backend API", "severity": "P1" },
+        { "id": "retryable-loader", "query": "Rendre les loaders de migration retryables apres une erreur filesystem transitoire", "status": "done", "owner": "Backend API", "severity": "P1" },
         { "id": "defensive-snapshots", "query": "Supprimer les fuites de references mutables dans les repos in-memory personas", "status": "done", "owner": "Backend API", "severity": "P1" },
         { "id": "regression-tests", "query": "Ajouter des tests pour migration legacy et immutabilite des snapshots", "status": "done", "owner": "Backend API", "severity": "P1" },
         { "id": "script-alignment", "query": "Aligner smoke/build/log purge sur data/v2-local et compat explicite", "status": "done", "owner": "Ops/TUI", "severity": "P1" },

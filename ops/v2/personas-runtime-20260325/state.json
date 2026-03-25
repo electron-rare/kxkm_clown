@@ -1,6 +1,6 @@
 {
   "project": "kxkm-personas-runtime-20260325",
-  "updated_at": "2026-03-25T06:00:30Z",
+  "updated_at": "2026-03-25T06:02:30Z",
   "batches": {
     "lot-201-runtime-hardening": {
       "status": "done",
@@ -14,6 +14,12 @@
           "last_error": ""
         },
         "partial-legacy-merge": {
+          "status": "done",
+          "attempts": 1,
+          "output": "apps/api/src/create-repos.ts",
+          "last_error": ""
+        },
+        "retryable-loader": {
           "status": "done",
           "attempts": 1,
           "output": "apps/api/src/create-repos.ts",

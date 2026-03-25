@@ -1,6 +1,6 @@
 # PLAN (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T06:00:30Z
+Updated: 2026-03-25T06:02:30Z
 
 ## lot-201-runtime-hardening [done]
 - Description: Durcir le runtime personas local et basculer le store actif en per-file v2-local
@@ -8,7 +8,7 @@ Updated: 2026-03-25T06:00:30Z
 - Owner: Personas
 - Execution: manual
 - Checks: npm run check, npm run test:v2
-- Summary: Done: persistence per-file, merge legacy partiel -> per-file, clones defensifs, tests de non-regression, scripts smoke/build alignes.
+- Summary: Done: persistence per-file, merge legacy partiel -> per-file, loaders retryables, clones defensifs, tests de non-regression, scripts smoke/build alignes.
 
 ## lot-202-memory-schema [pending]
 - Description: Formaliser un schema memory persona v2 avec working memory et archival memory

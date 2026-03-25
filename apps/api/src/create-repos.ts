@@ -78,6 +78,28 @@ async function writeJson(filePath: string, data: unknown): Promise<void> {
   await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
+function createRetryableLoader(load: () => Promise<void>): () => Promise<void> {
+  let loaded = false;
+  let loadPromise: Promise<void> | null = null;
+
+  return async function ensureLoaded(): Promise<void> {
+    if (loaded) return;
+    if (!loadPromise) {
+      loadPromise = (async () => {
+        await load();
+        loaded = true;
+      })();
+    }
+    try {
+      await loadPromise;
+    } catch (error) {
+      loadPromise = null;
+      throw error;
+    }
+    loadPromise = null;
+  };
+}
+
 function clonePersonaRecord(persona: PersonaRecord): PersonaRecord {
   return { ...persona };
 }
@@ -157,12 +179,8 @@ export function createLocalSessionRepo() {
 export function createLocalPersonaRepo() {
   const files = localStoreFiles();
   const personas = new Map<string, PersonaRecord>();
-  let loaded = false;
-
-  async function ensureLoaded(): Promise<void> {
-    if (loaded) return;
-    loaded = true;
-
+  const ensureLoaded = createRetryableLoader(async () => {
+    personas.clear();
     const byPersonaFiles = await readJsonFiles<PersonaRecord>(files.personasDir);
     for (const persona of byPersonaFiles) {
       personas.set(persona.id, { ...persona });
@@ -184,7 +202,7 @@ export function createLocalPersonaRepo() {
       personas.set(seed.id, cloned);
       await writeJson(personaFilePath(files.personasDir, seed.id), cloned);
     }
-  }
+  });
 
   return {
     async list(): Promise<PersonaRecord[]> {
@@ -288,12 +306,8 @@ export function createLocalNodeRunRepo() {
 export function createLocalPersonaSourceRepo() {
   const files = localStoreFiles();
   const sources = new Map<string, PersonaSourceRecord>();
-  let loaded = false;
-
-  async function ensureLoaded(): Promise<void> {
-    if (loaded) return;
-    loaded = true;
-
+  const ensureLoaded = createRetryableLoader(async () => {
+    sources.clear();
     const byPersonaFiles = await readJsonFiles<PersonaSourceRecord>(files.personaSourcesDir);
     for (const source of byPersonaFiles) {
       sources.set(source.personaId, { ...source });
@@ -305,7 +319,7 @@ export function createLocalPersonaSourceRepo() {
       sources.set(source.personaId, { ...source });
       await writeJson(personaFilePath(files.personaSourcesDir, source.personaId), source);
     }
-  }
+  });
 
   return {
     async findByPersonaId(personaId: string): Promise<PersonaSourceRecord | null> {
@@ -325,12 +339,8 @@ export function createLocalPersonaSourceRepo() {
 export function createLocalPersonaFeedbackRepo() {
   const files = localStoreFiles();
   const feedback = new Map<string, PersonaFeedbackRecord[]>();
-  let loaded = false;
-
-  async function ensureLoaded(): Promise<void> {
-    if (loaded) return;
-    loaded = true;
-
+  const ensureLoaded = createRetryableLoader(async () => {
+    feedback.clear();
     const byPersonaFiles = await readJsonFiles<PersonaFeedbackRecord[] | PersonaFeedbackRecord>(files.personaFeedbackDir);
     for (const payload of byPersonaFiles) {
       const records = Array.isArray(payload) ? payload : [payload];
@@ -353,7 +363,7 @@ export function createLocalPersonaFeedbackRepo() {
     for (const personaId of dirtyPersonaIds) {
       await writeJson(personaFilePath(files.personaFeedbackDir, personaId), feedback.get(personaId) || []);
     }
-  }
+  });
 
   return {
     async listByPersonaId(personaId: string): Promise<PersonaFeedbackRecord[]> {
@@ -374,12 +384,8 @@ export function createLocalPersonaFeedbackRepo() {
 export function createLocalPersonaProposalRepo() {
   const files = localStoreFiles();
   const proposals = new Map<string, PersonaProposalRecord[]>();
-  let loaded = false;
-
-  async function ensureLoaded(): Promise<void> {
-    if (loaded) return;
-    loaded = true;
-
+  const ensureLoaded = createRetryableLoader(async () => {
+    proposals.clear();
     const byPersonaFiles = await readJsonFiles<PersonaProposalRecord[] | PersonaProposalRecord>(files.personaProposalsDir);
     for (const payload of byPersonaFiles) {
       const records = Array.isArray(payload) ? payload : [payload];
@@ -402,7 +408,7 @@ export function createLocalPersonaProposalRepo() {
     for (const personaId of dirtyPersonaIds) {
       await writeJson(personaFilePath(files.personaProposalsDir, personaId), proposals.get(personaId) || []);
     }
-  }
+  });
 
   return {
     async listByPersonaId(personaId: string): Promise<PersonaProposalRecord[]> {

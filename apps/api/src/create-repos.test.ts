@@ -82,6 +82,32 @@ describe("create-repos personas runtime", { concurrency: false }, () => {
     });
   });
 
+  it("retries a blocked legacy persona migration after the filesystem is fixed", async () => {
+    await withTempLocalDataDir(async (dir) => {
+      const blocker = path.join(dir, "personas");
+      const migratedFile = path.join(dir, "personas", "legacy_ada.json");
+      await writeFile(
+        path.join(dir, "personas.json"),
+        `${JSON.stringify([
+          { id: "legacy_ada", name: "Legacy Ada", model: "qwen2.5:14b", summary: "legacy summary", editable: true },
+        ], null, 2)}\n`,
+        "utf8",
+      );
+      await writeFile(blocker, "blocked", "utf8");
+
+      const repo = createLocalPersonaRepo();
+      await assert.rejects(repo.findById("legacy_ada"));
+      await rm(blocker, { force: true });
+
+      const row = await repo.findById("legacy_ada");
+      assert.ok(row);
+      assert.equal(row.name, "Legacy Ada");
+
+      const persisted = JSON.parse(await readFile(migratedFile, "utf8"));
+      assert.equal(persisted.id, "legacy_ada");
+    });
+  });
+
   it("returns defensive clones from persona and source repos", async () => {
     await withTempLocalDataDir(async () => {
       const personaRepo = createLocalPersonaRepo();

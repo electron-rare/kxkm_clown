@@ -1,0 +1,124 @@
+{
+  "project": "kxkm-personas-runtime-20260325",
+  "updated_at": "2026-03-25T06:35:00Z",
+  "batches": {
+    "lot-201-runtime-hardening": {
+      "status": "done",
+      "depends_on": [],
+      "owner": "Personas",
+      "tasks": {
+        "per-file-store": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "defensive-snapshots": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "regression-tests": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "script-alignment": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "docs-sync": {
+          "status": "done",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-202-memory-schema": {
+      "status": "pending",
+      "depends_on": [
+        "lot-201-runtime-hardening"
+      ],
+      "owner": "Personas",
+      "tasks": {
+        "schema-v2": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "storage-layout": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "migration-soft": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-203-memory-policy": {
+      "status": "pending",
+      "depends_on": [
+        "lot-202-memory-schema"
+      ],
+      "owner": "Backend API",
+      "tasks": {
+        "policy-engine": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "telemetry": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        },
+        "eval-harness": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-204-oss-benchmark": {
+      "status": "in_progress",
+      "depends_on": [
+        "lot-201-runtime-hardening"
+      ],
+      "owner": "Veille OSS",
+      "tasks": {
+        "letta-langgraph-patterns": {
+          "status": "done",
+          "attempts": 1,
+          "output": "docs/OSS_VEILLE_2026-03-25_PERSONAS.md",
+          "last_error": ""
+        },
+        "mem0-benchmark-plan": {
+          "status": "done",
+          "attempts": 1,
+          "output": "ops/v2/personas-runtime-20260325/outputs/lot-204-oss-benchmark/summary.md",
+          "last_error": ""
+        },
+        "opencharacter-pcl-spike": {
+          "status": "pending",
+          "attempts": 0,
+          "output": "",
+          "last_error": ""
+        }
+      }
+    }
+  }
+}

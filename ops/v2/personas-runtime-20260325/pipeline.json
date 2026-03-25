@@ -1,0 +1,69 @@
+{
+  "project": "kxkm-personas-runtime-20260325",
+  "max_parallel_tasks": 3,
+  "task_command_template": "bash -lc \"PATH=\\\"/tmp/node-local/bin:$PATH\\\" node scripts/v2-agent-task.js --batch {batch} --task {task} --query {query} --out {out}\"",
+  "batches": [
+    {
+      "id": "lot-201-runtime-hardening",
+      "description": "Durcir le runtime personas local et basculer le store actif en per-file v2-local",
+      "summary": "Done: persistence per-file, fallback legacy-read, clones defensifs, tests de non-regression, scripts smoke/build alignes.",
+      "status": "done",
+      "owner": "Personas",
+      "execution": "manual",
+      "checks": ["npm run check", "npm run test:v2"],
+      "depends_on": [],
+      "tasks": [
+        { "id": "per-file-store", "query": "Migrer le store runtime personas vers data/v2-local fichier par persona", "status": "done", "owner": "Personas", "severity": "P1" },
+        { "id": "defensive-snapshots", "query": "Supprimer les fuites de references mutables dans les repos in-memory personas", "status": "done", "owner": "Backend API", "severity": "P1" },
+        { "id": "regression-tests", "query": "Ajouter des tests pour migration legacy et immutabilite des snapshots", "status": "done", "owner": "Backend API", "severity": "P1" },
+        { "id": "script-alignment", "query": "Aligner smoke/build/log purge sur data/v2-local et compat explicite", "status": "done", "owner": "Ops/TUI", "severity": "P1" },
+        { "id": "docs-sync", "query": "Synchroniser PLAN TODO et runbooks avec l etat reel du runtime personas", "status": "done", "owner": "Coordinateur", "severity": "P2" }
+      ]
+    },
+    {
+      "id": "lot-202-memory-schema",
+      "description": "Formaliser un schema memory persona v2 avec working memory et archival memory",
+      "summary": "A lancer apres hardening du store local.",
+      "status": "pending",
+      "owner": "Personas",
+      "execution": "manual",
+      "checks": ["npm run check", "npm run test:v2"],
+      "depends_on": ["lot-201-runtime-hardening"],
+      "tasks": [
+        { "id": "schema-v2", "query": "Definir les blocs working memory et archival memory par persona", "status": "pending", "owner": "Personas", "severity": "P1" },
+        { "id": "storage-layout", "query": "Etablir le layout de persistance memory sans recroiser la source editoriale", "status": "pending", "owner": "Backend API", "severity": "P1" },
+        { "id": "migration-soft", "query": "Preparer une migration douce depuis les structures runtime actuelles", "status": "pending", "owner": "Coordinateur", "severity": "P2" }
+      ]
+    },
+    {
+      "id": "lot-203-memory-policy",
+      "description": "Ajouter un moteur de policies pour extraction, summarization, pruning et evaluation memory",
+      "summary": "Pending.",
+      "status": "pending",
+      "owner": "Backend API",
+      "execution": "manual",
+      "checks": ["npm run check", "npm run test:v2"],
+      "depends_on": ["lot-202-memory-schema"],
+      "tasks": [
+        { "id": "policy-engine", "query": "Implementer des policies configurables extraction summarize prune", "status": "pending", "owner": "Backend API", "severity": "P1" },
+        { "id": "telemetry", "query": "Mesurer drift, recall et write-rate des memories personas", "status": "pending", "owner": "Ops/TUI", "severity": "P2" },
+        { "id": "eval-harness", "query": "Construire un harness de non-regression pour coherence memory", "status": "pending", "owner": "Personas", "severity": "P2" }
+      ]
+    },
+    {
+      "id": "lot-204-oss-benchmark",
+      "description": "Comparer patterns Letta LangGraph Mem0 et preparer un spike OpenCharacter PCL",
+      "summary": "Veille documentee et plan benchmark poses; spike offline restant a planifier.",
+      "status": "in_progress",
+      "owner": "Veille OSS",
+      "execution": "manual",
+      "checks": ["docs-reviewed"],
+      "depends_on": ["lot-201-runtime-hardening"],
+      "tasks": [
+        { "id": "letta-langgraph-patterns", "query": "Comparer working memory archival memory et stores profils sur sources officielles", "status": "done", "owner": "Veille OSS", "severity": "P2" },
+        { "id": "mem0-benchmark-plan", "query": "Preparer un benchmark Mem0 contre le runtime local sur latence et recall", "status": "done", "owner": "Veille OSS", "severity": "P2" },
+        { "id": "opencharacter-pcl-spike", "query": "Definir un spike training offline sur 5 personas avec OpenCharacter et PCL", "status": "pending", "owner": "Training", "severity": "P3" }
+      ]
+    }
+  ]
+}

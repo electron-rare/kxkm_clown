@@ -10,13 +10,13 @@ Updated: 2026-03-25T19:34:59Z
 - Checks: npm run check, npm run test:v2
 - Summary: Done: persistence per-file, merge legacy partiel -> per-file, loaders retryables, clones defensifs, tests de non-regression, scripts smoke/build alignes.
 
-## lot-202-memory-schema [pending]
+## lot-202-memory-schema [in_progress]
 - Description: Formaliser un schema memory persona v2 avec working memory et archival memory
 - Depends on: lot-201-runtime-hardening
 - Owner: Personas
 - Execution: manual
 - Checks: npm run check, npm run test:v2
-- Summary: A lancer apres hardening du store local.
+- Summary: Schema v2 et layout cibles documentes; migration douce du runtime memory reste a implementer.
 
 ## lot-203-memory-policy [pending]
 - Description: Ajouter un moteur de policies pour extraction, summarization, pruning et evaluation memory

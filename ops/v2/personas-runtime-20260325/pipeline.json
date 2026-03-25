@@ -25,15 +25,15 @@
     {
       "id": "lot-202-memory-schema",
       "description": "Formaliser un schema memory persona v2 avec working memory et archival memory",
-      "summary": "A lancer apres hardening du store local.",
-      "status": "pending",
+      "summary": "Schema v2 et layout documentes; migration douce du runtime memory encore pending.",
+      "status": "in_progress",
       "owner": "Personas",
       "execution": "manual",
       "checks": ["npm run check", "npm run test:v2"],
       "depends_on": ["lot-201-runtime-hardening"],
       "tasks": [
-        { "id": "schema-v2", "query": "Definir les blocs working memory et archival memory par persona", "status": "pending", "owner": "Personas", "severity": "P1" },
-        { "id": "storage-layout", "query": "Etablir le layout de persistance memory sans recroiser la source editoriale", "status": "pending", "owner": "Backend API", "severity": "P1" },
+        { "id": "schema-v2", "query": "Definir les blocs working memory et archival memory par persona", "status": "done", "owner": "Personas", "severity": "P1" },
+        { "id": "storage-layout", "query": "Etablir le layout de persistance memory sans recroiser la source editoriale", "status": "done", "owner": "Backend API", "severity": "P1" },
         { "id": "migration-soft", "query": "Preparer une migration douce depuis les structures runtime actuelles", "status": "pending", "owner": "Coordinateur", "severity": "P2" }
       ]
     },

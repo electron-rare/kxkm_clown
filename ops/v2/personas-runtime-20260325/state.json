@@ -52,22 +52,22 @@
       }
     },
     "lot-202-memory-schema": {
-      "status": "pending",
+      "status": "in_progress",
       "depends_on": [
         "lot-201-runtime-hardening"
       ],
       "owner": "Personas",
       "tasks": {
         "schema-v2": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 1,
+          "output": "ops/v2/personas-runtime-20260325/outputs/lot-202-memory-schema/summary.md",
           "last_error": ""
         },
         "storage-layout": {
-          "status": "pending",
-          "attempts": 0,
-          "output": "",
+          "status": "done",
+          "attempts": 1,
+          "output": "ops/v2/personas-runtime-20260325/outputs/lot-202-memory-schema/summary.md",
           "last_error": ""
         },
         "migration-soft": {

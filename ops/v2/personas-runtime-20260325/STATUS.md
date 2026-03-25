@@ -10,13 +10,13 @@ Updated: 2026-03-25T19:34:59Z
 - Open tasks: none
 
 ## lot-202-memory-schema
-- Status: pending
+- Status: in_progress
 - Owner: Personas
 - Execution: manual
 - Checks: npm run check, npm run test:v2
 - Open tasks:
-  - schema-v2 [pending] (P1, Personas)
-  - storage-layout [pending] (P1, Backend API)
+  - schema-v2 [done] (P1, Personas)
+  - storage-layout [done] (P1, Backend API)
   - migration-soft [pending] (P2, Coordinateur)
 
 ## lot-203-memory-policy

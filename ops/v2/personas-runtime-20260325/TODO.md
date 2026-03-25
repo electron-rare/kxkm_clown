@@ -12,8 +12,8 @@ Updated: 2026-03-25T19:34:59Z
 - [x] docs-sync (done) | owner: Coordinateur | severity: P2
 
 ## lot-202-memory-schema
-- [ ] schema-v2 (pending) | owner: Personas | severity: P1
-- [ ] storage-layout (pending) | owner: Backend API | severity: P1
+- [x] schema-v2 (done) | owner: Personas | severity: P1
+- [x] storage-layout (done) | owner: Backend API | severity: P1
 - [ ] migration-soft (pending) | owner: Coordinateur | severity: P2
 
 ## lot-203-memory-policy

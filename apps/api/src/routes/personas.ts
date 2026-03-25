@@ -10,6 +10,7 @@ import {
 import {
   createFeedback,
   createProposal,
+  createVoteFeedbackMessage,
   type PersonaFeedbackRecord,
   type PersonaProposalRecord,
   type PersonaRecord,
@@ -24,6 +25,7 @@ import {
   updatePersonaSourceSchema,
   reinforcePersonaSchema,
   voiceSampleSchema,
+  createPersonaFeedbackSchema,
 } from "../schemas.js";
 
 interface SessionRequest extends Request {
@@ -71,6 +73,15 @@ function defaultPersonaSource(personaId: string, personaName: string): PersonaSo
   };
 }
 
+function findPersonaByNickOrId(personas: PersonaRecord[], personaNick: string): PersonaRecord | null {
+  const needle = String(personaNick || "").trim().toLowerCase();
+  if (!needle) return null;
+
+  return personas.find((persona) => {
+    return persona.id.toLowerCase() === needle || persona.name.toLowerCase() === needle;
+  }) || null;
+}
+
 export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
   const {
     personaRepo,
@@ -97,6 +108,65 @@ export function createPersonaRoutes(deps: PersonaRouteDeps): Router {
       return;
     }
     res.json(asApiData(persona));
+  });
+
+  router.post("/api/v2/feedback", requireSession, validate(createPersonaFeedbackSchema), async (req, res) => {
+    const body = req.body as {
+      messageId?: string | number;
+      personaNick: string;
+      prompt?: string;
+      response: string;
+      vote?: "up" | "down" | "react" | "pin";
+      signal?: "react" | "pin";
+      reaction?: string;
+      channel?: string;
+    };
+    const personas = await personaRepo.list();
+    const persona = findPersonaByNickOrId(personas, body.personaNick);
+    if (!persona) {
+      res.status(404).json({ ok: false, error: "persona_not_found" });
+      return;
+    }
+
+    const normalizedVote = body.vote === "up" || body.vote === "down" ? body.vote : null;
+    const normalizedSignal = body.signal || (body.vote === "react" || body.vote === "pin" ? body.vote : null);
+    const messageId = body.messageId != null ? String(body.messageId) : "";
+    const prompt = body.prompt?.trim() || "";
+    const channel = body.channel?.trim() || "";
+    const response = body.response;
+
+    const saved = normalizedVote
+      ? await feedbackRepo.create(createFeedback(
+        persona.id,
+        "vote",
+        createVoteFeedbackMessage({
+          vote: normalizedVote,
+          prompt,
+          response,
+          messageId,
+          channel,
+        }),
+      ))
+      : await feedbackRepo.create(createFeedback(
+        persona.id,
+        "chat_signal",
+        JSON.stringify({
+          type: "chat_signal",
+          signal: normalizedSignal,
+          reaction: body.reaction?.trim() || "",
+          prompt,
+          response,
+          messageId,
+          channel,
+        }),
+      ));
+
+    res.json(asApiData({
+      saved: true,
+      id: saved.id,
+      personaId: saved.personaId,
+      kind: saved.kind,
+    }));
   });
 
   router.post("/api/admin/personas", requirePermission("persona:write"), validate(createPersonaSchema), async (req: SessionRequest, res) => {

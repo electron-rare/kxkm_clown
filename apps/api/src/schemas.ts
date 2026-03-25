@@ -53,6 +53,53 @@ export const voiceSampleSchema = z.object({
   audio: z.string().min(1), // base64
 });
 
+export const createPersonaFeedbackSchema = z.object({
+  messageId: z.union([z.string(), z.number().int()]).optional(),
+  personaNick: z.string().min(1).max(100),
+  prompt: z.string().max(16000).optional(),
+  response: z.string().min(1).max(32000),
+  vote: z.enum(["up", "down", "react", "pin"]).optional(),
+  signal: z.enum(["react", "pin"]).optional(),
+  reaction: z.string().max(32).optional(),
+  channel: z.string().max(100).optional(),
+}).superRefine((input, ctx) => {
+  const legacySignal = input.vote === "react" || input.vote === "pin" ? input.vote : null;
+  const normalizedVote = input.vote === "up" || input.vote === "down" ? input.vote : null;
+  const normalizedSignal = input.signal || legacySignal;
+
+  if (input.signal && legacySignal && input.signal !== legacySignal) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["signal"],
+      message: "signal_conflicts_with_legacy_vote",
+    });
+  }
+
+  if (normalizedVote && normalizedSignal) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["vote"],
+      message: "provide_vote_or_signal_not_both",
+    });
+  }
+
+  if (!normalizedVote && !normalizedSignal) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["vote"],
+      message: "vote_or_signal_required",
+    });
+  }
+
+  if (normalizedSignal === "react" && (!input.reaction || !input.reaction.trim())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["reaction"],
+      message: "reaction_required_for_react_signal",
+    });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Node Engine
 // ---------------------------------------------------------------------------

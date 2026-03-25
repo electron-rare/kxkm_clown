@@ -67,38 +67,102 @@ export interface DPOPair {
   timestamp: string;
 }
 
+export interface VoteFeedbackPayload {
+  type?: "vote";
+  vote: "up" | "down";
+  response: string;
+  prompt?: string;
+  messageId?: string;
+  channel?: string;
+}
+
+export function createVoteFeedbackMessage(payload: VoteFeedbackPayload): string {
+  return JSON.stringify({
+    type: "vote",
+    vote: payload.vote,
+    response: payload.response,
+    prompt: payload.prompt || "",
+    messageId: payload.messageId || "",
+    channel: payload.channel || "",
+  });
+}
+
+export function parseVoteFeedbackMessage(message: string): VoteFeedbackPayload | null {
+  const raw = String(message || "").trim();
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as VoteFeedbackPayload | null;
+    if (
+      parsed &&
+      (parsed.vote === "up" || parsed.vote === "down") &&
+      typeof parsed.response === "string" &&
+      parsed.response.trim().length > 0
+    ) {
+      return {
+        type: "vote",
+        vote: parsed.vote,
+        response: parsed.response,
+        prompt: typeof parsed.prompt === "string" ? parsed.prompt : "",
+        messageId: typeof parsed.messageId === "string" ? parsed.messageId : "",
+        channel: typeof parsed.channel === "string" ? parsed.channel : "",
+      };
+    }
+  } catch {
+    // Legacy plain-text vote messages are still parsed below.
+  }
+
+  const upPattern = /\bup\b|positive|\+1|chosen/i;
+  const downPattern = /\bdown\b|negative|-1|rejected/i;
+  const vote = upPattern.test(raw) ? "up" : (downPattern.test(raw) ? "down" : null);
+  if (!vote) return null;
+
+  return {
+    type: "vote",
+    vote,
+    response: raw,
+    prompt: "",
+    messageId: "",
+    channel: "",
+  };
+}
+
 export function extractDPOPairs(
   feedback: PersonaFeedbackRecord[],
   persona: PersonaRecord,
 ): DPOPair[] {
-  const upPattern = /\bup\b|positive|\+1|chosen/i;
-  const downPattern = /\bdown\b|negative|-1|rejected/i;
-
-  const chosen: PersonaFeedbackRecord[] = [];
-  const rejected: PersonaFeedbackRecord[] = [];
+  const byPrompt = new Map<string, { chosen: Array<{ response: string; createdAt: string }>; rejected: Array<{ response: string; createdAt: string }> }>();
+  const fallbackPrompt = `Persona ${persona.name}: ${persona.summary}`;
 
   for (const entry of feedback) {
     if (entry.kind !== "vote") continue;
-    if (upPattern.test(entry.message)) {
-      chosen.push(entry);
-    } else if (downPattern.test(entry.message)) {
-      rejected.push(entry);
-    }
+    const parsed = parseVoteFeedbackMessage(entry.message);
+    if (!parsed) continue;
+
+    const prompt = parsed.prompt?.trim() || fallbackPrompt;
+    const bucket = byPrompt.get(prompt) || { chosen: [], rejected: [] };
+    const target = parsed.vote === "up" ? bucket.chosen : bucket.rejected;
+    target.push({
+      response: parsed.response,
+      createdAt: entry.createdAt,
+    });
+    byPrompt.set(prompt, bucket);
   }
 
   const pairs: DPOPair[] = [];
-  const pairCount = Math.min(chosen.length, rejected.length);
-
-  for (let index = 0; index < pairCount; index++) {
-    pairs.push({
-      prompt: `Persona ${persona.name}: ${persona.summary}`,
-      chosen: chosen[index].message,
-      rejected: rejected[index].message,
-      personaId: persona.id,
-      timestamp: chosen[index].createdAt > rejected[index].createdAt
-        ? chosen[index].createdAt
-        : rejected[index].createdAt,
-    });
+  for (const [prompt, bucket] of byPrompt.entries()) {
+    const pairCount = Math.min(bucket.chosen.length, bucket.rejected.length);
+    for (let index = 0; index < pairCount; index++) {
+      pairs.push({
+        prompt,
+        chosen: bucket.chosen[index].response,
+        rejected: bucket.rejected[index].response,
+        personaId: persona.id,
+        timestamp: bucket.chosen[index].createdAt > bucket.rejected[index].createdAt
+          ? bucket.chosen[index].createdAt
+          : bucket.rejected[index].createdAt,
+      });
+    }
   }
 
   if (pairs.length === 0 && feedback.length > 0) {

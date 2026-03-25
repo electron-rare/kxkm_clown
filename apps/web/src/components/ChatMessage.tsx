@@ -179,7 +179,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
                   fetch("/api/v2/feedback", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ messageId: msg.id, personaNick: msg.nick, response: msg.text, vote: "react", reaction: r }),
+                    body: JSON.stringify({ messageId: msg.id, personaNick: msg.nick, response: msg.text, signal: "react", reaction: r, channel }),
                   }).catch(() => {});
                 }}>{r}</button>
               ))}
@@ -199,7 +199,7 @@ export const ChatMessage = React.memo(function ChatMessage({ msg, getNickColor, 
                   fetch("/api/v2/feedback", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ messageId: msg.id, personaNick: msg.nick, response: msg.text, vote: "pin", channel }),
+                    body: JSON.stringify({ messageId: msg.id, personaNick: msg.nick, response: msg.text, signal: "pin", channel }),
                   }).catch(() => {});
                 }
               }} title="Epingler">{"\uD83D\uDCCC"}</button>

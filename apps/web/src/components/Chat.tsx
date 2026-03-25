@@ -183,19 +183,31 @@ export default function Chat() {
   }, []);
 
   const handleVote = useCallback((msg: ChatMsg, vote: "up" | "down") => {
+    const messageIndex = messages.findIndex((entry) => entry.id === msg.id);
+    const startIndex = messageIndex >= 0 ? messageIndex - 1 : messages.length - 1;
+    let prompt = "";
+
+    for (let index = startIndex; index >= 0; index -= 1) {
+      const candidate = messages[index];
+      if (!candidate?.text || candidate.type !== "message") continue;
+      if (candidate.nick && getNickColor(candidate.nick)) continue;
+      prompt = candidate.text;
+      break;
+    }
+
     fetch("/api/v2/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messageId: msg.id,
         personaNick: msg.nick,
-        prompt: "",  // We don't track the original prompt in the message
+        prompt,
         response: msg.text,
         vote,
         channel,
       }),
     }).catch(() => {});
-  }, [channel]);
+  }, [channel, getNickColor, messages]);
 
   const wordCount = useMemo(
     () => messages.reduce((sum, m) => sum + (m.text?.split(/\s+/).length || 0), 0),

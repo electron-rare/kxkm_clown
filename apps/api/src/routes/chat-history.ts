@@ -113,7 +113,8 @@ export function createChatHistoryRoutes(deps: ChatHistoryRouteDeps): Router {
 
   router.get("/api/v2/export/dpo", requirePermission("persona:read"), async (req: SessionRequest, res) => {
     try {
-      const filterPersonaId = req.query?.persona_id ? readRouteParam(req.query.persona_id as string) : null;
+      const rawPersonaId = req.query?.persona_id || req.query?.persona;
+      const filterPersonaId = rawPersonaId ? readRouteParam(rawPersonaId as string) : null;
 
       let personas = await personaRepo.list();
       if (filterPersonaId) {

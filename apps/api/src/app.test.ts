@@ -232,6 +232,96 @@ describe("V2 API", () => {
       assert.ok(Array.isArray(res.body.data));
     });
 
+    it("stores repo-backed votes/signals and exports DPO pairs from persona feedback", async () => {
+      const prompt = `Prompt DPO ${Date.now()}`;
+      const chosen = `Chosen response ${Date.now()}`;
+      const rejected = `Rejected response ${Date.now()}`;
+
+      const upRes = await request
+        .post("/api/v2/feedback")
+        .set("Cookie", cookie)
+        .send({
+          messageId: "vote-up-1",
+          personaNick: "Schaeffer",
+          prompt,
+          response: chosen,
+          vote: "up",
+          channel: "#general",
+        })
+        .expect(200);
+
+      assert.equal(upRes.body.ok, true);
+      assert.equal(upRes.body.data.saved, true);
+      assert.equal(upRes.body.data.personaId, "schaeffer");
+      assert.equal(upRes.body.data.kind, "vote");
+
+      const downRes = await request
+        .post("/api/v2/feedback")
+        .set("Cookie", cookie)
+        .send({
+          messageId: "vote-down-1",
+          personaNick: "Schaeffer",
+          prompt,
+          response: rejected,
+          vote: "down",
+          channel: "#general",
+        })
+        .expect(200);
+
+      assert.equal(downRes.body.ok, true);
+      assert.equal(downRes.body.data.kind, "vote");
+
+      const pinRes = await request
+        .post("/api/v2/feedback")
+        .set("Cookie", cookie)
+        .send({
+          messageId: "pin-1",
+          personaNick: "Schaeffer",
+          response: chosen,
+          signal: "pin",
+          channel: "#general",
+        })
+        .expect(200);
+
+      assert.equal(pinRes.body.ok, true);
+      assert.equal(pinRes.body.data.kind, "chat_signal");
+
+      const feedbackRes = await request
+        .get("/api/admin/personas/schaeffer/feedback")
+        .set("Cookie", cookie)
+        .expect(200);
+
+      assert.equal(feedbackRes.body.ok, true);
+      assert.ok(Array.isArray(feedbackRes.body.data));
+      assert.ok(
+        feedbackRes.body.data.some((item: { kind: string; message: string }) => {
+          return item.kind === "vote" && item.message.includes(chosen) && item.message.includes(prompt);
+        }),
+        "expected structured upvote feedback in repo-backed admin feed",
+      );
+      assert.ok(
+        feedbackRes.body.data.some((item: { kind: string; message: string }) => {
+          return item.kind === "chat_signal" && item.message.includes("\"signal\":\"pin\"") && item.message.includes(chosen);
+        }),
+        "expected pin chat signal in repo-backed admin feed",
+      );
+
+      const exportRes = await request
+        .get("/api/v2/export/dpo")
+        .query({ persona_id: "schaeffer" })
+        .set("Cookie", cookie)
+        .expect(200);
+
+      assert.match(String(exportRes.headers["content-type"] || ""), /application\/x-ndjson/);
+      const lines = String(exportRes.text || "").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+      assert.ok(
+        lines.some((line: { prompt: string; chosen: string; rejected: string; persona_id: string }) => {
+          return line.prompt === prompt && line.chosen === chosen && line.rejected === rejected && line.persona_id === "schaeffer";
+        }),
+        "expected exported DPO pair from repo-backed votes",
+      );
+    });
+
     it("uploads, reports and deletes a voice sample using the local data dir", async () => {
       const audio = Buffer.from("RIFF-test-voice-sample").toString("base64");
 
@@ -455,6 +545,11 @@ describe("V2 API", () => {
     it("session-required routes return 401 without session", async () => {
       await request.get("/api/personas").expect(401);
       await request.get("/api/chat/channels").expect(401);
+      await request.post("/api/v2/feedback").send({
+        personaNick: "Schaeffer",
+        response: "test",
+        vote: "up",
+      }).expect(401);
     });
 
     it("admin routes return 403 for viewer role", async () => {

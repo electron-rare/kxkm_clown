@@ -4,6 +4,7 @@ import {
   PERSONA_SEED_CATALOG,
   clonePersona,
   createFeedback,
+  createVoteFeedbackMessage,
   validatePersonaUpdate,
   aggregateFeedback,
   computePersonaDiff,
@@ -18,6 +19,8 @@ import {
   createEditorialPipeline,
   shouldTriggerProposal,
   addFeedback,
+  extractDPOPairs,
+  parseVoteFeedbackMessage,
 } from "./index.js";
 import type { PersonaRecord, PersonaFeedbackRecord, PersonaPatch } from "./index.js";
 
@@ -56,6 +59,28 @@ describe("createFeedback", () => {
     assert.equal(fb.kind, "vote");
     assert.equal(fb.message, "positive +1");
     assert.equal(typeof fb.createdAt, "string");
+  });
+});
+
+describe("vote feedback payload", () => {
+  it("serializes and parses a structured vote payload", () => {
+    const message = createVoteFeedbackMessage({
+      vote: "up",
+      prompt: "compose un drone lent",
+      response: "Je propose une nappe granulaire.",
+      messageId: "42",
+      channel: "#musique",
+    });
+
+    const parsed = parseVoteFeedbackMessage(message);
+    assert.deepEqual(parsed, {
+      type: "vote",
+      vote: "up",
+      prompt: "compose un drone lent",
+      response: "Je propose une nappe granulaire.",
+      messageId: "42",
+      channel: "#musique",
+    });
   });
 });
 
@@ -232,6 +257,34 @@ describe("createEditorialPipeline", () => {
     assert.equal(pipeline.feedbackBuffer.length, 0);
     assert.equal(pipeline.currentProposal, null);
     assert.equal(pipeline.history.length, 0);
+  });
+});
+
+describe("extractDPOPairs", () => {
+  it("builds chosen/rejected pairs from structured vote payloads", () => {
+    const persona = PERSONA_SEED_CATALOG[0];
+    const feedback: PersonaFeedbackRecord[] = [
+      createFeedback(persona.id, "vote", createVoteFeedbackMessage({
+        vote: "up",
+        prompt: "decris une texture microscopique",
+        response: "Texture fine, granuleuse, presque poussiereuse.",
+      })),
+      createFeedback(persona.id, "vote", createVoteFeedbackMessage({
+        vote: "down",
+        prompt: "decris une texture microscopique",
+        response: "C'est juste un son interessant.",
+      })),
+    ];
+
+    const pairs = extractDPOPairs(feedback, persona);
+    assert.equal(pairs.length, 1);
+    assert.deepEqual(pairs[0], {
+      prompt: "decris une texture microscopique",
+      chosen: "Texture fine, granuleuse, presque poussiereuse.",
+      rejected: "C'est juste un son interessant.",
+      personaId: persona.id,
+      timestamp: feedback[1].createdAt,
+    });
   });
 });
 

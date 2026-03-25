@@ -16,9 +16,12 @@ const COPY_DIRS = [
 
 const DATA_FILES = [
   "data/manifeste.md",
-  "data/personas.overrides.json",
   "data/channels.json",
   "data/runtime-admin.json",
+];
+
+const LEGACY_COMPAT_DATA_FILES = [
+  "data/personas.overrides.json",
 ];
 
 const DATA_DIRS = [
@@ -107,6 +110,8 @@ function ensureDirs() {
 }
 
 function main() {
+  const includeLegacyPersonaV1 = process.env.BUILD_INCLUDE_LEGACY_PERSONA_V1 === "1";
+
   execFileSync(process.execPath, ["scripts/check.js"], {
     cwd: ROOT_DIR,
     stdio: "pipe",
@@ -132,6 +137,12 @@ function main() {
     if (copyFile(file)) copiedFiles++;
   }
 
+  if (includeLegacyPersonaV1) {
+    for (const file of LEGACY_COMPAT_DATA_FILES) {
+      if (copyFile(file)) copiedFiles++;
+    }
+  }
+
   const packageFile = path.join(DIST_DIR, "package.json");
   if (fs.existsSync(packageFile)) {
     const pkg = JSON.parse(fs.readFileSync(packageFile, "utf8"));
@@ -154,6 +165,7 @@ function main() {
         node: process.version,
         copiedFiles,
         copiedDirs,
+        includeLegacyPersonaV1,
         dist: path.relative(ROOT_DIR, DIST_DIR),
       },
       null,

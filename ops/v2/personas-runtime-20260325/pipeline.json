@@ -66,6 +66,39 @@
         { "id": "mem0-benchmark-plan", "query": "Preparer un benchmark Mem0 contre le runtime local sur latence et recall", "status": "done", "owner": "Veille OSS", "severity": "P2" },
         { "id": "opencharacter-pcl-spike", "query": "Definir un spike training offline sur 5 personas avec OpenCharacter et PCL", "status": "pending", "owner": "Training", "severity": "P3" }
       ]
+    },
+    {
+      "id": "lot-205-store-audit",
+      "description": "Ajouter un audit TUI du store personas per-file, verifier les reliquats legacy et encadrer l archivage des fichiers globaux",
+      "summary": "Done: audit TUI/JSON ajoute, verification du store reel, fixture d archivage validee, logs de travail purges apres synthese.",
+      "status": "done",
+      "owner": "Ops/TUI",
+      "execution": "manual",
+      "checks": ["node --check ops/v2/persona-store-audit.js", "node ops/v2/persona-store-audit.js --json"],
+      "depends_on": ["lot-201-runtime-hardening"],
+      "tasks": [
+        { "id": "audit-script", "query": "Ajouter un script TUI pour auditer data/v2-local et les reliquats legacy personas", "status": "done", "owner": "Ops/TUI", "severity": "P1" },
+        { "id": "real-store-audit", "query": "Executer l audit sur le store reel et produire une synthese exploitable", "status": "done", "owner": "Ops/TUI", "severity": "P1" },
+        { "id": "fixture-archive-check", "query": "Valider l archivage des anciens fichiers globaux sur fixture isolee", "status": "done", "owner": "Ops/TUI", "severity": "P2" },
+        { "id": "log-purge", "query": "Lire puis purger les logs de travail du lot pour ne garder que la trace documentaire", "status": "done", "owner": "Ops/TUI", "severity": "P2" }
+      ]
+    },
+    {
+      "id": "lot-206-feedback-convergence",
+      "description": "Converger le runtime feedback personas vers le repo per-file et supprimer le doublon DPO legacy",
+      "summary": "Done: votes structures, route feedback repo-backed, export DPO unique, compat query alias, frontend normalise et tests passes.",
+      "status": "done",
+      "owner": "Backend API",
+      "execution": "manual",
+      "checks": ["npm run check", "npm run test:v2"],
+      "depends_on": ["lot-201-runtime-hardening"],
+      "tasks": [
+        { "id": "structured-vote-payload", "query": "Normaliser les votes personas en payload JSON parseable et compatible legacy", "status": "done", "owner": "Personas", "severity": "P1" },
+        { "id": "repo-feedback-route", "query": "Basculer POST /api/v2/feedback vers le repo personas avec validation Zod", "status": "done", "owner": "Backend API", "severity": "P1" },
+        { "id": "drop-legacy-dpo-duplication", "query": "Supprimer le vieux writer JSONL et le doublon GET /api/v2/export/dpo", "status": "done", "owner": "Backend API", "severity": "P1" },
+        { "id": "frontend-signal-normalization", "query": "Retrouver le prompt cote frontend et envoyer signal react pin hors votes DPO", "status": "done", "owner": "Frontend", "severity": "P1" },
+        { "id": "regression-tests", "query": "Verifier par tests domaine et API que l export DPO est alimente par le repo", "status": "done", "owner": "Backend API", "severity": "P1" }
+      ]
     }
   ]
 }

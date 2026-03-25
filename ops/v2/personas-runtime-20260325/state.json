@@ -1,6 +1,6 @@
 {
   "project": "kxkm-personas-runtime-20260325",
-  "updated_at": "2026-03-25T06:02:30Z",
+  "updated_at": "2026-03-25T19:34:59Z",
   "batches": {
     "lot-201-runtime-hardening": {
       "status": "done",
@@ -128,6 +128,78 @@
           "status": "pending",
           "attempts": 0,
           "output": "",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-205-store-audit": {
+      "status": "done",
+      "depends_on": [
+        "lot-201-runtime-hardening"
+      ],
+      "owner": "Ops/TUI",
+      "tasks": {
+        "audit-script": {
+          "status": "done",
+          "attempts": 1,
+          "output": "ops/v2/persona-store-audit.js",
+          "last_error": ""
+        },
+        "real-store-audit": {
+          "status": "done",
+          "attempts": 1,
+          "output": "ops/v2/personas-runtime-20260325/outputs/lot-205-store-audit/summary.md",
+          "last_error": ""
+        },
+        "fixture-archive-check": {
+          "status": "done",
+          "attempts": 1,
+          "output": "ops/v2/personas-runtime-20260325/outputs/lot-205-store-audit/summary.md",
+          "last_error": ""
+        },
+        "log-purge": {
+          "status": "done",
+          "attempts": 1,
+          "output": "ops/v2/personas-runtime-20260325/outputs/lot-205-store-audit/summary.md",
+          "last_error": ""
+        }
+      }
+    },
+    "lot-206-feedback-convergence": {
+      "status": "done",
+      "depends_on": [
+        "lot-201-runtime-hardening"
+      ],
+      "owner": "Backend API",
+      "tasks": {
+        "structured-vote-payload": {
+          "status": "done",
+          "attempts": 1,
+          "output": "packages/persona-domain/src/editorial.ts",
+          "last_error": ""
+        },
+        "repo-feedback-route": {
+          "status": "done",
+          "attempts": 1,
+          "output": "apps/api/src/routes/personas.ts",
+          "last_error": ""
+        },
+        "drop-legacy-dpo-duplication": {
+          "status": "done",
+          "attempts": 1,
+          "output": "apps/api/src/routes/session.ts",
+          "last_error": ""
+        },
+        "frontend-signal-normalization": {
+          "status": "done",
+          "attempts": 1,
+          "output": "apps/web/src/components/Chat.tsx",
+          "last_error": ""
+        },
+        "regression-tests": {
+          "status": "done",
+          "attempts": 1,
+          "output": "apps/api/src/app.test.ts",
           "last_error": ""
         }
       }

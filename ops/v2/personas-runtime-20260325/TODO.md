@@ -1,6 +1,6 @@
 # TODO (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T06:02:30Z
+Updated: 2026-03-25T19:34:59Z
 
 ## lot-201-runtime-hardening
 - [x] per-file-store (done) | owner: Personas | severity: P1
@@ -25,3 +25,16 @@ Updated: 2026-03-25T06:02:30Z
 - [x] letta-langgraph-patterns (done) | owner: Veille OSS | severity: P2
 - [x] mem0-benchmark-plan (done) | owner: Veille OSS | severity: P2
 - [ ] opencharacter-pcl-spike (pending) | owner: Training | severity: P3
+
+## lot-205-store-audit
+- [x] audit-script (done) | owner: Ops/TUI | severity: P1
+- [x] real-store-audit (done) | owner: Ops/TUI | severity: P1
+- [x] fixture-archive-check (done) | owner: Ops/TUI | severity: P2
+- [x] log-purge (done) | owner: Ops/TUI | severity: P2
+
+## lot-206-feedback-convergence
+- [x] structured-vote-payload (done) | owner: Personas | severity: P1
+- [x] repo-feedback-route (done) | owner: Backend API | severity: P1
+- [x] drop-legacy-dpo-duplication (done) | owner: Backend API | severity: P1
+- [x] frontend-signal-normalization (done) | owner: Frontend | severity: P1
+- [x] regression-tests (done) | owner: Backend API | severity: P1

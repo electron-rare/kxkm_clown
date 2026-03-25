@@ -1,9 +1,10 @@
 # TODO (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T06:35:00Z
+Updated: 2026-03-25T06:00:30Z
 
 ## lot-201-runtime-hardening
 - [x] per-file-store (done) | owner: Personas | severity: P1
+- [x] partial-legacy-merge (done) | owner: Backend API | severity: P1
 - [x] defensive-snapshots (done) | owner: Backend API | severity: P1
 - [x] regression-tests (done) | owner: Backend API | severity: P1
 - [x] script-alignment (done) | owner: Ops/TUI | severity: P1

@@ -164,19 +164,18 @@ export function createLocalPersonaRepo() {
     loaded = true;
 
     const byPersonaFiles = await readJsonFiles<PersonaRecord>(files.personasDir);
-    if (byPersonaFiles.length > 0) {
-      for (const persona of byPersonaFiles) {
-        personas.set(persona.id, { ...persona });
-      }
-      return;
+    for (const persona of byPersonaFiles) {
+      personas.set(persona.id, { ...persona });
     }
 
     const saved = await readJson<PersonaRecord[]>(files.legacyPersonas, []);
-    if (saved.length > 0) {
-      for (const persona of saved) {
-        personas.set(persona.id, { ...persona });
-        await writeJson(personaFilePath(files.personasDir, persona.id), persona);
-      }
+    for (const persona of saved) {
+      if (personas.has(persona.id)) continue;
+      personas.set(persona.id, { ...persona });
+      await writeJson(personaFilePath(files.personasDir, persona.id), persona);
+    }
+
+    if (personas.size > 0) {
       return;
     }
 
@@ -296,15 +295,13 @@ export function createLocalPersonaSourceRepo() {
     loaded = true;
 
     const byPersonaFiles = await readJsonFiles<PersonaSourceRecord>(files.personaSourcesDir);
-    if (byPersonaFiles.length > 0) {
-      for (const source of byPersonaFiles) {
-        sources.set(source.personaId, { ...source });
-      }
-      return;
+    for (const source of byPersonaFiles) {
+      sources.set(source.personaId, { ...source });
     }
 
     const saved = await readJson<Record<string, PersonaSourceRecord>>(files.legacyPersonaSources, {});
     for (const source of Object.values(saved)) {
+      if (sources.has(source.personaId)) continue;
       sources.set(source.personaId, { ...source });
       await writeJson(personaFilePath(files.personaSourcesDir, source.personaId), source);
     }
@@ -335,26 +332,26 @@ export function createLocalPersonaFeedbackRepo() {
     loaded = true;
 
     const byPersonaFiles = await readJsonFiles<PersonaFeedbackRecord[] | PersonaFeedbackRecord>(files.personaFeedbackDir);
-    if (byPersonaFiles.length > 0) {
-      for (const payload of byPersonaFiles) {
-        const records = Array.isArray(payload) ? payload : [payload];
-        for (const record of records) {
-          const list = feedback.get(record.personaId) || [];
-          list.push({ ...record });
-          feedback.set(record.personaId, list);
-        }
+    for (const payload of byPersonaFiles) {
+      const records = Array.isArray(payload) ? payload : [payload];
+      for (const record of records) {
+        const list = feedback.get(record.personaId) || [];
+        list.push({ ...record });
+        feedback.set(record.personaId, list);
       }
-      return;
     }
 
     const saved = await readJson<PersonaFeedbackRecord[]>(files.legacyPersonaFeedback, []);
+    const dirtyPersonaIds = new Set<string>();
     for (const record of saved) {
       const list = feedback.get(record.personaId) || [];
+      if (list.some((entry) => entry.id === record.id)) continue;
       list.push({ ...record });
       feedback.set(record.personaId, list);
+      dirtyPersonaIds.add(record.personaId);
     }
-    for (const [personaId, records] of feedback.entries()) {
-      await writeJson(personaFilePath(files.personaFeedbackDir, personaId), records);
+    for (const personaId of dirtyPersonaIds) {
+      await writeJson(personaFilePath(files.personaFeedbackDir, personaId), feedback.get(personaId) || []);
     }
   }
 
@@ -384,26 +381,26 @@ export function createLocalPersonaProposalRepo() {
     loaded = true;
 
     const byPersonaFiles = await readJsonFiles<PersonaProposalRecord[] | PersonaProposalRecord>(files.personaProposalsDir);
-    if (byPersonaFiles.length > 0) {
-      for (const payload of byPersonaFiles) {
-        const records = Array.isArray(payload) ? payload : [payload];
-        for (const record of records) {
-          const list = proposals.get(record.personaId) || [];
-          list.push({ ...record });
-          proposals.set(record.personaId, list);
-        }
+    for (const payload of byPersonaFiles) {
+      const records = Array.isArray(payload) ? payload : [payload];
+      for (const record of records) {
+        const list = proposals.get(record.personaId) || [];
+        list.push({ ...record });
+        proposals.set(record.personaId, list);
       }
-      return;
     }
 
     const saved = await readJson<PersonaProposalRecord[]>(files.legacyPersonaProposals, []);
+    const dirtyPersonaIds = new Set<string>();
     for (const record of saved) {
       const list = proposals.get(record.personaId) || [];
+      if (list.some((entry) => entry.id === record.id)) continue;
       list.push({ ...record });
       proposals.set(record.personaId, list);
+      dirtyPersonaIds.add(record.personaId);
     }
-    for (const [personaId, records] of proposals.entries()) {
-      await writeJson(personaFilePath(files.personaProposalsDir, personaId), records);
+    for (const personaId of dirtyPersonaIds) {
+      await writeJson(personaFilePath(files.personaProposalsDir, personaId), proposals.get(personaId) || []);
     }
   }
 

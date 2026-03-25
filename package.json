@@ -20,6 +20,8 @@
     "verify": "npm run check && npm run smoke",
     "chain": "bash scripts/chain-actions.sh",
     "test:v2": "node scripts/test-v2.js",
+    "migrate:personas:v2": "node scripts/migrate-persona-store-v2.js --legacy-data-dir=data --target-dir=data/v2-local",
+    "migrate:personas:v2:dry": "node scripts/migrate-persona-store-v2.js --legacy-data-dir=data --target-dir=data/v2-local --dry-run=1",
     "verify:all": "bash scripts/chain-actions.sh",
     "dev:v2:api": "npm run dev -w @kxkm/api",
     "dev:v2:web": "npm run dev -w @kxkm/web",

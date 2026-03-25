@@ -1,20 +1,19 @@
 # lot-202-memory-schema
 
-- Date: 2026-03-25T19:34:59Z
+- Date: 2026-03-25T20:06:53Z
 - Owner: Personas
-- Status: in_progress
+- Status: done
 
 ## Etat actuel
 
-- La memoire persona active reste hors runtime v2-local:
-  - stockage: `data/persona-memory/{Nick}.json`
-  - schema: `{ nick, facts[], summary, lastUpdated }`
-- Les consommateurs actifs sont encore couples a ce schema:
+- La memoire persona active est maintenant servie par `apps/api/src/persona-memory-store.ts`
+- Le store actif est `data/v2-local/persona-memory/{personaId}.json`
+- La projection legacy `data/persona-memory/{Nick}.json` est maintenue en miroir de compatibilite
+- Les consommateurs runtime bascules:
   - `apps/api/src/ws-persona-router.ts`
   - `apps/api/src/ws-conversation-router.ts`
   - `apps/api/src/ws-commands-info.ts`
   - `apps/api/src/ws-commands-chat.ts` (`/memory-wipe`)
-- Le stockage est adresse par `nick`, pas par `personaId`.
 
 ## Schema cible v2
 
@@ -55,19 +54,28 @@ interface PersonaMemoryRecordV2 {
 - Un fichier par persona: `data/v2-local/persona-memory/{personaId}.json`
 - La vue `compat` sert de pont temporaire pour `/memory`, `/stats` et `withPersonaMemory()`
 
-## Migration douce recommandee
+## Mise en oeuvre
 
-1. Introduire un repo/shared module `persona-memory-store.ts`
-2. Faire lire ce module a `ws-persona-router.ts`
-3. Migrer automatiquement `data/persona-memory/{Nick}.json` vers `data/v2-local/persona-memory/{personaId}.json` au premier load
-4. Basculer `/memory-wipe` vers ce module au lieu d ecrire le fichier a la main
-5. Garder la vue `compat` pendant la transition puis retirer l ancien schema
+1. Module partage ajoute: `apps/api/src/persona-memory-store.ts`
+2. Migration automatique V1 -> V2 au premier `loadPersonaMemory()`
+3. Ecriture V2 per-file par `personaId`
+4. Miroir compat legacy par `nick`
+5. `/memory-wipe` bascule sur `resetPersonaMemory()`
+6. Tests cibles ajoutes:
+   - `apps/api/src/persona-memory-store.test.ts`
+   - `apps/api/src/ws-conversation-router.test.ts`
+   - isolation legacy memory dans `apps/api/src/app.test.ts`
+
+## Validation
+
+- `node --test --import tsx apps/api/src/persona-memory-store.test.ts` OK
+- `node --test --import tsx apps/api/src/ws-conversation-router.test.ts` OK
+- `node --test --import tsx apps/api/src/app.test.ts` OK
+- `npm run check` OK
+- `npm run test:v2` OK
 
 ## Sous-taches cloturees
 
 - `schema-v2`: done
 - `storage-layout`: done
-
-## Sous-tache restante
-
-- `migration-soft`: pending
+- `migration-soft`: done

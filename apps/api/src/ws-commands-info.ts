@@ -105,7 +105,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         if (statsTarget) {
           const persona = getPersonas().find(p => p.nick.toLowerCase() === statsTarget);
           if (persona) {
-            const mem = await loadPersonaMemory(persona.nick);
+            const mem = await loadPersonaMemory(persona);
             const lines = [
               `=== Stats: ${persona.nick} ===`,
               `  Modele: ${persona.model}`,
@@ -440,7 +440,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         }
         const { getPersonaVoice: getVoice } = await import("./persona-voices.js");
         const v = getVoice(found.nick);
-        const mem = await loadPersonaMemory(found.nick);
+        const mem = await loadPersonaMemory(found);
         send(ws, { type: "system", text: [
           `=== ${found.nick} ===`,
           `  Modele: ${found.model}`,
@@ -528,7 +528,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           return;
         }
         try {
-          const memory = await loadPersonaMemory(persona.nick);
+          const memory = await loadPersonaMemory(persona);
           const lines = [
             `=== Memoire de ${persona.nick} ===`,
             ``,
@@ -699,7 +699,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         const scores: Array<{ nick: string; facts: number }> = [];
         for (const p of personas) {
           try {
-            const mem = await loadPersonaMemory(p.nick);
+            const mem = await loadPersonaMemory(p);
             scores.push({ nick: p.nick, facts: mem.facts.length });
           } catch { scores.push({ nick: p.nick, facts: 0 }); }
         }

@@ -83,10 +83,37 @@ export interface ChatLogEntry {
   text: string;
 }
 
+export interface PersonaArchivalFact {
+  text: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  source: "chat";
+}
+
+export interface PersonaArchivalSummary {
+  text: string;
+  createdAt: string;
+}
+
+export interface PersonaWorkingMemory {
+  facts: string[];
+  summary: string;
+  lastSourceMessages: string[];
+}
+
+export interface PersonaArchivalMemory {
+  facts: PersonaArchivalFact[];
+  summaries: PersonaArchivalSummary[];
+}
+
 // Persona persistent memory
 export interface PersonaMemory {
   nick: string;
   facts: string[];
   summary: string;
   lastUpdated: string;
+  personaId?: string;
+  version?: 2;
+  workingMemory?: PersonaWorkingMemory;
+  archivalMemory?: PersonaArchivalMemory;
 }

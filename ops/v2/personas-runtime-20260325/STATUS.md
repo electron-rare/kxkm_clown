@@ -1,6 +1,6 @@
 # EXECUTION STATUS (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T19:34:59Z
+Updated: 2026-03-25T20:06:53Z
 
 ## lot-201-runtime-hardening
 - Status: done
@@ -10,14 +10,11 @@ Updated: 2026-03-25T19:34:59Z
 - Open tasks: none
 
 ## lot-202-memory-schema
-- Status: in_progress
+- Status: done
 - Owner: Personas
 - Execution: manual
 - Checks: npm run check, npm run test:v2
-- Open tasks:
-  - schema-v2 [done] (P1, Personas)
-  - storage-layout [done] (P1, Backend API)
-  - migration-soft [pending] (P2, Coordinateur)
+- Open tasks: none
 
 ## lot-203-memory-policy
 - Status: pending

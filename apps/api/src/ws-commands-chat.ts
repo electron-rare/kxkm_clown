@@ -3,6 +3,7 @@ import type { OutboundMessage } from "./chat-types.js";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
 import { searchWeb } from "./web-search.js";
 import { deepResearch } from "./deep-research.js";
+import { resetPersonaMemory } from "./ws-persona-router.js";
 
 export const CHAT_COMMANDS = new Set([
   "/help", "/nick", "/who", "/clear", "/join", "/channels", "/topic",
@@ -1492,11 +1493,8 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         if (!mwNick) { send(ws, { type: "system", text: "Usage: /memory-wipe <persona>" }); return; }
         const mwPersona = getPersonas().find(p => p.nick.toLowerCase() === mwNick.toLowerCase());
         if (!mwPersona) { send(ws, { type: "system", text: `Persona "${mwNick}" inconnue.` }); return; }
-        const fs = await import("node:fs/promises");
-        const path = await import("node:path");
-        const memFile = path.join(process.cwd(), "data", "persona-memory", `${mwPersona.nick}.json`);
         try {
-          await fs.writeFile(memFile, JSON.stringify({ nick: mwPersona.nick, facts: [], summary: "", lastUpdated: new Date().toISOString() }));
+          await resetPersonaMemory(mwPersona);
           send(ws, { type: "system", text: `Memoire de ${mwPersona.nick} effacee.` });
         } catch { send(ws, { type: "system", text: "Erreur effacement memoire." }); }
         return;

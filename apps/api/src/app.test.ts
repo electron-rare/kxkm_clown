@@ -11,6 +11,7 @@ process.env.ADMIN_TOKEN = "test-admin-token";
 process.env.NODE_ENV = "test";
 const TEST_LOCAL_DIR = path.join(process.cwd(), ".tmp-test-v2-local");
 process.env.KXKM_LOCAL_DATA_DIR = TEST_LOCAL_DIR;
+process.env.KXKM_PERSONA_MEMORY_LEGACY_DIR = path.join(TEST_LOCAL_DIR, "_legacy-persona-memory");
 
 describe("V2 API", () => {
   let request: ReturnType<typeof supertest>;
@@ -24,6 +25,7 @@ describe("V2 API", () => {
   after(async () => {
     await rm(TEST_LOCAL_DIR, { recursive: true, force: true });
     delete process.env.KXKM_LOCAL_DATA_DIR;
+    delete process.env.KXKM_PERSONA_MEMORY_LEGACY_DIR;
     delete process.env.ADMIN_TOKEN;
   });
 

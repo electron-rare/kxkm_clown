@@ -73,7 +73,13 @@ function createHarness(overrides: Partial<ConversationRouterDeps> = {}): TestHar
     },
     getContextString: async () => "",
     getToolsForPersona: () => [],
-    loadPersonaMemory: async (nick) => ({ nick, facts: [], summary: "", lastUpdated: "" }),
+    loadPersonaMemory: async (subject) => ({
+      nick: typeof subject === "string" ? subject : subject.nick,
+      personaId: typeof subject === "string" ? undefined : subject.id,
+      facts: [],
+      summary: "",
+      lastUpdated: "",
+    }),
     updatePersonaMemory: async (persona, recentMessages, ollamaUrl) => {
       memoryUpdates.push({ persona, recentMessages, ollamaUrl });
     },

@@ -1,52 +1,22 @@
-import fs from "node:fs";
-import path from "node:path";
 import logger from "./logger.js";
-import type { ChatPersona, PersonaMemory } from "./chat-types.js";
+import type { ChatPersona } from "./chat-types.js";
+import {
+  loadPersonaMemory,
+  resetPersonaMemory,
+  savePersonaMemory,
+} from "./persona-memory-store.js";
 
 // ---------------------------------------------------------------------------
 // Persona memory (persistent, file-based)
 // ---------------------------------------------------------------------------
-
-const PERSONA_MEMORY_DIR = path.resolve(process.cwd(), "data/persona-memory");
-
-// RAM cache for persona memory (avoids disk I/O on every message)
-const memoryCache = new Map<string, { data: PersonaMemory; loadedAt: number }>();
-const MEMORY_CACHE_TTL = 30_000; // 30s TTL
-
-export async function loadPersonaMemory(nick: string): Promise<PersonaMemory> {
-  const cached = memoryCache.get(nick);
-  if (cached && Date.now() - cached.loadedAt < MEMORY_CACHE_TTL) {
-    return cached.data;
-  }
-  const memPath = path.join(PERSONA_MEMORY_DIR, `${nick}.json`);
-  try {
-    const data = await fs.promises.readFile(memPath, "utf-8");
-    const memory = JSON.parse(data) as PersonaMemory;
-    memoryCache.set(nick, { data: memory, loadedAt: Date.now() });
-    return memory;
-  } catch { /* missing or corrupted file — start fresh */ }
-  const fresh: PersonaMemory = { nick, facts: [], summary: "", lastUpdated: "" };
-  memoryCache.set(nick, { data: fresh, loadedAt: Date.now() });
-  return fresh;
-}
-
-export async function savePersonaMemory(memory: PersonaMemory): Promise<void> {
-  await fs.promises.mkdir(PERSONA_MEMORY_DIR, { recursive: true });
-  memory.lastUpdated = new Date().toISOString();
-  await fs.promises.writeFile(
-    path.join(PERSONA_MEMORY_DIR, `${memory.nick}.json`),
-    JSON.stringify(memory, null, 2),
-  );
-  // Invalidate cache so next load picks up the new data
-  memoryCache.set(memory.nick, { data: memory, loadedAt: Date.now() });
-}
+export { loadPersonaMemory, resetPersonaMemory, savePersonaMemory };
 
 export async function updatePersonaMemory(
   persona: ChatPersona,
   recentMessages: string[],
   ollamaUrl: string,
 ): Promise<void> {
-  const memory = await loadPersonaMemory(persona.nick);
+  const memory = await loadPersonaMemory(persona);
 
   const prompt =
     `Tu es ${persona.nick}. Voici les derniers échanges:\n${recentMessages.join("\n")}\n\n` +
@@ -81,6 +51,14 @@ export async function updatePersonaMemory(
     if (extracted.summary) {
       memory.summary = extracted.summary;
     }
+
+    memory.personaId = persona.id;
+    memory.version = 2;
+    memory.workingMemory = {
+      facts: [...memory.facts],
+      summary: memory.summary,
+      lastSourceMessages: recentMessages.slice(-10),
+    };
 
     await savePersonaMemory(memory);
   } catch (err) {

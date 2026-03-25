@@ -257,11 +257,12 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   // Memory cache (30s TTL) to avoid N+1 reloads in inter-persona chains
   const memoryCache = new Map<string, { data: PersonaMemory; ts: number }>();
   const MEMORY_CACHE_TTL = 30_000;
-  async function cachedLoadMemory(nick: string): Promise<PersonaMemory> {
-    const cached = memoryCache.get(nick);
+  async function cachedLoadMemory(persona: ChatPersona): Promise<PersonaMemory> {
+    const cacheKey = persona.id || persona.nick;
+    const cached = memoryCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < MEMORY_CACHE_TTL) return cached.data;
-    const data = await loadPersonaMemory(nick);
-    memoryCache.set(nick, { data, ts: Date.now() });
+    const data = await loadPersonaMemory(persona);
+    memoryCache.set(cacheKey, { data, ts: Date.now() });
     if (memoryCache.size > 50) {
       const oldest = [...memoryCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
       if (oldest) memoryCache.delete(oldest[0]);
@@ -371,7 +372,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     let memory: PersonaMemory = preloadedMemory || { nick: persona.nick, facts: [], summary: "", lastUpdated: "" };
     if (!preloadedMemory) {
       try {
-        memory = await cachedLoadMemory(persona.nick);
+        memory = await cachedLoadMemory(persona);
       } catch (err) {
         trackError("memory_load", err, { persona: persona.nick });
       }
@@ -562,7 +563,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
     const [enrichedText, ...memories] = await Promise.all([
       enrichmentPromise,
-      ...responders.map(p => cachedLoadMemory(p.nick).catch(() => ({ nick: p.nick, facts: [], summary: "", lastUpdated: "" } as PersonaMemory))),
+      ...responders.map((p) => cachedLoadMemory(p).catch(() => ({ nick: p.nick, facts: [], summary: "", lastUpdated: "", personaId: p.id } as PersonaMemory))),
     ]);
 
     // Inject pre-loaded memories into persona response

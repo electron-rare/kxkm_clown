@@ -8,11 +8,16 @@ const WebSocket = require("ws");
 
 const ROOT_DIR = path.resolve(__dirname, "..");
 const DATA_DIR = path.join(ROOT_DIR, "data");
+const V2_LOCAL_DIR = path.join(DATA_DIR, "v2-local");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const OVERRIDES_FILE = path.join(DATA_DIR, "personas.overrides.json");
 const PERSONA_SOURCES_DIR = path.join(DATA_DIR, "persona-sources");
 const PERSONA_FEEDBACK_DIR = path.join(DATA_DIR, "persona-feedback");
 const PERSONA_PROPOSALS_DIR = path.join(DATA_DIR, "persona-proposals");
+const V2_PERSONAS_DIR = path.join(V2_LOCAL_DIR, "personas");
+const V2_PERSONA_SOURCES_DIR = path.join(V2_LOCAL_DIR, "persona-sources");
+const V2_PERSONA_FEEDBACK_DIR = path.join(V2_LOCAL_DIR, "persona-feedback");
+const V2_PERSONA_PROPOSALS_DIR = path.join(V2_LOCAL_DIR, "persona-proposals");
 const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
 const UPLOADS_META_DIR = path.join(DATA_DIR, "uploads-meta");
 const SESSIONS_DIR = path.join(DATA_DIR, "sessions");
@@ -452,6 +457,10 @@ async function main() {
   const personaSourcesSnapshot = snapshotDirFiles(PERSONA_SOURCES_DIR);
   const personaFeedbackSnapshot = snapshotDirFiles(PERSONA_FEEDBACK_DIR);
   const personaProposalsSnapshot = snapshotDirFiles(PERSONA_PROPOSALS_DIR);
+  const v2PersonasSnapshot = snapshotDirFiles(V2_PERSONAS_DIR);
+  const v2PersonaSourcesSnapshot = snapshotDirFiles(V2_PERSONA_SOURCES_DIR);
+  const v2PersonaFeedbackSnapshot = snapshotDirFiles(V2_PERSONA_FEEDBACK_DIR);
+  const v2PersonaProposalsSnapshot = snapshotDirFiles(V2_PERSONA_PROPOSALS_DIR);
   const uploadsSnapshot = snapshotDirTree(UPLOADS_DIR);
   const uploadsMetaSnapshot = snapshotDirTree(UPLOADS_META_DIR);
   const logsSnapshot = snapshotDirFiles(LOGS_DIR);
@@ -536,6 +545,7 @@ async function main() {
           HOST: "0.0.0.0",
           OLLAMA_URL: fakeOllamaUrl,
           ADMIN_BOOTSTRAP_TOKEN: ADMIN_TOKEN,
+          KXKM_LOCAL_DATA_DIR: V2_LOCAL_DIR,
           NODE_ENGINE_MAX_CONCURRENCY: "1",
           NODE_ENGINE_STEP_DELAY_MS: "80",
           ...envOverrides,
@@ -1366,6 +1376,10 @@ async function main() {
     restoreDirFiles(PERSONA_SOURCES_DIR, personaSourcesSnapshot);
     restoreDirFiles(PERSONA_FEEDBACK_DIR, personaFeedbackSnapshot);
     restoreDirFiles(PERSONA_PROPOSALS_DIR, personaProposalsSnapshot);
+    restoreDirFiles(V2_PERSONAS_DIR, v2PersonasSnapshot);
+    restoreDirFiles(V2_PERSONA_SOURCES_DIR, v2PersonaSourcesSnapshot);
+    restoreDirFiles(V2_PERSONA_FEEDBACK_DIR, v2PersonaFeedbackSnapshot);
+    restoreDirFiles(V2_PERSONA_PROPOSALS_DIR, v2PersonaProposalsSnapshot);
     restoreDirTree(UPLOADS_DIR, uploadsSnapshot);
     restoreDirTree(UPLOADS_META_DIR, uploadsMetaSnapshot);
     restoreDirTree(NODE_ENGINE_DIR, nodeEngineSnapshot);

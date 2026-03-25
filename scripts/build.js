@@ -23,6 +23,11 @@ const DATA_FILES = [
 
 const DATA_DIRS = [
   "data",
+  "data/v2-local",
+  "data/v2-local/personas",
+  "data/v2-local/persona-sources",
+  "data/v2-local/persona-feedback",
+  "data/v2-local/persona-proposals",
   "data/logs",
   "data/sessions",
   "data/training",

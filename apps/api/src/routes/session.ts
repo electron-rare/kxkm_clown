@@ -14,6 +14,7 @@ import { getRecentErrors, getErrorCounts } from "../error-tracker.js";
 import { scheduler, getGPUUtilization } from "../inference-scheduler.js";
 import type { PersonaRecord } from "@kxkm/persona-domain";
 import type { ModelRegistryRecord, NodeGraphRecord, NodeRunRecord } from "@kxkm/node-engine";
+import type { StorageMode } from "../app-bootstrap.js";
 
 interface SessionRequest extends Request {
   session?: AuthSession;
@@ -44,7 +45,7 @@ interface SessionRouteDeps {
   graphRepo: GraphRepo;
   runRepo: RunRepo;
   modelRegistry: ModelRegistryRecord[];
-  storageMode: "postgres" | "memory";
+  storageMode: StorageMode;
   requireSession: (req: SessionRequest, res: Response, next: NextFunction) => void;
   requirePermission: (permission: Permission) => (req: SessionRequest, res: Response, next: NextFunction) => void;
   setSessionCookie: (res: Response, sessionId: string) => void;

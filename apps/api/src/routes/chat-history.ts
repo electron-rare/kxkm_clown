@@ -10,9 +10,9 @@ import {
   extractDPOPairs,
   type PersonaFeedbackRecord,
   type PersonaRecord,
-  type PersonaSourceRecord,
 } from "@kxkm/persona-domain";
 import { validate, retentionSweepSchema } from "../schemas.js";
+import type { StorageMode } from "../app-bootstrap.js";
 
 interface SessionRequest extends Request {
   session?: AuthSession;
@@ -34,7 +34,7 @@ interface ChatHistoryRouteDeps {
   personaRepo: PersonaRepo;
   feedbackRepo: FeedbackRepo;
   runRepo: RunRepo;
-  storageMode: "postgres" | "memory";
+  storageMode: StorageMode;
   requireSession: (req: SessionRequest, res: Response, next: NextFunction) => void;
   requirePermission: (permission: Permission) => (req: SessionRequest, res: Response, next: NextFunction) => void;
   readRouteParam: (value: string | string[] | undefined) => string;

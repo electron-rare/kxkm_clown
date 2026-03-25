@@ -1,12 +1,12 @@
 import express, { type Response } from "express";
 import {
-  createInMemorySessionRepo,
-  createInMemoryPersonaRepo,
-  createInMemoryNodeGraphRepo,
-  createInMemoryNodeRunRepo,
-  createInMemoryPersonaSourceRepo,
-  createInMemoryPersonaFeedbackRepo,
-  createInMemoryPersonaProposalRepo,
+  createLocalSessionRepo,
+  createLocalPersonaRepo,
+  createLocalNodeGraphRepo,
+  createLocalNodeRunRepo,
+  createLocalPersonaSourceRepo,
+  createLocalPersonaFeedbackRepo,
+  createLocalPersonaProposalRepo,
   modelRegistry,
   readRouteParam,
   escapeForHtml,
@@ -56,13 +56,13 @@ export async function createApp(): Promise<{ app: express.Express; personaRepo: 
     proposalRepo,
     storageMode,
   } = await bootstrapRepositories({
-    createSessionRepo: createInMemorySessionRepo,
-    createPersonaRepo: createInMemoryPersonaRepo,
-    createGraphRepo: createInMemoryNodeGraphRepo,
-    createRunRepo: createInMemoryNodeRunRepo,
-    createSourceRepo: createInMemoryPersonaSourceRepo,
-    createFeedbackRepo: createInMemoryPersonaFeedbackRepo,
-    createProposalRepo: createInMemoryPersonaProposalRepo,
+    createSessionRepo: createLocalSessionRepo,
+    createPersonaRepo: createLocalPersonaRepo,
+    createGraphRepo: createLocalNodeGraphRepo,
+    createRunRepo: createLocalNodeRunRepo,
+    createSourceRepo: createLocalPersonaSourceRepo,
+    createFeedbackRepo: createLocalPersonaFeedbackRepo,
+    createProposalRepo: createLocalPersonaProposalRepo,
   });
 
   const app = express();

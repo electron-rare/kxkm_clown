@@ -27,6 +27,8 @@ interface SeedablePersonaRepo {
   seedCatalog(catalog: PersonaRecord[]): Promise<void>;
 }
 
+export type StorageMode = "postgres" | "local";
+
 export async function bootstrapRepositories<
   SessionRepo,
   PersonaRepo extends SeedablePersonaRepo,
@@ -45,7 +47,7 @@ export async function bootstrapRepositories<
   sourceRepo: SourceRepo;
   feedbackRepo: FeedbackRepo;
   proposalRepo: ProposalRepo;
-  storageMode: "postgres" | "memory";
+  storageMode: StorageMode;
 }> {
   const isProduction = (process.env.NODE_ENV || "").toLowerCase() === "production";
   if (!process.env.DATABASE_URL && isProduction) {
@@ -89,6 +91,6 @@ export async function bootstrapRepositories<
     sourceRepo: factories.createSourceRepo(),
     feedbackRepo: factories.createFeedbackRepo(),
     proposalRepo: factories.createProposalRepo(),
-    storageMode: "memory",
+    storageMode: "local",
   };
 }

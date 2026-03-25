@@ -5,10 +5,10 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import type { PersonaFeedbackRecord, PersonaProposalRecord, PersonaSourceRecord } from "@kxkm/persona-domain";
 import {
-  createInMemoryPersonaFeedbackRepo,
-  createInMemoryPersonaProposalRepo,
-  createInMemoryPersonaRepo,
-  createInMemoryPersonaSourceRepo,
+  createLocalPersonaFeedbackRepo,
+  createLocalPersonaProposalRepo,
+  createLocalPersonaRepo,
+  createLocalPersonaSourceRepo,
 } from "./create-repos.js";
 
 async function withTempLocalDataDir(run: (dir: string) => Promise<void>): Promise<void> {
@@ -33,7 +33,7 @@ describe("create-repos personas runtime", { concurrency: false }, () => {
       ];
       await writeFile(legacyFile, `${JSON.stringify(legacy, null, 2)}\n`, "utf8");
 
-      const repo = createInMemoryPersonaRepo();
+      const repo = createLocalPersonaRepo();
       const row = await repo.findById("legacy_ada");
       assert.ok(row);
       assert.equal(row.name, "Legacy Ada");
@@ -47,8 +47,8 @@ describe("create-repos personas runtime", { concurrency: false }, () => {
 
   it("returns defensive clones from persona and source repos", async () => {
     await withTempLocalDataDir(async () => {
-      const personaRepo = createInMemoryPersonaRepo();
-      const sourceRepo = createInMemoryPersonaSourceRepo();
+      const personaRepo = createLocalPersonaRepo();
+      const sourceRepo = createLocalPersonaSourceRepo();
 
       const seeded = await personaRepo.findById("schaeffer");
       assert.ok(seeded);
@@ -77,8 +77,8 @@ describe("create-repos personas runtime", { concurrency: false }, () => {
 
   it("returns immutable snapshots for feedback and proposals lists", async () => {
     await withTempLocalDataDir(async () => {
-      const feedbackRepo = createInMemoryPersonaFeedbackRepo();
-      const proposalRepo = createInMemoryPersonaProposalRepo();
+      const feedbackRepo = createLocalPersonaFeedbackRepo();
+      const proposalRepo = createLocalPersonaProposalRepo();
 
       const feedback: PersonaFeedbackRecord = {
         id: "feedback-1",

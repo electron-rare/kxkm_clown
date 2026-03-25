@@ -96,10 +96,10 @@ function clonePersonaProposalRecord(record: PersonaProposalRecord): PersonaPropo
 }
 
 // ---------------------------------------------------------------------------
-// In-memory repo adapters (fallback when DATABASE_URL is not set)
+// Local repo adapters (fallback when DATABASE_URL is not set)
 // ---------------------------------------------------------------------------
 
-export function createInMemorySessionRepo() {
+export function createLocalSessionRepo() {
   const sessions = new Map<string, AuthSession>();
   let lastCleanupAt = 0;
 
@@ -142,7 +142,7 @@ export function createInMemorySessionRepo() {
   };
 }
 
-export function createInMemoryPersonaRepo() {
+export function createLocalPersonaRepo() {
   const files = localStoreFiles();
   const personas = new Map<string, PersonaRecord>();
   let loaded = false;
@@ -207,7 +207,7 @@ export function createInMemoryPersonaRepo() {
   };
 }
 
-export function createInMemoryNodeGraphRepo() {
+export function createLocalNodeGraphRepo() {
   const graphs = new Map<string, NodeGraphRecord>([
     ["starter_local_eval", createNodeGraph("starter_local_eval", "Prototype local evaluation graph")],
   ]);
@@ -235,7 +235,7 @@ export function createInMemoryNodeGraphRepo() {
   };
 }
 
-export function createInMemoryNodeRunRepo() {
+export function createLocalNodeRunRepo() {
   const runs = new Map<string, NodeRunRecord>();
   return {
     async list(): Promise<NodeRunRecord[]> {
@@ -273,7 +273,7 @@ export function createInMemoryNodeRunRepo() {
   };
 }
 
-export function createInMemoryPersonaSourceRepo() {
+export function createLocalPersonaSourceRepo() {
   const files = localStoreFiles();
   const sources = new Map<string, PersonaSourceRecord>();
   let loaded = false;
@@ -312,7 +312,7 @@ export function createInMemoryPersonaSourceRepo() {
   };
 }
 
-export function createInMemoryPersonaFeedbackRepo() {
+export function createLocalPersonaFeedbackRepo() {
   const files = localStoreFiles();
   const feedback = new Map<string, PersonaFeedbackRecord[]>();
   let loaded = false;
@@ -361,7 +361,7 @@ export function createInMemoryPersonaFeedbackRepo() {
   };
 }
 
-export function createInMemoryPersonaProposalRepo() {
+export function createLocalPersonaProposalRepo() {
   const files = localStoreFiles();
   const proposals = new Map<string, PersonaProposalRecord[]>();
   let loaded = false;
@@ -425,13 +425,22 @@ export function createInMemoryPersonaProposalRepo() {
 // Repo interface types (union of Postgres and in-memory)
 // ---------------------------------------------------------------------------
 
-export type SessionRepo = ReturnType<typeof createInMemorySessionRepo>;
-export type PersonaRepo = ReturnType<typeof createInMemoryPersonaRepo>;
-export type GraphRepo = ReturnType<typeof createInMemoryNodeGraphRepo>;
-export type RunRepo = ReturnType<typeof createInMemoryNodeRunRepo>;
-export type SourceRepo = ReturnType<typeof createInMemoryPersonaSourceRepo>;
-export type FeedbackRepo = ReturnType<typeof createInMemoryPersonaFeedbackRepo>;
-export type ProposalRepo = ReturnType<typeof createInMemoryPersonaProposalRepo>;
+// Backward-compatible aliases while the rest of the codebase converges on local/per-file naming.
+export const createInMemorySessionRepo = createLocalSessionRepo;
+export const createInMemoryPersonaRepo = createLocalPersonaRepo;
+export const createInMemoryNodeGraphRepo = createLocalNodeGraphRepo;
+export const createInMemoryNodeRunRepo = createLocalNodeRunRepo;
+export const createInMemoryPersonaSourceRepo = createLocalPersonaSourceRepo;
+export const createInMemoryPersonaFeedbackRepo = createLocalPersonaFeedbackRepo;
+export const createInMemoryPersonaProposalRepo = createLocalPersonaProposalRepo;
+
+export type SessionRepo = ReturnType<typeof createLocalSessionRepo>;
+export type PersonaRepo = ReturnType<typeof createLocalPersonaRepo>;
+export type GraphRepo = ReturnType<typeof createLocalNodeGraphRepo>;
+export type RunRepo = ReturnType<typeof createLocalNodeRunRepo>;
+export type SourceRepo = ReturnType<typeof createLocalPersonaSourceRepo>;
+export type FeedbackRepo = ReturnType<typeof createLocalPersonaFeedbackRepo>;
+export type ProposalRepo = ReturnType<typeof createLocalPersonaProposalRepo>;
 
 // ---------------------------------------------------------------------------
 // Model registry + helpers

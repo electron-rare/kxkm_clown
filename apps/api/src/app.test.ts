@@ -76,6 +76,7 @@ describe("V2 API", () => {
       const res = await request.get("/api/v2/health").expect(200);
       assert.equal(res.body.ok, true);
       assert.equal(res.body.data.app, "@kxkm/api");
+      assert.equal(res.body.data.storage, "local");
     });
   });
 

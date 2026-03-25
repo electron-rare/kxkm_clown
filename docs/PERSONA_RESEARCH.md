@@ -87,6 +87,15 @@ Le pipeline recommandé pour KXKM_Clown est le suivant:
 
 ## Structures de données suggérées
 
+Runtime V2 actuel (fichier par persona):
+
+- `data/v2-local/personas/<id>.json`
+- `data/v2-local/persona-sources/<id>.json`
+- `data/v2-local/persona-feedback/<id>.json`
+- `data/v2-local/persona-proposals/<id>.json`
+
+Legacy V1 (migration uniquement):
+
 - `data/persona-sources/<id>.json`
 - `data/persona-feedback/<id>.jsonl`
 - `data/persona-proposals/<id>.jsonl`

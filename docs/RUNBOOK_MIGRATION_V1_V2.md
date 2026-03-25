@@ -19,7 +19,7 @@
 # Verification rapide pre-vol
 node --version
 psql "$DATABASE_URL" -c "SELECT version();"
-ls data/personas.jsonl data/graphs/ data/sessions/ 2>/dev/null
+ls data/personas.overrides.json data/persona-sources/ data/persona-feedback/ data/persona-proposals/ 2>/dev/null
 ```
 
 ---

@@ -24,6 +24,12 @@ const LEGACY_COMPAT_DATA_FILES = [
   "data/personas.overrides.json",
 ];
 
+const LEGACY_COMPAT_DATA_DIRS = [
+  "data/persona-sources",
+  "data/persona-feedback",
+  "data/persona-proposals",
+];
+
 const DATA_DIRS = [
   "data",
   "data/v2-local",
@@ -36,9 +42,6 @@ const DATA_DIRS = [
   "data/training",
   "data/memory",
   "data/dpo",
-  "data/persona-sources",
-  "data/persona-feedback",
-  "data/persona-proposals",
   "data/uploads",
   "data/uploads-meta",
   "data/node-engine",
@@ -78,9 +81,10 @@ function listExistingDirs(relativeDir, { recursive = false } = {}) {
   return found;
 }
 
-function listDataDirs() {
+function listDataDirs(includeLegacyPersonaV1) {
   return [...new Set([
     ...DATA_DIRS,
+    ...(includeLegacyPersonaV1 ? LEGACY_COMPAT_DATA_DIRS : []),
     ...listExistingDirs("data/node-engine", { recursive: true }),
   ])].sort((a, b) => a.localeCompare(b));
 }
@@ -103,8 +107,8 @@ function copyDir(relativePath) {
   return true;
 }
 
-function ensureDirs() {
-  for (const relativePath of listDataDirs()) {
+function ensureDirs(includeLegacyPersonaV1) {
+  for (const relativePath of listDataDirs(includeLegacyPersonaV1)) {
     fs.mkdirSync(path.join(DIST_DIR, relativePath), { recursive: true });
   }
 }
@@ -131,7 +135,7 @@ function main() {
     if (copyDir(dir)) copiedDirs++;
   }
 
-  ensureDirs();
+  ensureDirs(includeLegacyPersonaV1);
 
   for (const file of DATA_FILES) {
     if (copyFile(file)) copiedFiles++;

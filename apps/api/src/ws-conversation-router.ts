@@ -294,7 +294,11 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         .catch((err) => trackError("tts", err, { nick }))
         .finally(() => releaseTTS());
     });
-    ttsQueues.set(nick, next);
+    // Clean up the map entry once this chain drains to avoid unbounded growth
+    const cleanup = next.finally(() => {
+      if (ttsQueues.get(nick) === cleanup) ttsQueues.delete(nick);
+    });
+    ttsQueues.set(nick, cleanup);
   }
 
   function prunePersonaState(personas: ChatPersona[]): void {
@@ -336,6 +340,13 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       })
       .catch((err) => {
         trackError("memory_update", err, { persona: persona.nick });
+      })
+      .finally(() => {
+        // Reset the lock slot to a plain resolved promise so the chain does
+        // not grow unboundedly across many memory-update cycles.
+        if (personaMemoryLocks.get(persona.nick) === next) {
+          personaMemoryLocks.set(persona.nick, Promise.resolve());
+        }
       });
     personaMemoryLocks.set(persona.nick, next);
   }

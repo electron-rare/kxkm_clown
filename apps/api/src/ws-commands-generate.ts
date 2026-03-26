@@ -438,6 +438,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
 
         let comp = getActiveComposition(info.nick, info.channel);
         if (!comp) comp = createComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
 
         const filter = noiseTypes[noiseType].replace(/DUR/g, String(noiseDur));
         const track = addTrack(comp.id, { type: "sfx", prompt: `${noiseType} noise ${noiseDur}s`, duration: noiseDur, volume: 50, startMs: 0 });
@@ -815,6 +816,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         }
         let comp = getActiveComposition(info.nick, info.channel);
         if (!comp) comp = createComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
         const track = addTrack(comp.id, { type: "sfx", prompt: `${instrType} ${instrDur}s`, duration: instrDur, volume: 80, startMs: 0 });
         if (!track) { send(ws, { type: "system", text: "Erreur creation piste." }); return; }
         const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);
@@ -855,6 +857,7 @@ export function createGenerateCommandHandler(deps: CommandHandlerDeps) {
         const ttsText = parts && voice !== "af_heart" ? parts[2] : kokoroText;
         let comp = getActiveComposition(info.nick, info.channel);
         if (!comp) comp = createComposition(info.nick, info.channel);
+        if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
         const track = addTrack(comp.id, { type: "voice", prompt: `kokoro/${voice}: "${ttsText.slice(0, 50)}"`, duration: 10, volume: 100, startMs: 0 });
         if (!track) { send(ws, { type: "system", text: "Erreur creation piste." }); return; }
         const trackDir = path.join(process.cwd(), "data", "compositions", comp.id);

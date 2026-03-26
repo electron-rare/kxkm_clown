@@ -178,16 +178,18 @@ Updated: 2026-03-20T12:00:00Z
 - Summary: kxkm-tts.service (port 9100, chatterbox-remote) + kxkm-lightrag.service (port 9621) créés. Auto-restart on failure. deploy.sh migré tmux→systemd. service-status.sh TUI dashboard. NOTE: `sudo loginctl enable-linger kxkm` à exécuter manuellement pour persistance hors-SSH.
   - [x] Monitoring journald — scripts/journald-monitor.sh (TUI colored dots, --watch, --lines, --service) + ops/v2/journald-alerts.conf (INI restart policy, alert conditions, Discord webhook slot)
 
-## lot-30-pocket-tts [planned]
+## lot-30-pocket-tts [evaluated]
 - Description: Evaluer Pocket TTS (MIT, 100M params, CPU realtime, voice cloning 5s)
 - Owner: Multimodal
 - Priority: P1
 - Rationale: Libere GPU (RTX 4090) pour Ollama/ComfyUI. Voice cloning CPU-only.
+- Summary: Evaluation complete 2026-03-26. Pocket TTS v1.1.1 — EN only, FR planifie sans date (issue #118). CPU 6x realtime (M4), ~200ms first chunk, streaming natif, voice cloning zero-shot 5s. VERDICT: SURVEILLER. Stack actuel (Qwen3-TTS :9300 + Chatterbox :9200 + Piper) reste optimal pour 32 personas FR. Integrer conditionnellement quand FR disponible. Voir docs/LOT030_TTS_EVALUATION.md.
 - Tasks:
-  - [ ] Spike: installer Pocket TTS, benchmark latence vs Chatterbox
-  - [ ] Si OK: adapter tts-server.py backend pocket-tts
-  - [ ] Tester voice cloning sur 5 personas
-  - [ ] Comparer qualite Pocket vs Chatterbox vs Piper
+  - [x] Spike: evaluation Pocket TTS, benchmark latence vs stack actuel
+  - [ ] Spike install + test voice cloning Moorcock (EN, possible maintenant)
+  - [ ] Si FR disponible: adapter tts-server.py backend pocket-tts
+  - [ ] Tester voice cloning sur 5 personas FR quand support disponible
+  - [ ] Comparer qualite Pocket vs Chatterbox vs Qwen3-TTS
 
 ## lot-31-tool-calling [done]
 

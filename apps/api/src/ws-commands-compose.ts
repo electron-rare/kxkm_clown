@@ -77,6 +77,7 @@ export function createComposeCoreCommandHandler({
         if (action === "new") {
           const name = sub.slice(1).join(" ") || undefined;
           const comp = createComposition(info.nick, info.channel, name);
+          if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
           send(ws, { type: "system", text: `\u{1F3BC} Composition creee: ${comp.name} (${comp.id})\n  /layer <prompt> pour ajouter des pistes` });
           send(ws, { type: "system", text: "__comp_loaded__" + JSON.stringify({ compId: comp.id, name: comp.name, trackCount: 0 }) } as any);
           return;
@@ -167,6 +168,7 @@ export function createComposeCoreCommandHandler({
         let comp = getActiveComposition(info.nick, info.channel);
         if (!comp) {
           comp = createComposition(info.nick, info.channel);
+          if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
           send(ws, { type: "system", text: `\u{1F3BC} Composition auto-creee: ${comp.name}` });
         }
 
@@ -296,6 +298,7 @@ export function createComposeCoreCommandHandler({
         let comp = getActiveComposition(info.nick, info.channel);
         if (!comp) {
           comp = createComposition(info.nick, info.channel);
+          if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
         }
 
         broadcast(info.channel, { type: "system", text: `\u{1F399}\uFE0F ${info.nick} ajoute une voix: ${personaNick} — "${voiceText}"` });
@@ -660,6 +663,7 @@ export function createComposeAdvancedCommandHandler({
         let comp = getActiveComposition(info.nick, info.channel);
         if (!comp) {
           comp = createComposition(info.nick, info.channel);
+          if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
         }
         const track = addTrack(comp.id, { type: "sfx", prompt: `silence ${dur}s`, duration: dur, volume: 0, startMs: 0 });
         if (track) {
@@ -702,6 +706,7 @@ export function createComposeAdvancedCommandHandler({
         let comp = getActiveComposition(info.nick, info.channel);
         if (!comp) {
           comp = createComposition(info.nick, info.channel, name);
+          if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
         }
 
         broadcast(info.channel, { type: "system", text: `📋 Template "${name}" — ${templates[name].length} pistes en generation...` });
@@ -783,6 +788,7 @@ export function createComposeAdvancedCommandHandler({
         let comp = getActiveComposition(info.nick, info.channel);
         if (!comp) {
           comp = createComposition(info.nick, info.channel);
+          if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
         }
         const track = addTrack(comp.id, { type: "sfx" as any, prompt: `metronome ${bpmVal}bpm`, duration: dur, volume: 50, startMs: 0 });
         if (track) {
@@ -871,6 +877,7 @@ export function createComposeAdvancedCommandHandler({
         let comp = getActiveComposition(info.nick, info.channel);
         if (!comp) {
           comp = createComposition(info.nick, info.channel, "Random " + Date.now().toString(36));
+          if (!comp) { send(ws, { type: "system", text: "Limite compositions atteinte." }); return; }
         }
 
         broadcast(info.channel, { type: "system", text: `🎲 Generation aleatoire ${dur}s...` });

@@ -1,5 +1,9 @@
 # TODO
 
+## Session 2026-03-26 — TTS Evaluation lot-30 [done]
+
+- [x] lot-30-pocket-tts: evaluation complete — Pocket TTS v1.1.1 (Kyutai, MIT, 100M params, CPU 6x realtime, ~200ms first chunk, voice cloning 5s ref). **VERDICT: SURVEILLER**. Bloquant: EN only, FR planifie sans date (issue #118). Stack actuel optimal: Qwen3-TTS :9300 + Chatterbox :9200 + Piper fallback. Action: Watch GitHub release + issue #118. Spike immediat quand FR annonce. Voir docs/LOT030_TTS_EVALUATION.md.
+
 ## Session 2026-03-26 — RAG audit + Journald monitoring [done]
 
 - [x] lot-28-rag-config: audit confirmé — 4 env vars impl. in rag.ts (lines 13-16), startup model check in init(), lot marked [done] in PLAN.md
@@ -31,7 +35,7 @@
 - [x] lot-201: Implémenter schema memory persona v2 (working + archival blocks)
 - [x] lot-202: Ajouter policy engine extraction/summarization/pruning configurable
 - [x] lot-203: Benchmark runtime memory local vs approche Mem0 — verdict: garder le store local (latence <5ms, 0 deps externes, Mem0 trop lourd pour l'échelle actuelle) — voir docs/LOT203_MEMORY_BENCHMARK.md
-- [ ] lot-204: Spike training OpenCharacter + PCL sur 5 personas
+- [x] lot-204: Spike training OpenCharacter + PCL sur 5 personas — GO conditionnel. RTX 4090 suffisant. Pipeline: dialogues synthétiques Ollama → SFT QLoRA Qwen2.5-7B Unsloth → DPO PCL-style → GGUF Ollama. 7-12h total. Voir docs/LOT204_TRAINING_SPIKE.md. Suite: lot-204a (enrichir profils + script génération), lot-204b (SFT), lot-204c (export + eval).
 - [x] lot-205: Retirer le fallback legacy `personas.json` / `persona-*.json` après fermeture de fenêtre de migration
 - [x] lot-206: Supprimer les alias `createInMemory*Repo` après convergence complète des imports/tests
 

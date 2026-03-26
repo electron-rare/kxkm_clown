@@ -414,6 +414,7 @@ describe("/tracks", () => {
   it("lists tracks through the extracted compose management handler", async () => {
     const info = makeInfo({ nick: `ComposerTracks_${RUN_ID}`, channel: `#compose-tracks_${RUN_ID}` });
     const comp = createComposition(info.nick, info.channel, "Track test");
+    assert.ok(comp);
     addTrack(comp.id, { type: "music", prompt: "drone test", duration: 12, volume: 80, startMs: 0 });
 
     const deps = makeDeps();
@@ -431,6 +432,7 @@ describe("/delete", () => {
   it("deletes a track through the extracted compose advanced handler", async () => {
     const info = makeInfo({ nick: `ComposerDelete_${RUN_ID}`, channel: `#compose-delete_${RUN_ID}` });
     const comp = createComposition(info.nick, info.channel, "Delete test");
+    assert.ok(comp);
     setActiveComposition(info.nick, info.channel, comp.id);
     addTrack(comp.id, { type: "music", prompt: "first track", duration: 8, volume: 100, startMs: 0 });
     addTrack(comp.id, { type: "music", prompt: "second track", duration: 9, volume: 100, startMs: 0 });

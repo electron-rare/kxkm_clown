@@ -1,10 +1,15 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import logger from "./logger.js";
 
 const COMP_DIR = path.join(process.cwd(), "data", "compositions");
-fs.mkdirSync(COMP_DIR, { recursive: true });
+
+// Hard limits — prevent unbounded Map growth and runaway JSON files
+const MAX_COMPOSITIONS = Number(process.env.KXKM_MAX_COMPOSITIONS) || 500;
+const MAX_COMPOSITION_BYTES = Number(process.env.KXKM_MAX_COMPOSITION_BYTES) || 524_288; // 512 KB
+const MAX_TRACKS_PER_COMPOSITION = Number(process.env.KXKM_MAX_TRACKS) || 100;
 
 export interface Track {
   id: string;
@@ -111,7 +116,11 @@ function normalizeComposition(input: Composition): Composition {
   };
 }
 
-export function createComposition(nick: string, channel: string, name?: string): Composition {
+export function createComposition(nick: string, channel: string, name?: string): Composition | undefined {
+  if (compositions.size >= MAX_COMPOSITIONS) {
+    logger.warn({ size: compositions.size, max: MAX_COMPOSITIONS }, "[composition] MAX_COMPOSITIONS reached — refusing to create new entry");
+    return undefined;
+  }
   const id = `comp_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`;
   const tracks: Track[] = [];
   const comp: Composition = {
@@ -131,7 +140,7 @@ export function createComposition(nick: string, channel: string, name?: string):
     updatedAt: new Date().toISOString(),
   };
   compositions.set(id, comp);
-  saveComposition(comp);
+  saveComposition(comp).catch((err) => logger.error({ err, id }, "[composition] Failed to persist new composition"));
   return comp;
 }
 
@@ -155,7 +164,7 @@ export function setActiveComposition(nick: string, channel: string, compId: stri
   normalized.channel = channel;
   normalized.updatedAt = new Date().toISOString();
   compositions.set(compId, normalized);
-  saveComposition(normalized);
+  saveComposition(normalized).catch((err) => logger.error({ err, compId }, "[composition] Failed to persist setActiveComposition"));
   return normalized;
 }
 
@@ -163,13 +172,17 @@ export function addTrack(compId: string, track: Omit<Track, "id" | "createdAt">)
   const comp = compositions.get(compId);
   if (!comp) return null;
   const normalized = normalizeComposition(comp);
+  if (normalized.timeline.tracks.length >= MAX_TRACKS_PER_COMPOSITION) {
+    logger.warn({ compId, max: MAX_TRACKS_PER_COMPOSITION }, "[composition] MAX_TRACKS_PER_COMPOSITION reached");
+    return null;
+  }
   const t: Track = { ...track, id: `trk_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`, createdAt: new Date().toISOString() };
   normalized.timeline.tracks.push(t);
   normalized.tracks = normalized.timeline.tracks;
   normalized.timeline.clips.push(makeDefaultClip(t));
   normalized.updatedAt = new Date().toISOString();
   compositions.set(compId, normalized);
-  saveComposition(normalized);
+  saveComposition(normalized).catch((err) => logger.error({ err, compId }, "[composition] Failed to persist addTrack"));
   return t;
 }
 
@@ -206,7 +219,7 @@ export function updateTimelineSettings(
 
   normalized.updatedAt = new Date().toISOString();
   compositions.set(compId, normalized);
-  saveComposition(normalized);
+  saveComposition(normalized).catch((err) => logger.error({ err, compId }, "[composition] Failed to persist updateTimelineSettings"));
   return normalized.timeline;
 }
 
@@ -227,7 +240,7 @@ export function addTimelineMarker(
   normalized.timeline.markers.push(created);
   normalized.updatedAt = new Date().toISOString();
   compositions.set(compId, normalized);
-  saveComposition(normalized);
+  saveComposition(normalized).catch((err) => logger.error({ err, compId }, "[composition] Failed to persist addTimelineMarker"));
   return created;
 }
 
@@ -242,21 +255,38 @@ export function listCompositions(nick?: string): Composition[] {
   return nick ? all.filter(c => c.nick === nick) : all;
 }
 
-function saveComposition(comp: Composition): void {
+async function saveComposition(comp: Composition): Promise<void> {
+  const serialized = JSON.stringify(comp, null, 2);
+  if (serialized.length > MAX_COMPOSITION_BYTES) {
+    logger.warn(
+      { id: comp.id, bytes: serialized.length, max: MAX_COMPOSITION_BYTES },
+      "[composition] Composition exceeds MAX_COMPOSITION_BYTES — skipping persist",
+    );
+    return;
+  }
   const dir = path.join(COMP_DIR, comp.id);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "composition.json"), JSON.stringify(comp, null, 2));
+  await mkdir(dir, { recursive: true });
+  const target = path.join(dir, "composition.json");
+  const tmp = `${target}.tmp`;
+  await writeFile(tmp, serialized, "utf8");
+  await rename(tmp, target); // atomic: prevents partial-read corruption on concurrent saves
 }
 
-// Load existing compositions on startup
+// Load existing compositions on startup (sync is acceptable once at boot, but errors are now logged individually)
 try {
+  fs.mkdirSync(COMP_DIR, { recursive: true });
   for (const entry of fs.readdirSync(COMP_DIR)) {
     const jsonPath = path.join(COMP_DIR, entry, "composition.json");
-    if (fs.existsSync(jsonPath)) {
+    if (!fs.existsSync(jsonPath)) continue;
+    try {
       const comp = JSON.parse(fs.readFileSync(jsonPath, "utf-8")) as Composition;
       const normalized = normalizeComposition(comp);
       compositions.set(normalized.id, normalized);
+    } catch (parseErr) {
+      logger.warn({ err: parseErr, entry }, "[composition] Failed to load composition file — skipping");
     }
   }
   if (compositions.size > 0) logger.info({ count: compositions.size }, "[composition] Loaded compositions");
-} catch { /* no compositions yet */ }
+} catch (dirErr) {
+  logger.warn({ err: dirErr }, "[composition] Could not read compositions directory");
+}

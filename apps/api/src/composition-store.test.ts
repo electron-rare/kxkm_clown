@@ -26,6 +26,7 @@ describe("composition-store", () => {
   it("createComposition creates with id and name", async () => {
     const { createComposition } = await storePromise;
     const comp = createComposition("alice", "#music", "My Song");
+    assert.ok(comp, "createComposition should not return undefined");
     assert.ok(comp.id.startsWith("comp_"), "id should start with comp_");
     assert.equal(comp.name, "My Song");
     assert.equal(comp.nick, "alice");
@@ -39,6 +40,7 @@ describe("composition-store", () => {
   it("getComposition returns created composition", async () => {
     const { createComposition, getComposition } = await storePromise;
     const comp = createComposition("bob", "#studio", "Bob Mix");
+    assert.ok(comp);
     const found = getComposition(comp.id);
     assert.ok(found, "should find the composition");
     assert.equal(found!.id, comp.id);
@@ -60,6 +62,7 @@ describe("composition-store", () => {
   it("addTrack adds to composition tracks", async () => {
     const { createComposition, addTrack, getComposition } = await storePromise;
     const comp = createComposition("dave", "#jam", "Dave Jam");
+    assert.ok(comp);
     const track = addTrack(comp.id, {
       type: "music",
       prompt: "ambient drone",
@@ -93,10 +96,13 @@ describe("composition-store", () => {
     const { createComposition, listCompositions } = await storePromise;
     // Small delays to avoid Date.now() collisions in ID generation
     const e1 = createComposition("eve", "#a", "Eve A");
+    assert.ok(e1);
     await new Promise(r => setTimeout(r, 5));
     const e2 = createComposition("eve", "#b", "Eve B");
+    assert.ok(e2);
     await new Promise(r => setTimeout(r, 5));
     const f1 = createComposition("frank", "#a", "Frank A");
+    assert.ok(f1);
 
     assert.notEqual(e1.id, e2.id, "eve compositions should have distinct ids");
     assert.notEqual(e2.id, f1.id, "eve and frank should have distinct ids");
@@ -117,6 +123,9 @@ describe("composition-store", () => {
   it("composition persists to JSON file", async () => {
     const { createComposition } = await storePromise;
     const comp = createComposition("grace", "#persist", "Grace Persist");
+    assert.ok(comp);
+    // Wait briefly for async writeFile to complete
+    await new Promise(r => setTimeout(r, 50));
     const jsonPath = path.join(testDir, "data", "compositions", comp.id, "composition.json");
     assert.ok(existsSync(jsonPath), "JSON file should exist on disk");
 
@@ -130,6 +139,7 @@ describe("composition-store", () => {
   it("track has correct type and fields", async () => {
     const { createComposition, addTrack } = await storePromise;
     const comp = createComposition("hank", "#fields", "Hank Fields");
+    assert.ok(comp);
 
     const voiceTrack = addTrack(comp.id, {
       type: "voice",
@@ -165,6 +175,7 @@ describe("composition-store", () => {
   it("createComposition initializes timeline model v1", async () => {
     const { createComposition, getTimeline } = await storePromise;
     const comp = createComposition("ivy", "#timeline", "Timeline V1");
+    assert.ok(comp);
     const timeline = getTimeline(comp.id);
 
     assert.ok(timeline, "timeline should exist");
@@ -179,6 +190,7 @@ describe("composition-store", () => {
   it("addTrack creates a default clip in timeline", async () => {
     const { createComposition, addTrack, getTimeline } = await storePromise;
     const comp = createComposition("jules", "#timeline", "Track Clip");
+    assert.ok(comp);
     const track = addTrack(comp.id, {
       type: "music",
       prompt: "test clip",
@@ -206,6 +218,7 @@ describe("composition-store", () => {
       listTimelineMarkers,
     } = await storePromise;
     const comp = createComposition("kate", "#timeline", "Tempo + Markers");
+    assert.ok(comp);
 
     const updated = updateTimelineSettings(comp.id, { bpm: 98, timeSignature: [3, 4] });
     assert.ok(updated);
@@ -221,6 +234,9 @@ describe("composition-store", () => {
     assert.equal(markers[0].label, "Intro");
     assert.equal(markers[0].atMs, 4000);
 
+    // Wait for async saveComposition to flush to disk
+    await new Promise(r => setTimeout(r, 100));
+
     const jsonPath = path.join(testDir, "data", "compositions", comp.id, "composition.json");
     const onDisk = JSON.parse(readFileSync(jsonPath, "utf-8"));
     assert.ok(onDisk.timeline, "timeline should be persisted");
@@ -233,6 +249,7 @@ describe("composition-store", () => {
   it("setActiveComposition rebinds nick and channel", async () => {
     const { createComposition, setActiveComposition, getActiveComposition } = await storePromise;
     const comp = createComposition("lena", "#a", "Lena A");
+    assert.ok(comp);
     const result = setActiveComposition("lena2", "#b", comp.id);
     assert.ok(result, "should return composition");
     assert.equal(result!.nick, "lena2");
@@ -263,6 +280,7 @@ describe("composition-store", () => {
   it("BPM is clamped to [20, 300]", async () => {
     const { createComposition, updateTimelineSettings } = await storePromise;
     const comp = createComposition("mike", "#clamp", "Mike Clamp");
+    assert.ok(comp);
     const low = updateTimelineSettings(comp.id, { bpm: 5 });
     assert.equal(low!.bpm, 20, "bpm below 20 should clamp to 20");
     const high = updateTimelineSettings(comp.id, { bpm: 999 });
@@ -274,6 +292,7 @@ describe("composition-store", () => {
   it("timeSignature numerator and denominator are clamped to >= 1", async () => {
     const { createComposition, updateTimelineSettings } = await storePromise;
     const comp = createComposition("nina", "#clamp2", "Nina Clamp");
+    assert.ok(comp);
     const ts = updateTimelineSettings(comp.id, { timeSignature: [0, -3] });
     assert.deepEqual(ts!.timeSignature, [1, 1], "both values should clamp to 1");
   });
@@ -281,6 +300,7 @@ describe("composition-store", () => {
   it("listTimelineMarkers returns sorted by atMs", async () => {
     const { createComposition, addTimelineMarker, listTimelineMarkers } = await storePromise;
     const comp = createComposition("otto", "#markers", "Otto Markers");
+    assert.ok(comp);
     addTimelineMarker(comp.id, { label: "B", atMs: 8000 });
     addTimelineMarker(comp.id, { label: "A", atMs: 2000 });
     addTimelineMarker(comp.id, { label: "C", atMs: 15000 });
@@ -294,6 +314,7 @@ describe("composition-store", () => {
   it("multiple tracks generate multiple clips each linked by trackId", async () => {
     const { createComposition, addTrack, getTimeline } = await storePromise;
     const comp = createComposition("pam", "#multi", "Pam Multi");
+    assert.ok(comp);
     const t1 = addTrack(comp.id, { type: "music", prompt: "beat", duration: 20, volume: 100, startMs: 0 });
     const t2 = addTrack(comp.id, { type: "voice", prompt: "narration", duration: 10, volume: 80, startMs: 5000 });
     assert.ok(t1);
@@ -312,6 +333,7 @@ describe("composition-store", () => {
   it("clip gain is clamped between 0 and 200", async () => {
     const { createComposition, addTrack, getTimeline } = await storePromise;
     const comp = createComposition("quinn", "#gain", "Quinn Gain");
+    assert.ok(comp);
     const t1 = addTrack(comp.id, { type: "sfx", prompt: "silent", duration: 5, volume: 0, startMs: 0 });
     const t2 = addTrack(comp.id, { type: "sfx", prompt: "loud", duration: 5, volume: 250, startMs: 0 });
     assert.ok(t1 && t2);

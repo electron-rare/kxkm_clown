@@ -3,6 +3,7 @@ import express, { type Request, type Response, type NextFunction } from "express
 import net from "node:net";
 import { extractSessionId, hasPermission } from "@kxkm/auth";
 import type { AuthSession, Permission } from "@kxkm/core";
+import { getPersonaMemoryTelemetry } from "./persona-memory-telemetry.js";
 
 export interface SessionRequest extends Request {
   session?: AuthSession;
@@ -159,6 +160,7 @@ export function createPerfTracker() {
         avg_latency_ms: Math.round(avgLatency * 100) / 100,
         max_latency_ms: Math.round(perfStats.maxLatencyMs * 100) / 100,
         percentiles: getMetrics(),
+        persona_memory: getPersonaMemoryTelemetry(),
         status_codes: Object.fromEntries(perfStats.statusCodes),
         memory: {
           rss_mb: Math.round(mem.rss / 1048576),

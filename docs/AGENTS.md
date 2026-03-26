@@ -77,7 +77,6 @@ flowchart TD
 - [x] Documenter actions dans ops/v2/logs/
 - [x] lot-95: Coordonner E2E Playwright test plan
 - [x] lot-100: Design public demo mode access control
-- [ ] Audit SOTA 2026 intelligence + affectation agents par module
 
 ### Backend API
 
@@ -92,7 +91,6 @@ flowchart TD
 - [x] Dynamic context window (4k-32k)
 - [x] NLP auto-detect generation intent (compose vs imagine)
 - [x] /speed command for latency diagnostics
-- [ ] lot-192: ws-commands modular extraction phase 1 (`/comp`, `/layer`, `/mix`, `/voice`)
 - [ ] lot-178: ACE-Step API direct integration (duration fix)
 - [ ] lot-180: Timeline data model
 - [x] lot-97: Multi-channel support (create/join channels)
@@ -251,55 +249,3 @@ stateDiagram-v2
 7. lot-198: Collaborative composition (multi-user, shared comp)
 8. lot-199: Stem separation (Demucs v4 htdemucs, MIT, 6-stem)
 9. lot-200: Full DAW export (WAV stems + JSON project file)
-
-## Delta Session 2026-03-24
-
-### Coordinateur
-- [x] Audit SOTA 2026 intelligence + affectation agents par module
-- [x] lot-552: cloture documentaire lot-192 + sync QA/veille OSS
-
-### Backend API
-- [x] lot-192: ws-commands modular extraction phases 1-3 (`/comp`, `/layer`, `/mix`, `/voice`, gestion composition, edition avancee)
-- [ ] lot-549: renfort tests composition et export
-## Delta Session 2026-03-24 — phase 3
-
-### Backend API
-- [x] lot-192: extraction complete du bloc compose avance (`/concat`, `/silence`, `/template`, `/marker`, `/metronome`, `/delete`, `/suggest`, `/snapshot`, `/randomize`)
-- [x] lot-552: cloture documentaire et durcissement final lot-192
-- [ ] lot-549: renfort tests composition et export
-- [ ] lot-548: waveform timeline UI v1
-## Affectations Session 2026-03-24 — suite immediate
-
-| Lot | Agent pilote | Sous-agents / competences | Portee immediate |
-|---|---|---|---|
-| lot-549 | Backend API | Polyglot Test Agent, QA, context-map | Etendre `apps/api/src/ws-commands.test.ts` et `apps/api/src/composition-store.test.ts`, verifier non-regression composition |
-| lot-548 | Frontend | Expert React Frontend Engineer, gem-browser-tester, context-map | Remplacer la waveform canvas par une timeline waveform plus lisible sans regression mobile |
-| lot-552 | Coordinateur | Planner/Docs, gem-researcher, refactor-plan | Maintenir PLAN/TODO/AGENTS/QA/OSS alignes avec l'etat reel et tracer les prochains deltas |
-
-## Skills privilegies
-
-- context-map: cartographie des fichiers et dependances avant modification.
-- refactor-plan: sequencing prudent des changements multi-fichiers.
-- polyglot-test-agent: lot-549 pour la recherche, le plan et l'implementation de tests additionnels.
-## Delta Session 2026-03-24 — validation compose + waveform
-
-### Backend API
-- [x] lot-549: renfort tests composition et export
-- Validation ciblee: `tsx --test src/composition-store.test.ts src/ws-commands.test.ts` => 44/44 OK
-
-### Frontend
-- [x] lot-548: waveform timeline UI v1
-- Implementation: `wavesurfer.js` branche dans `apps/web/src/components/ComposePage.tsx` pour apercu piste + bloc timeline
-- Validation: `npm run check` dans `apps/web` OK
-## Delta Session 2026-03-24 — cleanup compose
-
-### Frontend
-- [x] lot-553: suppression du doublon `apps/web/src/components/ComposePage 2.tsx`
-- Validation: `npm run check` dans `apps/web` OK
-- Impact: reduction dette technique UI compose et elimination d'un faux point d'entree potentiel
-## Delta Session 2026-03-24 — QA visuelle compose
-
-### Frontend
-- [x] lot-554: validation Playwright ciblee compose timeline
-- Commande: `npx playwright test e2e/visual-qa.spec.ts --project=chromium --grep "ComposePage|composition timeline"`
-- Resultat: 2/2 OK

@@ -4,8 +4,6 @@ import { test, expect } from "@playwright/test";
 const DAW_URL = process.env.DAW_URL || "http://kxkm-ai:3333/daw/";
 
 test.describe("openDIAW.be Instruments Debug", () => {
-  // Ces tests ciblent le service interne kxkm-ai:3333/daw/ non accessible depuis l'extérieur en CI
-  test.skip(true, "service interne openDIAW.be non accessible en CI — tester manuellement");
   test.setTimeout(60_000);
 
   test("DAW loads and shows openDIAW.be title", async ({ page }) => {

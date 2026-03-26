@@ -6,6 +6,13 @@ import {
   resolvePersonaMemoryPolicy,
 } from "./persona-memory-policy.js";
 import {
+  recordPersonaMemoryAttempt,
+  recordPersonaMemoryFailure,
+  recordPersonaMemorySkip,
+  recordPersonaMemoryWrite,
+} from "./persona-memory-telemetry.js";
+import { recordLatency } from "./perf.js";
+import {
   loadPersonaMemory,
   resetPersonaMemory,
   savePersonaMemory,
@@ -21,9 +28,11 @@ export async function updatePersonaMemory(
   recentMessages: string[],
   ollamaUrl: string,
 ): Promise<void> {
+  const startedAt = performance.now();
   const memory = await loadPersonaMemory(persona);
   const policy = resolvePersonaMemoryPolicy();
   const prompt = buildPersonaMemoryExtractionPrompt(persona, recentMessages, policy);
+  recordPersonaMemoryAttempt(persona);
 
   try {
     const response = await fetch(`${ollamaUrl}/api/chat`, {
@@ -46,6 +55,7 @@ export async function updatePersonaMemory(
     const rawContent = String(data.message?.content || "").trim();
     if (!rawContent) {
       logger.error({ nick: persona.nick }, "[persona-router] Empty LLM JSON");
+      recordPersonaMemorySkip(persona, "empty_response");
       return;
     }
 
@@ -54,6 +64,7 @@ export async function updatePersonaMemory(
       extracted = JSON.parse(rawContent) as { facts?: string[]; summary?: string };
     } catch (parseErr) {
       logger.error({ err: parseErr }, "[persona-router] Failed to parse LLM JSON");
+      recordPersonaMemoryFailure(persona, "parse_error");
       return;
     }
 
@@ -64,7 +75,11 @@ export async function updatePersonaMemory(
     });
 
     await savePersonaMemory(updated, policy);
+    const durationMs = performance.now() - startedAt;
+    recordLatency("persona_memory_update", durationMs);
+    recordPersonaMemoryWrite(persona, memory, updated, durationMs);
   } catch (err) {
+    recordPersonaMemoryFailure(persona, "update_error");
     logger.error({ err: err instanceof Error ? err.message : String(err), nick: persona.nick }, "[ws-chat] Memory update failed");
   }
 }

@@ -1,5 +1,6 @@
 import logger from "./logger.js";
 import { getErrorCounts } from "./error-tracker.js";
+import { prometheusPersonaMemoryMetrics } from "./persona-memory-telemetry.js";
 
 // ---------------------------------------------------------------------------
 // Latency metrics collector with percentile support (p50, p95, p99)
@@ -128,6 +129,8 @@ export function prometheusMetrics(): string {
       lines.push(`kxkm_errors_total{label="${safe}"} ${count}`);
     }
   }
+
+  lines.push(...prometheusPersonaMemoryMetrics());
 
   return lines.join("\n") + "\n";
 }

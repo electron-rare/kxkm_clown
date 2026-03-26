@@ -4,6 +4,11 @@ import path from "node:path";
 import { readFile, rm } from "node:fs/promises";
 import supertest from "supertest";
 import { createApp } from "./app.js";
+import {
+  recordPersonaMemoryAttempt,
+  recordPersonaMemoryWrite,
+  resetPersonaMemoryTelemetry,
+} from "./persona-memory-telemetry.js";
 
 // Ensure no Postgres connection is attempted
 delete process.env.DATABASE_URL;
@@ -79,6 +84,67 @@ describe("V2 API", () => {
       assert.equal(res.body.ok, true);
       assert.equal(res.body.data.app, "@kxkm/api");
       assert.equal(res.body.data.storage, "local");
+    });
+
+    it("GET /api/v2/perf exposes persona memory telemetry", async () => {
+      resetPersonaMemoryTelemetry();
+      recordPersonaMemoryAttempt({ id: "schaeffer", nick: "Schaeffer" });
+      recordPersonaMemoryWrite(
+        { id: "schaeffer", nick: "Schaeffer" },
+        {
+          personaId: "schaeffer",
+          nick: "Schaeffer",
+          facts: ["fait 1"],
+          summary: "resume 1",
+          lastUpdated: "",
+        },
+        {
+          personaId: "schaeffer",
+          nick: "Schaeffer",
+          facts: ["fait 1", "fait 2"],
+          summary: "resume 2",
+          lastUpdated: "",
+        },
+        14,
+      );
+
+      const res = await request.get("/api/v2/perf").expect(200);
+      assert.equal(res.body.ok, true);
+      assert.equal(res.body.data.persona_memory.global.attempts, 1);
+      assert.equal(res.body.data.persona_memory.global.writes, 1);
+      assert.equal(res.body.data.persona_memory.personas.schaeffer.writeRate, 1);
+
+      resetPersonaMemoryTelemetry();
+    });
+
+    it("GET /metrics includes persona memory Prometheus series", async () => {
+      resetPersonaMemoryTelemetry();
+      recordPersonaMemoryAttempt({ id: "schaeffer", nick: "Schaeffer" });
+      recordPersonaMemoryWrite(
+        { id: "schaeffer", nick: "Schaeffer" },
+        {
+          personaId: "schaeffer",
+          nick: "Schaeffer",
+          facts: ["fait 1"],
+          summary: "resume 1",
+          lastUpdated: "",
+        },
+        {
+          personaId: "schaeffer",
+          nick: "Schaeffer",
+          facts: ["fait 1", "fait 2"],
+          summary: "resume 1",
+          lastUpdated: "",
+        },
+        11,
+      );
+
+      const res = await request.get("/metrics").expect(200);
+      assert.match(res.text, /kxkm_persona_memory_attempts_total 1/);
+      assert.match(res.text, /kxkm_persona_memory_writes_total 1/);
+      assert.match(res.text, /kxkm_persona_memory_write_rate\{persona="schaeffer"\} 1/);
+
+      resetPersonaMemoryTelemetry();
     });
   });
 

@@ -1,5 +1,23 @@
 # TODO
 
+## Session 2026-03-25 — Personas runtime V2
+
+- [x] Migrer le store local runtime personas vers `data/v2-local/*` en fichier par persona
+- [x] Conserver fallback de lecture legacy (`personas.json`, `persona-*.json`) pour migration douce
+- [x] Corriger les fuites de références mutables dans repos in-memory personas/sources/feedback/proposals
+- [x] Ajouter tests de non-régression migration + immutabilité (`create-repos.test.ts`)
+- [x] Aligner scripts `smoke.js` et `build.js` sur `KXKM_LOCAL_DATA_DIR=data/v2-local`
+- [x] Mettre les artefacts legacy build derrière flag explicite `BUILD_INCLUDE_LEGACY_PERSONA_V1=1`
+- [x] Exposer le mode fallback API comme `local` au lieu de `memory`
+- [x] Recaler les factories canoniques sur `createLocal*Repo` avec alias de compat
+- [ ] Push distant des commits locaux (bloqué dans cette session: transport git/gh indisponible)
+- [ ] lot-201: Implémenter schema memory persona v2 (working + archival blocks)
+- [ ] lot-202: Ajouter policy engine extraction/summarization/pruning configurable
+- [ ] lot-203: Benchmark runtime memory local vs approche Mem0 (latence + cohérence)
+- [ ] lot-204: Spike training OpenCharacter + PCL sur 5 personas
+- [ ] lot-205: Retirer le fallback legacy `personas.json` / `persona-*.json` après fermeture de fenêtre de migration
+- [ ] lot-206: Supprimer les alias `createInMemory*Repo` après convergence complète des imports/tests
+
 ## P0 Critical (sécurité & stabilité)
 
 - [x] Fix bash injection dans `node-engine-runtimes.js` — validation runtimeId/nodeType + timeout 30min
@@ -406,34 +424,5 @@ Fait sur ce lot:
 - [x] lot-545: Sync statuts PLAN/TODO/docs/AGENTS (lots 95-100, 178-200)
 - [x] lot-546: lot-178 ACE-Step direct API pour /compose duration fiable
 - [ ] lot-547 (en cours): lot-180 timeline model v1 (tracks/clips/markers + schema)
-- [ ] lot-550 (en cours): lot-192 ws-commands extraction phase 1 (/comp /layer /mix /voice) + audit SOTA 2026
 - [ ] lot-548: lot-194 waveform timeline UI v1 (desktop + mobile)
 - [ ] lot-549: composition tests renfort (store/remix/export/timeline)
-
-## Delta Session 2026-03-24
-
-- [x] lot-550: lot-192 ws-commands extraction phases 1-2 (compose core + gestion composition) + audit SOTA 2026
-- [x] lot-551: lot-192 phase 3 extraction edition avancee (concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize)
-- [x] lot-552: cloture documentaire et durcissement final lot-192
-- [ ] lot-549 (en cours): composition tests renfort (store/remix/export/timeline)
-## Delta Session 2026-03-24 — phase 3
-
-- [x] lot-551: lot-192 phase 3 extraction edition avancee (concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize)
-- [x] lot-552: cloture documentaire et durcissement final lot-192
-- [ ] lot-549 (en cours): composition tests renfort (store/remix/export/timeline)
-- [ ] lot-548: waveform timeline UI v1 (desktop + mobile)
-## Delta Session 2026-03-24 — validation compose + waveform
-
-- [x] lot-549: composition tests renfort (store/remix/export/timeline)
-- [x] lot-548: waveform timeline UI v1 (desktop + mobile)
-- [ ] prochain lot suggere: capture QA visuelle compose timeline + nettoyage des doublons UI compose
-## Delta Session 2026-03-24 — cleanup compose
-
-- [x] lot-553: cleanup doublon ComposePage non reference
-- [x] validation frontend apres cleanup (`npm run check`)
-- [ ] prochain lot suggere: passe QA visuelle Playwright sur timeline compose waveform
-## Delta Session 2026-03-24 — QA visuelle compose
-
-- [x] lot-554: passe Playwright visuelle ciblee Compose/timeline
-- [x] verification captures `10-compose-page.png` et `18-composition-timeline.png`
-- [ ] prochain lot suggere: triage et purge artefacts test-results non necessaires au commit

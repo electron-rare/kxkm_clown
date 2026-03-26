@@ -1,6 +1,6 @@
 # PLAN.md — KXKM_Clown
 
-Updated: 2026-03-24T19:30:00Z
+Updated: 2026-03-25T05:20:00Z
 
 ## Summary
 
@@ -16,6 +16,24 @@ Updated: 2026-03-24T19:30:00Z
 - /deepresearch multi-step search agent (OpenSeeker-inspired)
 - Multi-machine: kxkm-ai (GPU), tower (hub), Mac, cils
 - TTFC 284ms, Prometheus /metrics ready
+- Personas runtime V2 local: store per-person files (`data/v2-local/personas/*.json`) with legacy-read fallback
+- Persona repos hardening: defensive clones on reads (no external mutation of in-memory state)
+- Smoke/build scripts aligned to V2 local store, legacy paths behind explicit compat flag
+- API surfaces now expose fallback mode as `local` (not `memory`)
+- Local repo factories now converge on `createLocal*Repo` with compat aliases preserved temporarily
+
+## Session 2026-03-25 — Personas Runtime Hardening [done]
+
+- Owner: Personas + Backend API + Ops/TUI
+- Checks: `npm run check`, `npm run test:v2` (472 tests, 0 fail)
+- Summary:
+  - Migrated active local persona persistence to per-person files for personas/sources/feedback/proposals.
+  - Kept compatibility by reading legacy aggregate JSON files when present, then writing V2 per-file layout.
+  - Fixed runtime structural issues (mutable reference leaks) by returning defensive snapshots from in-memory repos.
+  - Added regression tests for migration and immutability (`apps/api/src/create-repos.test.ts`).
+  - Updated smoke/build scripts to use `KXKM_LOCAL_DATA_DIR=data/v2-local`.
+  - Gated legacy V1 artifacts in build with `BUILD_INCLUDE_LEGACY_PERSONA_V1=1`.
+  - Renamed exposed fallback storage mode to `local` and recabled canonical repo factories to `createLocal*Repo`.
 
 ---
 
@@ -692,11 +710,10 @@ Updated: 2026-03-20T12:00:00Z
 - Owner: Multimodal
 - Summary: /ambient generates layered ambient soundscapes from scene presets.
 
-## lot-192-ws-commands-extraction [in-progress]
+## lot-192-ws-commands-extraction [planned]
 - Description: ws-commands modular extraction (split monolithic command handler into per-command modules)
 - Owner: Backend API
 - Priority: P1
-- Summary: Phase 1 executee le 2026-03-24 avec extraction de /comp, /layer, /mix et /voice vers `apps/api/src/ws-commands-compose.ts`, diagnostics TS OK et regression tests cibles OK.
 
 ## lot-193-composition-tests [planned]
 - Description: Composition tests (unit tests for composition-store, /fx effects)
@@ -1019,37 +1036,3 @@ Updated: 2026-03-20T12:00:00Z
 - R-COMPOSE-DURATION: duree audio non respectee en production
 - R-TIMELINE-MODEL: format instable pour les futures features DAW
 - R-WAVEFORM-UX: surcharge render sur mobile
-
-## Delta Session 2026-03-24
-
-- lot-192-ws-commands-extraction est cloture.
-- Phases 1-3 executees: extraction de /comp, /layer, /mix, /voice, /tracks, /undo, /solo, /unsolo, /rename, /dup, /bpm, /clear-comp, /preview, /gain, /loop, /swap, /info, /concat, /silence, /template, /marker, /metronome, /delete, /suggest, /snapshot et /randomize vers apps/api/src/ws-commands-compose.ts.
-- Validation: diagnostics TS OK, suite @kxkm/api relancee avec ws-commands.test.ts OK, cloture documentaire lot-552 appliquee.
-- Prochaine etape: lot-549 tests composition, puis lot-548 waveform/timeline UI.
-## Delta Session 2026-03-24 — phase 3
-
-- lot-192-ws-commands-extraction: phases 1-3 executees.
-- Bloc compose complet extrait vers apps/api/src/ws-commands-compose.ts, incluant maintenant concat/silence/template/marker/metronome/delete/suggest/snapshot/randomize.
-- Validation: diagnostics TS OK, suite @kxkm/api relancee avec ws-commands.test.ts OK.
-- lot-552: synchronisation PLAN/TODO/AGENTS + rapport QA webdesign + veille OSS ciblee sur waveform/tests/orchestration.
-- Prochaine etape: lot-549 tests composition, puis lot-194 waveform/timeline UI.
-## Delta Session 2026-03-24 — validation compose + waveform
-
-- lot-549-composition-tests est valide.
-- Couverture ajoutee sur `apps/api/src/composition-store.test.ts` et `apps/api/src/ws-commands.test.ts` pour rebind composition active, clamps timeline, `/comp load`, `/mix`, `/snapshot`, `/template` et `/delete`.
-- Validation lot-549: `../../node_modules/.bin/tsx --test src/composition-store.test.ts src/ws-commands.test.ts` => 44/44 tests OK.
-- lot-548-waveform-ui-v1 est implemente dans `apps/web/src/components/ComposePage.tsx` avec `wavesurfer.js` pour les apercus de pistes et blocs timeline.
-- Validation lot-548: `npm run check` dans `apps/web` OK.
-- Prochaine etape recommandee: capture visuelle Playwright du compose timeline + nettoyage du doublon `ComposePage 2.tsx`.
-## Delta Session 2026-03-24 — cleanup compose
-
-- lot-553-cleanup-compose-doublon execute.
-- Suppression du fichier duplique non reference `apps/web/src/components/ComposePage 2.tsx`.
-- Validation: `npm run check` dans `apps/web` OK.
-- Risque reduit: suppression d'une source de divergence entre UI compose legacy et UI active.
-## Delta Session 2026-03-24 — QA visuelle compose
-
-- lot-554-qa-compose-timeline execute.
-- Validation Playwright ciblee sur `apps/web/e2e/visual-qa.spec.ts` (grep `ComposePage|composition timeline`).
-- Resultat: 2/2 tests OK, captures regenerees `10-compose-page.png` et `18-composition-timeline.png`.
-- Conclusion: rendu Compose/timeline stable apres migration waveform + cleanup doublon.

@@ -1,6 +1,11 @@
 import logger from "./logger.js";
 import type { ChatPersona } from "./chat-types.js";
 import {
+  applyPersonaMemoryExtraction,
+  buildPersonaMemoryExtractionPrompt,
+  resolvePersonaMemoryPolicy,
+} from "./persona-memory-policy.js";
+import {
   loadPersonaMemory,
   resetPersonaMemory,
   savePersonaMemory,
@@ -17,11 +22,8 @@ export async function updatePersonaMemory(
   ollamaUrl: string,
 ): Promise<void> {
   const memory = await loadPersonaMemory(persona);
-
-  const prompt =
-    `Tu es ${persona.nick}. Voici les derniers échanges:\n${recentMessages.join("\n")}\n\n` +
-    `Extrais 2-3 faits importants à retenir sur l'utilisateur ou le sujet. ` +
-    `Réponds en JSON: {"facts": ["fait1", "fait2"], "summary": "résumé en une phrase"}`;
+  const policy = resolvePersonaMemoryPolicy();
+  const prompt = buildPersonaMemoryExtractionPrompt(persona, recentMessages, policy);
 
   try {
     const response = await fetch(`${ollamaUrl}/api/chat`, {
@@ -36,31 +38,32 @@ export async function updatePersonaMemory(
       signal: AbortSignal.timeout(30_000),
     });
 
+    if (!response.ok) {
+      throw new Error(`Memory update HTTP ${response.status}`);
+    }
+
     const data = (await response.json()) as { message?: { content?: string } };
-    let extracted: { facts?: string[]; summary?: string } = {};
+    const rawContent = String(data.message?.content || "").trim();
+    if (!rawContent) {
+      logger.error({ nick: persona.nick }, "[persona-router] Empty LLM JSON");
+      return;
+    }
+
+    let extracted: { facts?: string[]; summary?: string };
     try {
-      extracted = JSON.parse(data.message?.content || "{}");
+      extracted = JSON.parse(rawContent) as { facts?: string[]; summary?: string };
     } catch (parseErr) {
       logger.error({ err: parseErr }, "[persona-router] Failed to parse LLM JSON");
+      return;
     }
 
-    if (extracted.facts && Array.isArray(extracted.facts)) {
-      const allFacts = [...new Set([...memory.facts, ...extracted.facts])].slice(-20);
-      memory.facts = allFacts;
-    }
-    if (extracted.summary) {
-      memory.summary = extracted.summary;
-    }
+    const updated = applyPersonaMemoryExtraction(memory, extracted, {
+      policy,
+      personaId: persona.id,
+      recentMessages,
+    });
 
-    memory.personaId = persona.id;
-    memory.version = 2;
-    memory.workingMemory = {
-      facts: [...memory.facts],
-      summary: memory.summary,
-      lastSourceMessages: recentMessages.slice(-10),
-    };
-
-    await savePersonaMemory(memory);
+    await savePersonaMemory(updated, policy);
   } catch (err) {
     logger.error({ err: err instanceof Error ? err.message : String(err), nick: persona.nick }, "[ws-chat] Memory update failed");
   }

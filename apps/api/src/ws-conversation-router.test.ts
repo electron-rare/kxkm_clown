@@ -36,12 +36,26 @@ interface TestHarness {
 }
 
 const originalTtsEnabled = process.env.TTS_ENABLED;
+const originalMemoryUpdateEvery = process.env.KXKM_PERSONA_MEMORY_UPDATE_EVERY;
+const originalMemorySourceLimit = process.env.KXKM_PERSONA_MEMORY_SOURCE_MESSAGES_LIMIT;
 
 afterEach(() => {
   if (originalTtsEnabled === undefined) {
     delete process.env.TTS_ENABLED;
   } else {
     process.env.TTS_ENABLED = originalTtsEnabled;
+  }
+
+  if (originalMemoryUpdateEvery === undefined) {
+    delete process.env.KXKM_PERSONA_MEMORY_UPDATE_EVERY;
+  } else {
+    process.env.KXKM_PERSONA_MEMORY_UPDATE_EVERY = originalMemoryUpdateEvery;
+  }
+
+  if (originalMemorySourceLimit === undefined) {
+    delete process.env.KXKM_PERSONA_MEMORY_SOURCE_MESSAGES_LIMIT;
+  } else {
+    process.env.KXKM_PERSONA_MEMORY_SOURCE_MESSAGES_LIMIT = originalMemorySourceLimit;
   }
 });
 
@@ -189,6 +203,88 @@ describe("ws-conversation-router", () => {
     assert.equal(harness.memoryUpdates[0]?.persona.nick, "Pharmacius");
     assert.equal(harness.memoryUpdates[0]?.recentMessages.length, 5);
     assert.match(harness.memoryUpdates[0]?.recentMessages[4] || "", /message 5/);
+  });
+
+  it("uses configurable memory cadence and source window limits", async () => {
+    process.env.KXKM_PERSONA_MEMORY_UPDATE_EVERY = "3";
+    process.env.KXKM_PERSONA_MEMORY_SOURCE_MESSAGES_LIMIT = "2";
+
+    const harness = createHarness();
+    const routeToPersonas = createConversationRouter(harness.deps);
+
+    for (let index = 1; index <= 3; index += 1) {
+      await routeToPersonas("#general", `memo ${index}`);
+    }
+    await sleep();
+
+    assert.equal(harness.memoryUpdates.length, 1);
+    assert.deepEqual(
+      harness.memoryUpdates[0]?.recentMessages.map((message) => message.replace(/^User:\s*/, "").split("\n")[0]),
+      ["memo 2", "memo 3"],
+    );
+  });
+
+  it("labels inter-persona rebounds distinctly in memory updates", async () => {
+    process.env.KXKM_PERSONA_MEMORY_UPDATE_EVERY = "1";
+
+    const harness = createHarness({
+      streamOllamaChat: async (_ollamaUrl, persona, message, _onChunk, onDone) => {
+        harness.plainCalls.push({ persona, message });
+        if (persona.nick === "Pharmacius") {
+          onDone("Je passe la main. @Sherlock");
+          return;
+        }
+        onDone("Je reprends la conversation.");
+      },
+    });
+    const routeToPersonas = createConversationRouter(harness.deps);
+
+    await routeToPersonas("#general", "signal initial");
+    await sleep();
+    await sleep();
+
+    const pharmaciusUpdate = harness.memoryUpdates.find((entry) => entry.persona.nick === "Pharmacius");
+    const sherlockUpdate = harness.memoryUpdates.find((entry) => entry.persona.nick === "Sherlock");
+
+    assert.match(pharmaciusUpdate?.recentMessages[0] || "", /^User: signal initial/);
+    assert.match(sherlockUpdate?.recentMessages[0] || "", /^InterPersona: @Sherlock Pharmacius:/);
+  });
+
+  it("invalidates cached persona memory after a background update", async () => {
+    process.env.KXKM_PERSONA_MEMORY_UPDATE_EVERY = "1";
+
+    let currentMemory = {
+      nick: "Pharmacius",
+      personaId: "pharmacius",
+      facts: [] as string[],
+      summary: "",
+      lastUpdated: "",
+    };
+
+    const harness = createHarness({
+      loadPersonaMemory: async () => ({ ...currentMemory, facts: [...currentMemory.facts] }),
+      updatePersonaMemory: async () => {
+        currentMemory = {
+          ...currentMemory,
+          facts: ["memo fraiche"],
+          summary: "resume mis a jour",
+          lastUpdated: "2026-03-25T23:00:00.000Z",
+        };
+      },
+      streamOllamaChat: async (_ollamaUrl, persona, message, _onChunk, onDone) => {
+        harness.plainCalls.push({ persona, message });
+        onDone(`Reponse ${persona.nick}`);
+      },
+    });
+    const routeToPersonas = createConversationRouter(harness.deps);
+
+    await routeToPersonas("#general", "premier message");
+    await sleep();
+    await routeToPersonas("#general", "second message");
+
+    assert.equal(harness.plainCalls.length, 2);
+    assert.match(harness.plainCalls[1]?.persona.systemPrompt || "", /\[Mémoire\]/);
+    assert.match(harness.plainCalls[1]?.persona.systemPrompt || "", /memo fraiche/);
   });
 
   it("triggers TTS only when the feature flag is enabled", async () => {

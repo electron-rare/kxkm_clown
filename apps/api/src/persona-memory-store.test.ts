@@ -9,6 +9,7 @@ import {
   resetPersonaMemory,
   savePersonaMemory,
 } from "./persona-memory-store.js";
+import { normalizePersonaMemoryPolicy } from "./persona-memory-policy.js";
 import type { PersonaMemory } from "./chat-types.js";
 
 describe("persona-memory-store", () => {
@@ -141,5 +142,54 @@ describe("persona-memory-store", () => {
     assert.equal(v2Record.compat.summary, "");
     assert.deepEqual(legacyRecord.facts, []);
     assert.equal(legacyRecord.summary, "");
+  });
+
+  it("applies configurable pruning limits when persisting v2 memory", async () => {
+    const policy = normalizePersonaMemoryPolicy({
+      pruning: {
+        workingFactsLimit: 3,
+        workingSourceMessagesLimit: 2,
+        archivalFactsLimit: 4,
+        archivalSummariesLimit: 2,
+        compatFactsLimit: 2,
+      },
+    });
+
+    await savePersonaMemory({
+      personaId: "schaeffer",
+      nick: "Schaeffer",
+      facts: ["fait 1", "fait 2", "fait 3", "fait 4"],
+      summary: "resume courant",
+      lastUpdated: "",
+      version: 2,
+      workingMemory: {
+        facts: ["fait 1", "fait 2", "fait 3", "fait 4"],
+        summary: "resume courant",
+        lastSourceMessages: ["message 1", "message 2", "message 3"],
+      },
+      archivalMemory: {
+        facts: [
+          { text: "archive 1", firstSeenAt: "2026-03-20T10:00:00.000Z", lastSeenAt: "2026-03-20T10:00:00.000Z", source: "chat" },
+          { text: "archive 2", firstSeenAt: "2026-03-20T10:00:00.000Z", lastSeenAt: "2026-03-20T10:00:00.000Z", source: "chat" },
+          { text: "archive 3", firstSeenAt: "2026-03-20T10:00:00.000Z", lastSeenAt: "2026-03-20T10:00:00.000Z", source: "chat" },
+        ],
+        summaries: [
+          { text: "resume archive 1", createdAt: "2026-03-20T10:00:00.000Z" },
+          { text: "resume archive 2", createdAt: "2026-03-21T10:00:00.000Z" },
+        ],
+      },
+    }, policy);
+
+    const v2Record = JSON.parse(await readFile(path.join(localDir, "persona-memory", "schaeffer.json"), "utf8")) as {
+      workingMemory: { facts: string[]; lastSourceMessages: string[] };
+      archivalMemory: { facts: Array<{ text: string }>; summaries: Array<{ text: string }> };
+      compat: { facts: string[] };
+    };
+
+    assert.deepEqual(v2Record.workingMemory.facts, ["fait 2", "fait 3", "fait 4"]);
+    assert.deepEqual(v2Record.workingMemory.lastSourceMessages, ["message 2", "message 3"]);
+    assert.equal(v2Record.archivalMemory.facts.length, 4);
+    assert.equal(v2Record.archivalMemory.summaries.length, 2);
+    assert.deepEqual(v2Record.compat.facts, ["fait 3", "fait 4"]);
   });
 });

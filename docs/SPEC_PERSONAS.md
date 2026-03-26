@@ -1,7 +1,7 @@
 # SPEC_PERSONAS.md — Persona System, Routing & Memory
 
 > Version: 1.0 — 2026-03-20
-> Source files: `apps/api/src/personas-default.ts`, `ws-persona-router.ts`, `ws-conversation-router.ts`, `persona-voices.ts`, `mcp-tools.ts`, `ws-ollama.ts`, `chat-types.ts`
+> Source files: `apps/api/src/personas-default.ts`, `ws-persona-router.ts`, `ws-conversation-router.ts`, `persona-memory-store.ts`, `persona-memory-policy.ts`, `persona-voices.ts`, `mcp-tools.ts`, `ws-ollama.ts`, `chat-types.ts`
 
 ---
 
@@ -211,11 +211,36 @@ Each persona maintains a persistent memory file that evolves over the course of 
 ### Data Model (`PersonaMemory`)
 
 ```typescript
+interface PersonaWorkingMemory {
+  facts: string[];
+  summary: string;
+  lastSourceMessages: string[];
+}
+
+interface PersonaArchivalFact {
+  text: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  source: "chat";
+}
+
+interface PersonaArchivalSummary {
+  text: string;
+  createdAt: string;
+}
+
 interface PersonaMemory {
-  nick: string;        // persona identifier
-  facts: string[];     // up to 20 retained facts
-  summary: string;     // one-sentence summary of recent interactions
-  lastUpdated: string; // ISO 8601 timestamp
+  nick: string;
+  facts: string[];       // compat projection for legacy consumers
+  summary: string;       // compat projection for legacy consumers
+  lastUpdated: string;
+  personaId?: string;
+  version?: 2;
+  workingMemory?: PersonaWorkingMemory;
+  archivalMemory?: {
+    facts: PersonaArchivalFact[];
+    summaries: PersonaArchivalSummary[];
+  };
 }
 ```
 
@@ -228,33 +253,37 @@ interface PersonaMemory {
 
 ### Loading (`loadPersonaMemory`)
 
-Called at the start of every `streamPersonaResponse`. The loader resolves by `personaId` first, falls back to case-insensitive `nick`, and auto-migrates a legacy-only file into the V2 store on first read. It returns empty memory `{ nick, facts: [], summary: "", lastUpdated: "" }` if no record exists or if the file is corrupted. Errors are caught and tracked via `error-tracker`.
+Called at the start of every `streamPersonaResponse`. The loader resolves by `personaId` first, falls back to case-insensitive `nick`, and auto-migrates a legacy-only file into the V2 store on first read. It returns empty memory `{ nick, facts: [], summary: "", lastUpdated: "" }` if no record exists or if a stored payload is unusable; hard failures surfaced at router level are tracked via `error-tracker`.
 
 ### Update Cycle (`updatePersonaMemory`)
 
-**Trigger:** Every 5 interactions per persona (tracked via `personaMessageCounts` map).
+**Trigger:** Controlled by the memory policy engine. Default: every 5 interactions per persona (tracked via `personaMessageCounts` map).
 
 ```
 count = personaMessageCounts[nick] + 1
-if (count > 0 && count % 5 === 0) -> scheduleMemoryUpdate()
+if (count > 0 && count % updateEveryResponses === 0) -> scheduleMemoryUpdate()
 ```
 
 **Process:**
 1. Load current memory from disk
-2. Send recent messages (up to 10, tracked in `personaRecentMessages`) to the persona's own LLM model
-3. Prompt: Extract 2-3 important facts + one-sentence summary, respond in JSON
-4. Merge: deduplicate facts via `Set`, keep last 20 facts (`slice(-20)`)
-5. Overwrite summary with the new one
-6. Save to disk with updated timestamp
+2. Send the recent message window configured by policy (default: 10, tracked in `personaRecentMessages`) to the persona's own LLM model
+3. Prompt: ask for `minFacts-maxFacts` important facts + one-sentence summary, respond in JSON
+4. Merge: deduplicate facts, apply pruning caps from the shared memory policy, then rebuild archival + compat projections
+5. Save to disk with updated timestamp
 
-**LLM extraction prompt:**
-```
-Tu es {Nick}. Voici les derniers echanges:
-{recentMessages joined by \n}
+**Default runtime policy (override via `KXKM_PERSONA_MEMORY_*`):**
+- `updateEveryResponses=5`
+- `extraction.minFacts=2`
+- `extraction.maxFacts=3`
+- `extraction.recentMessagesWindow=10`
+- `pruning.workingFactsLimit=20`
+- `pruning.workingSourceMessagesLimit=10`
+- `pruning.archivalFactsLimit=100`
+- `pruning.archivalSummariesLimit=50`
+- `pruning.compatFactsLimit=20`
 
-Extrais 2-3 faits importants a retenir sur l'utilisateur ou le sujet.
-Reponds en JSON: {"facts": ["fait1", "fait2"], "summary": "resume en une phrase"}
-```
+The extraction prompt asks the persona model to respond in JSON with:
+`{"facts":["fait1","fait2"],"summary":"resume en une phrase"}`.
 
 **Constraints:**
 - 30-second timeout (`AbortSignal.timeout(30_000)`)

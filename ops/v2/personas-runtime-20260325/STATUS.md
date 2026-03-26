@@ -1,6 +1,6 @@
 # EXECUTION STATUS (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T20:16:12Z
+Updated: 2026-03-26T06:58:28Z
 
 ## lot-201-runtime-hardening
 - Status: done
@@ -17,12 +17,12 @@ Updated: 2026-03-25T20:16:12Z
 - Open tasks: none
 
 ## lot-203-memory-policy
-- Status: pending
+- Status: in_progress
 - Owner: Backend API
 - Execution: manual
 - Checks: npm run check, npm run test:v2
-- Open tasks:
-  - policy-engine [pending] (P1, Backend API)
+- Tasks:
+  - policy-engine [done] (P1, Backend API)
   - telemetry [pending] (P2, Ops/TUI)
   - eval-harness [pending] (P2, Personas)
 

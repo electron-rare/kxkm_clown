@@ -21,6 +21,7 @@ import {
   updatePersonaMemory as defaultUpdatePersonaMemory,
   pickResponders as defaultPickResponders,
 } from "./ws-persona-router.js";
+import { resolvePersonaMemoryPolicy, shouldUpdatePersonaMemory } from "./persona-memory-policy.js";
 import type { ChatLogEntry, ChatPersona, OutboundMessage, PersonaMemory } from "./chat-types.js";
 
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
@@ -120,8 +121,10 @@ function getPersonaMood(): string {
 
 function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<LoadPersonaMemoryFn>>): ChatPersona {
   const mood = getPersonaMood();
+  const retainedFacts = memory.workingMemory?.facts || memory.facts;
+  const retainedSummary = memory.workingMemory?.summary || memory.summary;
 
-  if (memory.facts.length === 0 && !memory.summary) {
+  if (retainedFacts.length === 0 && !retainedSummary) {
     return {
       ...persona,
       systemPrompt: persona.systemPrompt + `\n\n[Humeur] ${mood}`,
@@ -130,8 +133,8 @@ function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<Load
 
   const memoryBlock = [
     "\n\n[Mémoire]",
-    memory.facts.length > 0 ? `Faits retenus: ${memory.facts.join(", ")}` : "",
-    memory.summary ? `Résumé: ${memory.summary}` : "",
+    retainedFacts.length > 0 ? `Faits retenus: ${retainedFacts.join(", ")}` : "",
+    retainedSummary ? `Résumé: ${retainedSummary}` : "",
   ].filter(Boolean).join("\n");
 
   return {
@@ -246,6 +249,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   const getMaxResponders = typeof maxGeneralRespondersOpt === "function"
     ? maxGeneralRespondersOpt
     : () => maxGeneralRespondersOpt;
+  const memoryPolicy = resolvePersonaMemoryPolicy();
 
   const personaCooldowns = new Map<string, number>();
   const personaMessageCounts = new Map<string, number>();
@@ -257,8 +261,13 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   // Memory cache (30s TTL) to avoid N+1 reloads in inter-persona chains
   const memoryCache = new Map<string, { data: PersonaMemory; ts: number }>();
   const MEMORY_CACHE_TTL = 30_000;
+
+  function getMemoryCacheKey(persona: Pick<ChatPersona, "id" | "nick">): string {
+    return persona.id || persona.nick;
+  }
+
   async function cachedLoadMemory(persona: ChatPersona): Promise<PersonaMemory> {
-    const cacheKey = persona.id || persona.nick;
+    const cacheKey = getMemoryCacheKey(persona);
     const cached = memoryCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < MEMORY_CACHE_TTL) return cached.data;
     const data = await loadPersonaMemory(persona);
@@ -268,6 +277,10 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       if (oldest) memoryCache.delete(oldest[0]);
     }
     return data;
+  }
+
+  function invalidateCachedMemory(persona: Pick<ChatPersona, "id" | "nick">): void {
+    memoryCache.delete(getMemoryCacheKey(persona));
   }
 
   function enqueueTTS(nick: string, text: string, channel: string): void {
@@ -286,11 +299,17 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
   function prunePersonaState(personas: ChatPersona[]): void {
     const activeNicks = new Set(personas.map((persona) => persona.nick));
+    const activeMemoryKeys = new Set(personas.map((persona) => getMemoryCacheKey(persona)));
     for (const [nick] of personaMessageCounts) {
       if (!activeNicks.has(nick)) {
         personaMessageCounts.delete(nick);
         personaRecentMessages.delete(nick);
         personaMemoryLocks.delete(nick);
+      }
+    }
+    for (const [cacheKey] of memoryCache) {
+      if (!activeMemoryKeys.has(cacheKey)) {
+        memoryCache.delete(cacheKey);
       }
     }
   }
@@ -301,7 +320,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
     const recentMessages = personaRecentMessages.get(nick) || [];
     recentMessages.push(text);
-    if (recentMessages.length > 10) {
+    if (recentMessages.length > memoryPolicy.pruning.workingSourceMessagesLimit) {
       recentMessages.shift();
     }
     personaRecentMessages.set(nick, recentMessages);
@@ -311,7 +330,10 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   function scheduleMemoryUpdate(persona: ChatPersona, recentMessages: string[]): void {
     const previous = personaMemoryLocks.get(persona.nick) || Promise.resolve();
     const next = previous
-      .then(() => updatePersonaMemory(persona, recentMessages, ollamaUrl))
+      .then(async () => {
+        await updatePersonaMemory(persona, recentMessages, ollamaUrl);
+        invalidateCachedMemory(persona);
+      })
       .catch((err) => {
         trackError("memory_update", err, { persona: persona.nick });
       });
@@ -456,11 +478,12 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         }
       }
 
+      const sourceLabel = depth > 0 ? "InterPersona" : "User";
       const { count, recentMessages } = trackPersonaMessage(
         persona.nick,
-        `User: ${text}\n${persona.nick}: ${fullText}`,
+        `${sourceLabel}: ${text}\n${persona.nick}: ${fullText}`,
       );
-      if (count > 0 && count % 5 === 0) {
+      if (shouldUpdatePersonaMemory(count, memoryPolicy)) {
         scheduleMemoryUpdate(persona, recentMessages);
       }
 

@@ -429,7 +429,7 @@ Complete table of all environment variables used across docker-compose.yml, Dock
 
 - **Format:** JSON files at `data/v2-local/persona-memory/*.json` with optional legacy mirror `data/persona-memory/*.json`
 - **Threshold:** Files exceeding 100 KB (102,400 bytes) are trimmed
-- **Strategy:** Keep runtime caps only (`workingMemory.facts[-20:]`, `workingMemory.lastSourceMessages[-10:]`, `archivalMemory.facts[-100:]`, `archivalMemory.summaries[-50:]`, `compat.facts[-20:]`)
+- **Strategy:** Keep runtime caps only (`workingMemory.facts[-20:]`, `workingMemory.lastSourceMessages[-10:]`, `archivalMemory.facts[-100:]`, `archivalMemory.summaries[-50:]`, `compat.facts[-20:]`) unless overridden by `KXKM_PERSONA_MEMORY_*`
 - **Schedule:** Same daily timer as chat log cleanup
 
 ### Context Store (Auto-Compaction)

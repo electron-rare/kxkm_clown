@@ -1,6 +1,6 @@
 # TODO (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T20:16:12Z
+Updated: 2026-03-26T06:58:28Z
 
 ## lot-201-runtime-hardening
 - [x] per-file-store (done) | owner: Personas | severity: P1
@@ -17,7 +17,7 @@ Updated: 2026-03-25T20:16:12Z
 - [x] migration-soft (done) | owner: Coordinateur | severity: P2
 
 ## lot-203-memory-policy
-- [ ] policy-engine (pending) | owner: Backend API | severity: P1
+- [x] policy-engine (done) | owner: Backend API | severity: P1
 - [ ] telemetry (pending) | owner: Ops/TUI | severity: P2
 - [ ] eval-harness (pending) | owner: Personas | severity: P2
 

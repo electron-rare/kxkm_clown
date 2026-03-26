@@ -644,9 +644,10 @@ Chaque persona accumule des faits et un resume sur ses interactions. La source d
 
 ### Memoire — Mise a jour
 
-- Toutes les 5 interactions, la persona recoit ses 10 derniers echanges et genere un JSON de faits + resume via Ollama
+- Une policy centralisee pilote la cadence, la fenetre d extraction et les caps de pruning; par defaut la mise a jour part toutes les 5 interactions sur les 10 derniers echanges
 - Le store charge d'abord le fichier V2 par `personaId`, puis migre automatiquement l'ancien fichier legacy par `nick` s'il est encore seul present
-- Les faits de travail sont dedupliques et limites a 20 max; l'archive est normalisee a 100 faits et 50 resumes
+- Les faits de travail sont dedupliques et limites a 20 max; l'archive est normalisee a 100 faits et 50 resumes; le miroir `compat` reste borne a 20 faits
+- Les overrides runtime passent par `KXKM_PERSONA_MEMORY_UPDATE_EVERY`, `KXKM_PERSONA_MEMORY_EXTRACTION_{MIN,MAX}_FACTS`, `KXKM_PERSONA_MEMORY_EXTRACTION_WINDOW`, `KXKM_PERSONA_MEMORY_{FACTS,SOURCE_MESSAGES,ARCHIVAL_FACTS,ARCHIVAL_SUMMARIES,COMPAT_FACTS}_LIMIT`
 - La memoire est injectee dans le systemPrompt sous forme de bloc `[Memoire]`
 
 ## 12. Flux principal (mermaid)

@@ -1,6 +1,6 @@
 # PLAN (kxkm-personas-runtime-20260325)
 
-Updated: 2026-03-25T20:16:12Z
+Updated: 2026-03-26T06:58:28Z
 
 ## lot-201-runtime-hardening [done]
 - Description: Durcir le runtime personas local et basculer le store actif en per-file v2-local
@@ -18,13 +18,13 @@ Updated: 2026-03-25T20:16:12Z
 - Checks: npm run check, npm run test:v2
 - Summary: Done: store partage `persona-memory-store`, migration auto V1 -> V2 par personaId, miroir legacy de compat, commandes runtime basculees et tests cibles ajoutes.
 
-## lot-203-memory-policy [pending]
+## lot-203-memory-policy [in_progress]
 - Description: Ajouter un moteur de policies pour extraction, summarization, pruning et evaluation memory
 - Depends on: lot-202-memory-schema
 - Owner: Backend API
 - Execution: manual
 - Checks: npm run check, npm run test:v2
-- Summary: Pending.
+- Summary: In progress: module partage `persona-memory-policy`, caps et cadence configurables, integration store + WS runtime, correctifs audit sur cache et rebounds inter-persona, tests cibles et suite V2 OK; telemetry et eval-harness restent pending.
 
 ## lot-204-oss-benchmark [in_progress]
 - Description: Comparer patterns Letta LangGraph Mem0 et preparer un spike OpenCharacter PCL

@@ -40,14 +40,14 @@
     {
       "id": "lot-203-memory-policy",
       "description": "Ajouter un moteur de policies pour extraction, summarization, pruning et evaluation memory",
-      "summary": "Pending.",
-      "status": "pending",
+      "summary": "In progress: policy-engine partage livre, runtime WS + store relies sur une policy configurable, cache et rebounds inter-persona durcis; telemetry et eval-harness restent a faire.",
+      "status": "in_progress",
       "owner": "Backend API",
       "execution": "manual",
       "checks": ["npm run check", "npm run test:v2"],
       "depends_on": ["lot-202-memory-schema"],
       "tasks": [
-        { "id": "policy-engine", "query": "Implementer des policies configurables extraction summarize prune", "status": "pending", "owner": "Backend API", "severity": "P1" },
+        { "id": "policy-engine", "query": "Implementer des policies configurables extraction summarize prune", "status": "done", "owner": "Backend API", "severity": "P1" },
         { "id": "telemetry", "query": "Mesurer drift, recall et write-rate des memories personas", "status": "pending", "owner": "Ops/TUI", "severity": "P2" },
         { "id": "eval-harness", "query": "Construire un harness de non-regression pour coherence memory", "status": "pending", "owner": "Personas", "severity": "P2" }
       ]

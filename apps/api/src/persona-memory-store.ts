@@ -2,12 +2,13 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   ChatPersona,
-  PersonaArchivalFact,
-  PersonaArchivalMemory,
-  PersonaArchivalSummary,
   PersonaMemory,
-  PersonaWorkingMemory,
 } from "./chat-types.js";
+import {
+  normalizePersonaMemory,
+  type PersonaMemoryPolicy,
+  resolvePersonaMemoryPolicy,
+} from "./persona-memory-policy.js";
 
 type PersonaMemorySubject = string | Pick<ChatPersona, "id" | "nick"> | { id?: string; personaId?: string; nick: string };
 
@@ -16,8 +17,8 @@ interface PersonaMemoryRecordV2 {
   personaId: string;
   personaNick: string;
   updatedAt: string;
-  workingMemory: PersonaWorkingMemory;
-  archivalMemory: PersonaArchivalMemory;
+  workingMemory: NonNullable<PersonaMemory["workingMemory"]>;
+  archivalMemory: NonNullable<PersonaMemory["archivalMemory"]>;
   compat: {
     facts: string[];
     summary: string;
@@ -83,26 +84,11 @@ async function writeJson(filePath: string, data: unknown): Promise<void> {
   await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
-function uniqueTrimmed(values: unknown[], limit: number): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const value of values) {
-    const text = String(value || "").trim();
-    const key = text.toLowerCase();
-    if (!text || seen.has(key)) continue;
-    seen.add(key);
-    result.push(text);
-  }
-
-  return result.slice(-limit);
-}
-
-function cloneArchivalFacts(values: PersonaArchivalFact[]): PersonaArchivalFact[] {
+function cloneArchivalFacts(values: NonNullable<PersonaMemory["archivalMemory"]>["facts"]): NonNullable<PersonaMemory["archivalMemory"]>["facts"] {
   return values.map((entry) => ({ ...entry }));
 }
 
-function cloneArchivalSummaries(values: PersonaArchivalSummary[]): PersonaArchivalSummary[] {
+function cloneArchivalSummaries(values: NonNullable<PersonaMemory["archivalMemory"]>["summaries"]): NonNullable<PersonaMemory["archivalMemory"]>["summaries"] {
   return values.map((entry) => ({ ...entry }));
 }
 
@@ -153,9 +139,9 @@ function createEmptyPersonaMemory(identity: { personaId?: string; nick: string }
 function toCompatMemory(record: PersonaMemoryRecordV2): PersonaMemory {
   return {
     nick: record.personaNick,
-    facts: [...record.compat.facts],
-    summary: record.compat.summary,
-    lastUpdated: record.compat.lastUpdated || record.updatedAt,
+    facts: [...record.workingMemory.facts],
+    summary: record.workingMemory.summary,
+    lastUpdated: record.updatedAt,
     personaId: record.personaId,
     version: 2,
     workingMemory: {
@@ -170,71 +156,26 @@ function toCompatMemory(record: PersonaMemoryRecordV2): PersonaMemory {
   };
 }
 
-function upsertArchivalFacts(existing: PersonaArchivalFact[], facts: string[], timestamp: string): PersonaArchivalFact[] {
-  const byText = new Map<string, PersonaArchivalFact>();
-
-  for (const entry of existing) {
-    const text = String(entry.text || "").trim();
-    if (!text) continue;
-    byText.set(text.toLowerCase(), { ...entry, text });
-  }
-
-  for (const fact of facts) {
-    const key = fact.toLowerCase();
-    const current = byText.get(key);
-    if (current) {
-      current.lastSeenAt = timestamp;
-      continue;
-    }
-
-    byText.set(key, {
-      text: fact,
-      firstSeenAt: timestamp,
-      lastSeenAt: timestamp,
-      source: "chat",
-    });
-  }
-
-  return [...byText.values()].slice(-100);
-}
-
-function upsertArchivalSummaries(existing: PersonaArchivalSummary[], summary: string, timestamp: string): PersonaArchivalSummary[] {
-  const trimmed = summary.trim();
-  const next = cloneArchivalSummaries(existing).slice(-49);
-  if (!trimmed) return next;
-  const last = next[next.length - 1];
-  if (last?.text === trimmed) return next;
-  next.push({ text: trimmed, createdAt: timestamp });
-  return next;
-}
-
-function toRecord(memory: PersonaMemory): PersonaMemoryRecordV2 {
+function toRecord(
+  memory: PersonaMemory,
+  policy: PersonaMemoryPolicy = resolvePersonaMemoryPolicy(),
+): PersonaMemoryRecordV2 {
   const timestamp = new Date().toISOString();
-  const personaId = String(memory.personaId || memory.nick || "").trim();
-  const nick = String(memory.nick || "").trim();
-  const workingFacts = uniqueTrimmed(memory.workingMemory?.facts || memory.facts || [], 20);
-  const workingSummary = String(memory.workingMemory?.summary ?? memory.summary ?? "").trim();
-  const lastSourceMessages = uniqueTrimmed(memory.workingMemory?.lastSourceMessages || [], 10);
-  const archivalFacts = upsertArchivalFacts(memory.archivalMemory?.facts || [], workingFacts, timestamp);
-  const archivalSummaries = upsertArchivalSummaries(memory.archivalMemory?.summaries || [], workingSummary, timestamp);
+  const normalized = normalizePersonaMemory(memory, { policy, timestamp });
+  const personaId = String(normalized.personaId || normalized.nick || "").trim();
+  const nick = String(normalized.nick || "").trim();
+  const compatFacts = normalized.workingMemory!.facts.slice(-policy.pruning.compatFactsLimit);
 
   return {
     version: 2,
     personaId,
     personaNick: nick,
     updatedAt: timestamp,
-    workingMemory: {
-      facts: workingFacts,
-      summary: workingSummary,
-      lastSourceMessages,
-    },
-    archivalMemory: {
-      facts: archivalFacts,
-      summaries: archivalSummaries,
-    },
+    workingMemory: normalized.workingMemory!,
+    archivalMemory: normalized.archivalMemory!,
     compat: {
-      facts: workingFacts,
-      summary: workingSummary,
+      facts: compatFacts,
+      summary: normalized.summary,
       lastUpdated: timestamp,
     },
   };
@@ -245,31 +186,29 @@ function fromLegacyMemory(
   legacy: Partial<PersonaMemory>,
 ): PersonaMemoryRecordV2 {
   const timestamp = String(legacy.lastUpdated || "").trim() || new Date().toISOString();
-  const facts = uniqueTrimmed(Array.isArray(legacy.facts) ? legacy.facts : [], 20);
-  const summary = String(legacy.summary || "").trim();
+  const normalized = normalizePersonaMemory({
+    nick: identity.nick,
+    personaId: String(identity.personaId || identity.nick || "").trim(),
+    facts: Array.isArray(legacy.facts) ? legacy.facts : [],
+    summary: String(legacy.summary || "").trim(),
+    lastUpdated: timestamp,
+  }, {
+    timestamp,
+    personaId: String(identity.personaId || identity.nick || "").trim(),
+  });
+  const policy = resolvePersonaMemoryPolicy();
+  const compatFacts = normalized.workingMemory!.facts.slice(-policy.pruning.compatFactsLimit);
 
   return {
     version: 2,
-    personaId: String(identity.personaId || identity.nick || "").trim(),
+    personaId: String(normalized.personaId || identity.personaId || identity.nick || "").trim(),
     personaNick: identity.nick,
     updatedAt: timestamp,
-    workingMemory: {
-      facts,
-      summary,
-      lastSourceMessages: [],
-    },
-    archivalMemory: {
-      facts: facts.map((text) => ({
-        text,
-        firstSeenAt: timestamp,
-        lastSeenAt: timestamp,
-        source: "chat",
-      })),
-      summaries: summary ? [{ text: summary, createdAt: timestamp }] : [],
-    },
+    workingMemory: normalized.workingMemory!,
+    archivalMemory: normalized.archivalMemory!,
     compat: {
-      facts,
-      summary,
+      facts: compatFacts,
+      summary: normalized.summary,
       lastUpdated: timestamp,
     },
   };
@@ -350,9 +289,9 @@ export async function loadPersonaMemory(subject: PersonaMemorySubject): Promise<
   return clonePersonaMemory(fresh);
 }
 
-export async function savePersonaMemory(memory: PersonaMemory): Promise<void> {
+export async function savePersonaMemory(memory: PersonaMemory, policy: PersonaMemoryPolicy = resolvePersonaMemoryPolicy()): Promise<void> {
   const identity = resolveIdentity({ personaId: memory.personaId, nick: memory.nick });
-  const record = toRecord(memory);
+  const record = toRecord(memory, policy);
   const { v2Dir, legacyDir } = resolveDirs();
   await writeJson(v2PathForId(v2Dir, record.personaId), record);
   await writeJson(legacyPathForNick(legacyDir, record.personaNick), {
@@ -367,9 +306,12 @@ export async function savePersonaMemory(memory: PersonaMemory): Promise<void> {
   setCache(identity, compat);
 }
 
-export async function resetPersonaMemory(subject: PersonaMemorySubject): Promise<PersonaMemory> {
+export async function resetPersonaMemory(
+  subject: PersonaMemorySubject,
+  policy: PersonaMemoryPolicy = resolvePersonaMemoryPolicy(),
+): Promise<PersonaMemory> {
   const identity = resolveIdentity(subject);
   const memory = createEmptyPersonaMemory(identity);
-  await savePersonaMemory(memory);
+  await savePersonaMemory(memory, policy);
   return loadPersonaMemory(identity);
 }

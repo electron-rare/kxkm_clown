@@ -15,6 +15,13 @@ resolve_repo_path() {
 LOCAL_DATA_ROOT=$(resolve_repo_path "${KXKM_LOCAL_DATA_DIR:-data/v2-local}")
 PERSONA_MEMORY_DIR="$LOCAL_DATA_ROOT/persona-memory"
 LEGACY_MEMORY_DIR=$(resolve_repo_path "${KXKM_PERSONA_MEMORY_LEGACY_DIR:-data/persona-memory}")
+MEMORY_FACTS_LIMIT=${KXKM_PERSONA_MEMORY_FACTS_LIMIT:-20}
+MEMORY_SOURCE_MESSAGES_LIMIT=${KXKM_PERSONA_MEMORY_SOURCE_MESSAGES_LIMIT:-10}
+MEMORY_ARCHIVAL_FACTS_LIMIT=${KXKM_PERSONA_MEMORY_ARCHIVAL_FACTS_LIMIT:-100}
+MEMORY_ARCHIVAL_SUMMARIES_LIMIT=${KXKM_PERSONA_MEMORY_ARCHIVAL_SUMMARIES_LIMIT:-50}
+MEMORY_COMPAT_FACTS_LIMIT=${KXKM_PERSONA_MEMORY_COMPAT_FACTS_LIMIT:-20}
+export MEMORY_FACTS_LIMIT MEMORY_SOURCE_MESSAGES_LIMIT MEMORY_ARCHIVAL_FACTS_LIMIT
+export MEMORY_ARCHIVAL_SUMMARIES_LIMIT MEMORY_COMPAT_FACTS_LIMIT
 
 trim_persona_memory_dir() {
   local dir="$1"
@@ -38,19 +45,19 @@ with file_path.open("r", encoding="utf-8") as fh:
 
 if isinstance(data.get("workingMemory"), dict):
     working = data["workingMemory"]
-    working["facts"] = list(working.get("facts") or [])[-20:]
-    working["lastSourceMessages"] = list(working.get("lastSourceMessages") or [])[-10:]
+    working["facts"] = list(working.get("facts") or [])[-int(os.environ.get("MEMORY_FACTS_LIMIT", "20")):]
+    working["lastSourceMessages"] = list(working.get("lastSourceMessages") or [])[-int(os.environ.get("MEMORY_SOURCE_MESSAGES_LIMIT", "10")):]
 
 if isinstance(data.get("archivalMemory"), dict):
     archival = data["archivalMemory"]
-    archival["facts"] = list(archival.get("facts") or [])[-100:]
-    archival["summaries"] = list(archival.get("summaries") or [])[-50:]
+    archival["facts"] = list(archival.get("facts") or [])[-int(os.environ.get("MEMORY_ARCHIVAL_FACTS_LIMIT", "100")):]
+    archival["summaries"] = list(archival.get("summaries") or [])[-int(os.environ.get("MEMORY_ARCHIVAL_SUMMARIES_LIMIT", "50")):]
 
 if isinstance(data.get("compat"), dict):
     compat = data["compat"]
-    compat["facts"] = list(compat.get("facts") or [])[-20:]
+    compat["facts"] = list(compat.get("facts") or [])[-int(os.environ.get("MEMORY_COMPAT_FACTS_LIMIT", "20")):]
 else:
-    data["facts"] = list(data.get("facts") or [])[-20:]
+    data["facts"] = list(data.get("facts") or [])[-int(os.environ.get("MEMORY_COMPAT_FACTS_LIMIT", "20")):]
 
 with file_path.open("w", encoding="utf-8") as fh:
     json.dump(data, fh, indent=2)

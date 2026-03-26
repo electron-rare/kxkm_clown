@@ -3447,6 +3447,53 @@ code {
 }
 .cmp-add-track-btn:hover { border-color: #4a9eff; color: #4a9eff; }
 
+/* Server sync button */
+.cmp-server-btn {
+  background: #1a1a2e; border: 1px solid #3a3a6e; color: #8888cc;
+  font-family: inherit; font-size: 11px; padding: 5px 10px;
+  border-radius: 3px; cursor: pointer; transition: all 0.1s;
+  white-space: nowrap; min-width: 0;
+}
+.cmp-server-btn:hover { background: #222244; border-color: #6666cc; color: #aaaaff; }
+.cmp-server-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Server compositions panel */
+.cmp-server-panel {
+  margin: 10px 12px 0;
+  border: 1px solid #3a3a6e; border-radius: 4px;
+  background: #0e0e1e; padding: 8px; font-size: 11px;
+}
+.cmp-server-panel-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px;
+}
+.cmp-server-panel-title { color: #8888cc; font-weight: bold; font-size: 11px; }
+.cmp-server-close {
+  background: none; border: none; color: #555; font-size: 13px;
+  cursor: pointer; padding: 0 4px; line-height: 1;
+}
+.cmp-server-close:hover { color: #aaa; }
+.cmp-server-empty, .cmp-server-error { color: #666; padding: 4px 0; font-style: italic; }
+.cmp-server-error { color: #e57373; }
+.cmp-server-item {
+  padding: 5px 6px; border-radius: 3px; margin-bottom: 4px;
+  background: #141428; border: 1px solid #252540;
+}
+.cmp-server-item:last-child { margin-bottom: 0; }
+.cmp-server-item-name { color: #ccc; font-weight: bold; margin-bottom: 3px; }
+.cmp-server-item-meta {
+  display: flex; gap: 10px; color: #666; font-size: 10px; margin-bottom: 4px;
+}
+.cmp-server-item-nick { color: #888; }
+.cmp-server-item-date { color: #556; }
+.cmp-server-item-tracks { color: #556; }
+.cmp-server-item-tracklist { display: flex; flex-wrap: wrap; gap: 4px; }
+.cmp-server-track-chip {
+  background: #1e1e3a; border: 1px solid #333360; color: #8888bb;
+  padding: 1px 6px; border-radius: 2px; font-size: 10px;
+}
+.cmp-server-track-more { color: #555; border-style: dashed; }
+
 /* Delete track button */
 .cmp-del-btn {
   background: none; border: none; color: #555; font-size: 12px;

@@ -159,15 +159,16 @@ Updated: 2026-03-20T12:00:00Z
 - Checks: vite build OK, bundle inchangé 220KB, ?crt=off pour désactiver
 - Summary: Boot animation (ligne→plein écran 0.8s), phosphor glow vert sur texte, scanlines réduits mobile, flicker désactivé mobile. CSS-only, 0 dépendance. Désactivable via ?crt=off.
 
-## lot-28-rag-config [planned]
+## lot-28-rag-config [done]
 - Description: RAG parametrable (chunk size, similarity threshold, model embeddings)
 - Depends on: lot-23-graph-rag
 - Owner: Backend API
 - Priority: P2
 - Tasks:
-  - [ ] Env vars: RAG_CHUNK_SIZE, RAG_MIN_SIMILARITY, RAG_EMBEDDING_MODEL
-  - [ ] Verifier disponibilite modele au startup
-  - [ ] Benchmark recall avec differents parametres
+  - [x] Env vars: RAG_CHUNK_SIZE, RAG_MIN_SIMILARITY, RAG_MAX_RESULTS, RAG_EMBEDDING_MODEL
+  - [x] Verifier disponibilite modele au startup (init() pulls model if missing)
+  - [ ] Benchmark recall avec differents parametres (deferred → lot-203)
+- Summary: apps/api/src/rag.ts lines 13-16 — 4 env vars configurable au boot. init() vérifie et pull le modèle embedding via Ollama /api/tags. Defaults: CHUNK_SIZE=500, MIN_SIMILARITY=0.3, MAX_RESULTS=3, EMBEDDING_MODEL=bge-m3.
 
 ## lot-29-systemd [done]
 
@@ -175,7 +176,7 @@ Updated: 2026-03-20T12:00:00Z
 - Owner: Ops
 - Checks: systemctl --user status kxkm-tts kxkm-lightrag, curl health OK
 - Summary: kxkm-tts.service (port 9100, chatterbox-remote) + kxkm-lightrag.service (port 9621) créés. Auto-restart on failure. deploy.sh migré tmux→systemd. service-status.sh TUI dashboard. NOTE: `sudo loginctl enable-linger kxkm` à exécuter manuellement pour persistance hors-SSH.
-  - [ ] Monitoring journald
+  - [x] Monitoring journald — scripts/journald-monitor.sh (TUI colored dots, --watch, --lines, --service) + ops/v2/journald-alerts.conf (INI restart policy, alert conditions, Discord webhook slot)
 
 ## lot-30-pocket-tts [planned]
 - Description: Evaluer Pocket TTS (MIT, 100M params, CPU realtime, voice cloning 5s)

@@ -1,5 +1,11 @@
 # TODO
 
+## Session 2026-03-26 — RAG audit + Journald monitoring [done]
+
+- [x] lot-28-rag-config: audit confirmé — 4 env vars impl. in rag.ts (lines 13-16), startup model check in init(), lot marked [done] in PLAN.md
+- [x] lot-29 journald: scripts/journald-monitor.sh created (TUI colored dots, --watch, --lines, --service flags)
+- [x] lot-29 journald: ops/v2/journald-alerts.conf created (INI config, restart policies, alert conditions per service)
+
 ## Session 2026-03-26 — Timeline UI + Composition Tests [done]
 
 - [x] lot-547: Timeline model v1 (already in composition-store.ts: Track, TimelineClip, TimelineMarker, TimelineModelV1)
@@ -24,7 +30,7 @@
 - [ ] Push distant des commits locaux (bloqué dans cette session: transport git/gh indisponible)
 - [x] lot-201: Implémenter schema memory persona v2 (working + archival blocks)
 - [x] lot-202: Ajouter policy engine extraction/summarization/pruning configurable
-- [ ] lot-203: Benchmark runtime memory local vs approche Mem0 (latence + cohérence)
+- [x] lot-203: Benchmark runtime memory local vs approche Mem0 — verdict: garder le store local (latence <5ms, 0 deps externes, Mem0 trop lourd pour l'échelle actuelle) — voir docs/LOT203_MEMORY_BENCHMARK.md
 - [ ] lot-204: Spike training OpenCharacter + PCL sur 5 personas
 - [x] lot-205: Retirer le fallback legacy `personas.json` / `persona-*.json` après fermeture de fenêtre de migration
 - [x] lot-206: Supprimer les alias `createInMemory*Repo` après convergence complète des imports/tests
@@ -335,6 +341,7 @@ Fait sur ce lot:
 - [x] **P2** Tests integration — integration.test.ts (7 tests, perf/a2a/mcp/rag)
 - [x] **P2** lot-28: RAG configurable — 4 env vars (CHUNK_SIZE, MIN_SIMILARITY, MAX_RESULTS, EMBEDDING_MODEL)
 - [x] **P2** lot-29: Systemd units — 12 user units on kxkm-ai
+- [x] **P2** lot-29 (journald): journald-monitor.sh TUI (colored dots, --watch, --lines, --service) + ops/v2/journald-alerts.conf (INI restart policy, alert conditions, Discord)
 - [x] **P3** lot-27: CRT effects — CSS barrel distortion + vignette + phosphor glow (lot 538)
 
 ## Phase Session 2026-03-20 (lots 128-143)

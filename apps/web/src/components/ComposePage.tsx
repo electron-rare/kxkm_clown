@@ -120,6 +120,15 @@ function TimelineWaveform({ audioData, audioMime, color }: { audioData: string; 
   );
 }
 
+interface ServerComposition {
+  id: string;
+  name: string;
+  nick: string;
+  createdAt: string;
+  updatedAt: string;
+  tracks: { id: string; type: string; prompt: string; duration: number }[];
+}
+
 export default function ComposePage() {
   const [tracks, setTracks] = useState<Track[]>(DEFAULT_TRACKS);
   const [compName, setCompName] = useState("Ma composition");
@@ -127,6 +136,9 @@ export default function ComposePage() {
   const [mixing, setMixing] = useState(false);
   const [status, setStatus] = useState("");
   const [parallelMode, setParallelMode] = useState(false);
+  const [serverComps, setServerComps] = useState<ServerComposition[] | null>(null);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverError, setServerError] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
   const [dragging, setDragging] = useState<{ trackIdx: number; mode: "move" | "resize"; startX: number; origOffset: number; origDur: number } | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; trackIdx: number } | null>(null);
@@ -359,6 +371,26 @@ export default function ComposePage() {
   const hasAudio = tracks.some(t => t.audioData);
   const generatingCount = tracks.filter(t => t.generating).length;
 
+  async function loadServerComps() {
+    setServerLoading(true);
+    setServerError("");
+    try {
+      const resp = await fetch("/api/v2/media/compositions");
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      const json = await resp.json();
+      const list: ServerComposition[] = (json.data || []).sort(
+        (a: ServerComposition, b: ServerComposition) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      setServerComps(list);
+    } catch (err) {
+      setServerError("Erreur chargement: " + String(err));
+      setServerComps([]);
+    } finally {
+      setServerLoading(false);
+    }
+  }
+
   // Playlist mode: play all tracks sequentially
   const [playing, setPlaying] = useState(false);
   const playlistRef = useRef<HTMLAudioElement | null>(null);
@@ -413,6 +445,14 @@ export default function ComposePage() {
             {playing ? "\u23F9" : "\u25B6"} {playing ? "Stop" : "Play"}
           </button>
           <button className="cmp-add-track-btn" onClick={addTrack} title="Ajouter une piste">+</button>
+          <button
+            className="cmp-server-btn"
+            onClick={loadServerComps}
+            disabled={serverLoading}
+            title="Charger les compositions sauvegardees sur le serveur"
+          >
+            {serverLoading ? "..." : "\u2601 Serveur"}
+          </button>
         </div>
       </div>
 
@@ -629,6 +669,40 @@ export default function ComposePage() {
         <div className="cmp-status">
           {generatingCount > 0 && <span className="cmp-gen-count">{generatingCount} generation{generatingCount > 1 ? "s" : ""} en cours</span>}
           {status && <span>{status}</span>}
+        </div>
+      )}
+
+      {/* SERVER COMPOSITIONS PANEL */}
+      {serverComps !== null && (
+        <div className="cmp-server-panel">
+          <div className="cmp-server-panel-header">
+            <span className="cmp-server-panel-title">\u2601 Compositions serveur ({serverComps.length})</span>
+            <button className="cmp-server-close" onClick={() => setServerComps(null)}>\u2715</button>
+          </div>
+          {serverError && <div className="cmp-server-error">{serverError}</div>}
+          {serverComps.length === 0 && !serverError && (
+            <div className="cmp-server-empty">Aucune composition sauvegardee.</div>
+          )}
+          {serverComps.map(comp => (
+            <div key={comp.id} className="cmp-server-item">
+              <div className="cmp-server-item-name">{comp.name}</div>
+              <div className="cmp-server-item-meta">
+                <span className="cmp-server-item-nick">{comp.nick}</span>
+                <span className="cmp-server-item-date">{new Date(comp.updatedAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</span>
+                <span className="cmp-server-item-tracks">{comp.tracks?.length ?? 0} pistes</span>
+              </div>
+              {comp.tracks && comp.tracks.length > 0 && (
+                <div className="cmp-server-item-tracklist">
+                  {comp.tracks.slice(0, 4).map(t => (
+                    <span key={t.id} className="cmp-server-track-chip" title={t.prompt || t.type}>
+                      {t.type} {t.duration}s
+                    </span>
+                  ))}
+                  {comp.tracks.length > 4 && <span className="cmp-server-track-chip cmp-server-track-more">+{comp.tracks.length - 4}</span>}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

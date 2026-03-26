@@ -229,4 +229,96 @@ describe("composition-store", () => {
     assert.equal(onDisk.timeline.markers.length, 1);
     assert.equal(onDisk.timeline.markers[0].label, "Intro");
   });
+
+  it("setActiveComposition rebinds nick and channel", async () => {
+    const { createComposition, setActiveComposition, getActiveComposition } = await storePromise;
+    const comp = createComposition("lena", "#a", "Lena A");
+    const result = setActiveComposition("lena2", "#b", comp.id);
+    assert.ok(result, "should return composition");
+    assert.equal(result!.nick, "lena2");
+    assert.equal(result!.channel, "#b");
+    const found = getActiveComposition("lena2", "#b");
+    assert.ok(found, "should find rebounded composition");
+    assert.equal(found!.id, comp.id);
+  });
+
+  it("setActiveComposition returns undefined for unknown compId", async () => {
+    const { setActiveComposition } = await storePromise;
+    const result = setActiveComposition("nobody", "#x", "comp_nonexistent_abc");
+    assert.equal(result, undefined);
+  });
+
+  it("updateTimelineSettings returns null for unknown compId", async () => {
+    const { updateTimelineSettings } = await storePromise;
+    const result = updateTimelineSettings("comp_nonexistent_abc", { bpm: 140 });
+    assert.equal(result, null);
+  });
+
+  it("addTimelineMarker returns null for unknown compId", async () => {
+    const { addTimelineMarker } = await storePromise;
+    const result = addTimelineMarker("comp_nonexistent_abc", { label: "X", atMs: 1000 });
+    assert.equal(result, null);
+  });
+
+  it("BPM is clamped to [20, 300]", async () => {
+    const { createComposition, updateTimelineSettings } = await storePromise;
+    const comp = createComposition("mike", "#clamp", "Mike Clamp");
+    const low = updateTimelineSettings(comp.id, { bpm: 5 });
+    assert.equal(low!.bpm, 20, "bpm below 20 should clamp to 20");
+    const high = updateTimelineSettings(comp.id, { bpm: 999 });
+    assert.equal(high!.bpm, 300, "bpm above 300 should clamp to 300");
+    const ok = updateTimelineSettings(comp.id, { bpm: 90.7 });
+    assert.equal(ok!.bpm, 91, "bpm should be rounded");
+  });
+
+  it("timeSignature numerator and denominator are clamped to >= 1", async () => {
+    const { createComposition, updateTimelineSettings } = await storePromise;
+    const comp = createComposition("nina", "#clamp2", "Nina Clamp");
+    const ts = updateTimelineSettings(comp.id, { timeSignature: [0, -3] });
+    assert.deepEqual(ts!.timeSignature, [1, 1], "both values should clamp to 1");
+  });
+
+  it("listTimelineMarkers returns sorted by atMs", async () => {
+    const { createComposition, addTimelineMarker, listTimelineMarkers } = await storePromise;
+    const comp = createComposition("otto", "#markers", "Otto Markers");
+    addTimelineMarker(comp.id, { label: "B", atMs: 8000 });
+    addTimelineMarker(comp.id, { label: "A", atMs: 2000 });
+    addTimelineMarker(comp.id, { label: "C", atMs: 15000 });
+    const markers = listTimelineMarkers(comp.id);
+    assert.equal(markers.length, 3);
+    assert.equal(markers[0].label, "A");
+    assert.equal(markers[1].label, "B");
+    assert.equal(markers[2].label, "C");
+  });
+
+  it("multiple tracks generate multiple clips each linked by trackId", async () => {
+    const { createComposition, addTrack, getTimeline } = await storePromise;
+    const comp = createComposition("pam", "#multi", "Pam Multi");
+    const t1 = addTrack(comp.id, { type: "music", prompt: "beat", duration: 20, volume: 100, startMs: 0 });
+    const t2 = addTrack(comp.id, { type: "voice", prompt: "narration", duration: 10, volume: 80, startMs: 5000 });
+    assert.ok(t1);
+    assert.ok(t2);
+    const tl = getTimeline(comp.id);
+    assert.ok(tl);
+    assert.equal(tl!.clips.length, 2);
+    const clipIds = tl!.clips.map((c: any) => c.trackId);
+    assert.ok(clipIds.includes(t1!.id), "clip for t1 should exist");
+    assert.ok(clipIds.includes(t2!.id), "clip for t2 should exist");
+    const clip2 = tl!.clips.find((c: any) => c.trackId === t2!.id);
+    assert.equal(clip2!.startMs, 5000);
+    assert.equal(clip2!.durationMs, 10000);
+  });
+
+  it("clip gain is clamped between 0 and 200", async () => {
+    const { createComposition, addTrack, getTimeline } = await storePromise;
+    const comp = createComposition("quinn", "#gain", "Quinn Gain");
+    const t1 = addTrack(comp.id, { type: "sfx", prompt: "silent", duration: 5, volume: 0, startMs: 0 });
+    const t2 = addTrack(comp.id, { type: "sfx", prompt: "loud", duration: 5, volume: 250, startMs: 0 });
+    assert.ok(t1 && t2);
+    const tl = getTimeline(comp.id);
+    const clip1 = tl!.clips.find((c: any) => c.trackId === t1!.id);
+    const clip2 = tl!.clips.find((c: any) => c.trackId === t2!.id);
+    assert.equal(clip1!.gain, 0);
+    assert.equal(clip2!.gain, 200);
+  });
 });

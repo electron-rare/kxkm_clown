@@ -4660,3 +4660,214 @@ code {
   .minitel-service-top { display: none; }
   .minitel-content { height: calc(100vh - 32px); }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   TimelineView — lot-548
+   ═══════════════════════════════════════════════════════════ */
+
+.tl-root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.tl-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  background: var(--border);
+  color: var(--bg);
+  flex-wrap: wrap;
+}
+
+.tl-title { font-weight: bold; flex: 1; min-width: 80px; }
+.tl-meta { color: rgba(246,240,223,0.7); }
+.tl-duration { margin-left: auto; }
+
+.tl-transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.tl-btn {
+  background: none;
+  border: 1px solid var(--border-light);
+  color: var(--ink);
+  cursor: pointer;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: 2px;
+  transition: background 0.1s;
+}
+.tl-btn:hover { background: var(--border-light); }
+
+.tl-pos { color: var(--muted); font-size: 10px; margin-left: auto; }
+
+.tl-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tl-canvas { position: relative; min-height: 20px; }
+
+.tl-ruler-wrap {
+  cursor: pointer;
+  user-select: none;
+}
+
+.tl-ruler {
+  position: relative;
+  height: 20px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg);
+}
+
+.tl-tick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-left: 1px solid var(--border-light);
+  pointer-events: none;
+}
+
+.tl-tick-label {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  font-size: 9px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tl-lanes { position: relative; }
+
+.tl-playhead {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0.85;
+}
+
+.tl-marker {
+  position: absolute;
+  top: 0;
+  width: 0;
+  border-left: 2px dashed;
+  pointer-events: none;
+  z-index: 9;
+}
+
+.tl-marker-label {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 9px;
+  white-space: nowrap;
+  pointer-events: none;
+  font-weight: bold;
+}
+
+.tl-lane {
+  display: flex;
+  border-bottom: 1px solid var(--border-light);
+  position: relative;
+}
+
+.tl-lane-label {
+  flex-shrink: 0;
+  width: 64px;
+  padding: 4px;
+  border-left: 3px solid var(--border-light);
+  background: var(--panel);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.tl-lane-type { font-weight: bold; color: var(--ink); font-size: 9px; }
+.tl-lane-prompt { color: var(--muted); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.tl-lane-clips { position: relative; height: 100%; }
+
+.tl-clip {
+  position: absolute;
+  top: 4px;
+  height: calc(100% - 8px);
+  border-radius: 2px;
+  opacity: 0.85;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  cursor: default;
+  transition: opacity 0.1s;
+}
+.tl-clip:hover { opacity: 1; }
+
+.tl-clip-label {
+  color: rgba(246,240,223,0.9);
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.tl-empty-tracks {
+  padding: 16px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.tl-marker-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--border-light);
+}
+
+.tl-marker-btn {
+  background: none;
+  border: 1px solid;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.tl-marker-btn:hover { opacity: 0.75; }
+
+.tl-loading, .tl-error, .tl-empty {
+  padding: 16px;
+  text-align: center;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+.tl-error { color: var(--status-danger); }
+
+/* Mobile: reduce pixelsPerSec visually via scale */
+@media (max-width: 600px) {
+  .tl-lane-label { width: 48px; }
+  .tl-tick-label { display: none; }
+  .tl-tick:nth-child(even) { display: none; }
+}

@@ -1,5 +1,16 @@
 # TODO
 
+## Session 2026-03-26 — Timeline UI + Composition Tests [done]
+
+- [x] lot-547: Timeline model v1 (already in composition-store.ts: Track, TimelineClip, TimelineMarker, TimelineModelV1)
+- [x] lot-548: Waveform timeline UI v1 (TimelineView.tsx + CSS, routed at #timeline/:id)
+- [x] lot-549: Composition tests renfort (20 tests, 0 fail — added setActiveComposition, BPM clamping, markers sort, multi-track clips)
+- [x] lot-201: Schema memory persona v2 (done in prior session via feat(personas): migrate runtime memory to v2-local store)
+- [x] lot-202: Policy engine extraction/summarization/pruning (done via feat(personas): add configurable memory policy engine)
+- [x] lot-205: Retirer fallback legacy personas.json / persona-*.json (aucun fichier legacy sur disque)
+- [x] lot-206: Supprimer aliases createInMemory*Repo (déjà absent — migration convergée)
+- [x] P11 routes extraction: routes/personas.ts, routes/node-engine.ts, routes/chat-history.ts, app-middleware.ts
+
 ## Session 2026-03-25 — Personas runtime V2
 
 - [x] Migrer le store local runtime personas vers `data/v2-local/*` en fichier par persona
@@ -11,12 +22,12 @@
 - [x] Exposer le mode fallback API comme `local` au lieu de `memory`
 - [x] Recaler les factories canoniques sur `createLocal*Repo` avec alias de compat
 - [ ] Push distant des commits locaux (bloqué dans cette session: transport git/gh indisponible)
-- [ ] lot-201: Implémenter schema memory persona v2 (working + archival blocks)
-- [ ] lot-202: Ajouter policy engine extraction/summarization/pruning configurable
+- [x] lot-201: Implémenter schema memory persona v2 (working + archival blocks)
+- [x] lot-202: Ajouter policy engine extraction/summarization/pruning configurable
 - [ ] lot-203: Benchmark runtime memory local vs approche Mem0 (latence + cohérence)
 - [ ] lot-204: Spike training OpenCharacter + PCL sur 5 personas
-- [ ] lot-205: Retirer le fallback legacy `personas.json` / `persona-*.json` après fermeture de fenêtre de migration
-- [ ] lot-206: Supprimer les alias `createInMemory*Repo` après convergence complète des imports/tests
+- [x] lot-205: Retirer le fallback legacy `personas.json` / `persona-*.json` après fermeture de fenêtre de migration
+- [x] lot-206: Supprimer les alias `createInMemory*Repo` après convergence complète des imports/tests
 
 ## P0 Critical (sécurité & stabilité)
 
@@ -175,10 +186,10 @@
   - [x] `ws-commands-generate.ts` (1841 LOC)
   - [x] `ws-commands-info.ts` (876 LOC)
 - [x] **P1** app.ts: extraction — server.ts 300 LOC + app.ts 131 LOC (already modular)
-  - [ ] Extraire `routes/personas.ts`
-  - [ ] Extraire `routes/node-engine.ts`
-  - [ ] Extraire `routes/chat.ts`
-  - [ ] Extraire `middleware/auth.ts`
+  - [x] Extraire `routes/personas.ts`
+  - [x] Extraire `routes/node-engine.ts`
+  - [x] Extraire `routes/chat.ts` (→ routes/chat-history.ts)
+  - [x] Extraire `middleware/auth.ts` (→ app-middleware.ts)
 - [x] **P2** writeFileSync — composition-store async (lot 461)
 - [x] **P2** console.log — all migrated to pino structured logging
 - [x] **P2** React.memo sur Chat, ChatHistory, VoiceChat, NodeEditor — ChatMessage already memo'd
@@ -423,6 +434,6 @@ Fait sur ce lot:
 
 - [x] lot-545: Sync statuts PLAN/TODO/docs/AGENTS (lots 95-100, 178-200)
 - [x] lot-546: lot-178 ACE-Step direct API pour /compose duration fiable
-- [ ] lot-547 (en cours): lot-180 timeline model v1 (tracks/clips/markers + schema)
-- [ ] lot-548: lot-194 waveform timeline UI v1 (desktop + mobile)
-- [ ] lot-549: composition tests renfort (store/remix/export/timeline)
+- [x] lot-547: lot-180 timeline model v1 (tracks/clips/markers + schema)
+- [x] lot-548: lot-194 waveform timeline UI v1 (desktop + mobile)
+- [x] lot-549: composition tests renfort (store/remix/export/timeline)

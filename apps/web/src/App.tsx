@@ -32,6 +32,7 @@ const MediaExplorer = lazy(() => import("./components/MediaExplorer"));
 const MediaGallery = lazy(() => import("./components/MediaGallery"));
 const UserGuide = lazy(() => import("./components/UserGuide"));
 const LiveFXPage = lazy(() => import("./components/LiveFXPage"));
+const TimelinePage = lazy(() => import("./components/TimelineView"));
 
 // Prefetch heavy routes on idle
 if (typeof requestIdleCallback !== "undefined") {
@@ -201,6 +202,9 @@ export default function App() {
 
       case "visual-synth":
         return <VisualSynth />;
+
+      case "timeline":
+        return <TimelinePage compositionId={id || undefined} />;
 
       case "chat":
       default:

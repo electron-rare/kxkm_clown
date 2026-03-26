@@ -27,10 +27,6 @@ function localStoreFiles() {
     personaSourcesDir: path.join(storeDir, "persona-sources"),
     personaFeedbackDir: path.join(storeDir, "persona-feedback"),
     personaProposalsDir: path.join(storeDir, "persona-proposals"),
-    legacyPersonas: path.join(storeDir, "personas.json"),
-    legacyPersonaSources: path.join(storeDir, "persona-sources.json"),
-    legacyPersonaFeedback: path.join(storeDir, "persona-feedback.json"),
-    legacyPersonaProposals: path.join(storeDir, "persona-proposals.json"),
   };
 }
 
@@ -186,13 +182,6 @@ export function createLocalPersonaRepo() {
       personas.set(persona.id, { ...persona });
     }
 
-    const saved = await readJson<PersonaRecord[]>(files.legacyPersonas, []);
-    for (const persona of saved) {
-      if (personas.has(persona.id)) continue;
-      personas.set(persona.id, { ...persona });
-      await writeJson(personaFilePath(files.personasDir, persona.id), persona);
-    }
-
     if (personas.size > 0) {
       return;
     }
@@ -312,13 +301,6 @@ export function createLocalPersonaSourceRepo() {
     for (const source of byPersonaFiles) {
       sources.set(source.personaId, { ...source });
     }
-
-    const saved = await readJson<Record<string, PersonaSourceRecord>>(files.legacyPersonaSources, {});
-    for (const source of Object.values(saved)) {
-      if (sources.has(source.personaId)) continue;
-      sources.set(source.personaId, { ...source });
-      await writeJson(personaFilePath(files.personaSourcesDir, source.personaId), source);
-    }
   });
 
   return {
@@ -349,19 +331,6 @@ export function createLocalPersonaFeedbackRepo() {
         list.push({ ...record });
         feedback.set(record.personaId, list);
       }
-    }
-
-    const saved = await readJson<PersonaFeedbackRecord[]>(files.legacyPersonaFeedback, []);
-    const dirtyPersonaIds = new Set<string>();
-    for (const record of saved) {
-      const list = feedback.get(record.personaId) || [];
-      if (list.some((entry) => entry.id === record.id)) continue;
-      list.push({ ...record });
-      feedback.set(record.personaId, list);
-      dirtyPersonaIds.add(record.personaId);
-    }
-    for (const personaId of dirtyPersonaIds) {
-      await writeJson(personaFilePath(files.personaFeedbackDir, personaId), feedback.get(personaId) || []);
     }
   });
 
@@ -394,19 +363,6 @@ export function createLocalPersonaProposalRepo() {
         list.push({ ...record });
         proposals.set(record.personaId, list);
       }
-    }
-
-    const saved = await readJson<PersonaProposalRecord[]>(files.legacyPersonaProposals, []);
-    const dirtyPersonaIds = new Set<string>();
-    for (const record of saved) {
-      const list = proposals.get(record.personaId) || [];
-      if (list.some((entry) => entry.id === record.id)) continue;
-      list.push({ ...record });
-      proposals.set(record.personaId, list);
-      dirtyPersonaIds.add(record.personaId);
-    }
-    for (const personaId of dirtyPersonaIds) {
-      await writeJson(personaFilePath(files.personaProposalsDir, personaId), proposals.get(personaId) || []);
     }
   });
 

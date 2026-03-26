@@ -1,9 +1,12 @@
 import { describe, it, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { createCommandHandler } from "./ws-commands.js";
-import { addTrack, createComposition } from "./composition-store.js";
+import { addTrack, createComposition, setActiveComposition } from "./composition-store.js";
 import type { ClientInfo, ChatPersona, OutboundMessage } from "./chat-types.js";
 import type { WebSocket } from "ws";
+
+// Unique per-run suffix to avoid nick/channel collisions with compositions persisted from prior test runs
+const RUN_ID = Date.now().toString(36);
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -394,7 +397,7 @@ describe("/compose", () => {
 
 describe("/rename", () => {
   it("renames the active composition through the extracted compose handler", async () => {
-    const info = makeInfo({ nick: "ComposerRename", channel: "#compose-rename" });
+    const info = makeInfo({ nick: `ComposerRename_${RUN_ID}`, channel: `#compose-rename_${RUN_ID}` });
     createComposition(info.nick, info.channel, "Ancien nom");
 
     const deps = makeDeps();
@@ -409,7 +412,7 @@ describe("/rename", () => {
 
 describe("/tracks", () => {
   it("lists tracks through the extracted compose management handler", async () => {
-    const info = makeInfo({ nick: "ComposerTracks", channel: "#compose-tracks" });
+    const info = makeInfo({ nick: `ComposerTracks_${RUN_ID}`, channel: `#compose-tracks_${RUN_ID}` });
     const comp = createComposition(info.nick, info.channel, "Track test");
     addTrack(comp.id, { type: "music", prompt: "drone test", duration: 12, volume: 80, startMs: 0 });
 
@@ -426,8 +429,9 @@ describe("/tracks", () => {
 
 describe("/delete", () => {
   it("deletes a track through the extracted compose advanced handler", async () => {
-    const info = makeInfo({ nick: "ComposerDelete", channel: "#compose-delete" });
+    const info = makeInfo({ nick: `ComposerDelete_${RUN_ID}`, channel: `#compose-delete_${RUN_ID}` });
     const comp = createComposition(info.nick, info.channel, "Delete test");
+    setActiveComposition(info.nick, info.channel, comp.id);
     addTrack(comp.id, { type: "music", prompt: "first track", duration: 8, volume: 100, startMs: 0 });
     addTrack(comp.id, { type: "music", prompt: "second track", duration: 9, volume: 100, startMs: 0 });
 
@@ -445,7 +449,7 @@ describe("/delete", () => {
 
 describe("/marker", () => {
   it("adds and lists markers through the extracted compose advanced handler", async () => {
-    const info = makeInfo({ nick: "ComposerMarker", channel: "#compose-marker" });
+    const info = makeInfo({ nick: `ComposerMarker_${RUN_ID}`, channel: `#compose-marker_${RUN_ID}` });
     createComposition(info.nick, info.channel, "Marker test");
 
     const deps = makeDeps();

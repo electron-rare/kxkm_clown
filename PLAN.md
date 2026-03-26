@@ -35,6 +35,18 @@ Updated: 2026-03-25T05:20:00Z
   - Gated legacy V1 artifacts in build with `BUILD_INCLUDE_LEGACY_PERSONA_V1=1`.
   - Renamed exposed fallback storage mode to `local` and recabled canonical repo factories to `createLocal*Repo`.
 
+## Session 2026-03-26 — Timeline UI + Tests + Cleanup [done]
+
+- Owner: Backend API + Frontend
+- Checks: 20 composition tests pass, web build OK (537ms)
+- Summary:
+  - lot-547: TimelineModelV1 schema already in composition-store.ts (Track, TimelineClip, TimelineMarker, BPM, timeSignature).
+  - lot-548: TimelineView.tsx (300 LOC) with RAF playback, ruler seek, clip blocks, marker legend, mobile CSS. Lazy-loaded at #timeline/:id.
+  - lot-549: composition-store.test.ts extended to 20 tests: setActiveComposition rebind/guard, BPM clamp [20,300], timeSignature clamp >=1, marker sort, multi-track clips, gain clamp [0,200].
+  - lot-205: Legacy personas.json fallback removed from create-repos.ts (no legacy files on disk, migration window closed).
+  - lot-206: Confirmed no createInMemory* aliases remaining — migration fully converged.
+  - P11: All four route extractions confirmed complete (routes/personas.ts, routes/node-engine.ts, routes/chat-history.ts, app-middleware.ts).
+
 ---
 
 Updated: 2026-03-20T12:00:00Z

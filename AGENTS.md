@@ -1,252 +1,130 @@
-# Agents, Sous-agents, Competences
+# AGENTS.md — KXKM_Clown Monorepo
 
 > "L'infrastructure est une decision politique deployee." -- electron rare
 
-## Orchestration
+Multimodal AI chat system. Turborepo monorepo (npm workspaces): 3 apps + 8 packages + 42 scripts. 15+ service mesh. Single RTX 4090 GPU: `MAX_GPU_CONCURRENT=1`.
 
-- Agent racine: **Coordinateur** — planifie, arbitre, synchronise PLAN/TODO/docs
-- Sous-agents specialises: analyse code, veille OSS, audit securite, optimisation
-- Cadence: synchroniser PLAN.md + TODO.md + docs apres chaque lot
+## Key Files
 
-## Matrice des agents (lot 17+)
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | 12 services (postgres, searxng, docling, qdrant, ollama, tts, lightrag) with health checks |
+| `turbo.json` | Build tasks, caching, workspace graph |
+| `package.json` | Root: 15 npm scripts (dev, build, check, test, smoke, verify) |
+| `.env.example` | LLM_URL, DATABASE_URL, ports, TTS, RAG model, etc. |
 
-| Agent | Competences | Perimetre | Etat |
+## Subdirectories
+
+| Dir | Purpose | Ref |
+|-----|---------|-----|
+| `apps/` | 3 apps: api (77 TS), web (64 TS/TSX), worker (4 TS) | `apps/AGENTS.md` |
+| `packages/` | 8 packages (core, auth, chat-domain, persona-domain, node-engine, storage, tui, ui) | `packages/AGENTS.md` |
+| `scripts/` | 42 files: 20 Python, 22 Shell (ops, training, ingestion, voice, image, deploy) | `scripts/AGENTS.md` |
+| `docs/` | 50+ specs, spikes, research, audits (SPEC_*.md, AUDIT_*.md, OSS_VEILLE_*.md) | — |
+| `ops/` | Monitoring + ops/v2/ (systemd, TUI, health-check.sh, deep-audit.js) | — |
+| `models/` | Fine-tuned + LoRA weights (base_models/, finetuned/, lora/, registry.json) | — |
+| `data/` | Ephemeral: persona memory, chat logs, context, corpus (v2-local/, chat-logs/) | — |
+
+## Agent Matrix
+
+| Agent | Competences | Scope | Status |
 |---|---|---|---|
-| Coordinateur | planification, arbitrage, docs de pilotage | PLAN.md, TODO.md, AGENTS.md, README.md | actif |
-| Securite | validation input, hardening, rate-limit, RBAC | apps/api, ws-chat, packages/auth | veille |
-| Backend API | Express, WS, Ollama, RAG, multimodal pipeline | apps/api/src/ | actif |
+| Coordinateur | Planning, arbitration, docs sync | PLAN.md, TODO.md, AGENTS.md, README.md | actif |
+| Securite | Input validation, hardening, rate-limit, RBAC | apps/api, ws-chat, packages/auth | veille |
+| Backend API | Express, WS, Ollama, RAG, multimodal pipeline | apps/api/src/ (77 TS + 27 tests) | actif |
 | Node Engine | DAG, queue, runs, sandbox, training adapters | packages/node-engine, apps/worker | actif |
-| Personas | source/feedback/proposals/pharmacius, memoire | packages/persona-domain, ws-chat | actif |
-| Frontend | React/Vite, UX Minitel, React Flow, chat, voice | apps/web/src/ | actif |
-| Ops/TUI | scripts, logs, rotate/purge, health, audit | ops/v2/, scripts/ | actif |
-| Training | DPO, SFT, Unsloth, eval, autoresearch, Ollama import | scripts/, packages/node-engine | actif |
-| Multimodal | STT, TTS, vision, PDF, RAG, recherche web | apps/api/src/ws-chat.ts | actif |
-| Veille OSS | recherche projets, libs, modeles, benchmarks | docs/OSS_WATCH, docs/HF_MODEL_RESEARCH | periodique |
+| Personas | Memory, DPO, pharmacius, coherence | packages/persona-domain, ws-chat (33 personas) | actif |
+| Frontend | React/Vite, Minitel theme, React Flow, chat, voice | apps/web/src/ (64 TS/TSX + 10 tests) | actif |
+| Ops/TUI | Monitoring, deploy, logs, health, audit | ops/v2/, scripts/, deep-audit.js | actif |
+| Training | DPO, SFT, Unsloth, eval, autoresearch | scripts/, packages/node-engine | actif |
+| Multimodal | STT, TTS, vision, PDF, RAG, web search | apps/api/src/ws-multimodal.ts | actif |
+| Veille OSS | Benchmarks, new libs, licensing, interop | docs/OSS_WATCH, docs/HF_MODEL_RESEARCH | periodique |
 
-## Sous-agents et skill routing
+## Message Flow
 
-```mermaid
-flowchart TD
-    Coord[Coordinateur]
-
-    Coord --> SecAgent[Securite]
-    Coord --> BackAgent[Backend API]
-    Coord --> EngAgent[Node Engine]
-    Coord --> PersAgent[Personas]
-    Coord --> FrontAgent[Frontend]
-    Coord --> OpsAgent[Ops/TUI]
-    Coord --> TrainAgent[Training]
-    Coord --> MultiAgent[Multimodal]
-    Coord --> OSSAgent[Veille OSS]
-
-    SecAgent --> |audit| SecScan[Pattern scan P0/P1/P2]
-    SecAgent --> |fix| SecFix[Correctifs chirurgicaux]
-
-    BackAgent --> |analyse| APIAudit[Deep analyse app.ts, ws-chat.ts]
-    BackAgent --> |refactor| APISplit[Extraction modules]
-
-    EngAgent --> |test| EngTest[Tests unitaires node-engine]
-    EngAgent --> |extend| EngNew[Nouveaux node types]
-
-    PersAgent --> |pipeline| PersPipe[Editorial pipeline]
-    PersAgent --> |finetune| PersDPO[DPO + PCL methodology]
-
-    FrontAgent --> |ui| FrontUI[Minitel theme CSS]
-    FrontAgent --> |perf| FrontPerf[Memoization, lazy load]
-
-    OpsAgent --> |monitor| OpsHealth[health-check, deep-audit]
-    OpsAgent --> |deploy| OpsDeploy[Docker, kxkm-ai]
-
-    TrainAgent --> |train| TrainRun[Unsloth/TRL runs]
-    TrainAgent --> |eval| TrainEval[Scoring, registry]
-
-    MultiAgent --> |voice| MultiVoice[XTTS-v2, WebRTC]
-    MultiAgent --> |search| MultiSearch[SearXNG]
-
-    OSSAgent --> |web| OSSWeb[Recherche web]
-    OSSAgent --> |hf| OSSHF[HuggingFace models]
+```
+User WS → ws-chat.ts (rate-limit, multimodal dispatch)
+  → ws-conversation-router.ts (persona routing, context assembly)
+    → ws-persona-router.ts (memory extract/load, responder select)
+      → inference-scheduler.ts (single-GPU queue, MAX_GPU_CONCURRENT=1)
+        → ws-ollama.ts (token stream, tool-calling)
+        → ws-multimodal.ts (TTS, vision, STT, file upload)
+  → persona-memory-store.ts (nick-isolated file persist)
+  → rag.ts (embedding + LightRAG dual-write)
+  → context-store.ts (channel history + compaction)
 ```
 
-## Todo agents (lot 17+ — mis a jour 2026-03-24)
+## Services
 
-### Coordinateur
+| Service | Port | Notes |
+|---------|------|-------|
+| API (HTTP+WS) | 4180 | Node.js Express + ws |
+| Frontend (Vite) | 5173 | React + 5 CSS themes |
+| Ollama/vLLM | 11434 | LLM runtime + embeddings |
+| PostgreSQL | 5432 | Chat, sessions, node-engine runs |
+| SearXNG | 8080 | Self-hosted search (DuckDuckGo fallback) |
+| Docling | 9400 | PDF extraction |
+| LightRAG | 9621 | Graph-RAG, `LLM_MODEL=mistral:7b` to avoid `<think>` corruption |
+| TTS (Piper/Chatterbox) | 9100 | Voice synthesis |
+| Kokoro TTS | 9201 | Fast TTS, 12 voices |
+| ComfyUI | 8188 | Image generation (32 checkpoints + 24 LoRAs) |
+| Camoufox | 8091 | Stealth browser for bot-protected sites |
 
-- [x] Consolider PLAN.md avec etat reel (lots 0-94 complets)
-- [x] Synchroniser FEATURE_MAP.md matrice
-- [x] Mettre a jour TODO.md avec backlog Phase session 2026-03-19/20
-- [x] Documenter actions dans ops/v2/logs/
-- [x] lot-95: Coordonner E2E Playwright test plan
-- [x] lot-100: Design public demo mode access control
+## GPU Constraint
 
-### Backend API
+All LLM calls → `inference-scheduler.ts`. No direct fetch() outside approved helpers. RTX 4090: `MAX_GPU_CONCURRENT=1`. Context compaction + persona extraction both via `scheduler.submit(priority: "low")`.
 
-- [x] Extraire app-bootstrap.ts et app-middleware.ts de app.ts
-- [x] Extraire ws-conversation-router.ts de ws-chat.ts
-- [x] ws-chat.ts modularized (425 to 335 LOC, 3 modules extracted)
-- [x] app.ts extraction (540 to 131 LOC, create-repos.ts extracted)
-- [x] Zod validation on all 19 API route schemas
-- [x] Error telemetry (16 labels)
-- [x] Perf instrumentation (6 labels, p50/p95/p99), TTFC 284ms
-- [x] Smart routing (5 topic domains)
-- [x] Dynamic context window (4k-32k)
-- [x] NLP auto-detect generation intent (compose vs imagine)
-- [x] /speed command for latency diagnostics
-- [ ] lot-178: ACE-Step API direct integration (duration fix)
-- [ ] lot-180: Timeline data model
-- [x] lot-97: Multi-channel support (create/join channels)
-- [x] lot-100: Public demo mode read-only routes
+## Persona Memory (nick-isolated, 2026-04)
 
-### Node Engine
+- **Path**: `data/v2-local/persona-memory/{personaId}/{nick}.json`
+- **Modes**: `auto` (Pharmacius, Sherlock, Turing, Ikeda), `explicit` (artistic personas, `/remember` only)
+- **Injection cap**: 8 facts max into system prompt
+- **Anonymous relay**: `_anonymous` sentinel for unknown-nick chains
 
-- [x] Extraire registry.ts du hotspot node-engine
-- [ ] Ajouter node type `music_generation` (ACE-Step 1.5)
-- [ ] Ajouter node type `voice_clone` (Chatterbox)
-- [ ] Ajouter node type `audio_mix` (multi-track composition)
-- [ ] Ajouter node type `audio_effects` (FX chain)
-- [ ] lot-96: Automated DPO pipeline (feedback → pairs → training trigger)
+## Build & Dev
 
-### Multimodal (composition pipeline)
-
-- [x] 35 music styles ACE-Step
-- [x] ComfyUI smart checkpoint selection (32 checkpoints + 24 LoRAs)
-- [ ] lot-178: ACE-Step API direct (duration fix)
-- [ ] lot-181: TTS voiceover mix into timeline
-- [ ] lot-182: Audio effects pipeline (reverb, delay, EQ, compression)
-- [ ] lot-183: DAW export (stems, markers, project file)
-- [x] lot-184: Multi-track composition (/layer, composition-store)
-- [x] lot-185: Composition UI (track lanes, play/pause/seek)
-- [x] lot-186: Arrangement tools (/comp structure, section markers)
-- [x] lot-187: Auto-mastering (/mix master, loudness normalization, limiter)
-- [x] lot-188: /voice TTS voiceover injected into composition
-- [x] lot-189: /noise 5 types (white, pink, brown, rain, wind)
-- [x] lot-190: /fx 9 audio effects (reverb, delay, chorus, flanger, distortion, bitcrusher, EQ, compressor, tremolo)
-- [x] lot-191: /ambient scene generator (forest, ocean, city, space, cave)
-- [ ] lot-194: Waveform visualization (wavesurfer.js)
-- [ ] lot-195: /remix re-generate specific track
-- [ ] lot-199: Stem separation (Demucs v4 htdemucs, 6-stem, MIT)
-- [x] lot-200: Full DAW export (WAV stems + JSON project)
-
-### Personas
-
-- [ ] Evaluer PCL (Persona-Aware Contrastive Learning) pour coherence
-- [ ] Evaluer OpenCharacter pour generation profils synthetiques
-- [x] Ajouter `/compose` command (generation musicale)
-
-### Frontend
-
-- [x] Implementer lot 16 UI Minitel rose (phosphore, VIDEOTEX)
-- [x] VoiceChat push-to-talk + level meter + silence auto
-- [x] Player audio + viewer image plein ecran
-- [x] Mediatheque gallery/playlist
-- [x] Progress bars animees Compose/Imagine
-- [x] React.memo + useCallback on ChatSidebar, ChatInput, ChatHistory
-- [x] 17 lazy-loaded routes (-53% initial JS)
-- [x] CRT CSS-only effect (scanlines, vignette, phosphor glow, boot 0.8s)
-- [x] Chat virtualization (react-window, variable row heights)
-- [x] Markdown rendering (marked + DOMPurify)
-- [x] CRT boot animation (modem dial, scanline reveal)
-- [x] 5 CSS themes (minitel, crt, hacker, synthwave, default)
-- [x] Mobile responsive pass (touch, bottom nav, viewport units)
-- [x] Guest mode read-only UI
-- [x] lot-185: Composition timeline UI (waveform view, track lanes)
-- [ ] lot-194: Waveform visualization (wavesurfer.js)
-- [x] lot-95: E2E Playwright tests (login, chat, upload, admin)
-- [x] lot-98: File sharing UI (upload → gallery)
-
-### Ops/TUI
-
-- [x] Deployer deep-audit.js sur kxkm-ai
-- [x] Ajouter SearXNG au docker-compose
-- [x] TTS sidecar HTTP (tts-server.py :9100, dual Chatterbox/Piper)
-- [x] deploy.sh migrated tmux → systemd
-- [x] Systemd services (kxkm-tts + kxkm-lightrag, auto-restart)
-- [x] health-check.sh TUI (19 checks)
-- [x] Docker compose 12 services with health checks
-- [ ] Fix Docker transformers (rebuild propre avec torch)
-
-### Training
-
-- [x] Spike BGE-M3 (resultat negatif sur Apple/Metal, baseline maintenue)
-- [x] TTS dual backend Chatterbox/Piper valide
-- [x] Tool-calling benchmark (llama3.1 vs qwen3 vs mistral)
-- [x] Sherlock migrated to llama3.1:8b-instruct-q4_0
-- [ ] lot-96: Persona DPO automation pipeline
-- [ ] Tester ACE-Step 1.5 sur RTX 4090
-
-### Veille OSS
-
-- [x] Veille mars 2026 complete (40+ projets analyses, top 10 recommandations)
-- [ ] Suivre LLMRTC (WebRTC voice TypeScript)
-- [ ] Suivre A2A Protocol (interop agents)
-- [ ] Suivre MCP SDK updates
-- [ ] Evaluer Kokoro TTS (82M params, ultra-leger)
-
-## Pipeline d'intervention
-
-```mermaid
-stateDiagram-v2
-    [*] --> Analyse: agent lance
-    Analyse --> Findings: scan code/docs/web
-    Findings --> Triage: P0/P1/P2 classification
-    Triage --> Fix_P0: P0 critique
-    Triage --> Plan_P1: P1 important
-    Triage --> Backlog_P2: P2 mineur
-    Fix_P0 --> Test: correction chirurgicale
-    Plan_P1 --> Test: correction planifiee
-    Test --> Deploy: tests OK
-    Deploy --> Log: log + purge
-    Log --> [*]: cycle termine
-    Backlog_P2 --> [*]: ajoute au TODO
+```bash
+npm install                    # Install all workspaces
+npm run dev                    # Turbo parallel (api, web, worker)
+npm run dev:v2:api             # API :4180 (tsx watch)
+npm run dev:v2:web             # Web :5173 (Vite)
+npm run check:v2               # tsc --noEmit
+npm run -w @kxkm/api test      # 278 unit tests
+npm run -w @kxkm/web test      # 54 unit tests
+npm run smoke:v2               # Integration smoke
+npm run verify                 # check + smoke (full gate)
+docker compose --profile v2 up -d
 ```
 
-## Affectations en cours (2026-03-20)
+## Environment
 
-### Mission globale
-- Deep analyse continue du code, optimisation chirurgicale, et synchronisation documentaire apres chaque lot.
-- Priorite execution: P1 fiabilite, puis dette perf/complexite, puis features lot 18-19.
+```bash
+LLM_URL=http://localhost:11434
+LLM_MODEL=qwen-14b-awq
+DATABASE_URL=postgres://kxkm:kxkm@localhost:5432/kxkm_clown
+V2_API_PORT=4180
+TTS_ENABLED=1
+VISION_MODEL=qwen3-vl:8b
+RAG_EMBEDDING_MODEL=nomic-embed-text
+SEARXNG_URL=http://localhost:8080
+KXKM_PERSONA_MEMORY_INJECTION_LIMIT=8
+```
 
-### Assignations agents -> sous-agents -> competences
+## Cycle State (2026-03-20)
 
-| Agent | Sous-agent | Competences principales | Taches assignees immediates |
-|---|---|---|---|
-| Coordinateur | Planner/Docs | triage, synchronisation, runbook | Maintenir PLAN/TODO, chainer les lots, tracer actions |
-| Backend API | WS/HTTP surgeon | websocket, express, validation input | Extraire `ws-chat.ts` en modules, reduire logs, limiter hot paths |
-| Node Engine | DAG runtime | graph validation, queue, state machine | Ajouter nodes `music_generation`, `voice_clone`, `document_extraction` |
-| Ops/TUI | Audit operator | TUI scripts, logs, rotation, cron | Rendre `deep-audit` zero faux positif critique, pipeline logs + purge |
-| Veille OSS | Scout | benchmark OSS, licences, interop | Evaluer Open WebUI, LibreChat, LangGraph, SearXNG, Docling |
+- 130+ lots complete (lot-24 to lot-177)
+- 425 tests, 0 failures
+- 43 chat commands, 33 personas
+- 5 CSS themes, 35 music styles (ACE-Step)
+- 32 ComfyUI checkpoints + 24 LoRAs
+- TTFC 284ms, guest mode, mobile responsive
+- Structured logging (pino JSON)
+- Systemd services (TTS, LightRAG)
 
-### Workflow d'enchainement
-1. Executer audit + tests
-2. Corriger de maniere chirurgicale
-3. Re-executer audit + tests
-4. Mettre a jour docs de pilotage
-5. Alimenter TODO suivant avec ordre d'execution
+## See Also
 
-### Regles d'operation
-- Interroger le user uniquement en cas de blocage reel (acces, choix irreversibles, secrets).
-- Privilegier TUI et scripts avec logs lisibles, puis purge des logs obsoletes.
-- Conserver la V1 comme reference comportementale, V2 comme cible active.
-
-### Etat de cycle (2026-03-20 18:00)
-
-- 130+ lots termines (lot-24 a lot-177).
-- 425 tests, 0 failures.
-- 13 services en production.
-- 43 chat commands, 33 personas.
-- 35 music styles (ACE-Step), 5 CSS themes.
-- 32 ComfyUI checkpoints + 24 LoRAs, smart selection NLP.
-- TTFC 284ms.
-- Guest mode, mobile responsive.
-- Structured logging complet (pino JSON, 0 console.log).
-- Systemd services (TTS + LightRAG).
-- Frontend: lazy routes (-53%), React.memo, CRT boot, chat virtualization.
-
-### Prochains lots (178-200) — Composition Pipeline
-
-1. lot-178: Compose duration fix (ACE-Step API direct)
-2. lot-179: SPEC_COMPOSE_ADVANCED plan
-3. lot-180: Timeline data model (tracks, clips, markers)
-4. lot-181: TTS voiceover mix into timeline
-5. lot-182: Audio effects pipeline (reverb, delay, EQ)
-6. lot-183: DAW export (stems, markers, project)
-7. lot-184-200: Multi-track, arrangement, mastering, stem separation, MIDI, templates, collab, lyrics, FX rack, automation, samples, spectral view, history, render queue, sharing
+- `apps/AGENTS.md` — api, web, worker details
+- `packages/AGENTS.md` — shared package breakdown
+- `scripts/AGENTS.md` — deployment, training, ops scripts
+- `CLAUDE.md` — Architecture, request paths, data directories
+- `PLAN.md` / `TODO.md` / `FEATURE_MAP.md` — Roadmap (lots 178-200)

@@ -12,6 +12,7 @@
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
 import { trackError } from "./error-tracker.js";
+import { scheduler, VRAM_BUDGETS } from "./inference-scheduler.js";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -96,6 +97,50 @@ function buildDefaultOptions(): ContextStoreOptions {
 
 const DEFAULT_OPTIONS: ContextStoreOptions = buildDefaultOptions();
 
+function extractFirstJsonObject(raw: string): string | null {
+  const start = raw.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return raw.slice(start, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Context Store
 // ---------------------------------------------------------------------------
@@ -133,10 +178,53 @@ export class ContextStore {
     }
   }
 
+  private async writeSummaryFile(filePath: string, summary: ContextSummary): Promise<void> {
+    const tmp = `${filePath}.${process.pid}.${Date.now().toString(36)}.tmp`;
+    await fs.writeFile(tmp, `${JSON.stringify(summary, null, 2)}\n`, "utf-8");
+    await fs.rename(tmp, filePath);
+  }
+
+  private normalizeSummary(raw: unknown, channel: string): ContextSummary | null {
+    if (!raw || typeof raw !== "object") return null;
+    const parsed = raw as Record<string, unknown>;
+    if (typeof parsed.summaryText !== "string") return null;
+    return {
+      channel: typeof parsed.channel === "string" && parsed.channel.length > 0 ? parsed.channel : channel,
+      summaryText: parsed.summaryText,
+      entriesCompacted: typeof parsed.entriesCompacted === "number" && Number.isFinite(parsed.entriesCompacted)
+        ? parsed.entriesCompacted
+        : 0,
+      lastCompactedAt: typeof parsed.lastCompactedAt === "string" ? parsed.lastCompactedAt : new Date(0).toISOString(),
+      totalCompactions: typeof parsed.totalCompactions === "number" && Number.isFinite(parsed.totalCompactions)
+        ? parsed.totalCompactions
+        : 0,
+    };
+  }
+
   private async readSummary(channel: string): Promise<ContextSummary | null> {
+    const summaryPath = this.summaryFile(channel);
     try {
-      const raw = await fs.readFile(this.summaryFile(channel), "utf-8");
-      return this.parseJson<ContextSummary>(raw);
+      const raw = await fs.readFile(summaryPath, "utf-8");
+      const parsed = this.parseJson<unknown>(raw);
+      const normalized = this.normalizeSummary(parsed, channel);
+      if (normalized) return normalized;
+
+      const recoveredRaw = extractFirstJsonObject(raw);
+      if (recoveredRaw) {
+        const recoveredParsed = this.parseJson<unknown>(recoveredRaw);
+        const recovered = this.normalizeSummary(recoveredParsed, channel);
+        if (recovered) {
+          await this.writeSummaryFile(summaryPath, recovered);
+          return recovered;
+        }
+      }
+
+      const quarantinePath = path.join(
+        path.dirname(summaryPath),
+        `${path.basename(summaryPath, ".json")}.corrupt.${Date.now().toString(36)}.json`,
+      );
+      await fs.rename(summaryPath, quarantinePath).catch(() => {});
+      return null;
     } catch {
       return null;
     }
@@ -315,21 +403,37 @@ export class ContextStore {
 
     let summaryText = existingSummary; // fallback
     try {
-      const response = await fetch(`${this.options.ollamaUrl}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: this.options.compactionModel,
-          messages: [{ role: "user", content: prompt }],
-          stream: false,
-        }),
-        signal: AbortSignal.timeout(120_000),
-      });
+      summaryText = await scheduler.submit<string>({
+        id: `compact-${channel}-${Date.now()}`,
+        device: "gpu",
+        priority: "low",
+        label: `context-compact:${channel}`,
+        vramMB: VRAM_BUDGETS.ollama,
+        execute: async () => {
+          const llmUrl = process.env.LLM_URL || "http://localhost:11434";
+          const llmModel = process.env.LLM_MODEL || "qwen-14b-awq";
+          const llmApiKey = process.env.LLM_API_KEY || "";
+          const llmH: Record<string, string> = { "Content-Type": "application/json" };
+          if (llmApiKey) llmH["Authorization"] = `Bearer ${llmApiKey}`;
+          const response = await fetch(`${llmUrl}/v1/chat/completions`, {
+            method: "POST",
+            headers: llmH,
+            body: JSON.stringify({
+              model: llmModel,
+              messages: [{ role: "user", content: prompt }],
+              stream: false,
+              max_tokens: 2000,
+            }),
+            signal: AbortSignal.timeout(120_000),
+          });
 
-      if (response.ok) {
-        const data = (await response.json()) as { message?: { content?: string } };
-        summaryText = data.message?.content || existingSummary;
-      }
+          if (response.ok) {
+            const data = (await response.json()) as { choices?: [{ message?: { content?: string } }] };
+            return data.choices?.[0]?.message?.content || existingSummary;
+          }
+          return existingSummary;
+        },
+      });
     } catch (err) {
       trackError("context_summarization", err, { channel });
       // Keep existing summary, still compact the raw file
@@ -344,7 +448,7 @@ export class ContextStore {
       totalCompactions: (previousSummary?.totalCompactions || 0) + 1,
     };
 
-    await fs.writeFile(this.summaryFile(channel), JSON.stringify(summaryData, null, 2), "utf-8");
+    await this.writeSummaryFile(this.summaryFile(channel), summaryData);
 
     // Replace raw file with only recent entries
     const newContent = toKeep.join("\n") + "\n";

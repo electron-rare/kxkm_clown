@@ -1,11 +1,11 @@
 /**
- * LLM Client — routes through mascarade /v1/chat/completions with Ollama fallback
+ * Canonical LLM client.
  *
- * mascarade /v1/chat/completions endpoint (OpenAI-compatible):
- *   POST { model, messages, temperature, max_tokens }
- *   Returns: { model, choices: [{ message: { content } }], usage }
+ * Local runtime:
+ *   vLLM / TurboQuant exposed via OpenAI-compatible `/v1/chat/completions`
  *
- * Fallback: direct Ollama /api/chat if mascarade is unavailable
+ * Optional cloud routing:
+ *   Mascarade `/v1/chat/completions` for explicit cloud provider models
  */
 
 import logger from "./logger.js";
@@ -17,9 +17,10 @@ import { incrementCounter } from "./perf.js";
 
 const MASCARADE_URL = process.env.MASCARADE_URL || "http://127.0.0.1:8100";
 const MASCARADE_API_KEY = process.env.MASCARADE_API_KEY || "";
-const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
+const LLM_URL = process.env.LLM_URL || "http://127.0.0.1:11434";
+const LLM_MODEL = process.env.LLM_MODEL || "qwen-14b-awq";
 const LLM_TIMEOUT_MS = parseInt(process.env.LLM_TIMEOUT_MS || "45000", 10);
-const DEFAULT_MODEL = process.env.LLM_DEFAULT_MODEL || "qwen3.5:9b";
+const DEFAULT_MODEL = process.env.LLM_DEFAULT_MODEL || LLM_MODEL;
 
 // RouteLLM-style complexity routing
 const ROUTELLM_ENABLED = process.env.ROUTELLM_ENABLED === "true";
@@ -42,7 +43,17 @@ function mascaradeRecheckMs(): number {
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
-  tool_calls?: Array<{ function: { name: string; arguments: Record<string, unknown> } }>;
+  tool_call_id?: string;
+  tool_calls?: ChatToolCall[];
+}
+
+export interface ChatToolCall {
+  id?: string;
+  type?: "function";
+  function: {
+    name: string;
+    arguments: Record<string, unknown> | string;
+  };
 }
 
 export interface ChatOptions {
@@ -61,7 +72,7 @@ export interface ChatResponse {
   content: string;
   model: string;
   provider: string;
-  toolCalls?: Array<{ function: { name: string; arguments: Record<string, unknown> } }>;
+  toolCalls?: ChatToolCall[];
   thinking?: string;
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
@@ -92,12 +103,12 @@ function shouldTryMascarade(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Parse model: detect "provider:model" vs plain Ollama model
+// Parse model: detect "provider:model" vs local runtime model
 // ---------------------------------------------------------------------------
 
 function parseModel(model: string | undefined): { provider: string | null; model: string } {
   const m = model || DEFAULT_MODEL;
-  const knownProviders = ["claude", "openai", "mistral-api", "google", "bedrock", "huggingface", "ollama", "llama_cpp"];
+  const knownProviders = ["claude", "openai", "mistral-api", "google", "bedrock", "huggingface"];
   const colonIdx = m.indexOf(":");
   if (colonIdx > 0) {
     const prefix = m.slice(0, colonIdx);
@@ -105,8 +116,16 @@ function parseModel(model: string | undefined): { provider: string | null; model
       return { provider: prefix, model: m.slice(colonIdx + 1) };
     }
   }
-  // Ollama model (qwen3.5:9b, mistral:7b, etc.) — let mascarade route via default provider
+  // Local runtime model (qwen3.5:9b, qwen-14b-awq, mistral:7b, etc.)
   return { provider: null, model: m };
+}
+
+function resolveRuntimeModel(model: string | undefined): string {
+  const parsed = parseModel(model);
+  if (parsed.provider) {
+    return DEFAULT_MODEL;
+  }
+  return parsed.model || DEFAULT_MODEL;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,8 +134,8 @@ function parseModel(model: string | undefined): { provider: string | null; model
 
 /**
  * Score message complexity (0-1). Higher = needs stronger model.
- * 0.0-0.3: trivial (salut, oui, merci) → local Ollama
- * 0.3-0.6: moderate (short questions) → local Ollama
+ * 0.0-0.3: trivial (salut, oui, merci) → runtime local
+ * 0.3-0.6: moderate (short questions) → runtime local
  * 0.6-1.0: complex (analysis, code, multilingual) → strong provider if available
  */
 function scoreComplexity(messages: ChatMessage[]): number {
@@ -158,74 +177,67 @@ function scoreComplexity(messages: ChatMessage[]): number {
 
 /**
  * Decide routing based on complexity score.
- * Returns "ollama" to force local, "mascarade" to prefer strong provider, or null for default behavior.
+ * Returns "runtime" to force local, "mascarade" to prefer strong provider, or null for default behavior.
  */
-function routeByComplexity(messages: ChatMessage[]): { route: "ollama" | "mascarade" | null; complexity: number } {
+function routeByComplexity(messages: ChatMessage[]): { route: "runtime" | "mascarade" | null; complexity: number } {
   if (!ROUTELLM_ENABLED) return { route: null, complexity: -1 };
   const complexity = scoreComplexity(messages);
   if (complexity < ROUTELLM_THRESHOLD) {
-    return { route: "ollama", complexity };
+    return { route: "runtime", complexity };
   }
   return { route: "mascarade", complexity };
 }
 
 // ---------------------------------------------------------------------------
-// Non-streaming: mascarade /send → Ollama fallback
+// Non-streaming: local runtime primary, mascarade only for explicit cloud/provider routing
 // ---------------------------------------------------------------------------
 
 export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResponse> {
+  const { provider } = parseModel(opts.model);
   const { route, complexity } = routeByComplexity(messages);
 
-  // RouteLLM: skip mascarade entirely for simple messages
-  if (route === "ollama") {
-    logger.debug({ complexity, threshold: ROUTELLM_THRESHOLD }, "[llm] routeLLM → ollama (simple)");
-    return chatViaOllama(messages, opts);
+  if (!provider) {
+    if (route === "runtime") {
+      logger.debug({ complexity, threshold: ROUTELLM_THRESHOLD }, "[llm] routeLLM → runtime (simple)");
+    }
+    return chatViaRuntime(messages, opts);
   }
 
   if (route === "mascarade") {
     logger.debug({ complexity, threshold: ROUTELLM_THRESHOLD }, "[llm] routeLLM → mascarade (complex)");
   }
 
-  if (shouldTryMascarade()) {
-    try {
-      const result = await chatViaMascarade(messages, opts);
-      // If mascarade returns empty content, fall through to Ollama
-      if (result.content) return result;
-      logger.warn("[llm] mascarade returned empty content, falling back to Ollama");
-    } catch (err) {
-      logger.warn({ err: (err as Error).message }, "[llm] mascarade failed, falling back to Ollama");
-      mascaradeAvailable = false;
-      mascaradeLastCheck = Date.now();
-      mascaradeFailCount++;
-    }
+  if (!shouldTryMascarade()) {
+    throw new Error("Mascarade unavailable for explicit cloud provider routing");
   }
-  return chatViaOllama(messages, opts);
+  return chatViaMascarade(messages, opts);
 }
 
 // ---------------------------------------------------------------------------
-// Streaming: mascarade SSE for cloud providers, direct Ollama for local
+// Streaming: mascarade SSE for cloud providers, direct runtime for local
 // ---------------------------------------------------------------------------
 
 export async function* streamChat(
   messages: ChatMessage[],
   opts: ChatOptions = {},
 ): AsyncGenerator<string, ChatResponse> {
-  const isCloudProvider = opts.model && /^(claude|openai|mistral-api|google|bedrock):/.test(opts.model);
+  const isCloudProvider = Boolean(opts.model && /^(claude|openai|mistral-api|google|bedrock):/.test(opts.model));
 
   // Cloud providers → stream via mascarade SSE (real streaming, not dump-all)
   if (isCloudProvider && shouldTryMascarade()) {
     try {
       return yield* streamViaMascarade(messages, opts);
     } catch (err) {
-      logger.warn({ err: (err as Error).message }, "[llm] mascarade stream failed, falling back to Ollama");
+      logger.warn({ err: (err as Error).message }, "[llm] mascarade stream failed");
       mascaradeAvailable = false;
       mascaradeLastCheck = Date.now();
       mascaradeFailCount++;
+      throw err;
     }
   }
 
-  // Local models → stream via Ollama directly (fastest path)
-  return yield* streamViaOllama(messages, opts);
+  // Local models → stream via runtime directly (fastest path)
+  return yield* streamViaRuntime(messages, opts);
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +254,7 @@ async function chatViaMascarade(messages: ChatMessage[], opts: ChatOptions): Pro
 
     const resp = await fetch(`${MASCARADE_URL}/v1/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(process.env.LLM_API_KEY ? { Authorization: `Bearer ${process.env.LLM_API_KEY}` } : {}) },
       body: JSON.stringify({
         model: modelStr,
         messages: messages.map(m => ({ role: m.role, content: m.content })),
@@ -408,81 +420,94 @@ async function* streamViaMascarade(
 }
 
 // ---------------------------------------------------------------------------
-// Direct Ollama (fallback + streaming)
+// Direct runtime (vLLM / TurboQuant)
 // ---------------------------------------------------------------------------
 
-async function chatViaOllama(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
+function toOpenAIMessage(message: ChatMessage): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    role: message.role,
+    content: message.content,
+  };
+  if (message.tool_calls && message.tool_calls.length > 0) {
+    base.tool_calls = message.tool_calls.map((toolCall) => ({
+      id: toolCall.id,
+      type: toolCall.type || "function",
+      function: {
+        name: toolCall.function.name,
+        arguments: typeof toolCall.function.arguments === "string"
+          ? toolCall.function.arguments
+          : JSON.stringify(toolCall.function.arguments),
+      },
+    }));
+  }
+  if (message.role === "tool" && message.tool_call_id) {
+    base.tool_call_id = message.tool_call_id;
+  }
+  return base;
+}
+
+async function chatViaRuntime(messages: ChatMessage[], opts: ChatOptions): Promise<ChatResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-  const { model } = parseModel(opts.model);
+  const model = resolveRuntimeModel(opts.model);
 
   try {
-    const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
+    const resp = await fetch(`${LLM_URL}/v1/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(process.env.LLM_API_KEY ? { Authorization: `Bearer ${process.env.LLM_API_KEY}` } : {}) },
       body: JSON.stringify({
         model,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        messages: messages.map(toOpenAIMessage),
         stream: false,
-        options: {
-          num_predict: opts.maxTokens || 800,
-          ...(opts.numCtx ? { num_ctx: opts.numCtx } : {}),
-          num_batch: opts.numBatch || 512,
-        },
-        keep_alive: opts.keepAlive || "30m",
-        ...(opts.think !== undefined ? { think: opts.think } : {}),
+        temperature: opts.temperature,
+        max_tokens: opts.maxTokens || 800,
         ...(opts.tools && opts.tools.length > 0 ? { tools: opts.tools } : {}),
       }),
       signal: controller.signal,
     });
 
-    if (!resp.ok) throw new Error(`Ollama ${resp.status}: ${resp.statusText}`);
-    incrementCounter("llm_ollama_calls");
+    if (!resp.ok) throw new Error(`vLLM ${resp.status}: ${resp.statusText}`);
+    incrementCounter("llm_runtime_calls");
 
     const data = await resp.json() as {
-      message?: { content?: string; thinking?: string; tool_calls?: ChatResponse["toolCalls"] };
+      choices?: [{ message?: { content?: string; tool_calls?: ChatResponse["toolCalls"] } }];
     };
 
+    const msg = data.choices?.[0]?.message;
     return {
-      content: data.message?.content || "",
+      content: msg?.content || "",
       model,
-      provider: "ollama",
-      toolCalls: data.message?.tool_calls,
-      thinking: data.message?.thinking,
+      provider: "vllm",
+      toolCalls: msg?.tool_calls,
     };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function* streamViaOllama(
+async function* streamViaRuntime(
   messages: ChatMessage[],
   opts: ChatOptions,
 ): AsyncGenerator<string, ChatResponse> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-  const { model } = parseModel(opts.model);
+  const model = resolveRuntimeModel(opts.model);
 
   try {
-    const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
+    const resp = await fetch(`${LLM_URL}/v1/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(process.env.LLM_API_KEY ? { Authorization: `Bearer ${process.env.LLM_API_KEY}` } : {}) },
       body: JSON.stringify({
         model,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        messages: messages.map(toOpenAIMessage),
         stream: true,
-        options: {
-          num_predict: opts.maxTokens || 800,
-          ...(opts.numCtx ? { num_ctx: opts.numCtx } : {}),
-          num_batch: opts.numBatch || 512,
-        },
-        keep_alive: opts.keepAlive || "30m",
-        think: false,
+        temperature: opts.temperature,
+        max_tokens: opts.maxTokens || 800,
       }),
       signal: controller.signal,
     });
 
-    if (!resp.ok) throw new Error(`Ollama ${resp.status}: ${resp.statusText}`);
+    if (!resp.ok) throw new Error(`vLLM ${resp.status}: ${resp.statusText}`);
 
     const reader = resp.body?.getReader();
     if (!reader) throw new Error("No response body");
@@ -490,18 +515,24 @@ async function* streamViaOllama(
     const decoder = new TextDecoder();
     let fullText = "";
     let inThinking = false;
+    let sseBuffer = "";
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      for (const line of chunk.split("\n").filter(Boolean)) {
-        if (line.length > 102_400) continue; // Skip oversized chunks (100KB max)
+      sseBuffer += decoder.decode(value, { stream: true });
+      const lines = sseBuffer.split("\n");
+      sseBuffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const raw = line.slice(6).trim();
+        if (raw === "[DONE]") break;
         try {
-          const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
-          if (parsed.message?.content) {
-            const c = parsed.message.content;
+          const parsed = JSON.parse(raw) as { choices?: [{ delta?: { content?: string } }] };
+          const c = parsed.choices?.[0]?.delta?.content;
+          if (c) {
             fullText += c;
             if (c.includes("<think>")) inThinking = true;
             if (!inThinking) yield c;
@@ -512,7 +543,7 @@ async function* streamViaOllama(
     }
 
     const cleaned = fullText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
-    return { content: cleaned, model, provider: "ollama" };
+    return { content: cleaned, model, provider: "vllm" };
   } finally {
     clearTimeout(timeout);
   }
@@ -523,12 +554,13 @@ async function* streamViaOllama(
 // ---------------------------------------------------------------------------
 
 export async function getProviders(): Promise<string[]> {
+  const providers = ["vllm-turboquant"];
   try {
     const resp = await fetch(`${MASCARADE_URL}/health`, { signal: AbortSignal.timeout(3000) });
-    if (!resp.ok) return ["ollama"];
+    if (!resp.ok) return providers;
     const data = await resp.json() as { providers?: string[] };
-    return data.providers || ["ollama"];
+    return [...providers, ...(data.providers || [])];
   } catch {
-    return ["ollama"];
+    return providers;
   }
 }

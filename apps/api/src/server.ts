@@ -166,27 +166,29 @@ async function main() {
   // -----------------------------------------------------------------------
   const server = http.createServer(app);
 
-  const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+  const embeddingUrl = process.env.OLLAMA_URL || "http://localhost:11435";
 
   // -----------------------------------------------------------------------
-  // Pre-warm Ollama: load primary model into VRAM (non-blocking)
-  // First inference is ~1-2s slower without this.
+  // Pre-warm vLLM: verify model is loaded (non-blocking)
   // -----------------------------------------------------------------------
-  const primaryModel = process.env.OLLAMA_MODEL || "qwen3.5:9b";
-  fetch(`${ollamaUrl}/api/chat`, {
+  const llmUrl = process.env.LLM_URL || "http://localhost:11434";
+  const primaryModel = process.env.LLM_MODEL || "qwen-14b-awq";
+  const llmApiKey = process.env.LLM_API_KEY || "";
+  const llmHeaders: Record<string, string> = { "Content-Type": "application/json" };
+  if (llmApiKey) llmHeaders["Authorization"] = `Bearer ${llmApiKey}`;
+  fetch(`${llmUrl}/v1/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: llmHeaders,
     body: JSON.stringify({
       model: primaryModel,
       messages: [{ role: "user", content: "ping" }],
       stream: false,
-      options: { num_predict: 1, num_ctx: 512 },
-      keep_alive: "30m",
+      max_tokens: 1,
     }),
   }).then(() => {
-    if (DEBUG) console.log(`[ollama] Pre-warmed ${primaryModel}`);
+    if (DEBUG) console.log(`[vllm] Pre-warmed ${primaryModel}`);
   }).catch(() => {
-    // Ollama not ready yet — model will load on first real request
+    // vLLM not ready yet — model will serve on first real request
   });
 
   // Pre-warm ComfyUI: load default checkpoint into VRAM (non-blocking)
@@ -195,9 +197,9 @@ async function main() {
   });
 
   // -----------------------------------------------------------------------
-  // Initialize local RAG (embeddings via Ollama)
+  // Initialize local RAG (embeddings still use the embedding backend)
   // -----------------------------------------------------------------------
-  const rag = new LocalRAG({ ollamaUrl, lightragUrl: process.env.LIGHTRAG_URL, rerankerUrl: process.env.RERANKER_URL });
+  const rag = new LocalRAG({ ollamaUrl: embeddingUrl, lightragUrl: process.env.LIGHTRAG_URL, rerankerUrl: process.env.RERANKER_URL });
   // Expose RAG instance on app for API routes
   (app as any)._rag = rag;
 
@@ -233,11 +235,45 @@ async function main() {
     }
   })();
 
+  // Per-persona corpus boot-loader
+  (async () => {
+    for (const persona of DEFAULT_PERSONAS) {
+      if (!persona.corpus || persona.corpus.length === 0) continue;
+      const ns = `persona:${persona.id}`;
+      for (const entry of persona.corpus) {
+        try {
+          let text = '';
+          if (entry.type === 'text' && entry.content) {
+            text = entry.content;
+          } else if (entry.type === 'url') {
+            const resp = await fetch(entry.source, { signal: AbortSignal.timeout(10_000) });
+            const html = await resp.text();
+            // Strip scripts/styles first, then all tags
+            text = html
+              .replace(/<script[\s\S]*?<\/script>/gi, '')
+              .replace(/<style[\s\S]*?<\/style>/gi, '')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 8000);
+          }
+          if (text) {
+            await rag.addDocument(text, entry.source, ns);
+            logger.info({ persona: persona.id, source: entry.source, ns }, '[rag:corpus] loaded');
+          }
+        } catch (err) {
+          logger.warn({ err, persona: persona.id, source: entry.source }, '[rag:corpus] load failed (non-critical)');
+        }
+      }
+    }
+    logger.info('[rag:corpus] persona corpus boot-loading complete');
+  })();
+
   // -----------------------------------------------------------------------
   // Initialize persistent context store (auto-compaction, 750 MB max)
   // -----------------------------------------------------------------------
   const contextStore = new ContextStore({
-    ollamaUrl,
+    ollamaUrl: embeddingUrl,
     maxTotalSizeMB: 750,
     maxEntriesBeforeCompact: 200,
     compactionModel: "qwen3:8b",
@@ -249,7 +285,7 @@ async function main() {
   });
 
   const wss = attachWebSocketChat(server, {
-    ollamaUrl,
+    ollamaUrl: embeddingUrl,
     rag,
     contextStore,
     loadPersonas: async () => {
@@ -264,6 +300,7 @@ async function main() {
           color: defaultDef?.color || "",
           enabled: !(p as unknown as { disabled?: boolean }).disabled,
           maxTokens: defaultDef?.maxTokens,
+          corpus: defaultDef?.corpus,
         };
       });
     },
@@ -289,7 +326,7 @@ async function main() {
       app: "@kxkm/api",
       port,
       ws: "/ws",
-      ollama: ollamaUrl,
+      embeddings: embeddingUrl,
     }));
   });
 }

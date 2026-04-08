@@ -1,5 +1,6 @@
 /**
- * Minimal local RAG using Ollama embeddings.
+ * Minimal local RAG with pluggable embedding backend.
+ * Supports TEI/OpenAI-compatible (/v1/embeddings) and Ollama (/api/embed).
  * Stores document chunks with their embeddings in memory.
  * Uses cosine similarity for retrieval.
  */
@@ -14,6 +15,7 @@ const RAG_CHUNK_SIZE = Number(process.env.RAG_CHUNK_SIZE) || 500;
 const RAG_MIN_SIMILARITY = Number(process.env.RAG_MIN_SIMILARITY) || 0.3;
 const RAG_MAX_RESULTS = Number(process.env.RAG_MAX_RESULTS) || 3;
 const RAG_EMBEDDING_MODEL = process.env.RAG_EMBEDDING_MODEL || "bge-m3";
+const EMBEDDING_BACKEND = process.env.EMBEDDING_BACKEND || "tei"; // "tei" or "ollama"
 
 interface DocumentChunk {
   id: string;
@@ -36,46 +38,75 @@ export class LocalRAG {
   private options: RAGOptions;
   private _rerankerFailCount = 0;
   private _rerankerLastFail = 0;
+  private namespaceChunks: Map<string, DocumentChunk[]> = new Map();
 
   constructor(options: RAGOptions) {
     this.options = options;
   }
 
-  /** Verify embedding model is available on Ollama, pull if missing. */
+  /** Verify embedding backend is reachable. */
   async init(): Promise<void> {
-    const ollamaUrl = this.options.ollamaUrl;
+    const url = this.options.ollamaUrl;
     const model = this.options.embeddingModel || RAG_EMBEDDING_MODEL;
+    const backend = EMBEDDING_BACKEND;
     try {
-      const resp = await fetch(`${ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(5000) });
-      const data = (await resp.json()) as { models?: Array<{ name: string }> };
-      const models = data.models?.map((m) => m.name) || [];
-      const available = models.some((m) => m.startsWith(model));
-      if (!available) {
-        logger.warn({ model, available: models.slice(0, 5) }, "[rag] Embedding model not found, pulling...");
-        await fetch(`${ollamaUrl}/api/pull`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: model }),
-          signal: AbortSignal.timeout(300_000),
-        });
-        logger.info({ model }, "[rag] Embedding model pulled successfully");
+      if (backend === "tei") {
+        // TEI health check
+        const resp = await fetch(`${url}/info`, { signal: AbortSignal.timeout(5000) });
+        if (resp.ok) {
+          const info = (await resp.json()) as { model_id?: string };
+          logger.info({ model: info.model_id, backend }, "[rag] TEI embedding server ready");
+        } else {
+          logger.warn({ status: resp.status }, "[rag] TEI health check failed");
+        }
       } else {
-        logger.debug({ model }, "[rag] Embedding model available");
+        // Ollama: check model availability, pull if missing
+        const resp = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(5000) });
+        const data = (await resp.json()) as { models?: Array<{ name: string }> };
+        const models = data.models?.map((m) => m.name) || [];
+        const available = models.some((m) => m.startsWith(model));
+        if (!available) {
+          logger.warn({ model, available: models.slice(0, 5) }, "[rag] Embedding model not found, pulling...");
+          await fetch(`${url}/api/pull`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: model }),
+            signal: AbortSignal.timeout(300_000),
+          });
+          logger.info({ model }, "[rag] Embedding model pulled successfully");
+        } else {
+          logger.debug({ model, backend }, "[rag] Embedding model available");
+        }
       }
     } catch (err) {
-      logger.warn({ err }, "[rag] Could not verify embedding model");
+      logger.warn({ err, backend }, "[rag] Could not verify embedding backend");
     }
   }
 
-  /** Embed text via Ollama /api/embed */
+  /** Embed text via TEI (/v1/embeddings) or Ollama (/api/embed). */
   async embed(text: string): Promise<number[]> {
-    const response = await fetch(`${this.options.ollamaUrl}/api/embed`, {
+    const url = this.options.ollamaUrl;
+    const model = this.options.embeddingModel || RAG_EMBEDDING_MODEL;
+
+    if (EMBEDDING_BACKEND === "tei") {
+      // OpenAI-compatible format (TEI, vLLM, etc.)
+      const response = await fetch(`${url}/v1/embeddings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model, input: text }),
+      });
+      if (!response.ok) {
+        throw new Error(`TEI embed returned ${response.status}: ${response.statusText}`);
+      }
+      const data = (await response.json()) as { data?: Array<{ embedding: number[] }> };
+      return data.data?.[0]?.embedding || [];
+    }
+
+    // Ollama format
+    const response = await fetch(`${url}/api/embed`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: this.options.embeddingModel || RAG_EMBEDDING_MODEL,
-        input: text,
-      }),
+      body: JSON.stringify({ model, input: text }),
     });
     if (!response.ok) {
       throw new Error(`Ollama embed returned ${response.status}: ${response.statusText}`);
@@ -86,14 +117,15 @@ export class LocalRAG {
 
   /** Add a document (split into chunks, embed each).
    *  If LightRAG is configured, also pushes the full text there (dual write). */
-  async addDocument(text: string, source: string): Promise<number> {
+  async addDocument(text: string, source: string, namespace?: string): Promise<number> {
     // Dual-write to LightRAG if configured
     if (this.options.lightragUrl) {
       try {
         const res = await fetch(`${this.options.lightragUrl}/documents/text`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, description: namespace }),
+          signal: AbortSignal.timeout(5000),
         });
         if (res.ok) {
           logger.debug({ source }, "[rag:lightrag] addDocument to LightRAG OK");
@@ -107,16 +139,25 @@ export class LocalRAG {
 
     // Always index locally
     const textChunks = splitIntoChunks(text, RAG_CHUNK_SIZE);
+    const newChunks: DocumentChunk[] = [];
     for (const chunk of textChunks) {
       const embedding = await this.embed(chunk);
-      this.chunks.push({
+      const docChunk: DocumentChunk = {
         id: `${source}_${this.chunks.length}`,
         text: chunk,
         source,
         embedding,
-      });
+      };
+      this.chunks.push(docChunk);
+      newChunks.push(docChunk);
     }
-    return textChunks.length;
+    if (namespace) {
+      if (!this.namespaceChunks.has(namespace)) {
+        this.namespaceChunks.set(namespace, []);
+      }
+      this.namespaceChunks.get(namespace)!.push(...newChunks);
+    }
+    return newChunks.length;
   }
 
   /** Search for relevant chunks.
@@ -180,6 +221,30 @@ export class LocalRAG {
       .filter((s) => s.score >= (this.options.minSimilarity ?? RAG_MIN_SIMILARITY))
       .slice(0, limit);
 
+    return this.rerank(query, results, limit);
+  }
+
+  /** Search within a specific persona namespace. Falls back to global search if namespace has no chunks. */
+  async searchNamespace(
+    query: string,
+    namespace: string,
+    maxResults?: number,
+  ): Promise<Array<{ text: string; source: string; score: number }>> {
+    const nsChunks = this.namespaceChunks.get(namespace);
+    if (!nsChunks || nsChunks.length === 0) {
+      return this.search(query, maxResults);
+    }
+    const limit = maxResults ?? RAG_MAX_RESULTS;
+    const queryEmbedding = await this.embed(query);
+    const scored = nsChunks.map((chunk) => ({
+      text: chunk.text,
+      source: chunk.source,
+      score: cosineSimilarity(queryEmbedding, chunk.embedding),
+    }));
+    scored.sort((a, b) => b.score - a.score);
+    const results = scored
+      .filter((s) => s.score >= (this.options.minSimilarity ?? RAG_MIN_SIMILARITY))
+      .slice(0, limit);
     return this.rerank(query, results, limit);
   }
 

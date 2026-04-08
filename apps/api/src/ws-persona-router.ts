@@ -17,6 +17,7 @@ import {
   resetPersonaMemory,
   savePersonaMemory,
 } from "./persona-memory-store.js";
+import { scheduler, VRAM_BUDGETS } from "./inference-scheduler.js";
 
 // ---------------------------------------------------------------------------
 // Persona memory (persistent, file-based)
@@ -27,32 +28,48 @@ export async function updatePersonaMemory(
   persona: ChatPersona,
   recentMessages: string[],
   ollamaUrl: string,
+  userNick: string = "_anonymous",
 ): Promise<void> {
   const startedAt = performance.now();
-  const memory = await loadPersonaMemory(persona);
+  const memory = await loadPersonaMemory(persona.id || persona.nick, userNick, persona.nick);
   const policy = resolvePersonaMemoryPolicy();
   const prompt = buildPersonaMemoryExtractionPrompt(persona, recentMessages, policy);
   recordPersonaMemoryAttempt(persona);
 
   try {
-    const response = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: persona.model,
-        messages: [{ role: "user", content: prompt }],
-        stream: false,
-        format: "json",
-      }),
-      signal: AbortSignal.timeout(30_000),
+    const llmUrl = process.env.LLM_URL || "http://localhost:11434";
+    const llmModel = process.env.LLM_MODEL || "qwen-14b-awq";
+    const llmApiKey = process.env.LLM_API_KEY || "";
+    const llmH: Record<string, string> = { "Content-Type": "application/json" };
+    if (llmApiKey) llmH["Authorization"] = `Bearer ${llmApiKey}`;
+    const data = await scheduler.submit<{ choices?: [{ message?: { content?: string } }] }>({
+      id: `memory-extract-${persona.id}-${Date.now()}`,
+      device: "gpu",
+      priority: "low",
+      label: `memory-extract:${persona.id}`,
+      vramMB: VRAM_BUDGETS.ollama,
+      execute: async () => {
+        const response = await fetch(`${llmUrl}/v1/chat/completions`, {
+          method: "POST",
+          headers: llmH,
+          body: JSON.stringify({
+            model: llmModel,
+            messages: [{ role: "user", content: prompt }],
+            stream: false,
+            max_tokens: 800,
+            response_format: { type: "json_object" },
+          }),
+          signal: AbortSignal.timeout(30_000),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Memory update HTTP ${response.status}`);
+        }
+
+        return response.json() as Promise<{ choices?: [{ message?: { content?: string } }] }>;
+      },
     });
-
-    if (!response.ok) {
-      throw new Error(`Memory update HTTP ${response.status}`);
-    }
-
-    const data = (await response.json()) as { message?: { content?: string } };
-    const rawContent = String(data.message?.content || "").trim();
+    const rawContent = String(data.choices?.[0]?.message?.content || "").trim();
     if (!rawContent) {
       logger.error({ nick: persona.nick }, "[persona-router] Empty LLM JSON");
       recordPersonaMemorySkip(persona, "empty_response");
@@ -74,7 +91,7 @@ export async function updatePersonaMemory(
       recentMessages,
     });
 
-    await savePersonaMemory(updated, policy);
+    await savePersonaMemory(updated, userNick, policy);
     const durationMs = performance.now() - startedAt;
     recordLatency("persona_memory_update", durationMs);
     recordPersonaMemoryWrite(persona, memory, updated, durationMs);

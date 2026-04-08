@@ -12,6 +12,13 @@ import { validateLoginInput } from "@kxkm/auth";
 import { buildChatChannels } from "@kxkm/chat-domain";
 import { getRecentErrors, getErrorCounts } from "../error-tracker.js";
 import { scheduler, getGPUUtilization } from "../inference-scheduler.js";
+
+const LLM_API_KEY = process.env.LLM_API_KEY || "";
+function llmHeaders(): Record<string, string> {
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  if (LLM_API_KEY) h["Authorization"] = `Bearer ${LLM_API_KEY}`;
+  return h;
+}
 import type { PersonaRecord } from "@kxkm/persona-domain";
 import type { ModelRegistryRecord, NodeGraphRecord, NodeRunRecord } from "@kxkm/node-engine";
 import type { StorageMode } from "../app-bootstrap.js";
@@ -87,22 +94,22 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
 
   router.get("/api/v2/health", async (_req, res) => {
     const startMs = Date.now();
-    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    const llmUrl = process.env.LLM_URL || "http://localhost:11434";
 
     const timeout = <T>(p: Promise<T>, ms = 2000): Promise<T> =>
       Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
 
-    const [ollamaResult, dbResult] = await Promise.allSettled([
-      timeout(fetch(`${ollamaUrl}/api/tags`).then(async (r) => {
-        const body = await r.json() as { models?: unknown[] };
-        return { ok: r.ok, models: Array.isArray(body.models) ? body.models.length : 0 };
+    const [runtimeResult, dbResult] = await Promise.allSettled([
+      timeout(fetch(`${llmUrl}/v1/models`, { headers: llmHeaders() }).then(async (r) => {
+        const body = await r.json() as { data?: unknown[] };
+        return { ok: r.ok, models: Array.isArray(body.data) ? body.data.length : 0 };
       })),
       timeout(personaRepo.list().then((list) => ({ ok: true, count: list.length }))),
     ]);
 
-    const ollama = ollamaResult.status === "fulfilled"
-      ? { status: "ok" as const, models_loaded: ollamaResult.value.models }
-      : { status: "error" as const, error: (ollamaResult.reason as Error).message };
+    const runtime = runtimeResult.status === "fulfilled"
+      ? { status: "ok" as const, models_loaded: runtimeResult.value.models }
+      : { status: "error" as const, error: (runtimeResult.reason as Error).message };
 
     const db = dbResult.status === "fulfilled"
       ? { status: "ok" as const, personas: dbResult.value.count }
@@ -117,7 +124,7 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
       roles: ["admin", "editor", "operator", "viewer"] satisfies UserRole[],
       uptime_sec: uptimeSec,
       uptime_human: uptimeHuman,
-      ollama,
+      runtime,
       database: db,
       health_check_ms: Date.now() - startMs,
     }));
@@ -194,12 +201,20 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
     res.json(asApiData(listWorkflows()));
   });
 
-  // LLM providers (mascarade status)
+  // LLM providers and runtime status
   router.get("/api/v2/llm-providers", async (_req, res) => {
     const { getProviders, checkMascaradeHealth } = await import("../llm-client.js");
     const healthy = await checkMascaradeHealth();
     const providers = await getProviders();
-    res.json(asApiData({ mascarade: healthy, providers, fallback: "ollama" }));
+    res.json(asApiData({
+      runtime: {
+        kind: "vllm-turboquant",
+        url: process.env.LLM_URL || "http://localhost:11434",
+        model: process.env.LLM_MODEL || "qwen-14b-awq",
+      },
+      mascarade: healthy,
+      providers,
+    }));
   });
 
   // RAG search endpoint — for mascarade MCP tool integration
@@ -433,28 +448,27 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
 
   router.post("/api/v2/ai/suggest-prompt", async (req, res) => {
     const { type, style: compStyle, existing, context } = req.body || {};
-    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
 
     // Image prompt generation mode — triggered by style:"random" or type not in DAW types
     const isImageMode = compStyle === "random" || type === "image";
     if (isImageMode) {
+      const llmUrl = process.env.LLM_URL || "http://localhost:11434";
+      const llmModel = process.env.LLM_MODEL || "qwen-14b-awq";
       try {
-        const resp = await fetch(`${ollamaUrl}/api/chat`, {
+        const resp = await fetch(`${llmUrl}/v1/chat/completions`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: llmHeaders(),
           body: JSON.stringify({
-            model: "qwen3:8b",
+            model: llmModel,
             messages: [{ role: "user", content: "Generate a creative, detailed image prompt for AI image generation. Be specific about style, lighting, mood, subject. Return ONLY the prompt in English, nothing else. Maximum 100 words." }],
             stream: false,
-            options: { num_predict: 200 },
-            keep_alive: "30m",
-            think: false,
+            max_tokens: 200,
           }),
           signal: AbortSignal.timeout(15000),
         });
-        if (!resp.ok) throw new Error("Ollama error");
-        const data = await resp.json() as { message?: { content?: string } };
-        const prompt = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+        if (!resp.ok) throw new Error("vLLM error");
+        const data = await resp.json() as { choices?: [{ message?: { content?: string } }] };
+        const prompt = data.choices?.[0]?.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
         res.json({ ok: true, data: { prompt } });
       } catch {
         res.json({ ok: true, data: { prompt: "a mystical forest at twilight, bioluminescent mushrooms, fog, cinematic lighting, 8k" } });
@@ -469,22 +483,22 @@ export function createSessionRoutes(deps: SessionRouteDeps): Router {
       fx: "un effet sonore ou une texture de fond",
     };
 
+    const llmUrl = process.env.LLM_URL || "http://localhost:11434";
+    const llmModel = process.env.LLM_MODEL || "qwen-14b-awq";
     try {
-      const resp = await fetch(`${ollamaUrl}/api/chat`, {
+      const resp = await fetch(`${llmUrl}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "qwen3:8b",
+          model: llmModel,
           messages: [{ role: "user", content: `Tu es un compositeur sonore. Génère ${typeHints[type as string] || "un prompt audio"} pour une composition de style "${compStyle || "experimental"}". ${existing ? `Le prompt actuel est: "${existing}". Améliore-le.` : ""} ${context ? `Contexte des autres pistes: ${context}` : ""} Réponds UNIQUEMENT le prompt (1-2 phrases max, pas d'explication).` }],
           stream: false,
-          options: { num_predict: 80 },
-          keep_alive: "30m",
-          think: false,
+          max_tokens: 80,
         }),
         signal: AbortSignal.timeout(10000),
       });
-      const data = await resp.json() as { message?: { content?: string } };
-      res.json({ ok: true, prompt: data.message?.content?.trim() || "" });
+      const data = await resp.json() as { choices?: [{ message?: { content?: string } }] };
+      res.json({ ok: true, prompt: data.choices?.[0]?.message?.content?.trim() || "" });
     } catch {
       res.json({ ok: false, prompt: "" });
     }

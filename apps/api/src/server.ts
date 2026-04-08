@@ -275,7 +275,7 @@ async function main() {
   // Initialize persistent context store (auto-compaction, 750 MB max)
   // -----------------------------------------------------------------------
   const contextStore = new ContextStore({
-    ollamaUrl: embeddingUrl,
+    ollamaUrl: llmUrl,
     maxTotalSizeMB: 750,
     maxEntriesBeforeCompact: 200,
     compactionModel: "qwen3:8b",
@@ -287,7 +287,7 @@ async function main() {
   });
 
   const wss = attachWebSocketChat(server, {
-    ollamaUrl: embeddingUrl,
+    ollamaUrl: llmUrl,
     rag,
     contextStore,
     loadPersonas: async () => {

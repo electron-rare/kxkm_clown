@@ -1,3 +1,5 @@
+import { config } from "dotenv";
+config({ path: new URL("../../../.env", import.meta.url).pathname });
 import http from "node:http";
 import fs from "node:fs";
 import { promises as fsp } from "node:fs";

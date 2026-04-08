@@ -95,7 +95,7 @@ Memory is keyed by `(personaId, nick)` — one file per user per persona.
 | API V2 | 4180 | HTTP + WS |
 | Frontend | 5173 | Vite dev |
 | vLLM | 8000 | Primary OpenAI-compatible text runtime (qwen-32b-awq) |
-| TEI | 9500 | Dedicated embedding server (BAAI/bge-m3, CPU) |
+| TEI | 8001 | Dedicated embedding server (nomic-embed-text-v1.5, CPU) |
 | PostgreSQL | 5432 | V2 persistence (optional for API, required for worker) |
 | LightRAG | 9621 | Graph-RAG; `LLM_MODEL=mistral:7b` to avoid `<think>` JSON corruption |
 | SearXNG | 8080 | Self-hosted search |
@@ -133,9 +133,9 @@ data/
 LLM_URL=http://localhost:8000           # vLLM OpenAI-compatible endpoint
 LLM_MODEL=qwen-32b-awq
 LLM_API_KEY=vllm-er-2026               # Bearer token for vLLM --api-key
-OLLAMA_URL=http://localhost:9500        # TEI embedding server
+OLLAMA_URL=http://localhost:8001        # TEI embedding server (embed-server)
 EMBEDDING_BACKEND=tei                   # "tei" or "ollama"
-RAG_EMBEDDING_MODEL=BAAI/bge-m3
+RAG_EMBEDDING_MODEL=nomic-ai/nomic-embed-text-v1.5
 DATABASE_URL=postgres://kxkm:kxkm@localhost:5432/kxkm_clown
 V2_API_PORT=4180
 TTS_ENABLED=1

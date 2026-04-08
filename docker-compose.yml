@@ -13,9 +13,12 @@
 # ---------------------------------------------------------------------------
 
 x-common-env: &common-env
-  LLM_URL: "${LLM_URL:-http://host.docker.internal:11434}"
-  LLM_MODEL: "${LLM_MODEL:-qwen-14b-awq}"
-  OLLAMA_URL: "${OLLAMA_URL:-http://host.docker.internal:11434}"
+  LLM_URL: "${LLM_URL:-http://host.docker.internal:8000}"
+  LLM_MODEL: "${LLM_MODEL:-qwen-32b-awq}"
+  LLM_API_KEY: "${LLM_API_KEY:-}"
+  OLLAMA_URL: "${OLLAMA_URL:-http://host.docker.internal:8001}"
+  EMBEDDING_BACKEND: "${EMBEDDING_BACKEND:-tei}"
+  RAG_EMBEDDING_MODEL: "${RAG_EMBEDDING_MODEL:-nomic-ai/nomic-embed-text-v1.5}"
   DATABASE_URL: postgres://kxkm:kxkm@postgres:5432/kxkm_clown
   NODE_ENV: production
 
@@ -389,25 +392,9 @@ services:
     depends_on:
       - prometheus
 
-  # --- Text Embeddings Inference (dedicated embedding server) -----------------
-  # Usage: docker compose --profile embeddings up -d
-  # Exposes OpenAI-compatible /v1/embeddings on port 9500
-  # -------------------------------------------------------------------------
-  tei:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
-    container_name: kxkm-tei
-    restart: unless-stopped
-    profiles: [v2, embeddings]
-    ports:
-      - "9500:80"
-    volumes:
-      - tei-models:/data
-    command: --model-id BAAI/bge-m3 --port 80
-
 volumes:
   app-data:
   pg-data:
   ollama-data:
-  tei-models:
   prometheus-data:
   grafana-data:

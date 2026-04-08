@@ -44,6 +44,12 @@ RUN npm ci --omit=dev --ignore-scripts 2>/dev/null || npm install --omit=dev --i
 COPY dist/ ./
 COPY apps/api/dist/ ./apps/api/dist/
 COPY apps/web/dist/ ./apps/web/dist/
+COPY packages/core/dist/ ./packages/core/dist/
+COPY packages/auth/dist/ ./packages/auth/dist/
+COPY packages/chat-domain/dist/ ./packages/chat-domain/dist/
+COPY packages/persona-domain/dist/ ./packages/persona-domain/dist/
+COPY packages/node-engine/dist/ ./packages/node-engine/dist/
+COPY packages/storage/dist/ ./packages/storage/dist/
 
 # Copy scripts
 COPY scripts/tts_synthesize.py scripts/tts_clone_voice.py scripts/tts-server.py \

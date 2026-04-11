@@ -175,13 +175,12 @@ export function useChatState(): UseChatStateReturn {
         const chunkColor = typeof msg.color === "string" ? msg.color : undefined;
         const chunkSeq = typeof msg.seq === "number" ? msg.seq : undefined;
         setMessages((prev) => {
-          // Find the last message from this nick that is a chunk (still streaming)
-          const lastIdx = prev.length - 1;
-          const last = lastIdx >= 0 ? prev[lastIdx] : null;
-          if (last && last.type === "chunk" && last.nick === chunkNick) {
-            // Append to existing chunk message
+          // Find the last chunk from this nick anywhere in the array (audio/system messages may interleave)
+          const chunkIdx = findLastChunkIndex(prev, chunkNick);
+          if (chunkIdx >= 0) {
+            const existing = prev[chunkIdx];
             const updated = [...prev];
-            updated[lastIdx] = { ...last, text: (last.text || "") + chunkText, seq: chunkSeq ?? last.seq };
+            updated[chunkIdx] = { ...existing, text: (existing.text || "") + chunkText, seq: chunkSeq ?? existing.seq };
             return updated;
           }
           // New streaming message

@@ -19,7 +19,7 @@ export async function handleUpload(
   ollamaUrl: string,
   broadcast: (channel: string, msg: OutboundMessage, exclude?: WebSocket) => void,
   logChatMessage: (entry: any) => void,
-  routeToPersonas: (channel: string, text: string) => Promise<void>,
+  routeToPersonas: (channel: string, text: string, depth?: number, userNick?: string) => Promise<void>,
   acquireFileProcessor: () => Promise<void>,
   releaseFileProcessor: () => void,
   isOfficeDocument: (filename: string, mimeType: string) => boolean,
@@ -236,6 +236,6 @@ export async function handleUpload(
   if (analysis) {
     const contextMessage =
       `[L'utilisateur ${info.nick} a partagé un fichier: ${filename}]\n${analysis}\n\nAnalyse ce fichier et donne ton avis.`;
-    await routeToPersonas(info.channel, contextMessage);
+    await routeToPersonas(info.channel, contextMessage, 0, info.nick);
   }
 }

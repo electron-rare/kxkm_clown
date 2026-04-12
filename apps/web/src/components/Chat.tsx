@@ -80,6 +80,7 @@ export default function Chat() {
     sidebarCollapsed,
     toggleSidebar,
     typingPersona,
+    typingText,
     ws,
     getNickColor,
     handleSend,
@@ -339,8 +340,7 @@ export default function Chat() {
 
       {typingPersona && (
         <div className="chat-typing" role="status" aria-live="assertive">
-          {">>> "}{typingPersona}{" ecrit"}
-          <span className="chat-typing-dots">...</span>
+          {">>> "}{typingText[typingPersona] || `${typingPersona} ecrit...`}
         </div>
       )}
 

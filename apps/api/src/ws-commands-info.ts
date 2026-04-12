@@ -6,6 +6,8 @@ import os from "node:os";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
 import { getRecentErrors } from "./error-tracker.js";
 import { loadPersonaMemory } from "./ws-persona-router.js";
+import { vllmComplete } from "./ws-ollama.js";
+import { loadPersonaMemoryGlobal } from "./persona-memory-store.js";
 import { getActiveComposition } from "./composition-store.js";
 import type { OutboundMessage } from "./chat-types.js";
 import { scheduler } from "./inference-scheduler.js";
@@ -105,7 +107,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         if (statsTarget) {
           const persona = getPersonas().find(p => p.nick.toLowerCase() === statsTarget);
           if (persona) {
-            const mem = await loadPersonaMemory(persona);
+            const mem = await loadPersonaMemory(persona.id, info.nick, persona.nick);
             const lines = [
               `=== Stats: ${persona.nick} ===`,
               `  Modele: ${persona.model}`,
@@ -121,25 +123,22 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         // ---------------------------------------------------------------
         // Comprehensive system dashboard — all fetches run in parallel
         // ---------------------------------------------------------------
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        const llmUrl = process.env.LLM_URL || "http://localhost:11434";
         const mascaradeUrl = process.env.MASCARADE_URL || "http://127.0.0.1:8100";
         const dataDir = path.join(process.cwd(), "data");
 
         // Fire all async probes in parallel
         const [
           mascaradeHealth,
-          ollamaPs,
-          ollamaTags,
+          vllmModels,
           gpuInfo,
           perfData,
           comfyModels,
         ] = await Promise.all([
           // Mascarade health
           safeFetchJson<{ status?: string; providers?: string[] }>(`${mascaradeUrl}/health`),
-          // Ollama running models
-          safeFetchJson<{ models?: Array<{ name: string; size: number; size_vram?: number }> }>(`${ollamaUrl}/api/ps`),
-          // Ollama available models
-          safeFetchJson<{ models?: Array<{ name: string; size: number }> }>(`${ollamaUrl}/api/tags`),
+          // vLLM models
+          safeFetchJson<{ data?: Array<{ id: string; max_model_len?: number }> }>(`${llmUrl}/v1/models`),
           // GPU info via nvidia-smi
           (async () => {
             try {
@@ -197,20 +196,18 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         // LLM
         L.push("LLM");
         if (mascaradeHealth) {
-          const providers = mascaradeHealth.providers?.join(", ") || "ollama";
+          const providers = mascaradeHealth.providers?.join(", ") || "none";
           L.push(`  Mascarade: OK (${providers})`);
         } else {
           L.push(`  Mascarade: OFFLINE`);
         }
-        if (ollamaPs?.models && ollamaPs.models.length > 0) {
-          for (const m of ollamaPs.models) {
-            const vram = m.size_vram ? ` (${(m.size_vram / 1e9).toFixed(1)}GB VRAM)` : "";
-            L.push(`  Ollama: ${m.name} loaded${vram}`);
+        if (vllmModels?.data && vllmModels.data.length > 0) {
+          for (const m of vllmModels.data) {
+            const ctx = m.max_model_len ? ` (ctx ${m.max_model_len})` : "";
+            L.push(`  vLLM: ${m.id} chargé${ctx}`);
           }
-        } else if (ollamaTags?.models) {
-          L.push(`  Ollama: ${ollamaTags.models.length} modeles, aucun charge`);
         } else {
-          L.push(`  Ollama: non disponible`);
+          L.push(`  vLLM: non disponible`);
         }
         if (gpuInfo) {
           L.push(`  VRAM: ${(gpuInfo.usedMB / 1024).toFixed(1)}GB / ${(gpuInfo.totalMB / 1024).toFixed(1)}GB (${(gpuInfo.freeMB / 1024).toFixed(1)}GB libre, GPU ${gpuInfo.utilPct}%)`);
@@ -374,17 +371,14 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
 
       case "/speed": {
         const start = Date.now();
+        const llmUrlSpeed = process.env.LLM_URL || "http://localhost:11434";
+        const llmModelSpeed = process.env.LLM_MODEL || "qwen-14b-awq";
         try {
-          await fetch(`${process.env.OLLAMA_URL || "http://localhost:11434"}/api/chat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "qwen3.5:9b", messages: [{ role: "user", content: "ping" }], stream: false, options: { num_predict: 5 }, keep_alive: "30m", think: false }),
-            signal: AbortSignal.timeout(10000),
-          });
+          await vllmComplete([{ role: "user", content: "ping" }], { maxTokens: 5 });
           const ms = Date.now() - start;
-          send(ws, { type: "system", text: `\u26A1 Ollama: ${ms}ms | Modele: qwen3.5:9b` });
+          send(ws, { type: "system", text: `\u26A1 vLLM: ${ms}ms | Modele: ${llmModelSpeed} (${llmUrlSpeed})` });
         } catch {
-          send(ws, { type: "system", text: `\u26A1 Ollama: timeout (>10s)` });
+          send(ws, { type: "system", text: `\u26A1 vLLM: timeout (>10s)` });
         }
         return;
       }
@@ -393,12 +387,12 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         const modelName = text.slice(7).trim();
         if (!modelName) {
           try {
-            const resp = await fetch("http://localhost:11434/api/ps", { signal: AbortSignal.timeout(3000) });
-            const data = await resp.json() as { models?: Array<{ name: string; size: number }> };
-            const loaded = data.models?.map(m => `  ${m.name} (${(m.size / 1e9).toFixed(1)}GB)`).join("\n") || "  aucun";
-            send(ws, { type: "system", text: `Modeles charges:\n${loaded}` });
+            const resp = await fetch(`${process.env.LLM_URL || "http://localhost:11434"}/v1/models`, { signal: AbortSignal.timeout(3000) });
+            const data = await resp.json() as { data?: Array<{ id: string }> };
+            const loaded = data.data?.map(m => `  ${m.id}`).join("\n") || "  aucun";
+            send(ws, { type: "system", text: `Modeles vLLM:\n${loaded}` });
           } catch {
-            send(ws, { type: "system", text: "Impossible de contacter Ollama" });
+            send(ws, { type: "system", text: "Impossible de contacter vLLM" });
           }
           return;
         }
@@ -440,7 +434,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         }
         const { getPersonaVoice: getVoice } = await import("./persona-voices.js");
         const v = getVoice(found.nick);
-        const mem = await loadPersonaMemory(found);
+        const mem = await loadPersonaMemory(found.id, info.nick, found.nick);
         send(ws, { type: "system", text: [
           `=== ${found.nick} ===`,
           `  Modele: ${found.model}`,
@@ -455,41 +449,27 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
       }
 
       case "/models": {
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-        const lines: string[] = ["=== Modeles Ollama ==="];
+        const vllmUrlModels = process.env.LLM_URL || "http://localhost:11434";
+        const lines: string[] = ["=== Modeles vLLM ==="];
         try {
-          const ctrlTags = new AbortController();
-          const tTags = setTimeout(() => ctrlTags.abort(), 3000);
-          const respTags = await fetch(`${ollamaUrl}/api/tags`, { signal: ctrlTags.signal });
-          clearTimeout(tTags);
-          if (!respTags.ok) throw new Error(`HTTP ${respTags.status}`);
-          const tagsBody = await respTags.json() as { models?: Array<{ name: string; size: number; modified_at?: string }> };
-          const available = tagsBody.models || [];
-
-          let loaded = new Set<string>();
-          try {
-            const ctrlPs = new AbortController();
-            const tPs = setTimeout(() => ctrlPs.abort(), 3000);
-            const respPs = await fetch(`${ollamaUrl}/api/ps`, { signal: ctrlPs.signal });
-            clearTimeout(tPs);
-            if (respPs.ok) {
-              const psBody = await respPs.json() as { models?: Array<{ name: string; size_vram?: number }> };
-              loaded = new Set((psBody.models || []).map((m) => m.name));
-            }
-          } catch { /* ps endpoint may not be available */ }
-
-          if (available.length === 0) {
-            lines.push("  Aucun modele installe.");
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 3000);
+          const resp = await fetch(`${vllmUrlModels}/v1/models`, { signal: ctrl.signal });
+          clearTimeout(t);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const body = await resp.json() as { data?: Array<{ id: string; max_model_len?: number }> };
+          const models = body.data || [];
+          if (models.length === 0) {
+            lines.push("  Aucun modele charge.");
           } else {
-            lines.push(`${available.length} modele(s) disponible(s), ${loaded.size} charge(s):\n`);
-            for (const m of available) {
-              const sizeGB = (m.size / 1073741824).toFixed(1);
-              const status = loaded.has(m.name) ? " [CHARGE]" : "";
-              lines.push(`  ${m.name} (${sizeGB}GB)${status}`);
+            lines.push(`${models.length} modele(s) charge(s):\n`);
+            for (const m of models) {
+              const ctx = m.max_model_len ? ` (ctx ${m.max_model_len})` : "";
+              lines.push(`  ${m.id}${ctx} [CHARGE]`);
             }
           }
         } catch (err) {
-          lines.push(`Ollama non disponible: ${err instanceof Error ? err.message : String(err)}`);
+          lines.push(`vLLM non disponible: ${err instanceof Error ? err.message : String(err)}`);
         }
         send(ws, { type: "system", text: lines.join("\n") });
         return;
@@ -501,13 +481,13 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         const providers = await getProviders();
         const lines = [
           "=== LLM Backend ===",
-          `  Mascarade: ${healthy ? "OK" : "OFFLINE"} (${process.env.MASCARADE_URL || "http://127.0.0.1:8100"})`,
-          `  Providers: ${providers.join(", ") || "ollama (fallback)"}`,
-          `  Mode: ${process.env.USE_MASCARADE === "0" ? "Direct Ollama" : "Mascarade → Ollama fallback"}`,
-          `  Default model: ${process.env.LLM_DEFAULT_MODEL || "ollama:qwen3.5:9b"}`,
+          `  Runtime: vllm-turboquant (${process.env.LLM_URL || "http://127.0.0.1:11434"})`,
+          `  Default model: ${process.env.LLM_MODEL || process.env.LLM_DEFAULT_MODEL || "qwen-14b-awq"}`,
+          `  Mascarade cloud routing: ${healthy ? "OK" : "OFFLINE"} (${process.env.MASCARADE_URL || "http://127.0.0.1:8100"})`,
+          `  Providers: ${providers.join(", ") || "vllm-turboquant"}`,
           "",
-          "Usage: les personas routent via mascarade automatiquement.",
-          "Pour forcer un provider: mettre 'claude:claude-sonnet-4-6' dans le model du persona.",
+          "Usage: le runtime local passe par vllm-turboquant.",
+          "Pour forcer un provider cloud: mettre 'claude:...' ou 'openai:...' dans le model du persona.",
         ];
         send(ws, { type: "system", text: lines.join("\n") });
         return;
@@ -528,7 +508,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           return;
         }
         try {
-          const memory = await loadPersonaMemory(persona);
+          const memory = await loadPersonaMemory(persona.id, info.nick, persona.nick);
           const lines = [
             `=== Memoire de ${persona.nick} ===`,
             ``,
@@ -699,7 +679,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
         const scores: Array<{ nick: string; facts: number }> = [];
         for (const p of personas) {
           try {
-            const mem = await loadPersonaMemory(p);
+            const mem = await loadPersonaMemoryGlobal(p);
             scores.push({ nick: p.nick, facts: mem.facts.length });
           } catch { scores.push({ nick: p.nick, facts: 0 }); }
         }
@@ -753,7 +733,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           "Plateforme IA multi-persona, DAW natif, generation d'images et de musique.",
           "",
           "Stack: Node.js + React + Vite + Express + WebSocket",
-          "IA: Ollama (qwen3.5:9b) + mascarade (multi-provider)",
+          "IA: vllm-turboquant + mascarade (cloud routing) + ComfyUI",
           "Audio: Kokoro TTS + Piper FR + ACE-Step + Demucs + Matchering",
           "Images: ComfyUI (32 checkpoints, 24 LoRAs, 5 workflows)",
           "DAW: openDAW + 6 instruments AI + Magenta.js MIDI",
@@ -783,22 +763,18 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           })() });
         };
 
-        const benchOllamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-        timeTest("Ollama", `${benchOllamaUrl}/api/tags`);
+        const benchLlmUrl = process.env.LLM_URL || "http://localhost:11434";
+        timeTest("vLLM", `${benchLlmUrl}/v1/models`);
         timeTest("ComfyUI", "http://localhost:8188/system_stats");
         timeTest("Kokoro", `${process.env.KOKORO_URL || "http://127.0.0.1:9201"}/health`);
         timeTest("AI Bridge", "http://127.0.0.1:8301/health");
         timeTest("Mascarade", `${process.env.MASCARADE_URL || "http://127.0.0.1:8100"}/health`);
 
-        // Ollama inference test
-        tests.push({ name: "Ollama chat", promise: (async () => {
+        // vLLM inference test
+        tests.push({ name: "vLLM chat", promise: (async () => {
           const t0 = Date.now();
           try {
-            await fetch(`${benchOllamaUrl}/api/chat`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ model: "qwen3.5:9b", messages: [{ role: "user", content: "1+1" }], stream: false, options: { num_predict: 5 }, keep_alive: "30m", think: false }),
-              signal: AbortSignal.timeout(10000),
-            });
+            await vllmComplete([{ role: "user", content: "1+1" }], { maxTokens: 5 });
             return Date.now() - t0;
           } catch { return -1; }
         })() });
@@ -911,7 +887,7 @@ export function createInfoCommandHandler(deps: CommandHandlerDeps) {
           "Collectif: KXKM",
           "",
           "Stack: Node.js, React, Vite, Express, WebSocket",
-          "IA: Ollama (qwen3.5:9b), mascarade, ComfyUI",
+          "IA: vllm-turboquant, mascarade, ComfyUI",
           "Audio: Kokoro TTS, Piper FR, ACE-Step, Demucs, Matchering",
           "DAW: openDAW (LGPL), Magenta.js (Apache 2.0)",
           "",

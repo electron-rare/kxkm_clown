@@ -38,6 +38,7 @@ export interface UseChatStateReturn {
   sidebarCollapsed: { personas: boolean; users: boolean };
   toggleSidebar: (section: "personas" | "users") => void;
   typingPersona: string | null;
+  typingText: Record<string, string>;
   ws: UseWebSocketReturn;
   sounds: ReturnType<typeof useMinitelSounds>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
@@ -55,6 +56,7 @@ export function useChatState(): UseChatStateReturn {
   const [personaColors, setPersonaColors] = useState<PersonaColor>({});
   const [sidebarCollapsed, setSidebarCollapsed] = useState({ personas: true, users: true });
   const [typingPersona, setTypingPersona] = useState<string | null>(null);
+  const [typingText, setTypingText] = useState<Record<string, string>>({});
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track multiple typing personas for richer indicator
   const [typingPersonas, setTypingPersonas] = useState<Set<string>>(new Set());
@@ -214,20 +216,38 @@ export function useChatState(): UseChatStateReturn {
         }
 
         if (type === "system" && typeof msg.text === "string") {
-          const typingMatch = msg.text.match(/^(.+?) (?:est en train d'ecrire|reflechit)/);
-          if (typingMatch) {
-            const nick = typingMatch[1];
-            // Track multiple typing personas
+          // Thinking preview with progress bar → update typing indicator text
+          const thinkingMatch = msg.text.match(/^(.+?) \[[\u2588\u2591]+\] .+/) || msg.text.match(/^(.+?) reflechit: (.+)/);
+          if (thinkingMatch) {
+            const nick = thinkingMatch[1];
             setTypingPersonas(prev => new Set(prev).add(nick));
-            setTypingPersona(nick); // backward compat
-            // Clear after 8s
+            setTypingPersona(nick);
+            setTypingText(prev => ({ ...prev, [nick]: String(msg.text) }));
             const prevTimer = typingTimersRef.current.get(nick);
             if (prevTimer) clearTimeout(prevTimer);
             typingTimersRef.current.set(nick, setTimeout(() => {
               setTypingPersonas(prev => { const next = new Set(prev); next.delete(nick); return next; });
               setTypingPersona(prev => prev === nick ? null : prev);
+              setTypingText(prev => { const { [nick]: _, ...rest } = prev; return rest; });
               typingTimersRef.current.delete(nick);
-            }, 8000));
+            }, 15000));
+            return;
+          }
+          // Simple typing/thinking indicator
+          const typingMatch = msg.text.match(/^(.+?) (?:est en train d'ecrire|reflechit|ecrit la reponse)/);
+          if (typingMatch) {
+            const nick = typingMatch[1];
+            setTypingPersonas(prev => new Set(prev).add(nick));
+            setTypingPersona(nick);
+            setTypingText(prev => ({ ...prev, [nick]: String(msg.text) }));
+            const prevTimer = typingTimersRef.current.get(nick);
+            if (prevTimer) clearTimeout(prevTimer);
+            typingTimersRef.current.set(nick, setTimeout(() => {
+              setTypingPersonas(prev => { const next = new Set(prev); next.delete(nick); return next; });
+              setTypingPersona(prev => prev === nick ? null : prev);
+              setTypingText(prev => { const { [nick]: _, ...rest } = prev; return rest; });
+              typingTimersRef.current.delete(nick);
+            }, 15000));
             return;
           }
         }
@@ -240,6 +260,7 @@ export function useChatState(): UseChatStateReturn {
             typingTimersRef.current.delete(nick);
             setTypingPersonas(prev => { const next = new Set(prev); next.delete(nick); return next; });
             setTypingPersona(prev => prev === nick ? null : prev);
+            setTypingText(prev => { const { [nick]: _, ...rest } = prev; return rest; });
           }
         }
 
@@ -549,6 +570,7 @@ export function useChatState(): UseChatStateReturn {
     sidebarCollapsed,
     toggleSidebar,
     typingPersona,
+    typingText,
     ws,
     sounds,
     messagesEndRef,

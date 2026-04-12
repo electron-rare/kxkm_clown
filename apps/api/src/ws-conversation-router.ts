@@ -8,7 +8,7 @@ import {
   cleanPersonaResponse,
 } from "./ws-ollama.js";
 
-// Use mascarade-backed LLM client by default, fallback to direct Ollama
+// Use mascarade-backed LLM client by default, otherwise direct local runtime
 const defaultStreamOllamaChat = streamLLMChat;
 import {
   synthesizeTTS as defaultSynthesizeTTS,
@@ -75,6 +75,7 @@ type GetToolsForPersonaFn = typeof defaultGetToolsForPersona;
 export interface ConversationRAG {
   size: number;
   search(query: string, maxResults?: number): Promise<Array<{ text: string }>>;
+  searchNamespace?(query: string, namespace: string, maxResults?: number): Promise<Array<{ text: string }>>;
 }
 
 export interface ConversationRouterDeps {
@@ -103,7 +104,7 @@ export interface ConversationRouterDeps {
   logger?: Logger;
 }
 
-export type ConversationRouter = (channel: string, text: string, depth?: number) => Promise<void>;
+export type ConversationRouter = (channel: string, text: string, depth?: number, userNick?: string) => Promise<void>;
 
 const DEFAULT_MAX_INTER_PERSONA_DEPTH = 3;
 const PERSONA_COOLDOWN_MS = 0; // disabled — maxInterPersonaDepth protects against infinite loops
@@ -119,10 +120,13 @@ function getPersonaMood(): string {
   return "Il est tard, tu es mystique et onirique dans tes reponses.";
 }
 
-function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<LoadPersonaMemoryFn>>): ChatPersona {
+function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<LoadPersonaMemoryFn>>, policy?: ReturnType<typeof resolvePersonaMemoryPolicy>): ChatPersona {
   const mood = getPersonaMood();
-  const retainedFacts = memory.workingMemory?.facts || memory.facts;
+  const allFacts = memory.workingMemory?.facts || memory.facts;
   const retainedSummary = memory.workingMemory?.summary || memory.summary;
+
+  const injectionBudget = (policy?.pruning?.injectionFactsLimit) ?? 8;
+  const retainedFacts = allFacts.slice(0, injectionBudget);
 
   if (retainedFacts.length === 0 && !retainedSummary) {
     return {
@@ -218,6 +222,33 @@ export function detectGenerationIntent(text: string): { type: "image" | "music" 
   return { type: null, prompt: text };
 }
 
+// ---------------------------------------------------------------------------
+// Persona-specific thinking flavour texts (NO raw thinking content exposed)
+// ---------------------------------------------------------------------------
+const THINKING_FLAVORS: Record<string, string[]> = {
+  Pharmacius: ["consulte ses grimoires", "prepare sa formule", "orchestre le collectif"],
+  Deleuze: ["trace un rhizome", "pense le devenir", "explore les multiplicites"],
+  Merzbow: ["ecoute le bruit blanc", "sature les frequences", "sculpte le noise"],
+  Ikeda: ["analyse les donnees", "decompose les signaux", "epure les formes"],
+  Radigue: ["ecoute les harmoniques", "medite sur le son", "laisse vibrer"],
+  Cage: ["ecoute le silence", "lance les des", "ouvre la partition"],
+  Sherlock: ["observe les indices", "deduit les connexions", "reconstruit la scene"],
+  Hypatia: ["consulte les astres", "calcule les proportions", "questionne le cosmos"],
+  Turing: ["decode les patterns", "simule la machine", "teste l'hypothese"],
+  Bjork: ["compose les textures", "explore le vivant", "chante les molecules"],
+  Pina: ["danse la question", "cherche le geste", "habite le mouvement"],
+  Foucault: ["deconstruit le pouvoir", "fouille les archives", "interroge le savoir"],
+  Batty: ["contemple les etoiles", "cherche ses souvenirs", "defie le temps"],
+  Picasso: ["dessine dans l'espace", "brise les formes", "recompose le reel"],
+  Schaeffer: ["capture les sons", "isole l'objet sonore", "ecoute reduitement"],
+};
+const DEFAULT_FLAVORS = ["reflechit", "analyse la question", "formule sa reponse"];
+
+function getThinkingFlavor(nick: string, phase: number): string {
+  const flavors = THINKING_FLAVORS[nick] || DEFAULT_FLAVORS;
+  return flavors[Math.min(phase, flavors.length - 1)];
+}
+
 export function createConversationRouter(deps: ConversationRouterDeps): ConversationRouter {
   const {
     ollamaUrl,
@@ -262,15 +293,15 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   const memoryCache = new Map<string, { data: PersonaMemory; ts: number }>();
   const MEMORY_CACHE_TTL = 30_000;
 
-  function getMemoryCacheKey(persona: Pick<ChatPersona, "id" | "nick">): string {
-    return persona.id || persona.nick;
+  function getMemoryCacheKey(persona: Pick<ChatPersona, "id" | "nick">, userNick: string): string {
+    return `${persona.id || persona.nick}:${userNick}`;
   }
 
-  async function cachedLoadMemory(persona: ChatPersona): Promise<PersonaMemory> {
-    const cacheKey = getMemoryCacheKey(persona);
+  async function cachedLoadMemory(persona: ChatPersona, userNick: string): Promise<PersonaMemory> {
+    const cacheKey = getMemoryCacheKey(persona, userNick);
     const cached = memoryCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < MEMORY_CACHE_TTL) return cached.data;
-    const data = await loadPersonaMemory(persona);
+    const data = await loadPersonaMemory(persona.id || persona.nick, userNick, persona.nick);
     memoryCache.set(cacheKey, { data, ts: Date.now() });
     if (memoryCache.size > 50) {
       const oldest = [...memoryCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
@@ -279,8 +310,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     return data;
   }
 
-  function invalidateCachedMemory(persona: Pick<ChatPersona, "id" | "nick">): void {
-    memoryCache.delete(getMemoryCacheKey(persona));
+  function invalidateCachedMemory(persona: Pick<ChatPersona, "id" | "nick">, userNick: string): void {
+    memoryCache.delete(getMemoryCacheKey(persona, userNick));
   }
 
   function enqueueTTS(nick: string, text: string, channel: string): void {
@@ -302,41 +333,46 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
   }
 
   function prunePersonaState(personas: ChatPersona[]): void {
-    const activeNicks = new Set(personas.map((persona) => persona.nick));
-    const activeMemoryKeys = new Set(personas.map((persona) => getMemoryCacheKey(persona)));
-    for (const [nick] of personaMessageCounts) {
-      if (!activeNicks.has(nick)) {
-        personaMessageCounts.delete(nick);
-        personaRecentMessages.delete(nick);
-        personaMemoryLocks.delete(nick);
+    const activePersonaIds = new Set(personas.map((persona) => persona.id || persona.nick));
+    for (const [key] of personaMessageCounts) {
+      // Keys are now "{personaId}:{userNick}" — prune if persona is no longer active
+      const personaId = key.split(":")[0];
+      if (!activePersonaIds.has(personaId)) {
+        personaMessageCounts.delete(key);
+        personaRecentMessages.delete(key);
+        personaMemoryLocks.delete(key);
       }
     }
     for (const [cacheKey] of memoryCache) {
-      if (!activeMemoryKeys.has(cacheKey)) {
+      const personaId = cacheKey.split(":")[0];
+      if (!activePersonaIds.has(personaId)) {
         memoryCache.delete(cacheKey);
       }
     }
   }
 
-  function trackPersonaMessage(nick: string, text: string): { count: number; recentMessages: string[] } {
-    const count = (personaMessageCounts.get(nick) || 0) + 1;
-    personaMessageCounts.set(nick, count);
+  function trackPersonaMessage(personaId: string, userNick: string, text: string): { count: number; recentMessages: string[] } {
+    const key = `${personaId}:${userNick}`;
+    const count = (personaMessageCounts.get(key) || 0) + 1;
+    personaMessageCounts.set(key, count);
 
-    const recentMessages = personaRecentMessages.get(nick) || [];
-    recentMessages.push(text);
+    const recentMessages = personaRecentMessages.get(key) || [];
+    recentMessages.push(text.slice(0, 2000));
     if (recentMessages.length > memoryPolicy.pruning.workingSourceMessagesLimit) {
       recentMessages.shift();
     }
-    personaRecentMessages.set(nick, recentMessages);
+    personaRecentMessages.set(key, recentMessages);
     return { count, recentMessages: [...recentMessages] };
   }
 
-  function scheduleMemoryUpdate(persona: ChatPersona, recentMessages: string[]): void {
-    const previous = personaMemoryLocks.get(persona.nick) || Promise.resolve();
+  function scheduleMemoryUpdate(persona: ChatPersona, recentMessages: string[], userNick: string): void {
+    if ((persona.memoryMode ?? "auto") !== "auto") return;
+    const lockKey = `${persona.id || persona.nick}:${userNick}`;
+    const previous = personaMemoryLocks.get(lockKey) || Promise.resolve();
     const next = previous
       .then(async () => {
-        await updatePersonaMemory(persona, recentMessages, ollamaUrl);
-        invalidateCachedMemory(persona);
+        await updatePersonaMemory(persona, recentMessages, ollamaUrl, userNick);
+        invalidateCachedMemory(persona, userNick);
       })
       .catch((err) => {
         trackError("memory_update", err, { persona: persona.nick });
@@ -344,11 +380,11 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       .finally(() => {
         // Reset the lock slot to a plain resolved promise so the chain does
         // not grow unboundedly across many memory-update cycles.
-        if (personaMemoryLocks.get(persona.nick) === next) {
-          personaMemoryLocks.set(persona.nick, Promise.resolve());
+        if (personaMemoryLocks.get(lockKey) === next) {
+          personaMemoryLocks.set(lockKey, Promise.resolve());
         }
       });
-    personaMemoryLocks.set(persona.nick, next);
+    personaMemoryLocks.set(lockKey, next);
   }
 
 
@@ -388,7 +424,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     personasSnapshot: ChatPersona[],
     depth: number,
     routeToPersonas: ConversationRouter,
+    userNick: string,
     preloadedMemory?: PersonaMemory,
+    rag?: ConversationRAG,
   ): Promise<void> {
     // Persona cooldown check (anti-spam for inter-persona chains only)
     if (depth > 0) {
@@ -405,47 +443,104 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     let memory: PersonaMemory = preloadedMemory || { nick: persona.nick, facts: [], summary: "", lastUpdated: "" };
     if (!preloadedMemory) {
       try {
-        memory = await cachedLoadMemory(persona);
+        memory = await cachedLoadMemory(persona, userNick);
       } catch (err) {
         trackError("memory_load", err, { persona: persona.nick });
       }
     }
-    const personaWithMemory = withPersonaMemory(persona, memory);
+    const personaWithMemory = withPersonaMemory(persona, memory, memoryPolicy);
+
+    // Per-persona namespace RAG enrichment
+    let personaEnrichedText = enrichedText;
+    if (rag?.searchNamespace && persona.corpus?.length && text.length > 80) {
+      try {
+        const ns = `persona:${persona.id}`;
+        const nsResults = await rag.searchNamespace(text, ns);
+        if (nsResults.length > 0) {
+          const nsContext = nsResults.map((r) => r.text).join('\n---\n');
+          personaEnrichedText = `${enrichedText}\n\n[Corpus ${persona.nick}]\n${nsContext}`;
+        }
+      } catch {
+        // namespace search failed, use global enrichedText
+      }
+    }
+
+    // Relational context injection (Masques Commedia)
+    if (persona.relations?.length) {
+      const mentioned = personasSnapshot.filter(
+        (p) => text.toLowerCase().includes(p.nick.toLowerCase()) || text.includes(`@${p.nick}`),
+      );
+      const relCtx = persona.relations
+        .filter((r) => mentioned.some((m) => m.id === r.personaId))
+        .map((r) => {
+          const target = personasSnapshot.find((p) => p.id === r.personaId);
+          return target ? `[Relation avec ${target.nick}: ${r.attitude} — ${r.note}]` : null;
+        })
+        .filter(Boolean)
+        .join('\n');
+      if (relCtx) {
+        personaEnrichedText = `${personaEnrichedText}\n\n${relCtx}`;
+      }
+    }
+
     const tools = getToolsForPersona(persona.nick);
     if (DEBUG) console.log(`[ws-chat] ${persona.nick} responding (tools=${tools.length}, model=${persona.model}, depth=${depth})`);
 
-    // Typing indicator sent AFTER enrichment, right before Ollama call
-    const isThinking = persona.model.startsWith("qwen3.5") && text.length > 200;
+    // Phase 1: "reflechit" — shown immediately
     broadcast(channel, {
       type: "system",
-      text: `${persona.nick} ${isThinking ? "reflechit" : "est en train d'ecrire"}...`,
+      text: `${persona.nick} reflechit...`,
     });
 
-    let chunkSeq = 0;
-    let sentenceBuffer = "";
-    let sentenceTTSFired = false;
+    let thinkingTokens = 0;
+    let thinkingBuf = "";
+    let thinkingTimer: ReturnType<typeof setTimeout> | null = null;
+    let writingAnnounced = false;
+    // Match the reasoning-budget set on llama-server (--reasoning-budget 512)
+    // Progress bar is approximate — model may think more or less than budget
+    const THINKING_BUDGET = 512;
 
-    const onChunk = (token: string) => {
-      chunkSeq++;
-      broadcast(channel, {
-        type: "chunk" as any,
-        nick: persona.nick,
-        text: token,
-        color: persona.color,
-        seq: chunkSeq,
-      });
+    // Thinking progress: flavour text + progress bar + raw thinking preview
+    const onThinking = (token: string) => {
+      thinkingTokens++;
+      thinkingBuf += token;
+      if (thinkingTimer) clearTimeout(thinkingTimer);
+      thinkingTimer = setTimeout(() => {
+        thinkingTimer = null;
+        const pct = Math.min(99, Math.round((thinkingTokens / THINKING_BUDGET) * 100));
+        const filled = Math.round(pct / 10);
+        const bar = "\u2588".repeat(filled) + "\u2591".repeat(10 - filled);
+        const phase = pct < 40 ? 0 : pct < 80 ? 1 : 2;
+        const flavor = getThinkingFlavor(persona.nick, phase);
+        const lines = thinkingBuf.trim().split("\n").filter(l => l.trim());
+        const preview = lines.length > 0 ? lines[lines.length - 1].trim().slice(0, 60) : "";
+        broadcast(channel, {
+          type: "system",
+          text: `${persona.nick} [${bar}] ${flavor}... ${preview}`,
+        });
+      }, 800);
+    };
 
-      // Accumulate tokens for sentence-boundary TTS
-      sentenceBuffer += token;
-      const { sentences, remaining } = extractSentences(sentenceBuffer);
-      sentenceBuffer = remaining;
-      for (const sentence of sentences) {
-        enqueueTTS(persona.nick, cleanForTTS(sentence), channel);
-        sentenceTTSFired = true;
+    // Phase 2: first visible token → "ecrit la reponse"
+    // Phase 3: onDone sends full response as a single message (no token streaming)
+    // Design choice: thinking models produce 500+ tokens of reasoning before the response.
+    // Streaming chunks would show nothing during thinking, then a burst of tokens.
+    // Instead we show the thinking progress bar, then the complete response at once.
+    const onChunk = (_token: string) => {
+      if (!writingAnnounced) {
+        writingAnnounced = true;
+        if (thinkingTimer) clearTimeout(thinkingTimer);
+        thinkingTimer = null;
+        broadcast(channel, {
+          type: "system",
+          text: `${persona.nick} ecrit la reponse...`,
+        });
       }
     };
 
     const onDone = (rawText: string) => {
+      if (thinkingTimer) clearTimeout(thinkingTimer);
+      thinkingTimer = null;
       const fullText = cleanPersonaResponse(rawText, persona.nick);
       broadcast(channel, {
         type: "message",
@@ -468,15 +563,8 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       if (DEBUG) console.log(`[ws-chat] ${persona.nick} response complete (${responseMs}ms, ${fullText.length} chars)`);
       recordLatency("persona_response", responseMs);
 
-      // Flush remaining sentence buffer to TTS
-      if (sentenceBuffer.trim().length >= 10) {
-        enqueueTTS(persona.nick, cleanForTTS(sentenceBuffer.trim()), channel);
-        sentenceTTSFired = true;
-      }
-      sentenceBuffer = "";
-
-      // Fallback: if no sentences were detected during streaming, send full text
-      if (!sentenceTTSFired && process.env.TTS_ENABLED === "1" && isTTSAvailable()) {
+      // TTS: send full response as a single call for natural prosody
+      if (process.env.TTS_ENABLED === "1" && isTTSAvailable()) {
         enqueueTTS(persona.nick, cleanForTTS(fullText), channel);
       }
 
@@ -491,11 +579,21 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
       const sourceLabel = depth > 0 ? "InterPersona" : "User";
       const { count, recentMessages } = trackPersonaMessage(
-        persona.nick,
+        persona.id || persona.nick,
+        userNick,
         `${sourceLabel}: ${text}\n${persona.nick}: ${fullText}`,
       );
       if (shouldUpdatePersonaMemory(count, memoryPolicy)) {
-        scheduleMemoryUpdate(persona, recentMessages);
+        // Cap overall extraction content at 8000 chars (FINDING-8 P2 fix)
+        const cappedMessages: string[] = [];
+        let totalLen = 0;
+        for (const m of recentMessages) {
+          if (totalLen >= 8000) break;
+          const remaining = 8000 - totalLen;
+          cappedMessages.push(m.slice(0, remaining));
+          totalLen += m.length < remaining ? m.length : remaining;
+        }
+        scheduleMemoryUpdate(persona, cappedMessages, userNick);
       }
 
 
@@ -512,17 +610,18 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       setTimeoutFn(() => {
         // Keep inter-persona context short for speed (max 200 chars of previous response)
         const contextMessage = `@${nextPersona.nick} ${persona.nick}: "${fullText.slice(0, 200)}"`;
-        routeToPersonas(channel, contextMessage, depth + 1).catch((err) => {
+        routeToPersonas(channel, contextMessage, depth + 1, userNick).catch((err) => {
           trackError("inter_persona", err, { persona: nextPersona.nick, depth: depth + 1 });
         });
       }, interPersonaDelayMs);
     };
 
     const onError = (err: Error) => {
+      if (thinkingTimer) { clearTimeout(thinkingTimer); thinkingTimer = null; }
       trackError("ollama", err, { persona: persona.nick, model: persona.model });
       broadcast(channel, {
         type: "system",
-        text: `${persona.nick}: erreur Ollama — ${err.message}`,
+        text: `${persona.nick}: erreur runtime — ${err.message}`,
       });
     };
 
@@ -531,7 +630,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         await streamOllamaChatWithTools(
           ollamaUrl,
           personaWithMemory,
-          enrichedText,
+          personaEnrichedText,
           tools,
           rag,
           onChunk,
@@ -544,10 +643,11 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
       await streamOllamaChat(
         ollamaUrl,
         personaWithMemory,
-        enrichedText,
+        personaEnrichedText,
         onChunk,
         onDone,
         onError,
+        onThinking,
       );
     } catch (err) {
       trackError("ollama_connection", err, { persona: persona.nick, model: persona.model });
@@ -558,7 +658,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     }
   }
 
-  async function routeToPersonas(channel: string, text: string, depth: number = 0): Promise<void> {
+  async function routeToPersonas(channel: string, text: string, depth: number = 0, userNick: string = "_anonymous"): Promise<void> {
     // Auto-dispatch generation commands if detected
     if (depth === 0) {
       const intent = detectGenerationIntent(text);
@@ -597,7 +697,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
     const [enrichedText, ...memories] = await Promise.all([
       enrichmentPromise,
-      ...responders.map((p) => cachedLoadMemory(p).catch(() => ({ nick: p.nick, facts: [], summary: "", lastUpdated: "", personaId: p.id } as PersonaMemory))),
+      ...responders.map((p) => cachedLoadMemory(p, userNick).catch(() => ({ nick: p.nick, facts: [], summary: "", lastUpdated: "", personaId: p.id } as PersonaMemory))),
     ]);
 
     // Inject pre-loaded memories into persona response
@@ -613,7 +713,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         personasSnapshot,
         depth,
         routeToPersonas,
+        userNick,
         preloadedMemories.get(persona.nick),
+        rag,
       ),
     ));
   }

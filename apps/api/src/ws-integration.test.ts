@@ -47,27 +47,28 @@ function collectMessages(ws: WebSocket): OutboundMessage[] {
   return msgs;
 }
 
-// Mock Ollama that returns a quick response
+// Mock local runtime that returns a quick response
 function mockOllamaFetch(original: typeof fetch): typeof fetch {
   return async (input, init) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
-    if (url.includes("/api/chat")) {
+    if (url.includes("/v1/chat/completions")) {
       const body = init?.body ? JSON.parse(init.body.toString()) : {};
       const isStream = body.stream !== false;
       if (isStream) {
         const chunks = [
-          JSON.stringify({ message: { content: "Test " }, done: false }) + "\n",
-          JSON.stringify({ message: { content: "response." }, done: true }) + "\n",
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "Test " } }] })}\n\n`,
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "response." } }] })}\n\n`,
+          "data: [DONE]\n\n",
         ];
         return new Response(new ReadableStream({
           start(controller) {
             for (const c of chunks) controller.enqueue(new TextEncoder().encode(c));
             controller.close();
           }
-        }), { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
+        }), { status: 200, headers: { "Content-Type": "text/event-stream" } });
       }
       return new Response(JSON.stringify({
-        message: { role: "assistant", content: "Test response.", tool_calls: [] },
+        choices: [{ message: { role: "assistant", content: "Test response.", tool_calls: [] } }],
       }), { status: 200, headers: { "Content-Type": "application/json" } });
     }
     if (url.includes("/api/tags")) {

@@ -370,6 +370,38 @@ export default function ComposePage() {
 
   const hasAudio = tracks.some(t => t.audioData);
   const generatingCount = tracks.filter(t => t.generating).length;
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "ok" | "err">("idle");
+
+  async function saveToServer() {
+    const nick = sessionStorage.getItem("kxkm-nick") || "composer";
+    const audioTracks = tracks.filter(t => t.audioData);
+    if (audioTracks.length === 0) return;
+    setSaveStatus("saving");
+    try {
+      const resp = await fetch("/api/v2/media/compositions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: compName,
+          nick,
+          tracks: audioTracks.map(t => ({
+            type: t.type === "fx" ? "sfx" : t.type,
+            prompt: t.prompt,
+            style,
+            duration: t.duration,
+            volume: t.volume,
+            startOffset: t.startOffset || 0,
+          })),
+        }),
+      });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      setSaveStatus("ok");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    } catch {
+      setSaveStatus("err");
+      setTimeout(() => setSaveStatus("idle"), 4000);
+    }
+  }
 
   async function loadServerComps() {
     setServerLoading(true);
@@ -660,6 +692,14 @@ export default function ComposePage() {
           </button>
           <button className="cmp-mix-btn cmp-mix-master" onClick={() => cmd("/master")} disabled={mixing}>
             MASTER
+          </button>
+          <button
+            className={"cmp-mix-btn cmp-mix-save" + (saveStatus === "ok" ? " cmp-mix-save-ok" : saveStatus === "err" ? " cmp-mix-save-err" : "")}
+            onClick={saveToServer}
+            disabled={saveStatus === "saving"}
+            title={"Sauver " + tracks.filter(t => t.audioData).length + " piste(s) sur le serveur"}
+          >
+            {saveStatus === "saving" ? "..." : saveStatus === "ok" ? "\u2713 Sauve" : saveStatus === "err" ? "\u2717 Erreur" : "\uD83D\uDCBE Sauver"}
           </button>
         </div>
       )}

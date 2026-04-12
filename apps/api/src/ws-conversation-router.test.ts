@@ -21,7 +21,7 @@ const PERSONAS: ChatPersona[] = [
 ];
 
 type BroadcastRecord = { channel: string; msg: OutboundMessage };
-type MemoryUpdateRecord = { persona: ChatPersona; recentMessages: string[]; ollamaUrl: string };
+type MemoryUpdateRecord = { persona: ChatPersona; recentMessages: string[]; ollamaUrl: string; userNick: string };
 
 interface TestHarness {
   deps: ConversationRouterDeps;
@@ -87,15 +87,15 @@ function createHarness(overrides: Partial<ConversationRouterDeps> = {}): TestHar
     },
     getContextString: async () => "",
     getToolsForPersona: () => [],
-    loadPersonaMemory: async (subject) => ({
-      nick: typeof subject === "string" ? subject : subject.nick,
-      personaId: typeof subject === "string" ? undefined : subject.id,
+    loadPersonaMemory: async (personaId: string, _userNick: string) => ({
+      nick: personaId,
+      personaId,
       facts: [],
       summary: "",
       lastUpdated: "",
     }),
-    updatePersonaMemory: async (persona, recentMessages, ollamaUrl) => {
-      memoryUpdates.push({ persona, recentMessages, ollamaUrl });
+    updatePersonaMemory: async (persona, recentMessages, ollamaUrl, userNick = "_anonymous") => {
+      memoryUpdates.push({ persona, recentMessages, ollamaUrl, userNick });
     },
     streamOllamaChat: async (_ollamaUrl, persona, message, _onChunk, onDone) => {
       plainCalls.push({ persona, message });
@@ -224,6 +224,35 @@ describe("ws-conversation-router", () => {
     );
   });
 
+  it("isolates memory cadence and recent messages per user", async () => {
+    process.env.KXKM_PERSONA_MEMORY_UPDATE_EVERY = "2";
+
+    const harness = createHarness();
+    const routeToPersonas = createConversationRouter(harness.deps);
+
+    await routeToPersonas("#general", "alice 1", 0, "alice");
+    await routeToPersonas("#general", "bob 1", 0, "bob");
+    await routeToPersonas("#general", "alice 2", 0, "alice");
+    await sleep();
+
+    assert.equal(harness.memoryUpdates.length, 1);
+    assert.equal(harness.memoryUpdates[0]?.userNick, "alice");
+    assert.deepEqual(
+      harness.memoryUpdates[0]?.recentMessages.map((message) => message.replace(/^User:\s*/, "").split("\n")[0]),
+      ["alice 1", "alice 2"],
+    );
+
+    await routeToPersonas("#general", "bob 2", 0, "bob");
+    await sleep();
+
+    assert.equal(harness.memoryUpdates.length, 2);
+    assert.equal(harness.memoryUpdates[1]?.userNick, "bob");
+    assert.deepEqual(
+      harness.memoryUpdates[1]?.recentMessages.map((message) => message.replace(/^User:\s*/, "").split("\n")[0]),
+      ["bob 1", "bob 2"],
+    );
+  });
+
   it("labels inter-persona rebounds distinctly in memory updates", async () => {
     process.env.KXKM_PERSONA_MEMORY_UPDATE_EVERY = "1";
 
@@ -338,7 +367,7 @@ describe("ws-conversation-router", () => {
 
     await assert.doesNotReject(() => routeToPersonas("#general", "message casse"));
     const systemMessages = harness.broadcasts.filter((entry) => entry.msg.type === "system");
-    assert.ok(systemMessages.some((entry) => entry.msg.type === "system" && entry.msg.text.includes("erreur Ollama — boom")));
+    assert.ok(systemMessages.some((entry) => entry.msg.type === "system" && entry.msg.text.includes("erreur runtime — boom")));
   });
 });
 

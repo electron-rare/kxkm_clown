@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
 import type { CommandContext } from "./ws-commands-types.js";
+import { vllmComplete } from "./ws-ollama.js";
 import { scheduler, VRAM_BUDGETS } from "./inference-scheduler.js";
 import { addTrack, createComposition, getActiveComposition, listCompositions, setActiveComposition } from "./composition-store.js";
 
@@ -832,25 +833,10 @@ export function createComposeAdvancedCommandHandler({
         send(ws, { type: "system", text: "🤔 Analyse de la composition..." });
 
         try {
-          const suggestOllamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-          const resp = await fetch(`${suggestOllamaUrl}/api/chat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "qwen3.5:9b",
-              messages: [{ role: "user", content: `Tu es un compositeur expert. Voici une composition multi-pistes:\n${trackList}\n\nSuggere la prochaine piste a ajouter (type, style, duree). Reponds en une phrase avec la commande exacte a taper. Exemples:\n/layer dark pad with filter sweep, ambient, 30s\n/voice Schaeffer "Le son revele l'invisible"\n/noise pink 15\nReponds UNIQUEMENT la commande.` }],
-              stream: false,
-              options: { num_predict: 100 },
-              keep_alive: "30m",
-              think: false,
-            }),
-            signal: AbortSignal.timeout(15000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as { message?: { content?: string } };
-            const suggestion = (data.message?.content || "").trim();
-            send(ws, { type: "system", text: `💡 Suggestion: ${suggestion}` });
-          }
+          const suggestion = await vllmComplete([
+            { role: "user", content: `Tu es un compositeur expert. Voici une composition multi-pistes:\n${trackList}\n\nSuggere la prochaine piste a ajouter (type, style, duree). Reponds en une phrase avec la commande exacte a taper. Exemples:\n/layer dark pad with filter sweep, ambient, 30s\n/voice Schaeffer "Le son revele l'invisible"\n/noise pink 15\nReponds UNIQUEMENT la commande.` },
+          ], { maxTokens: 100 });
+          send(ws, { type: "system", text: `💡 Suggestion: ${suggestion}` });
         } catch {
           send(ws, { type: "system", text: "Suggestion indisponible." });
         }

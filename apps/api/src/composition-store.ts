@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { extractFirstJsonObject } from "./json-utils.js";
 import logger from "./logger.js";
 
 const COMP_DIR = path.join(process.cwd(), "data", "compositions");
@@ -117,49 +118,7 @@ function normalizeComposition(input: Composition): Composition {
   };
 }
 
-function extractFirstJsonObject(raw: string): string | null {
-  const start = raw.indexOf("{");
-  if (start < 0) return null;
 
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let index = start; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (char === "\\") {
-        escaped = true;
-        continue;
-      }
-      if (char === "\"") {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (char === "\"") {
-      inString = true;
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        return raw.slice(start, index + 1);
-      }
-    }
-  }
-
-  return null;
-}
 
 function writeCompositionSync(jsonPath: string, serialized: string): void {
   const dir = path.dirname(jsonPath);

@@ -12,6 +12,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import { extractFirstJsonObject } from "./json-utils.js";
 
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
 const IMAGES_DIR = path.join(DATA_DIR, "media", "images");
@@ -35,49 +36,7 @@ export interface MediaMeta {
   seed?: number;
 }
 
-function extractFirstJsonObject(raw: string): string | null {
-  const start = raw.indexOf("{");
-  if (start < 0) return null;
 
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let index = start; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (char === "\\") {
-        escaped = true;
-        continue;
-      }
-      if (char === "\"") {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (char === "\"") {
-      inString = true;
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        return raw.slice(start, index + 1);
-      }
-    }
-  }
-
-  return null;
-}
 
 async function writeJsonAtomically(filePath: string, payload: unknown): Promise<void> {
   const tmp = `${filePath}.${process.pid}.${Date.now().toString(36)}.tmp`;

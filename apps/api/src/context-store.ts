@@ -12,6 +12,7 @@
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
 import { trackError } from "./error-tracker.js";
+import { extractFirstJsonObject } from "./json-utils.js";
 import { scheduler, VRAM_BUDGETS } from "./inference-scheduler.js";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -97,49 +98,7 @@ function buildDefaultOptions(): ContextStoreOptions {
 
 const DEFAULT_OPTIONS: ContextStoreOptions = buildDefaultOptions();
 
-function extractFirstJsonObject(raw: string): string | null {
-  const start = raw.indexOf("{");
-  if (start < 0) return null;
 
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let index = start; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (char === "\\") {
-        escaped = true;
-        continue;
-      }
-      if (char === "\"") {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (char === "\"") {
-      inString = true;
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        return raw.slice(start, index + 1);
-      }
-    }
-  }
-
-  return null;
-}
 
 // ---------------------------------------------------------------------------
 // Context Store

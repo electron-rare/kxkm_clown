@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
 import { DEFAULT_PERSONAS, personaColor } from "./personas-default.js";
+import { extractFirstJsonObject } from "./json-utils.js";
 import { createCommandHandler } from "./ws-commands.js";
 import { createConversationRouter } from "./ws-conversation-router.js";
 import logger from "./logger.js";
@@ -73,49 +74,7 @@ interface ChannelStateSnapshot {
   savedAt?: string;
 }
 
-function extractFirstJsonObject(raw: string): string | null {
-  const start = raw.indexOf("{");
-  if (start < 0) return null;
 
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let index = start; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (char === "\\") {
-        escaped = true;
-        continue;
-      }
-      if (char === "\"") {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (char === "\"") {
-      inString = true;
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        return raw.slice(start, index + 1);
-      }
-    }
-  }
-
-  return null;
-}
 
 function normalizeChannelState(raw: unknown): ChannelStateSnapshot {
   const parsed = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};

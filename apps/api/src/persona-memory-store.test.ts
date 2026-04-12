@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import {
   clearPersonaMemoryCache,
   loadPersonaMemory,
+  loadPersonaMemoryGlobal,
   resetPersonaMemory,
   savePersonaMemory,
 } from "./persona-memory-store.js";
@@ -43,7 +44,7 @@ describe("persona-memory-store", () => {
       lastUpdated: "2026-03-20T10:00:00.000Z",
     }));
 
-    const memory = await loadPersonaMemory({ id: "schaeffer", nick: "Schaeffer" });
+    const memory = await loadPersonaMemory("schaeffer", "_anonymous", "Schaeffer");
     assert.equal(memory.nick, "Schaeffer");
     assert.equal(memory.personaId, "schaeffer");
     assert.deepEqual(memory.facts, [
@@ -53,7 +54,7 @@ describe("persona-memory-store", () => {
     assert.equal(memory.summary, "Discussion electroacoustique recente");
     assert.equal(memory.version, 2);
 
-    const v2Record = JSON.parse(await readFile(path.join(localDir, "persona-memory", "schaeffer.json"), "utf8")) as {
+    const v2Record = JSON.parse(await readFile(path.join(localDir, "persona-memory", "schaeffer", "_anonymous.json"), "utf8")) as {
       version: number;
       personaId: string;
       personaNick: string;
@@ -85,9 +86,9 @@ describe("persona-memory-store", () => {
       },
     };
 
-    await savePersonaMemory(memory);
+    await savePersonaMemory(memory, "_anonymous");
 
-    const v2Record = JSON.parse(await readFile(path.join(localDir, "persona-memory", "schaeffer.json"), "utf8")) as {
+    const v2Record = JSON.parse(await readFile(path.join(localDir, "persona-memory", "schaeffer", "_anonymous.json"), "utf8")) as {
       workingMemory: { facts: string[]; lastSourceMessages: string[] };
       archivalMemory: { facts: Array<{ text: string }>; summaries: Array<{ text: string }> };
       compat: { facts: string[]; summary: string };
@@ -110,13 +111,22 @@ describe("persona-memory-store", () => {
       facts: ["Memoire conservee"],
       summary: "Resume stable",
       lastUpdated: "",
-    });
+    }, "_anonymous");
     clearPersonaMemoryCache();
 
-    const memory = await loadPersonaMemory("Schaeffer");
+    const memory = await loadPersonaMemory("Schaeffer", "_anonymous");
     assert.equal(memory.personaId, "schaeffer");
     assert.deepEqual(memory.facts, ["Memoire conservee"]);
     assert.equal(memory.summary, "Resume stable");
+  });
+
+  it("creates a fresh per-user memory with the canonical persona nick", async () => {
+    const memory = await loadPersonaMemory("schaeffer", "alice", "Schaeffer");
+
+    assert.equal(memory.nick, "Schaeffer");
+    assert.equal(memory.personaId, "schaeffer");
+    assert.deepEqual(memory.facts, []);
+    assert.equal(memory.summary, "");
   });
 
   it("resetPersonaMemory empties both the v2 and compat legacy projections", async () => {
@@ -126,14 +136,14 @@ describe("persona-memory-store", () => {
       facts: ["Ancien fait"],
       summary: "Ancien resume",
       lastUpdated: "",
-    });
+    }, "_anonymous");
 
-    const reset = await resetPersonaMemory({ id: "schaeffer", nick: "Schaeffer" });
+    const reset = await resetPersonaMemory("schaeffer", "_anonymous");
     assert.deepEqual(reset.facts, []);
     assert.equal(reset.summary, "");
     assert.equal(reset.personaId, "schaeffer");
 
-    const v2Record = JSON.parse(await readFile(path.join(localDir, "persona-memory", "schaeffer.json"), "utf8")) as {
+    const v2Record = JSON.parse(await readFile(path.join(localDir, "persona-memory", "schaeffer", "_anonymous.json"), "utf8")) as {
       compat: { facts: string[]; summary: string };
     };
     const legacyRecord = JSON.parse(await readFile(path.join(legacyDir, "Schaeffer.json"), "utf8")) as PersonaMemory;
@@ -142,6 +152,55 @@ describe("persona-memory-store", () => {
     assert.equal(v2Record.compat.summary, "");
     assert.deepEqual(legacyRecord.facts, []);
     assert.equal(legacyRecord.summary, "");
+  });
+
+  it("aggregates per-user records in the global memory view", async () => {
+    await savePersonaMemory({
+      personaId: "schaeffer",
+      nick: "Schaeffer",
+      facts: ["Alice aime Xenakis"],
+      summary: "Alice parle de musique concrete",
+      lastUpdated: "",
+      version: 2,
+      workingMemory: {
+        facts: ["Alice aime Xenakis"],
+        summary: "Alice parle de musique concrete",
+        lastSourceMessages: ["alice-1"],
+      },
+      archivalMemory: {
+        facts: [{ text: "Alice aime Xenakis", firstSeenAt: "2026-03-20T10:00:00.000Z", lastSeenAt: "2026-03-20T10:00:00.000Z", source: "chat" }],
+        summaries: [{ text: "Alice parle de musique concrete", createdAt: "2026-03-20T10:00:00.000Z" }],
+      },
+    }, "alice");
+
+    await savePersonaMemory({
+      personaId: "schaeffer",
+      nick: "Schaeffer",
+      facts: ["Bob construit un synth modulaire", "Alice aime Xenakis"],
+      summary: "Bob parle de synthese modulaire",
+      lastUpdated: "",
+      version: 2,
+      workingMemory: {
+        facts: ["Bob construit un synth modulaire", "Alice aime Xenakis"],
+        summary: "Bob parle de synthese modulaire",
+        lastSourceMessages: ["bob-1"],
+      },
+      archivalMemory: {
+        facts: [{ text: "Bob construit un synth modulaire", firstSeenAt: "2026-03-21T10:00:00.000Z", lastSeenAt: "2026-03-21T10:00:00.000Z", source: "chat" }],
+        summaries: [{ text: "Bob parle de synthese modulaire", createdAt: "2026-03-21T10:00:00.000Z" }],
+      },
+    }, "bob");
+
+    const globalMemory = await loadPersonaMemoryGlobal({ personaId: "schaeffer", nick: "Schaeffer" });
+
+    assert.equal(globalMemory.nick, "Schaeffer");
+    assert.equal(globalMemory.personaId, "schaeffer");
+    assert.deepEqual(globalMemory.facts, ["Alice aime Xenakis", "Bob construit un synth modulaire"]);
+    assert.equal(globalMemory.summary, "Bob parle de synthese modulaire");
+    assert.equal(globalMemory.lastUpdated.length > 0, true);
+    assert.deepEqual(globalMemory.workingMemory?.facts, ["Alice aime Xenakis", "Bob construit un synth modulaire"]);
+    assert.equal(globalMemory.archivalMemory?.facts.length, 2);
+    assert.equal(globalMemory.archivalMemory?.summaries.length, 2);
   });
 
   it("applies configurable pruning limits when persisting v2 memory", async () => {
@@ -178,9 +237,9 @@ describe("persona-memory-store", () => {
           { text: "resume archive 2", createdAt: "2026-03-21T10:00:00.000Z" },
         ],
       },
-    }, policy);
+    }, "_anonymous", policy);
 
-    const v2Record = JSON.parse(await readFile(path.join(localDir, "persona-memory", "schaeffer.json"), "utf8")) as {
+    const v2Record = JSON.parse(await readFile(path.join(localDir, "persona-memory", "schaeffer", "_anonymous.json"), "utf8")) as {
       workingMemory: { facts: string[]; lastSourceMessages: string[] };
       archivalMemory: { facts: Array<{ text: string }>; summaries: Array<{ text: string }> };
       compat: { facts: string[] };

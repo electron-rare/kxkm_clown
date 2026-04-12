@@ -15,7 +15,7 @@ export interface CommandHandlerDeps {
   channelUsers: (channel: string) => string[];
   listConnectedNicks: () => string[];
   listChannelCounts: () => Map<string, number>;
-  routeToPersonas: (channel: string, text: string) => Promise<void>;
+  routeToPersonas: (channel: string, text: string, depth?: number, userNick?: string) => Promise<void>;
   logChatMessage: (entry: ChatLogEntry) => void;
   getPersonas: () => ChatPersona[];
   getChannelTopics?: () => Map<string, string>;

@@ -2,8 +2,10 @@ import type { WebSocket } from "ws";
 import type { OutboundMessage } from "./chat-types.js";
 import type { CommandContext, CommandHandlerDeps } from "./ws-commands-types.js";
 import { searchWeb } from "./web-search.js";
+import { vllmComplete } from "./ws-ollama.js";
 import { deepResearch } from "./deep-research.js";
-import { resetPersonaMemory } from "./ws-persona-router.js";
+import { resetPersonaMemory, loadPersonaMemory, savePersonaMemory } from "./ws-persona-router.js";
+import { normalizePersonaMemory, resolvePersonaMemoryPolicy } from "./persona-memory-policy.js";
 
 export const CHAT_COMMANDS = new Set([
   "/help", "/nick", "/who", "/clear", "/join", "/channels", "/topic",
@@ -58,6 +60,7 @@ export const CHAT_COMMANDS = new Set([
   "/orchestrate",
   "/director",
   "/memory-wipe",
+  "/remember",
   "/stage",
   "/radio-station",
   "/pause",
@@ -190,8 +193,8 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             "",
             "OUTILS",
             "  /status             Etat du systeme",
-            "  /models             Modeles Ollama",
-            "  /llm                Backend LLM (mascarade)",
+            "  /models             Modeles du runtime",
+            "  /llm                Runtime LLM / cloud routing",
             "  /memory <persona>   Memoire d'une persona",
             "  /speed              Latence",
             "  /search <query>     Recherche web",
@@ -242,6 +245,10 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const newNick = parts[1];
         if (!newNick || newNick.length < 2 || newNick.length > 24) {
           send(ws, { type: "system", text: "Usage: /nick <nom> (2-24 caracteres)" });
+          return;
+        }
+        if (!/^[a-zA-Z0-9_\-\u00C0-\u00FF]+$/.test(newNick)) {
+          send(ws, { type: "system", text: "Pseudo invalide : lettres, chiffres, _ et - uniquement." });
           return;
         }
         const users = listConnectedNicks().map((nick) => nick.toLowerCase());
@@ -306,6 +313,8 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
           await routeToPersonas(
             info.channel,
             `L'utilisateur a cherch\u00e9 "${query}" sur le web. R\u00e9sultats:\n${results}\n\nCommente ces r\u00e9sultats.`,
+            0,
+            info.nick,
           );
         } catch (err) {
           send(ws, {
@@ -364,6 +373,8 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
           await routeToPersonas(
             info.channel,
             `Recherche approfondie sur "${query}":\n${result.answer.slice(0, 1500)}\n\nCommente ces découvertes avec ton expertise.`,
+            0,
+            info.nick,
           );
         } catch (err) {
           send(ws, {
@@ -485,7 +496,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const persona = personas.find(p => p.nick.toLowerCase() === targetPersona.toLowerCase());
         if (!persona) { send(ws, { type: "system", text: `Persona ${targetPersona} inconnue` }); return; }
         send(ws, { type: "system", text: `[Whisper \u2192 ${persona.nick}] ${whisperText}` });
-        routeToPersonas(info.channel, `@${persona.nick} ${whisperText}`).catch(() => {});
+        routeToPersonas(info.channel, `@${persona.nick} ${whisperText}`, 0, info.nick).catch(() => {});
         return;
       }
 
@@ -617,7 +628,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const random = personas[Math.floor(Math.random() * personas.length)];
         if (!random) { send(ws, { type: "system", text: "Aucune persona disponible." }); return; }
         broadcast(info.channel, { type: "system", text: `${random.nick} est invoque sur: "${topic}"` });
-        await routeToPersonas(info.channel, `@${random.nick} ${topic}`);
+        await routeToPersonas(info.channel, `@${random.nick} ${topic}`, 0, info.nick);
         return;
       }
 
@@ -634,7 +645,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         broadcast(info.channel, { type: "system", text: `=== DEBAT: ${p1.nick} vs ${p2.nick} ===\nSujet: "${debateTopic}"` });
 
         // Trigger first persona
-        await routeToPersonas(info.channel, `@${p1.nick} Debat avec @${p2.nick} sur: ${debateTopic}. Prends position et argumente.`);
+        await routeToPersonas(info.channel, `@${p1.nick} Debat avec @${p2.nick} sur: ${debateTopic}. Prends position et argumente.`, 0, info.nick);
         return;
       }
 
@@ -644,31 +655,15 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const p = personas[Math.floor(Math.random() * personas.length)];
         if (!p) return;
 
-        // Ask the persona for a quote via Ollama
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        // Ask the persona for a quote via vLLM
         try {
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: p.model,
-              messages: [
-                { role: "system", content: p.systemPrompt },
-                { role: "user", content: "Donne une seule citation inspirante ou provocante dans ton domaine. Format: juste la citation entre guillemets, suivie de ton nom. Maximum 2 phrases." },
-              ],
-              stream: false,
-              options: { num_predict: 150 },
-              keep_alive: "30m",
-            }),
-            signal: AbortSignal.timeout(15_000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as { message?: { content?: string } };
-            const quote = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-            if (quote) {
-              broadcast(info.channel, { type: "message", nick: p.nick, text: quote, color: p.color });
-              return;
-            }
+          const quote = await vllmComplete([
+            { role: "system", content: p.systemPrompt },
+            { role: "user", content: "Donne une seule citation inspirante ou provocante dans ton domaine. Format: juste la citation entre guillemets, suivie de ton nom. Maximum 2 phrases." },
+          ], { maxTokens: 150 });
+          if (quote) {
+            broadcast(info.channel, { type: "message", nick: p.nick, text: quote, color: p.color });
+            return;
           }
         } catch {}
         send(ws, { type: "system", text: "Citation indisponible." });
@@ -709,30 +704,12 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const trInput = text.replace(/^\/(translate|tr)\s*/i, "").trim();
         if (!trInput) { send(ws, { type: "system", text: "Usage: /tr <texte> — traduit FR↔EN automatiquement" }); return; }
 
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
         try {
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "qwen3.5:9b",
-              messages: [
-                { role: "system", content: "Tu es un traducteur. Si le texte est en francais, traduis en anglais. Si en anglais, traduis en francais. Reponds UNIQUEMENT avec la traduction, rien d'autre." },
-                { role: "user", content: trInput },
-              ],
-              stream: false,
-              options: { num_predict: 500 },
-              keep_alive: "30m",
-              think: false,
-            }),
-            signal: AbortSignal.timeout(15_000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as { message?: { content?: string } };
-            const translation = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-            send(ws, { type: "system", text: `${trInput}\n→ ${translation || "(traduction echouee)"}` });
-          } else {
-            send(ws, { type: "system", text: "Erreur traduction." });
-          }
+          const translation = await vllmComplete([
+            { role: "system", content: "Tu es un traducteur. Si le texte est en francais, traduis en anglais. Si en anglais, traduis en francais. Reponds UNIQUEMENT avec la traduction, rien d'autre." },
+            { role: "user", content: trInput },
+          ], { maxTokens: 500 });
+          send(ws, { type: "system", text: `${trInput}\n→ ${translation || "(traduction echouee)"}` });
         } catch {
           send(ws, { type: "system", text: "Service de traduction indisponible." });
         }
@@ -789,7 +766,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
 
         if (typeof routeToPersonas === "function") {
           const mentions = selected.map(p => `@${p.nick}`).join(" ");
-          await routeToPersonas(info.channel, `${mentions} ${collabTopic}`);
+          await routeToPersonas(info.channel, `${mentions} ${collabTopic}`, 0, info.nick);
         }
         return;
       }
@@ -844,7 +821,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
           const topics = ["la beaute du chaos", "le silence", "la revolution", "le son comme matiere", "l'avenir de l'art", "la memoire collective", "le corps et la machine"];
           const radioTopic = topics[Math.floor(Math.random() * topics.length)];
           try {
-            await routeToPersonas(info.channel, `@${rp.nick} En une phrase, parle de ${radioTopic}.`);
+            await routeToPersonas(info.channel, `@${rp.nick} En une phrase, parle de ${radioTopic}.`, 0, info.nick);
           } catch {}
         }, 30000);
 
@@ -860,24 +837,11 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
           if (!context || context.length < 20) { send(ws, { type: "system", text: "Pas assez d'historique." }); return; }
 
           send(ws, { type: "system", text: "Resume en cours..." });
-          const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "qwen3.5:9b",
-              messages: [
-                { role: "system", content: "Tu resumes les conversations de maniere concise. Bullet points. Maximum 10 points." },
-                { role: "user", content: `Resume cette conversation:\n\n${context.slice(-5000)}` },
-              ],
-              stream: false, options: { num_predict: 500 }, keep_alive: "30m", think: false,
-            }),
-            signal: AbortSignal.timeout(20_000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as { message?: { content?: string } };
-            const summary = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-            send(ws, { type: "system", text: `=== RESUME ===\n${summary || "(vide)"}` });
-          }
+          const summary = await vllmComplete([
+            { role: "system", content: "Tu resumes les conversations de maniere concise. Bullet points. Maximum 10 points." },
+            { role: "user", content: `Resume cette conversation:\n\n${context.slice(-5000)}` },
+          ], { maxTokens: 500 });
+          send(ws, { type: "system", text: `=== RESUME ===\n${summary || "(vide)"}` });
         } catch { send(ws, { type: "system", text: "Erreur resume." }); }
         return;
       }
@@ -899,27 +863,14 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const haikuPersonas = getPersonas().filter(p => (p as any).enabled !== false);
         const hp = haikuPersonas[Math.floor(Math.random() * haikuPersonas.length)];
         if (!hp) return;
-        const haikuOllamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
         try {
-          const resp = await fetch(`${haikuOllamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: hp.model,
-              messages: [
-                { role: "system", content: hp.systemPrompt },
-                { role: "user", content: `Ecris un haiku (5-7-5 syllabes) sur: ${haikuTopic}. Reponds UNIQUEMENT avec le haiku, 3 lignes, rien d'autre.` },
-              ],
-              stream: false, options: { num_predict: 100 }, keep_alive: "30m", think: false,
-            }),
-            signal: AbortSignal.timeout(10_000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as { message?: { content?: string } };
-            const haiku = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-            if (haiku) {
-              broadcast(info.channel, { type: "message", nick: hp.nick, text: `\n${haiku}\n\n— ${hp.nick}, haiku sur "${haikuTopic}"`, color: hp.color });
-              return;
-            }
+          const haiku = await vllmComplete([
+            { role: "system", content: hp.systemPrompt },
+            { role: "user", content: `Ecris un haiku (5-7-5 syllabes) sur: ${haikuTopic}. Reponds UNIQUEMENT avec le haiku, 3 lignes, rien d'autre.` },
+          ], { maxTokens: 100 });
+          if (haiku) {
+            broadcast(info.channel, { type: "message", nick: hp.nick, text: `\n${haiku}\n\n— ${hp.nick}, haiku sur "${haikuTopic}"`, color: hp.color });
+            return;
           }
         } catch {}
         send(ws, { type: "system", text: "Haiku indisponible." });
@@ -948,27 +899,18 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         await routeToPersonas(
           info.channel,
           `@${storytellers[0].nick} Ecris le premier paragraphe d'une histoire courte sur: ${theme}. @${storytellers[1].nick} continuera apres toi, puis @${storytellers[2].nick} conclura. Maximum 3 phrases.`,
+          0,
+          info.nick,
         );
         return;
       }
 
       case "/trivia": {
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
         try {
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "qwen3.5:9b",
-              messages: [{ role: "user", content: "Pose une question de culture generale interessante avec 4 choix (A, B, C, D) et donne la reponse. Format:\nQuestion: ...\nA) ...\nB) ...\nC) ...\nD) ...\nReponse: X" }],
-              stream: false, options: { num_predict: 300 }, keep_alive: "30m", think: false,
-            }),
-            signal: AbortSignal.timeout(15_000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as { message?: { content?: string } };
-            const trivia = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-            broadcast(info.channel, { type: "system", text: `\u{1F9E0} TRIVIA\n${trivia || "Indisponible."}` });
-          }
+          const trivia = await vllmComplete([
+            { role: "user", content: "Pose une question de culture generale interessante avec 4 choix (A, B, C, D) et donne la reponse. Format:\nQuestion: ...\nA) ...\nB) ...\nC) ...\nD) ...\nReponse: X" },
+          ], { maxTokens: 300 });
+          broadcast(info.channel, { type: "system", text: `\u{1F9E0} TRIVIA\n${trivia || "Indisponible."}` });
         } catch { broadcast(info.channel, { type: "system", text: "Trivia indisponible." }); }
         return;
       }
@@ -1040,22 +982,11 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
       case "/define": {
         const word = text.slice(8).trim();
         if (!word) { send(ws, { type: "system", text: "Usage: /define <mot>" }); return; }
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
         try {
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "qwen3.5:9b",
-              messages: [{ role: "user", content: `Definis "${word}" en 2-3 phrases simples en francais.` }],
-              stream: false, options: { num_predict: 200 }, keep_alive: "30m", think: false,
-            }),
-            signal: AbortSignal.timeout(10_000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as any;
-            const def = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-            send(ws, { type: "system", text: `📖 ${word}: ${def || "Definition indisponible."}` });
-          }
+          const def = await vllmComplete([
+            { role: "user", content: `Definis "${word}" en 2-3 phrases simples en francais.` },
+          ], { maxTokens: 200 });
+          send(ws, { type: "system", text: `📖 ${word}: ${def || "Definition indisponible."}` });
         } catch { send(ws, { type: "system", text: "Definition indisponible." }); }
         return;
       }
@@ -1066,21 +997,11 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const context = await store.getContext(info.channel, 3000);
         const lastPersonaMsg = context.split("\n").reverse().find(l => l.includes(":") && !l.startsWith(info.nick));
         if (!lastPersonaMsg) { send(ws, { type: "system", text: "Rien a resumer." }); return; }
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
         try {
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "qwen3.5:9b",
-              messages: [{ role: "user", content: `Resume en UNE seule phrase concise: "${lastPersonaMsg}"` }],
-              stream: false, options: { num_predict: 100 }, keep_alive: "30m", think: false,
-            }),
-            signal: AbortSignal.timeout(10_000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as any;
-            send(ws, { type: "system", text: `TL;DR: ${data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim() || "?"}` });
-          }
+          const tldr = await vllmComplete([
+            { role: "user", content: `Resume en UNE seule phrase concise: "${lastPersonaMsg}"` },
+          ], { maxTokens: 100 });
+          send(ws, { type: "system", text: `TL;DR: ${tldr || "?"}` });
         } catch { send(ws, { type: "system", text: "Resume indisponible." }); }
         return;
       }
@@ -1088,21 +1009,11 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
       case "/rephrase": {
         const input = text.slice(10).trim();
         if (!input) { send(ws, { type: "system", text: "Usage: /rephrase <texte>" }); return; }
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
         try {
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "qwen3.5:9b",
-              messages: [{ role: "user", content: `Reformule differemment en francais (meme sens, autre style): "${input}"` }],
-              stream: false, options: { num_predict: 300 }, keep_alive: "30m", think: false,
-            }),
-            signal: AbortSignal.timeout(10_000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as any;
-            send(ws, { type: "system", text: `→ ${data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim() || "?"}` });
-          }
+          const rephrased = await vllmComplete([
+            { role: "user", content: `Reformule differemment en francais (meme sens, autre style): "${input}"` },
+          ], { maxTokens: 300 });
+          send(ws, { type: "system", text: `→ ${rephrased || "?"}` });
         } catch { send(ws, { type: "system", text: "Reformulation indisponible." }); }
         return;
       }
@@ -1181,25 +1092,12 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         if (!nick) { send(ws, { type: "system", text: "Usage: /lore <persona>" }); return; }
         const persona = getPersonas().find((p: any) => p.nick.toLowerCase() === nick.toLowerCase());
         if (!persona) { send(ws, { type: "system", text: `Persona "${nick}" inconnue.` }); return; }
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
         try {
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: persona.model,
-              messages: [
-                { role: "system", content: persona.systemPrompt },
-                { role: "user", content: "Raconte ton histoire personnelle en 3-4 phrases. Qui es-tu vraiment ? D'ou viens-tu ? Quel est ton reve ?" },
-              ],
-              stream: false, options: { num_predict: 300 }, keep_alive: "30m", think: false,
-            }),
-            signal: AbortSignal.timeout(15_000),
-          });
-          if (resp.ok) {
-            const data = await resp.json() as any;
-            const lore = data.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-            broadcast(info.channel, { type: "message", nick: persona.nick, text: lore || "...", color: persona.color } as any);
-          }
+          const lore = await vllmComplete([
+            { role: "system", content: persona.systemPrompt },
+            { role: "user", content: "Raconte ton histoire personnelle en 3-4 phrases. Qui es-tu vraiment ? D'ou viens-tu ? Quel est ton reve ?" },
+          ], { maxTokens: 300 });
+          broadcast(info.channel, { type: "message", nick: persona.nick, text: lore || "...", color: persona.color } as any);
         } catch { send(ws, { type: "system", text: "Lore indisponible." }); }
         return;
       }
@@ -1231,14 +1129,11 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
 
       case "/riddle": {
         // Lot 491 — AI riddle
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
         try {
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "qwen3.5:9b", messages: [{ role: "user", content: "Pose une devinette courte et amusante en francais avec la reponse. Format: Devinette: ... Reponse: ..." }], stream: false, options: { num_predict: 200 }, keep_alive: "30m", think: false }),
-            signal: AbortSignal.timeout(10_000),
-          });
-          if (resp.ok) { const d = await resp.json() as any; broadcast(info.channel, { type: "system", text: `🤔 ${d.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim() || "?"}` }); }
+          const riddle = await vllmComplete([
+            { role: "user", content: "Pose une devinette courte et amusante en francais avec la reponse. Format: Devinette: ... Reponse: ..." },
+          ], { maxTokens: 200 });
+          broadcast(info.channel, { type: "system", text: `🤔 ${riddle || "?"}` });
         } catch { broadcast(info.channel, { type: "system", text: "Devinette indisponible." }); }
         return;
       }
@@ -1264,7 +1159,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         if (!whisperMsg) { send(ws, { type: "system", text: "Usage: /whisper-all <message secret>" }); return; }
         send(ws, { type: "system", text: `🤫 (murmure a toutes les personas): "${whisperMsg}"` });
         if (typeof routeToPersonas === "function") {
-          await routeToPersonas(info.channel, whisperMsg);
+          await routeToPersonas(info.channel, whisperMsg, 0, info.nick);
         }
         return;
       }
@@ -1275,14 +1170,12 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const personas = getPersonas().filter(p => (p as any).enabled !== false);
         const p = personas[Math.floor(Math.random() * personas.length)];
         if (!p) return;
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
         try {
-          const resp = await fetch(`${ollamaUrl}/api/chat`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ model: p.model, messages: [{ role: "system", content: p.systemPrompt }, { role: "user", content: `Fais un petit roast amical et drole de "${target}" dans ton style. Maximum 2 phrases. Reste bienveillant.` }], stream: false, options: { num_predict: 150 }, keep_alive: "30m", think: false }),
-            signal: AbortSignal.timeout(10_000),
-          });
-          if (resp.ok) { const d = await resp.json() as any; broadcast(info.channel, { type: "system", text: `🔥 ${p.nick} roast ${target}: ${d.message?.content?.replace(/<think>[\s\S]*?<\/think>/g, "").trim() || "..."}` }); }
+          const roast = await vllmComplete([
+            { role: "system", content: p.systemPrompt },
+            { role: "user", content: `Fais un petit roast amical et drole de "${target}" dans ton style. Maximum 2 phrases. Reste bienveillant.` },
+          ], { maxTokens: 150 });
+          broadcast(info.channel, { type: "system", text: `🔥 ${p.nick} roast ${target}: ${roast || "..."}` });
         } catch { broadcast(info.channel, { type: "system", text: "Roast indisponible." }); }
         return;
       }
@@ -1483,7 +1376,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
 
         // Scene 1: first persona introduces
         if (cast.length >= 2 && typeof routeToPersonas === "function") {
-          await routeToPersonas(info.channel, `@${cast[0].nick} Tu ouvres la discussion sur "${theme}". Sois bref (2 phrases max) et mentionne @${cast[1].nick} pour qu'il reagisse.`);
+          await routeToPersonas(info.channel, `@${cast[0].nick} Tu ouvres la discussion sur "${theme}". Sois bref (2 phrases max) et mentionne @${cast[1].nick} pour qu'il reagisse.`, 0, info.nick);
         }
         return;
       }
@@ -1494,8 +1387,8 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         const mwPersona = getPersonas().find(p => p.nick.toLowerCase() === mwNick.toLowerCase());
         if (!mwPersona) { send(ws, { type: "system", text: `Persona "${mwNick}" inconnue.` }); return; }
         try {
-          await resetPersonaMemory(mwPersona);
-          send(ws, { type: "system", text: `Memoire de ${mwPersona.nick} effacee.` });
+          await resetPersonaMemory(mwPersona.id, info.nick, mwPersona.nick);
+          send(ws, { type: "system", text: `Memoire de ${mwPersona.nick} effacee pour ${info.nick}.` });
         } catch { send(ws, { type: "system", text: "Erreur effacement memoire." }); }
         return;
       }
@@ -1548,7 +1441,7 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
             const p = rsPersonas[Math.floor(Math.random() * rsPersonas.length)];
             if (p && typeof routeToPersonas === "function") {
               const topics = ["une pensee du moment", "un conseil", "une anecdote", "une reflexion sur le son"];
-              await routeToPersonas(info.channel, `@${p.nick} Partage ${topics[Math.floor(Math.random() * topics.length)]} en 2 phrases.`);
+              await routeToPersonas(info.channel, `@${p.nick} Partage ${topics[Math.floor(Math.random() * topics.length)]} en 2 phrases.`, 0, info.nick);
             }
           } else {
             // Jingle
@@ -1578,6 +1471,70 @@ export function createChatCommandHandler(deps: CommandHandlerDeps) {
         } else {
           setChatPaused(false);
           broadcast(info.channel, { type: "system", text: "\u25B6 Chat reactive par " + info.nick + " — les personas sont de retour !" });
+        }
+        return;
+      }
+
+      case "/remember": {
+        // Usage:
+        //   /remember [text]          → default: Pharmacius
+        //   /remember @schaeffer [text] → specific persona by nick
+        //   /remember @all [text]       → all active personas in channel
+        const remArgs = text.slice("/remember".length).trim();
+        if (!remArgs) {
+          send(ws, { type: "system", text: "Usage: /remember [@persona|@all] <fait>" });
+          return;
+        }
+
+        const allPersonas = getPersonas().filter(p => (p as any).enabled !== false);
+        let targets: typeof allPersonas;
+        let fact: string;
+
+        if (remArgs.startsWith("@all ") || remArgs === "@all") {
+          targets = allPersonas;
+          fact = remArgs.slice(4).trim();
+        } else if (remArgs.startsWith("@")) {
+          const spaceIdx = remArgs.indexOf(" ");
+          const mentionRaw = spaceIdx === -1 ? remArgs.slice(1) : remArgs.slice(1, spaceIdx);
+          fact = spaceIdx === -1 ? "" : remArgs.slice(spaceIdx + 1).trim();
+          const target = allPersonas.find(
+            p => p.nick.toLowerCase() === mentionRaw.toLowerCase() || p.id.toLowerCase() === mentionRaw.toLowerCase()
+          );
+          if (!target) {
+            send(ws, { type: "system", text: `Persona "@${mentionRaw}" inconnue.` });
+            return;
+          }
+          targets = [target];
+        } else {
+          // Default: Pharmacius
+          const pharmacius = allPersonas.find(p => p.id === "pharmacius" || p.nick.toLowerCase() === "pharmacius");
+          targets = pharmacius ? [pharmacius] : allPersonas.slice(0, 1);
+          fact = remArgs;
+        }
+
+        if (!fact) {
+          send(ws, { type: "system", text: "Usage: /remember [@persona|@all] <fait>" });
+          return;
+        }
+
+        try {
+          const policy = resolvePersonaMemoryPolicy();
+          for (const persona of targets) {
+            const memory = await loadPersonaMemory(persona.id, info.nick, persona.nick);
+            if (!memory.workingMemory) {
+              memory.workingMemory = { facts: [], summary: "", lastSourceMessages: [] };
+            }
+            memory.workingMemory.facts.push(fact);
+            const normalized = normalizePersonaMemory(memory, { policy });
+            await savePersonaMemory(normalized, info.nick, policy);
+          }
+
+          const confirmText = targets.length === 1
+            ? `Fait retenu par ${targets[0].nick}: ${fact}`
+            : `Fait retenu par ${targets.length} personas: ${fact}`;
+          send(ws, { type: "system", text: confirmText });
+        } catch {
+          send(ws, { type: "system", text: "Erreur lors de l'enregistrement du fait." });
         }
         return;
       }

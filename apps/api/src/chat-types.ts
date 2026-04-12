@@ -1,6 +1,20 @@
 import type { LocalRAG } from "./rag.js";
 import type { ContextStore } from "./context-store.js";
 
+export interface CorpusEntry {
+  type: 'url' | 'pdf' | 'text';
+  source: string;
+  content?: string;
+}
+
+export type PersonaMemoryMode = 'auto' | 'explicit' | 'off';
+
+export interface PersonaRelation {
+  personaId: string;
+  attitude: 'sceptique' | 'admiratif' | 'rival' | 'ignore' | 'méfiant' | 'complice';
+  note: string;
+}
+
 export interface ChatPersona {
   id: string;
   nick: string;
@@ -8,6 +22,9 @@ export interface ChatPersona {
   systemPrompt: string;
   color: string;
   maxTokens?: number;
+  corpus?: CorpusEntry[];
+  relations?: PersonaRelation[];
+  memoryMode?: PersonaMemoryMode;
 }
 
 export interface ClientInfo {

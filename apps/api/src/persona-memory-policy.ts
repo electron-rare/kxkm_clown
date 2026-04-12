@@ -18,6 +18,7 @@ export interface PersonaMemoryPolicy {
     archivalFactsLimit: number;
     archivalSummariesLimit: number;
     compatFactsLimit: number;
+    injectionFactsLimit?: number;
   };
 }
 
@@ -39,6 +40,7 @@ const DEFAULT_POLICY: PersonaMemoryPolicy = {
     archivalFactsLimit: 100,
     archivalSummariesLimit: 50,
     compatFactsLimit: 20,
+    injectionFactsLimit: 8,
   },
 };
 
@@ -185,6 +187,7 @@ export function resolvePersonaMemoryPolicy(): PersonaMemoryPolicy {
         process.env.KXKM_PERSONA_MEMORY_COMPAT_FACTS_LIMIT,
         DEFAULT_POLICY.pruning.compatFactsLimit,
       ),
+      injectionFactsLimit: parseInt(process.env.KXKM_PERSONA_MEMORY_INJECTION_LIMIT ?? "8", 10),
     },
   });
 }

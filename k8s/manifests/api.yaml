@@ -41,6 +41,16 @@ spec:
                 secretKeyRef:
                   name: kxkm-secrets
                   key: MASCARADE_API_KEY
+            - name: LLM_URL
+              valueFrom:
+                secretKeyRef:
+                  name: kxkm-secrets
+                  key: LLM_URL
+            - name: LLM_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: kxkm-secrets
+                  key: LLM_MODEL
             - name: OLLAMA_URL
               valueFrom:
                 secretKeyRef:

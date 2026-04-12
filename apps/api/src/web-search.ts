@@ -1,10 +1,28 @@
 import logger from "./logger.js";
+import { appendFileSync } from "node:fs";
+import path from "node:path";
+
+// ---------------------------------------------------------------------------
+// Sherlock search queue — discovered URLs fed back to corpus ingestion
+// ---------------------------------------------------------------------------
+const SHERLOCK_QUEUE_PATH = process.env.SHERLOCK_QUEUE_PATH ||
+  path.resolve(process.cwd(), "../../data/sherlock-discovered-urls.jsonl");
+
+function enqueueUrls(urls: string[], query: string, personaId?: string): void {
+  if (urls.length === 0) return;
+  try {
+    const entry = JSON.stringify({ ts: new Date().toISOString(), query, personaId: personaId ?? "sherlock", urls });
+    appendFileSync(SHERLOCK_QUEUE_PATH, entry + "\n");
+  } catch {
+    // non-critical — don't block search on I/O errors
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Web search (DuckDuckGo Lite scraping)
 // ---------------------------------------------------------------------------
 
-export async function searchWeb(query: string): Promise<string> {
+export async function searchWeb(query: string, personaId?: string): Promise<string> {
   // Try SearXNG first (self-hosted, no API key)
   const searxngUrl = process.env.SEARXNG_URL || "http://localhost:8080";
   try {
@@ -18,8 +36,9 @@ export async function searchWeb(query: string): Promise<string> {
     if (response.ok) {
       const data = await response.json() as { results?: Array<{ title?: string; content?: string; url?: string }> };
       if (data.results && data.results.length > 0) {
-        return data.results
-          .slice(0, 5)
+        const top = data.results.slice(0, 5);
+        enqueueUrls(top.map(r => r.url || "").filter(Boolean), query, personaId);
+        return top
           .map((r, i) => `${i + 1}. ${r.title || "Sans titre"}\n   ${r.content || ""}\n   ${r.url || ""}`)
           .join("\n\n");
       }

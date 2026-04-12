@@ -19,7 +19,7 @@ const MASCARADE_URL = process.env.MASCARADE_URL || "http://127.0.0.1:8100";
 const MASCARADE_API_KEY = process.env.MASCARADE_API_KEY || "";
 const LLM_URL = process.env.LLM_URL || "http://127.0.0.1:11434";
 const LLM_MODEL = process.env.LLM_MODEL || "qwen-14b-awq";
-const LLM_TIMEOUT_MS = parseInt(process.env.LLM_TIMEOUT_MS || "45000", 10);
+const LLM_TIMEOUT_MS = parseInt(process.env.LLM_TIMEOUT_MS || "90000", 10);
 const DEFAULT_MODEL = process.env.LLM_DEFAULT_MODEL || LLM_MODEL;
 
 // RouteLLM-style complexity routing

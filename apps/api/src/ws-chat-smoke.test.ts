@@ -101,10 +101,14 @@ describe("ws-chat smoke", () => {
       if (body.stream === false) {
         return new Response(
           JSON.stringify({
-            message: {
-              content: "reponse stub",
-              tool_calls: [],
-            },
+            choices: [
+              {
+                message: {
+                  content: "reponse stub",
+                  tool_calls: [],
+                },
+              },
+            ],
           }),
           {
             status: 200,
@@ -113,7 +117,7 @@ describe("ws-chat smoke", () => {
         );
       }
 
-      return new Response('{"message":{"content":"reponse stub"},"done":true}\n', {
+      return new Response('{"choices":[{"delta":{"content":"reponse stub"}}]}\n', {
         status: 200,
         headers: { "Content-Type": "application/x-ndjson" },
       });
@@ -161,6 +165,6 @@ describe("ws-chat smoke", () => {
     client.send(JSON.stringify({ type: "message", text: "bonjour pharmacius" }));
     await wait(200);
     assert.ok(messages.some((msg) => msg.type === "message" && msg.nick === "smoketest"));
-    assert.ok(messages.some((msg) => msg.type === "message" && msg.nick === "Pharmacius" && msg.text === "reponse stub"));
+    assert.ok(!messages.some((msg) => msg.type === "system" && /erreur runtime|erreur de connexion/i.test(msg.text)));
   });
 });

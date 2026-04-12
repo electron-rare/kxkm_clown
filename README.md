@@ -29,7 +29,7 @@ node server.js
 ```bash
 # Copier et configurer les variables d'environnement
 cp .env.example .env
-# Editer .env (ADMIN_BOOTSTRAP_TOKEN, OLLAMA_URL, etc.)
+# Editer .env (ADMIN_BOOTSTRAP_TOKEN, LLM_URL, LLM_MODEL, etc.)
 
 # V2 uniquement (API + worker + Postgres)
 docker compose --profile v2 up -d
@@ -37,11 +37,12 @@ docker compose --profile v2 up -d
 # V1 + V2
 docker compose --profile v1 --profile v2 up -d
 
-# Avec Ollama en container (si pas installe nativement)
+# Avec backend embeddings Ollama en container (si necessaire pour le RAG)
 docker compose --profile v2 --profile ollama up -d
 ```
 
-Par defaut, Ollama est attendu en natif sur le host (port 11434).
+Par defaut, le runtime texte principal est attendu via `LLM_URL` sur le host.
+`OLLAMA_URL` reste utilise pour les embeddings/RAG auxiliaires.
 
 ## Services (17+)
 
@@ -50,7 +51,7 @@ Par defaut, Ollama est attendu en natif sur le host (port 11434).
 | API V1 | 3333 | Monolithe Express (chat + admin + AI Bridge proxy) |
 | API V2 | 4180 | API TypeScript (REST + WS) |
 | Frontend | 5173 | React/Vite (dev) |
-| Ollama | 11434 | LLM local (qwen3.5:9b, llama3.1:8b, bge-m3) |
+| vLLM / TurboQuant | 11434 | Runtime texte principal (OpenAI-compatible) |
 | PostgreSQL | 5432 | Persistence (personas, runs, logs) |
 | SearXNG | 8080 | Recherche web self-hosted |
 | TTS Sidecar | 9100 | Piper + Chatterbox (dual backend) |
@@ -110,7 +111,7 @@ JSON-RPC: `POST /a2a` (spec v0.3)
 
 - **Interface Minitel** — Animation modem 3615 ULLA → login → chat (esthetique phosphore CRT)
 - **Chat temps reel** — WebSocket `/ws`, streaming LLM, 33 personas
-- **RAG local** — Embeddings Ollama (`nomic-embed-text`), contexte manifeste
+- **RAG local** — Embeddings Ollama-compatible (`nomic-embed-text`), contexte manifeste
 - **Vision** — Analyse d'images via `qwen3-vl:8b` (upload dans le chat)
 - **STT** — Transcription audio via `faster-whisper` (upload audio)
 - **TTS** — Piper-tts + Chatterbox (dual backend via TTS sidecar HTTP :9100)
@@ -168,7 +169,9 @@ JSON-RPC: `POST /a2a` (spec v0.3)
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `OLLAMA_URL` | `http://host.docker.internal:11434` | URL du serveur Ollama |
+| `LLM_URL` | `http://host.docker.internal:11434` | URL du runtime texte principal (vLLM / TurboQuant) |
+| `LLM_MODEL` | `qwen-14b-awq` | Modele texte principal charge par le runtime |
+| `OLLAMA_URL` | `http://host.docker.internal:11434` | URL du backend embeddings/RAG compatible Ollama |
 | `DATABASE_URL` | (auto via compose) | Connexion PostgreSQL |
 | `APP_PORT` | `3333` | Port V1 |
 | `API_PORT` | `4180` | Port V2 API |

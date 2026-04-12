@@ -50,7 +50,7 @@ function makePersona() {
   };
 }
 
-/** Build a ReadableStream that yields NDJSON lines like Ollama */
+/** Build a ReadableStream that yields newline-delimited JSON chunks. */
 function ollamaStream(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   const lines = chunks.map(
@@ -132,7 +132,7 @@ describe("ws-ollama", () => {
 
       assert.equal(fetchMock.mock.callCount(), 1);
       const [url, opts] = fetchMock.mock.calls[0].arguments as [string, RequestInit & { body: string }];
-      assert.equal(url, "http://localhost:11434/api/chat");
+      assert.equal(url, "http://localhost:11434/v1/chat/completions");
       assert.equal(opts.method, "POST");
       const body = JSON.parse(opts.body as string);
       assert.equal(body.model, "test:7b");
@@ -141,7 +141,7 @@ describe("ws-ollama", () => {
       assert.equal(body.messages[0].content, "You are a test");
       assert.equal(body.messages[1].role, "user");
       assert.equal(body.messages[1].content, "Hi");
-      assert.equal(body.options.num_predict, 100);
+      assert.equal(body.max_tokens, 612); // 100 capped to 200 (short msg) + 512 thinking headroom
     });
 
     it("streams chunks via onChunk and calls onDone with full text", async () => {
@@ -233,7 +233,7 @@ describe("ws-ollama", () => {
       );
 
       assert.notEqual(caughtError, null);
-      assert.match(caughtError!.message, /Ollama returned 500/);
+      assert.match(caughtError!.message, /vLLM returned 500/);
     });
 
   });
@@ -447,6 +447,42 @@ describe("ws-ollama", () => {
       assert.equal(doneText, "Final answer");
       // Two fetch calls: probe + stream
       assert.equal(fetchMock.mock.callCount(), 2);
+    });
+
+    it("uses the injected runtime URL for the tool probe and final stream", async () => {
+      let callCount = 0;
+      fetchMock.mock.mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return mockJsonResponse({
+            message: {
+              role: "assistant",
+              content: "",
+              tool_calls: [
+                { function: { name: "web_search", arguments: { query: "test" } } },
+              ],
+            },
+          });
+        }
+        return mockStreamResponse(["done"]);
+      });
+
+      await streamOllamaChatWithTools(
+        "http://runtime.example:9999",
+        makePersona(),
+        "search for something",
+        [sampleTool],
+        undefined,
+        () => {},
+        () => {},
+        () => {},
+      );
+
+      assert.equal(fetchMock.mock.callCount(), 2);
+      const [probeUrl] = fetchMock.mock.calls[0].arguments as [string];
+      const [streamUrl] = fetchMock.mock.calls[1].arguments as [string];
+      assert.equal(probeUrl, "http://runtime.example:9999/v1/chat/completions");
+      assert.equal(streamUrl, "http://runtime.example:9999/v1/chat/completions");
     });
 
     it("calls onError on fetch failure", async () => {

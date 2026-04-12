@@ -34,7 +34,7 @@ export async function vllmComplete(
       max_tokens: opts?.maxTokens ?? 800,
       stream: false,
     }),
-    signal: AbortSignal.timeout(45_000),
+    signal: AbortSignal.timeout(90_000),
   });
   if (!resp.ok) throw new Error(`vLLM ${resp.status}: ${resp.statusText}`);
   const data = await resp.json() as { choices?: [{ message?: { content?: string } }] };
@@ -88,13 +88,15 @@ function estimateNumCtx(systemPrompt: string, userMessage: string, _baseCtx = 81
   return Math.max(2048, Math.min(ctx, 32768)); // clamp 2k-32k
 }
 
-/** Adaptive num_predict: short for trivial, full for complex */
+/** Adaptive num_predict: short for trivial, full for complex.
+ *  Adds headroom for thinking tokens (reasoning budget consumed from max_tokens). */
+const THINKING_HEADROOM = 512;
 function estimateMaxTokens(userMessage: string, personaMax: number | undefined): number {
   const base = personaMax || 800;
   const len = userMessage.length;
-  if (len < 20) return Math.min(base, 200);   // "oui", "salut" → 200 max
-  if (len < 60) return Math.min(base, 400);   // Short question → 400 max
-  return base;
+  if (len < 20) return Math.min(base, 200) + THINKING_HEADROOM;
+  if (len < 60) return Math.min(base, 400) + THINKING_HEADROOM;
+  return base + THINKING_HEADROOM;
 }
 
 // Adaptive thinking: enable for complex prompts, disable for simple ones
@@ -155,10 +157,11 @@ export async function streamOllamaChat(
   onChunk: (text: string) => void,
   onDone: (fullText: string) => void,
   onError: (err: Error) => void,
+  onThinking?: (text: string) => void,
 ): Promise<void> {
   await ollamaLimit(async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45_000);
+    const timeout = setTimeout(() => controller.abort(), 90_000);
     const runtimeModel = resolveRuntimeModel(persona.model);
     const runtimeUrl = ollamaUrl || LLM_URL;
 
@@ -204,14 +207,26 @@ export async function streamOllamaChat(
           const raw = line.startsWith("data: ") ? line.slice(6).trim() : line.trim();
           if (!raw) continue;
           if (raw === "[DONE]") break;
-          const c = parseStreamingPayload(raw);
+          const { content: c, reasoning: r } = parseStreamingPayload(raw);
+          // Stream reasoning tokens as thinking preview (deepseek format)
+          if (r && onThinking) onThinking(r);
           if (c) {
             fullText += c;
-            const visible = stripThinkingFromChunk(c);
-            if (c.includes("<think>")) inThinking = true;
-            if (visible && !inThinking) onChunk(visible);
-            if (c.includes("</think>")) {
+            // Detect opening tags for both <think> and <reasoning>
+            if (c.includes("<think>") || c.includes("<reasoning>")) inThinking = true;
+            // Detect closing tags
+            if (c.includes("</think>") || c.includes("</reasoning>")) {
               inThinking = false;
+              const afterThink = c.split(/<\/(?:think|reasoning)>/).pop()?.trim();
+              if (afterThink) onChunk(afterThink);
+            } else if (inThinking) {
+              // Forward inline thinking content to onThinking preview
+              if (onThinking) {
+                const clean = c.replace(/<\/?(?:think|reasoning)>/g, "");
+                if (clean.trim()) onThinking(clean);
+              }
+            } else {
+              const visible = stripThinkingFromChunk(c);
               if (visible) onChunk(visible);
             }
           }
@@ -230,15 +245,20 @@ export async function streamOllamaChat(
   });
 }
 
-/** Strip qwen3 thinking blocks from text */
+/** Strip thinking blocks from text — supports <think> and <reasoning> tags */
 function stripThinking(text: string): string {
-  return text.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
+  return text
+    .replace(/<think>[\s\S]*?<\/think>\s*/g, "")
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>\s*/g, "")
+    .trim();
 }
 
 function stripThinkingFromChunk(text: string): string {
   return text
     .replace(/<think>[\s\S]*?<\/think>/g, "")
-    .replace(/<\/?think>/g, "");
+    .replace(/<\/?think>/g, "")
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/g, "")
+    .replace(/<\/?reasoning>/g, "");
 }
 
 /** Clean persona response: strip thinking tokens, self-reference prefix, whitespace */
@@ -293,15 +313,19 @@ function parseToolArguments(value: Record<string, unknown> | string): Record<str
   }
 }
 
-function parseStreamingPayload(raw: string): string | null {
+function parseStreamingPayload(raw: string): { content: string | null; reasoning: string | null } {
   try {
     const parsed = JSON.parse(raw) as {
-      choices?: [{ delta?: { content?: string } }];
+      choices?: [{ delta?: { content?: string; reasoning_content?: string } }];
       message?: { content?: string };
     };
-    return parsed.choices?.[0]?.delta?.content ?? parsed.message?.content ?? null;
+    const delta = parsed.choices?.[0]?.delta;
+    return {
+      content: delta?.content ?? parsed.message?.content ?? null,
+      reasoning: delta?.reasoning_content ?? null,
+    };
   } catch {
-    return null;
+    return { content: null, reasoning: null };
   }
 }
 
@@ -426,7 +450,7 @@ export async function streamOllamaChatWithTools(
 
   await ollamaLimit(async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45_000);
+    const timeout = setTimeout(() => controller.abort(), 90_000);
     const runtimeUrl = ollamaUrl || LLM_URL;
 
     try {
@@ -546,7 +570,7 @@ export async function streamOllamaChatWithTools(
           const raw = line.startsWith("data: ") ? line.slice(6).trim() : line.trim();
           if (!raw) continue;
           if (raw === "[DONE]") break;
-          const c = parseStreamingPayload(raw);
+          const { content: c } = parseStreamingPayload(raw);
           if (c) {
             fullText += c;
             const visible = stripThinkingFromChunk(c);
@@ -605,9 +629,10 @@ export async function streamLLMChat(
   onChunk: (text: string) => void,
   onDone: (fullText: string) => void,
   onError: (err: Error) => void,
+  onThinking?: (text: string) => void,
 ): Promise<void> {
   if (!USE_MASCARADE) {
-    return streamOllamaChat(_ollamaUrl, persona, userMessage, onChunk, onDone, onError);
+    return streamOllamaChat(_ollamaUrl, persona, userMessage, onChunk, onDone, onError, onThinking);
   }
 
   await ollamaLimit(async () => {
@@ -633,13 +658,28 @@ export async function streamLLMChat(
       });
 
       let result: { content: string } | undefined;
+      let masqInThinking = false;
       while (true) {
         const { done, value } = await gen.next();
         if (done) {
           result = value as { content: string };
           break;
         }
-        onChunk(value);
+        // State machine for <think>/<reasoning> tags in mascarade stream
+        if (value.includes("<think>") || value.includes("<reasoning>")) masqInThinking = true;
+        if (value.includes("</think>") || value.includes("</reasoning>")) {
+          masqInThinking = false;
+          const afterTag = value.split(/<\/(?:think|reasoning)>/).pop()?.trim();
+          if (afterTag) onChunk(afterTag);
+        } else if (masqInThinking) {
+          if (onThinking) {
+            const clean = value.replace(/<\/?(?:think|reasoning)>/g, "");
+            if (clean.trim()) onThinking(clean);
+          }
+        } else {
+          const visible = stripThinkingFromChunk(value);
+          if (visible) onChunk(visible);
+        }
       }
 
       const cleaned = stripThinking(result?.content || "");

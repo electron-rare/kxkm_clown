@@ -42,25 +42,6 @@ function cleanForTTS(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Sentence-boundary detection for streaming TTS chunking
-// ---------------------------------------------------------------------------
-
-const SENTENCE_END = /[.!?;:]\s/;
-
-export function extractSentences(buffer: string): { sentences: string[]; remaining: string } {
-  const sentences: string[] = [];
-  let remaining = buffer;
-  let match: RegExpExecArray | null;
-  while ((match = SENTENCE_END.exec(remaining)) !== null) {
-    const sentence = remaining.slice(0, match.index + 1).trim();
-    if (sentence.length >= 10) {
-      sentences.push(sentence);
-    }
-    remaining = remaining.slice(match.index + 2);
-  }
-  return { sentences, remaining };
-}
-
 type BroadcastFn = (channel: string, msg: OutboundMessage) => void;
 type Logger = Pick<Console, "error">;
 

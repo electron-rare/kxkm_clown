@@ -99,43 +99,6 @@ function estimateMaxTokens(userMessage: string, personaMax: number | undefined):
   return base + THINKING_HEADROOM;
 }
 
-// Adaptive thinking: enable for complex prompts, disable for simple ones
-function shouldThink(userMessage: string, model: string): boolean {
-  // Only qwen3.5 supports thinking mode
-  if (!model.startsWith("qwen3.5")) return false;
-
-  const lower = userMessage.toLowerCase();
-  const len = userMessage.length;
-
-  // Always think for deep/complex requests
-  const deepKeywords = [
-    "explique", "explain", "analyse", "analyze", "compare", "pourquoi",
-    "comment fonctionne", "how does", "philosophie", "theorie", "theory",
-    "architecture", "conception", "design", "strategie", "strategy",
-    "avantages et inconvenients", "pros and cons", "difference entre",
-    "en detail", "in detail", "approfondi", "comprehensive",
-    "reflexion", "pense a", "think about", "raisonne", "reason",
-  ];
-  if (deepKeywords.some(kw => lower.includes(kw))) return true;
-
-  // Think for long messages (likely complex questions)
-  if (len > 200) return true;
-
-  // Don't think for short/simple messages
-  if (len < 50) return false;
-
-  // Don't think for greetings, commands, simple questions
-  const simplePatterns = [
-    /^(salut|bonjour|hello|hey|hi|coucou)/i,
-    /^(merci|thanks|ok|oui|non|yes|no)/i,
-    /^(quoi de neuf|ca va)/i,
-    /^@\w+/,  // direct mentions
-  ];
-  if (simplePatterns.some(p => p.test(lower))) return false;
-
-  // Default: don't think (faster responses)
-  return false;
-}
 
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 

@@ -1,7 +1,7 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { mkdtemp, readFile, rm, writeFile, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile, stat } from "node:fs/promises";
 import os from "node:os";
 import { ContextStore } from "./context-store.js";
 
@@ -303,6 +303,44 @@ describe("ContextStore", () => {
     };
     const result = await anyStore.readSummary("bad");
     assert.equal(result, null);
+  });
+
+  it("readSummary recovers a summary file with trailing garbage", async () => {
+    const { store, dir } = await makeStore();
+    const summaryData = {
+      channel: "repair",
+      summaryText: "Recovered summary.",
+      entriesCompacted: 5,
+      lastCompactedAt: "2026-04-04T00:00:00.000Z",
+      totalCompactions: 1,
+    };
+    const filePath = path.join(dir, "repair.summary.json");
+    await writeFile(filePath, `${JSON.stringify(summaryData)}\n{"partial":`, "utf-8");
+
+    const anyStore = store as unknown as {
+      readSummary: (channel: string) => Promise<unknown>;
+    };
+    const result = await anyStore.readSummary("repair") as typeof summaryData;
+    assert.equal(result.summaryText, "Recovered summary.");
+
+    const repaired = JSON.parse(await readFile(filePath, "utf-8"));
+    assert.equal(repaired.summaryText, "Recovered summary.");
+  });
+
+  it("readSummary quarantines an unrecoverable summary file", async () => {
+    const { store, dir } = await makeStore();
+    const filePath = path.join(dir, "quarantine.summary.json");
+    await writeFile(filePath, "not json at all", "utf-8");
+
+    const anyStore = store as unknown as {
+      readSummary: (channel: string) => Promise<unknown>;
+    };
+    const result = await anyStore.readSummary("quarantine");
+    assert.equal(result, null);
+
+    const files = await readdir(dir);
+    assert.equal(files.includes("quarantine.summary.json"), false);
+    assert.equal(files.some((name) => name.startsWith("quarantine.summary.corrupt.")), true);
   });
 
   // -----------------------------------------------------------------------

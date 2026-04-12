@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, stat } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import {
@@ -39,6 +39,45 @@ interface ChatHistoryRouteDeps {
   requirePermission: (permission: Permission) => (req: SessionRequest, res: Response, next: NextFunction) => void;
   readRouteParam: (value: string | string[] | undefined) => string;
   escapeForHtml: (text: string) => string;
+}
+
+async function rewriteJsonlFile(filePath: string, lines: string[]): Promise<void> {
+  const tmp = `${filePath}.${process.pid}.${Date.now().toString(36)}.tmp`;
+  const payload = lines.length > 0 ? `${lines.join("\n")}\n` : "";
+  await writeFile(tmp, payload, "utf8");
+  await rename(tmp, filePath);
+}
+
+async function loadRepairableJsonl(filePath: string): Promise<string[]> {
+  const content = await readFile(filePath, "utf8");
+  const rawLines = content.split("\n").filter((line) => line.trim().length > 0);
+  if (rawLines.length === 0) return [];
+
+  const validLines: string[] = [];
+  let invalidCount = 0;
+
+  for (const line of rawLines) {
+    try {
+      JSON.parse(line);
+      validLines.push(line);
+    } catch {
+      invalidCount += 1;
+    }
+  }
+
+  if (invalidCount === 0) return validLines;
+
+  if (validLines.length > 0) {
+    await rewriteJsonlFile(filePath, validLines);
+    return validLines;
+  }
+
+  const quarantinePath = path.join(
+    path.dirname(filePath),
+    `${path.basename(filePath, ".jsonl")}.corrupt.${Date.now().toString(36)}.jsonl`,
+  );
+  await rename(filePath, quarantinePath).catch(() => {});
+  return [];
 }
 
 export function createChatHistoryRoutes(deps: ChatHistoryRouteDeps): Router {
@@ -168,8 +207,8 @@ export function createChatHistoryRoutes(deps: ChatHistoryRouteDeps): Router {
         if (!dateMatch) continue;
         const filePath = path.join(chatLogDir, filename);
         const fileStat = await stat(filePath);
-        const content = await readFile(filePath, "utf8");
-        const lineCount = content.trim() ? content.trim().split("\n").length : 0;
+        const lines = await loadRepairableJsonl(filePath);
+        const lineCount = lines.length;
         files.push({ date: dateMatch[1], lines: lineCount, size: fileStat.size });
       }
 
@@ -207,25 +246,22 @@ export function createChatHistoryRoutes(deps: ChatHistoryRouteDeps): Router {
         const dateMatch = file.match(/^v2-(\d{4}-\d{2}-\d{2})\.jsonl$/);
         if (!dateMatch) continue;
         const date = dateMatch[1];
-        const content = await readFile(path.join(chatLogDir, file), "utf-8");
+        const lines = await loadRepairableJsonl(path.join(chatLogDir, file));
 
-        for (const line of content.split("\n")) {
-          if (!line.trim()) continue;
-          try {
-            const entry = JSON.parse(line);
-            const text = String(entry.text || "").toLowerCase();
-            const nick = String(entry.nick || "").toLowerCase();
-            if (text.includes(query) || nick.includes(query)) {
-              results.push({
-                date,
-                ts: entry.ts || "",
-                nick: entry.nick || "",
-                text: entry.text || "",
-                type: entry.type || "message",
-              });
-              if (results.length >= limit) break;
-            }
-          } catch {}
+        for (const line of lines) {
+          const entry = JSON.parse(line);
+          const text = String(entry.text || "").toLowerCase();
+          const nick = String(entry.nick || "").toLowerCase();
+          if (text.includes(query) || nick.includes(query)) {
+            results.push({
+              date,
+              ts: entry.ts || "",
+              nick: entry.nick || "",
+              text: entry.text || "",
+              type: entry.type || "message",
+            });
+            if (results.length >= limit) break;
+          }
         }
       }
     } catch {}
@@ -254,18 +290,12 @@ export function createChatHistoryRoutes(deps: ChatHistoryRouteDeps): Router {
         throw err;
       }
 
-      const allLines = content.trim().split("\n").filter(Boolean);
+      const allLines = await loadRepairableJsonl(filePath);
       const limit = Math.min(Math.max(Number(req.query?.limit) || 200, 1), 1000);
       const offset = Math.max(Number(req.query?.offset) || 0, 0);
 
       const sliced = allLines.slice(offset, offset + limit);
-      const messages = sliced.map((line) => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return { text: line, type: "raw" };
-        }
-      });
+      const messages = sliced.map((line) => JSON.parse(line));
 
       res.json(asApiData({ messages, total: allLines.length, limit, offset }));
     } catch {

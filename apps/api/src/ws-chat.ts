@@ -67,24 +67,141 @@ const userStats = new Map<string, { messages: number; firstSeen: number }>();
 
 const CHANNEL_STATE_FILE = path.join(process.cwd(), "data", "channel-state.json");
 
+interface ChannelStateSnapshot {
+  topics?: Record<string, string>;
+  pins?: Record<string, string[]>;
+  savedAt?: string;
+}
+
+function extractFirstJsonObject(raw: string): string | null {
+  const start = raw.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return raw.slice(start, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function normalizeChannelState(raw: unknown): ChannelStateSnapshot {
+  const parsed = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  const topics = Object.fromEntries(
+    Object.entries(parsed.topics && typeof parsed.topics === "object" ? parsed.topics as Record<string, unknown> : {})
+      .filter(([, value]) => typeof value === "string"),
+  ) as Record<string, string>;
+  const pins = Object.fromEntries(
+    Object.entries(parsed.pins && typeof parsed.pins === "object" ? parsed.pins as Record<string, unknown> : {})
+      .map(([channel, value]) => [
+        channel,
+        Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [],
+      ]),
+  ) as Record<string, string[]>;
+  return {
+    topics,
+    pins,
+    savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : undefined,
+  };
+}
+
+function writeChannelStateSync(filePath: string, state: ChannelStateSnapshot): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.${Date.now().toString(36)}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  fs.renameSync(tmp, filePath);
+}
+
+async function writeChannelState(filePath: string, state: ChannelStateSnapshot): Promise<void> {
+  await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.${Date.now().toString(36)}.tmp`;
+  await fs.promises.writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  await fs.promises.rename(tmp, filePath);
+}
+
+export function loadChannelStateFromDiskSync(filePath: string = CHANNEL_STATE_FILE): ChannelStateSnapshot | null {
+  try {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    try {
+      return normalizeChannelState(JSON.parse(raw));
+    } catch (parseErr) {
+      const recoveredRaw = extractFirstJsonObject(raw);
+      if (recoveredRaw) {
+        try {
+          const recovered = normalizeChannelState(JSON.parse(recoveredRaw));
+          writeChannelStateSync(filePath, recovered);
+          logger.warn({ filePath }, "[ws-chat] Recovered corrupted channel state by truncating trailing bytes");
+          return recovered;
+        } catch {
+          // Fall through to quarantine.
+        }
+      }
+
+      const quarantinePath = path.join(path.dirname(filePath), `channel-state.corrupt.${Date.now().toString(36)}.json`);
+      try {
+        fs.renameSync(filePath, quarantinePath);
+        logger.warn({ err: parseErr, filePath, quarantinePath }, "[ws-chat] Quarantined unrecoverable channel state file");
+      } catch (renameErr) {
+        logger.warn({ err: renameErr, filePath, originalError: parseErr }, "[ws-chat] Failed to quarantine corrupt channel state file");
+      }
+      return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 function saveChannelState() {
   const state = {
     topics: Object.fromEntries(channelTopics),
     pins: Object.fromEntries([...channelPins].map(([k, v]) => [k, v])),
     savedAt: new Date().toISOString(),
   };
-  fs.promises.writeFile(CHANNEL_STATE_FILE, JSON.stringify(state, null, 2)).catch(err => logger.warn({ err: err.message }, "[ws-chat] channel state save failed"));
+  writeChannelState(CHANNEL_STATE_FILE, state).catch(err => logger.warn({ err: err.message }, "[ws-chat] channel state save failed"));
 }
 
-// Load on start (async to avoid blocking event loop)
-fs.promises.readFile(CHANNEL_STATE_FILE, "utf-8").then(raw => {
-  try {
-    const state = JSON.parse(raw);
-    if (state.topics) Object.entries(state.topics).forEach(([k, v]) => channelTopics.set(k, v as string));
-    if (state.pins) Object.entries(state.pins).forEach(([k, v]) => channelPins.set(k, v as string[]));
-    logger.info("[ws-chat] Loaded channel state from disk");
-  } catch { /* corrupt file */ }
-}).catch(() => { /* no saved state */ });
+const loadedChannelState = loadChannelStateFromDiskSync();
+if (loadedChannelState) {
+  if (loadedChannelState.topics) {
+    Object.entries(loadedChannelState.topics).forEach(([k, v]) => channelTopics.set(k, v));
+  }
+  if (loadedChannelState.pins) {
+    Object.entries(loadedChannelState.pins).forEach(([k, v]) => channelPins.set(k, v));
+  }
+  logger.info("[ws-chat] Loaded channel state from disk");
+}
 
 setInterval(saveChannelState, 5 * 60 * 1000).unref();
 
@@ -292,7 +409,7 @@ export function attachWebSocketChat(server: http.Server, options: ChatOptions): 
     });
     addToContext(info.channel, info.nick, text);
 
-    await routeToPersonas(info.channel, text);
+    await routeToPersonas(info.channel, text, 0, info.nick);
   }
 
   // --- handle file upload (delegated to ws-upload-handler) ---

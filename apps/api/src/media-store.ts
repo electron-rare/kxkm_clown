@@ -35,6 +35,85 @@ export interface MediaMeta {
   seed?: number;
 }
 
+function extractFirstJsonObject(raw: string): string | null {
+  const start = raw.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return raw.slice(start, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+async function writeJsonAtomically(filePath: string, payload: unknown): Promise<void> {
+  const tmp = `${filePath}.${process.pid}.${Date.now().toString(36)}.tmp`;
+  await fsp.writeFile(tmp, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  await fsp.rename(tmp, filePath);
+}
+
+export async function loadMediaMeta(filePath: string): Promise<MediaMeta | null> {
+  try {
+    const raw = await fsp.readFile(filePath, "utf-8");
+    try {
+      return JSON.parse(raw) as MediaMeta;
+    } catch {
+      const recoveredRaw = extractFirstJsonObject(raw);
+      if (recoveredRaw) {
+        try {
+          const recovered = JSON.parse(recoveredRaw) as MediaMeta;
+          await writeJsonAtomically(filePath, recovered);
+          return recovered;
+        } catch {
+          // fall through
+        }
+      }
+
+      const quarantinePath = path.join(
+        path.dirname(filePath),
+        `${path.basename(filePath, ".json")}.corrupt.${Date.now().toString(36)}.json`,
+      );
+      await fsp.rename(filePath, quarantinePath).catch(() => {});
+      return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 function generateId(): string {
   return `${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
 }
@@ -67,10 +146,7 @@ export async function saveImage(opts: {
     seed: opts.seed,
   };
 
-  await fsp.writeFile(
-    path.join(IMAGES_DIR, `${id}.json`),
-    JSON.stringify(meta, null, 2),
-  );
+  await writeJsonAtomically(path.join(IMAGES_DIR, `${id}.json`), meta);
 
   return meta;
 }
@@ -101,10 +177,7 @@ export async function saveAudio(opts: {
     url: `/api/v2/media/audio/${filename}`,
   };
 
-  await fsp.writeFile(
-    path.join(AUDIO_DIR, `${id}.json`),
-    JSON.stringify(meta, null, 2),
-  );
+  await writeJsonAtomically(path.join(AUDIO_DIR, `${id}.json`), meta);
 
   return meta;
 }
@@ -122,12 +195,8 @@ export async function listMedia(type: "image" | "audio"): Promise<MediaMeta[]> {
   const results: MediaMeta[] = [];
 
   for (const f of jsonFiles.slice(0, 200)) {
-    try {
-      const raw = await fsp.readFile(path.join(dir, f), "utf-8");
-      results.push(JSON.parse(raw));
-    } catch {
-      // skip corrupted metadata
-    }
+    const meta = await loadMediaMeta(path.join(dir, f));
+    if (meta) results.push(meta);
   }
 
   return results;

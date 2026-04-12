@@ -1,7 +1,7 @@
 process.env.NODE_ENV = "test";
 
 import { mkdtempSync, rmSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { describe, it, after } from "node:test";
@@ -115,5 +115,39 @@ describe("media-store", () => {
 
     assert.ok(meta.filename.endsWith(".jpg"), "filename should end with .jpg");
     assert.equal(meta.mime, "image/jpeg");
+  });
+
+  it("listMedia repairs metadata with trailing garbage", async () => {
+    const { saveImage, listMedia } = await mediaStorePromise;
+
+    const meta = await saveImage({
+      base64: TINY_PNG_B64,
+      prompt: "repair me",
+      nick: "tester",
+      channel: "#test",
+    });
+    const metaPath = path.join(testDataDir, "media", "images", `${meta.id}.json`);
+    const valid = await readFile(metaPath, "utf8");
+    await writeFile(metaPath, `${valid}{"partial":`, "utf8");
+
+    const items = await listMedia("image");
+    assert.ok(items.some((item) => item.id === meta.id));
+
+    const repaired = await readFile(metaPath, "utf8");
+    assert.doesNotThrow(() => JSON.parse(repaired));
+  });
+
+  it("listMedia quarantines unrecoverable metadata", async () => {
+    const { listMedia } = await mediaStorePromise;
+
+    const imagesDir = path.join(testDataDir, "media", "images");
+    await writeFile(path.join(imagesDir, "broken.json"), "not json", "utf8");
+
+    const items = await listMedia("image");
+    assert.ok(Array.isArray(items));
+
+    const files = await readdir(imagesDir);
+    assert.equal(files.includes("broken.json"), false);
+    assert.equal(files.some((name) => name.startsWith("broken.corrupt.")), true);
   });
 });

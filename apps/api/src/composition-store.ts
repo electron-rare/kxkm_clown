@@ -63,6 +63,7 @@ export interface Composition {
 }
 
 const compositions = new Map<string, Composition>();
+const saveChains = new Map<string, Promise<void>>();
 
 function toDurationMs(seconds: number): number {
   return Math.max(1000, Math.round((seconds || 0) * 1000));
@@ -114,6 +115,94 @@ function normalizeComposition(input: Composition): Composition {
     tracks,
     timeline,
   };
+}
+
+function extractFirstJsonObject(raw: string): string | null {
+  const start = raw.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return raw.slice(start, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function writeCompositionSync(jsonPath: string, serialized: string): void {
+  const dir = path.dirname(jsonPath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = `${jsonPath}.${process.pid}.${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}.tmp`;
+  fs.writeFileSync(tmp, serialized.endsWith("\n") ? serialized : `${serialized}\n`, "utf8");
+  fs.renameSync(tmp, jsonPath);
+}
+
+function quarantineCorruptComposition(jsonPath: string, entry: string, parseErr: unknown): void {
+  const quarantinePath = path.join(path.dirname(jsonPath), `composition.corrupt.${Date.now().toString(36)}.json`);
+  try {
+    fs.renameSync(jsonPath, quarantinePath);
+    logger.warn({ err: parseErr, entry, quarantinePath }, "[composition] Quarantined unrecoverable composition file");
+  } catch (renameErr) {
+    logger.warn({ err: renameErr, entry, originalError: parseErr }, "[composition] Failed to quarantine corrupt composition file");
+  }
+}
+
+function loadCompositionFromDisk(jsonPath: string, entry: string): Composition | null {
+  const raw = fs.readFileSync(jsonPath, "utf-8");
+  try {
+    return normalizeComposition(JSON.parse(raw) as Composition);
+  } catch (parseErr) {
+    const recoveredRaw = extractFirstJsonObject(raw);
+    if (recoveredRaw) {
+      try {
+        const recovered = normalizeComposition(JSON.parse(recoveredRaw) as Composition);
+        writeCompositionSync(jsonPath, JSON.stringify(recovered, null, 2));
+        logger.warn({ entry }, "[composition] Recovered corrupted composition file by truncating trailing bytes");
+        return recovered;
+      } catch {
+        // Fall through to quarantine
+      }
+    }
+
+    quarantineCorruptComposition(jsonPath, entry, parseErr);
+    return null;
+  }
+}
+
+export function readCompositionFile(jsonPath: string): Composition | null {
+  return loadCompositionFromDisk(jsonPath, path.basename(path.dirname(jsonPath)));
 }
 
 export function createComposition(nick: string, channel: string, name?: string): Composition | undefined {
@@ -255,7 +344,7 @@ export function listCompositions(nick?: string): Composition[] {
   return nick ? all.filter(c => c.nick === nick) : all;
 }
 
-async function saveComposition(comp: Composition): Promise<void> {
+async function persistComposition(comp: Composition): Promise<void> {
   const serialized = JSON.stringify(comp, null, 2);
   if (serialized.length > MAX_COMPOSITION_BYTES) {
     logger.warn(
@@ -267,9 +356,23 @@ async function saveComposition(comp: Composition): Promise<void> {
   const dir = path.join(COMP_DIR, comp.id);
   await mkdir(dir, { recursive: true });
   const target = path.join(dir, "composition.json");
-  const tmp = `${target}.tmp`;
+  const tmp = `${target}.${process.pid}.${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}.tmp`;
   await writeFile(tmp, serialized, "utf8");
   await rename(tmp, target); // atomic: prevents partial-read corruption on concurrent saves
+}
+
+async function saveComposition(comp: Composition): Promise<void> {
+  const previous = saveChains.get(comp.id) || Promise.resolve();
+  const next = previous
+    .catch(() => {})
+    .then(() => persistComposition(comp))
+    .finally(() => {
+      if (saveChains.get(comp.id) === next) {
+        saveChains.delete(comp.id);
+      }
+    });
+  saveChains.set(comp.id, next);
+  return next;
 }
 
 // Load existing compositions on startup (sync is acceptable once at boot, but errors are now logged individually)
@@ -278,12 +381,9 @@ try {
   for (const entry of fs.readdirSync(COMP_DIR)) {
     const jsonPath = path.join(COMP_DIR, entry, "composition.json");
     if (!fs.existsSync(jsonPath)) continue;
-    try {
-      const comp = JSON.parse(fs.readFileSync(jsonPath, "utf-8")) as Composition;
-      const normalized = normalizeComposition(comp);
+    const normalized = loadCompositionFromDisk(jsonPath, entry);
+    if (normalized) {
       compositions.set(normalized.id, normalized);
-    } catch (parseErr) {
-      logger.warn({ err: parseErr, entry }, "[composition] Failed to load composition file — skipping");
     }
   }
   if (compositions.size > 0) logger.info({ count: compositions.size }, "[composition] Loaded compositions");

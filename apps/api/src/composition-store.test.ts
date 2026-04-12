@@ -1,6 +1,6 @@
 process.env.NODE_ENV = "test";
 
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { describe, it, beforeEach, afterEach, after } from "node:test";
@@ -342,5 +342,92 @@ describe("composition-store", () => {
     const clip2 = tl!.clips.find((c: any) => c.trackId === t2!.id);
     assert.equal(clip1!.gain, 0);
     assert.equal(clip2!.gain, 200);
+  });
+
+  it("serializes concurrent saves for the same composition without corrupting JSON", async () => {
+    const {
+      createComposition,
+      addTrack,
+      updateTimelineSettings,
+      addTimelineMarker,
+    } = await storePromise;
+
+    const comp = createComposition("rose", "#race", "Race Safe");
+    assert.ok(comp);
+
+    addTrack(comp.id, { type: "music", prompt: "layer 1", duration: 8, volume: 90, startMs: 0 });
+    addTrack(comp.id, { type: "voice", prompt: "layer 2", duration: 6, volume: 70, startMs: 1000 });
+    updateTimelineSettings(comp.id, { bpm: 132, timeSignature: [7, 8] });
+    addTimelineMarker(comp.id, { label: "Drop", atMs: 2400, color: "#ffaa00" });
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const jsonPath = path.join(testDir, "data", "compositions", comp.id, "composition.json");
+    assert.ok(existsSync(jsonPath), "JSON file should exist after queued writes");
+
+    const onDisk = JSON.parse(readFileSync(jsonPath, "utf-8"));
+    assert.equal(onDisk.id, comp.id);
+    assert.equal(onDisk.timeline.bpm, 132);
+    assert.deepEqual(onDisk.timeline.timeSignature, [7, 8]);
+    assert.equal(onDisk.timeline.tracks.length, 2);
+    assert.equal(onDisk.timeline.clips.length, 2);
+    assert.equal(onDisk.timeline.markers.length, 1);
+    assert.equal(onDisk.timeline.markers[0].label, "Drop");
+  });
+
+  it("recovers a composition file with trailing garbage at boot", async () => {
+    const compId = `comp_recover_${Date.now().toString(36)}`;
+    const compDir = path.join(testDir, "data", "compositions", compId);
+    mkdirSync(compDir, { recursive: true });
+
+    const valid = {
+      id: compId,
+      name: "Recovered",
+      channel: "#repair",
+      nick: "repair-bot",
+      tracks: [],
+      timeline: {
+        version: 1,
+        bpm: 120,
+        timeSignature: [4, 4],
+        tracks: [],
+        clips: [],
+        markers: [],
+      },
+      createdAt: "2026-04-03T12:00:00.000Z",
+      updatedAt: "2026-04-03T12:00:00.000Z",
+    };
+    writeFileSync(
+      path.join(compDir, "composition.json"),
+      `${JSON.stringify(valid, null, 2)}  "prompt": "orphaned tail"\n`,
+      "utf8",
+    );
+
+    const repairedStore = await import(`./composition-store.js?recover=${Date.now()}`);
+    const repaired = repairedStore.getComposition(compId);
+    assert.ok(repaired, "boot loader should recover the composition");
+
+    const repairedText = readFileSync(path.join(compDir, "composition.json"), "utf8");
+    const repairedJson = JSON.parse(repairedText);
+    assert.equal(repairedJson.id, compId);
+    assert.equal(repairedJson.name, "Recovered");
+  });
+
+  it("quarantines an unrecoverable composition file at boot", async () => {
+    const compId = `comp_quarantine_${Date.now().toString(36)}`;
+    const compDir = path.join(testDir, "data", "compositions", compId);
+    mkdirSync(compDir, { recursive: true });
+    writeFileSync(
+      path.join(compDir, "composition.json"),
+      "{\n  \"id\": \"broken\",\n  \"name\": \"Incomplete\"\n",
+      "utf8",
+    );
+
+    const quarantinedStore = await import(`./composition-store.js?quarantine=${Date.now()}`);
+    assert.equal(quarantinedStore.getComposition(compId), undefined);
+    assert.equal(existsSync(path.join(compDir, "composition.json")), false, "original corrupt file should be moved away");
+
+    const quarantinedFiles = readdirSync(compDir).filter((name) => name.startsWith("composition.corrupt."));
+    assert.equal(quarantinedFiles.length > 0, true, "a quarantined file should be kept for inspection");
   });
 });

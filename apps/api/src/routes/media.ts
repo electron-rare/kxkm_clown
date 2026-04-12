@@ -2,6 +2,7 @@ import { Router } from "express";
 import path from "node:path";
 import fs from "node:fs";
 import { listMedia, getMediaFilePath } from "../media-store.js";
+import { createComposition, addTrack, getComposition, readCompositionFile } from "../composition-store.js";
 
 const router = Router();
 
@@ -88,10 +89,9 @@ router.get("/compositions", async (_req, res) => {
   const compDir = path.join(process.cwd(), "data", "compositions");
   try {
     const entries = fs.readdirSync(compDir).filter(e => fs.existsSync(path.join(compDir, e, "composition.json")));
-    const comps = entries.map(e => {
-      const raw = fs.readFileSync(path.join(compDir, e, "composition.json"), "utf-8");
-      return JSON.parse(raw);
-    });
+    const comps = entries
+      .map((entry) => readCompositionFile(path.join(compDir, entry, "composition.json")))
+      .filter((comp): comp is NonNullable<typeof comp> => !!comp);
     res.json({ ok: true, data: comps });
   } catch {
     res.json({ ok: true, data: [] });
@@ -103,9 +103,51 @@ router.get("/compositions/:id", (req, res) => {
   const compPath = path.join(process.cwd(), "data", "compositions", req.params.id, "composition.json");
   if (!fs.existsSync(compPath)) return res.status(404).json({ error: "Not found" });
   try {
-    const comp = JSON.parse(fs.readFileSync(compPath, "utf-8"));
+    const comp = getComposition(req.params.id) || readCompositionFile(compPath);
+    if (!comp) return res.status(404).json({ error: "Not found" });
     res.json({ ok: true, data: comp });
   } catch { res.status(500).json({ error: "Failed to read composition" }); }
+});
+
+// POST /api/v2/media/compositions — create a composition with track metadata from ComposePage
+router.post("/compositions", (req, res) => {
+  try {
+    const { name, nick, tracks } = req.body as {
+      name?: string;
+      nick?: string;
+      tracks?: Array<{
+        type?: string;
+        prompt?: string;
+        style?: string;
+        duration?: number;
+        volume?: number;
+        startOffset?: number;
+      }>;
+    };
+    const resolvedNick = String(nick || "composer").slice(0, 64);
+    const comp = createComposition(resolvedNick, "web", name ? String(name).slice(0, 128) : undefined);
+    if (!comp) {
+      return res.status(503).json({ error: "Limite compositions atteinte." });
+    }
+    const addedTracks = [];
+    if (Array.isArray(tracks)) {
+      for (const t of tracks) {
+        const trackType = (["music", "voice", "sfx"].includes(String(t.type ?? "")) ? t.type : "music") as "music" | "voice" | "sfx";
+        const added = addTrack(comp.id, {
+          type: trackType,
+          prompt: String(t.prompt ?? "").slice(0, 256),
+          style: t.style ? String(t.style).slice(0, 64) : undefined,
+          duration: Math.max(1, Math.min(600, Number(t.duration) || 30)),
+          volume: Math.max(0, Math.min(100, Number(t.volume) || 100)),
+          startMs: Math.max(0, Math.round((Number(t.startOffset) || 0) * 1000)),
+        });
+        if (added) addedTracks.push(added);
+      }
+    }
+    res.json({ ok: true, data: { id: comp.id, name: comp.name, trackCount: addedTracks.length } });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to save composition" });
+  }
 });
 
 // GET /api/v2/media/compositions/:id/tracks/:trackId — serve individual track WAV
@@ -118,6 +160,52 @@ router.get("/compositions/:id/tracks/:trackId", (req, res) => {
 // ── Shared Files ──
 
 const SHARED_DIR = path.join(process.cwd(), "data", "shared");
+const SHARED_INDEX = path.join(SHARED_DIR, "index.jsonl");
+
+function writeSharedIndexSync(indexPath: string, records: unknown[]): void {
+  fs.mkdirSync(path.dirname(indexPath), { recursive: true });
+  const tmp = `${indexPath}.${process.pid}.${Date.now().toString(36)}.tmp`;
+  const payload = records.length > 0
+    ? `${records.map((record) => JSON.stringify(record)).join("\n")}\n`
+    : "";
+  fs.writeFileSync(tmp, payload, "utf8");
+  fs.renameSync(tmp, indexPath);
+}
+
+function loadSharedIndexSync(indexPath: string = SHARED_INDEX): unknown[] {
+  if (!fs.existsSync(indexPath)) return [];
+
+  const raw = fs.readFileSync(indexPath, "utf-8");
+  const lines = raw.split("\n").filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return [];
+
+  const records: unknown[] = [];
+  let invalidCount = 0;
+
+  for (const line of lines) {
+    try {
+      records.push(JSON.parse(line));
+    } catch {
+      invalidCount += 1;
+    }
+  }
+
+  if (invalidCount === 0) return records;
+
+  if (records.length > 0) {
+    writeSharedIndexSync(indexPath, records);
+    return records;
+  }
+
+  const quarantinePath = path.join(
+    path.dirname(indexPath),
+    `index.corrupt.${Date.now().toString(36)}.jsonl`,
+  );
+  try {
+    fs.renameSync(indexPath, quarantinePath);
+  } catch {}
+  return [];
+}
 
 // POST /api/v2/media/shared — upload a file to shared gallery
 router.post("/shared", (req, res, next) => {
@@ -135,7 +223,9 @@ router.post("/shared", (req, res, next) => {
     const filepath = path.join(SHARED_DIR, filename);
     fs.writeFileSync(filepath, req.body);
     const meta = { filename, nick, name, size: req.body.length, uploadedAt: new Date().toISOString() };
-    fs.appendFileSync(path.join(SHARED_DIR, "index.jsonl"), JSON.stringify(meta) + "\n");
+    const records = loadSharedIndexSync();
+    records.push(meta);
+    writeSharedIndexSync(SHARED_INDEX, records);
     res.json({ ok: true, url: `/api/v2/media/shared/${filename}`, ...meta });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Upload failed" });
@@ -145,10 +235,7 @@ router.post("/shared", (req, res, next) => {
 // GET /api/v2/media/shared — list shared files
 router.get("/shared", (_req, res) => {
   try {
-    const indexPath = path.join(SHARED_DIR, "index.jsonl");
-    if (!fs.existsSync(indexPath)) return res.json([]);
-    const lines = fs.readFileSync(indexPath, "utf-8").trim().split("\n").filter(Boolean);
-    const files = lines.map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
+    const files = loadSharedIndexSync(SHARED_INDEX);
     res.json(files.reverse().slice(0, 100));
   } catch {
     res.json([]);

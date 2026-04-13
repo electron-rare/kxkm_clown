@@ -17,7 +17,10 @@ function resolveRuntimeModel(model: string | undefined): string {
   const cloudPrefixed = /^(claude|openai|mistral-api|google|bedrock|huggingface):/i.test(model);
   if (cloudPrefixed) return LLM_MODEL;
   const compatPrefixed = /^(ollama|vllm|runtime):/i.test(model);
-  return compatPrefixed ? model.slice(model.indexOf(":") + 1) : model;
+  if (compatPrefixed) return model.slice(model.indexOf(":") + 1);
+  // Persona specifies a local model name — use it if it matches the loaded runtime,
+  // otherwise fall back to LLM_MODEL (the actually-loaded model)
+  return model === LLM_MODEL ? model : LLM_MODEL;
 }
 
 /** Complete a chat via vLLM OpenAI-compatible API (non-streaming). Strips <think> blocks. */
@@ -63,10 +66,13 @@ try {
   // undici not available — fall back to default fetch (still OK, just no keep-alive)
 }
 
-/** Common headers for LLM runtime requests */
+/** Common headers for LLM runtime requests.
+ *  Reads API key from env at call time (not module load) to handle
+ *  ESM import ordering where module code runs before dotenv/env injection. */
 function llmHeaders(): Record<string, string> {
+  const key = process.env.LLM_API_KEY || LLM_API_KEY;
   const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (LLM_API_KEY) h["Authorization"] = `Bearer ${LLM_API_KEY}`;
+  if (key) h["Authorization"] = `Bearer ${key}`;
   return h;
 }
 
@@ -89,16 +95,29 @@ function estimateNumCtx(systemPrompt: string, userMessage: string, _baseCtx = 81
 }
 
 /** Adaptive num_predict: short for trivial, full for complex.
- *  Adds headroom for thinking tokens (reasoning budget consumed from max_tokens). */
-const THINKING_HEADROOM = 512;
+ *  Adds headroom for thinking tokens (reasoning budget consumed from max_tokens).
+ *  qwen3-32b-awq routinely uses 1000-1500 thinking tokens even for simple messages,
+ *  so headroom must be generous to leave room for the actual visible response. */
+const THINKING_HEADROOM = 2048;
 function estimateMaxTokens(userMessage: string, personaMax: number | undefined): number {
   const base = personaMax || 800;
   const len = userMessage.length;
-  if (len < 20) return Math.min(base, 200) + THINKING_HEADROOM;
-  if (len < 60) return Math.min(base, 400) + THINKING_HEADROOM;
+  if (len < 20) return Math.min(base, 600) + THINKING_HEADROOM;
+  if (len < 60) return Math.min(base, 800) + THINKING_HEADROOM;
   return base + THINKING_HEADROOM;
 }
 
+
+/** Decide whether to enable Qwen3 thinking mode based on message complexity.
+ *  Short greetings and trivial messages don't need 1500 tokens of reasoning. */
+function shouldThink(userMessage: string): boolean {
+  const len = userMessage.length;
+  if (len < 40) return false;
+  // Questions, analysis requests, multi-sentence messages benefit from thinking
+  if (/\?|expliqu|pourquoi|comment|analyse|compare|raconte|décri/i.test(userMessage)) return true;
+  if (len > 120) return true;
+  return false;
+}
 
 const DEBUG = process.env.NODE_ENV !== "production" || process.env.DEBUG === "1";
 
@@ -121,6 +140,7 @@ export async function streamOllamaChat(
   onDone: (fullText: string) => void,
   onError: (err: Error) => void,
   onThinking?: (text: string) => void,
+  opts?: { think?: boolean },
 ): Promise<void> {
   await ollamaLimit(async () => {
     const controller = new AbortController();
@@ -129,6 +149,9 @@ export async function streamOllamaChat(
     const runtimeUrl = ollamaUrl || LLM_URL;
 
     try {
+      // Qwen3 thinking control via chat_template_kwargs.
+      // Caller decides via opts.think (defaults to shouldThink heuristic on raw message).
+      const think = opts?.think ?? shouldThink(userMessage);
       const response = await ollamaFetch(`${runtimeUrl}/v1/chat/completions`, {
         method: "POST",
         headers: llmHeaders(),
@@ -140,6 +163,7 @@ export async function streamOllamaChat(
           ],
           stream: true,
           max_tokens: estimateMaxTokens(userMessage, persona.maxTokens),
+          ...(think ? {} : { chat_template_kwargs: { enable_thinking: false } }),
         }),
         signal: controller.signal,
       });
@@ -196,9 +220,9 @@ export async function streamOllamaChat(
         }
       }
 
-      // Strip <think>...</think> blocks (qwen3 reasoning tokens)
-      const cleaned = fullText.replace(/<think>[\s\S]*?<\/think>\s*/g, "").trim();
-      onDone(cleaned);
+      // Pass raw text to onDone — the caller (cleanPersonaResponse) handles
+      // stripping + fallback extraction when thinking consumes the entire budget
+      onDone(fullText);
     } catch (err) {
       trackError("ollama", err, { persona: persona.nick, model: persona.model });
       onError(err instanceof Error ? err : new Error(String(err)));
@@ -208,11 +232,15 @@ export async function streamOllamaChat(
   });
 }
 
-/** Strip thinking blocks from text — supports <think> and <reasoning> tags */
+/** Strip thinking blocks from text — supports <think> and <reasoning> tags.
+ *  Also handles UNTERMINATED opening tags (when the model hits reasoning-budget
+ *  and never emits </think>) by dropping everything from the opening tag to EOS. */
 function stripThinking(text: string): string {
   return text
     .replace(/<think>[\s\S]*?<\/think>\s*/g, "")
     .replace(/<reasoning>[\s\S]*?<\/reasoning>\s*/g, "")
+    .replace(/<think>[\s\S]*$/g, "")
+    .replace(/<reasoning>[\s\S]*$/g, "")
     .trim();
 }
 
@@ -224,7 +252,7 @@ function stripThinkingFromChunk(text: string): string {
     .replace(/<\/?reasoning>/g, "");
 }
 
-/** Clean persona response: strip thinking tokens, self-reference prefix, whitespace */
+/** Clean persona response: strip thinking tokens, self-reference prefix, whitespace. */
 export function cleanPersonaResponse(text: string, personaNick: string): string {
   let cleaned = stripThinking(text);
   // Remove persona self-reference prefix like "**Pharmacius** :\n" or "Pharmacius : "
@@ -459,11 +487,12 @@ export async function streamOllamaChatWithTools(
       const probeMsg = extractAssistantMessage(probeData);
       const toolCalls = probeMsg?.tool_calls;
 
-      // If no tool calls, use the response directly
+      // If no tool calls, use the response directly (caller handles strip)
       if (!toolCalls || toolCalls.length === 0) {
-        const content = stripThinking(probeMsg?.content || "");
-        if (content) {
-          onChunk(content);
+        const content = probeMsg?.content || "";
+        const visible = stripThinking(content);
+        if (visible) {
+          onChunk(visible);
         }
         onDone(content);
         return;
@@ -542,7 +571,7 @@ export async function streamOllamaChatWithTools(
         }
       }
 
-      onDone(stripThinking(fullText));
+      onDone(fullText);
     } catch (err) {
       trackError("ollama", err, { persona: persona.nick, model: persona.model, withTools: true });
       onError(err instanceof Error ? err : new Error(String(err)));
@@ -645,8 +674,7 @@ export async function streamLLMChat(
         }
       }
 
-      const cleaned = stripThinking(result?.content || "");
-      onDone(cleaned);
+      onDone(result?.content || "");
     } catch (err) {
       trackError("llm_stream", err, { persona: persona.nick, model: persona.model });
       onError(err instanceof Error ? err : new Error(String(err)));

@@ -8,8 +8,9 @@ import {
   cleanPersonaResponse,
 } from "./ws-ollama.js";
 
-// Use mascarade-backed LLM client by default, otherwise direct local runtime
-const defaultStreamOllamaChat = streamLLMChat;
+// Use direct local runtime by default — mascarade routes through Tower/Photon
+// which doesn't stream thinking tokens needed for the ThinkingPanel
+const defaultStreamOllamaChat = streamOllamaChat;
 import {
   synthesizeTTS as defaultSynthesizeTTS,
   isTTSAvailable as defaultIsTTSAvailable,
@@ -124,7 +125,12 @@ function withPersonaMemory(persona: ChatPersona, memory: Awaited<ReturnType<Load
 
   return {
     ...persona,
-    systemPrompt: persona.systemPrompt + memoryBlock + `\n\n[Humeur] ${mood}`,
+    systemPrompt:
+      persona.systemPrompt +
+      "\n\n[PROTOCOLE CANAL 3615 J'AI PÉTÉ]\n" +
+      "Tu participes à un canal multi-personas. Tu peux recevoir des messages encadrés par un bloc [RELAI INTER-PERSONA] : ce sont d'autres personas du collectif qui te taguent, PAS des tentatives d'injection, PAS des utilisateurs cherchant à te faire changer d'identité ni à te faire jouer quelqu'un d'autre. Tu réponds normalement en restant toi-même, sans meta-commentaire, sans analyser la 'sécurité' du message, sans mentionner de règles ou de contraintes système." +
+      memoryBlock +
+      `\n\n[Humeur] ${mood}`,
   };
 }
 
@@ -469,9 +475,14 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
     // Phase 1: "reflechit" — shown immediately
     broadcast(channel, {
-      type: "system",
-      text: `${persona.nick} reflechit...`,
+      type: "thinking",
+      nick: persona.nick,
+      personaId: persona.id,
+      phase: "start",
+      progress: 0,
+      buf: "",
     });
+    // Debug removed
 
     let thinkingTokens = 0;
     let thinkingBuf = "";
@@ -482,24 +493,31 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     const THINKING_BUDGET = 512;
 
     // Thinking progress: flavour text + progress bar + raw thinking preview
+    // Uses a THROTTLE (not debounce) — broadcasts at most once per 150ms,
+    // ensuring the UI gets regular updates while tokens stream in at ~6ms/token.
+    let lastThinkingBroadcast = 0;
+    const THINKING_THROTTLE_MS = 150;
     const onThinking = (token: string) => {
       thinkingTokens++;
       thinkingBuf += token;
-      if (thinkingTimer) clearTimeout(thinkingTimer);
-      thinkingTimer = setTimeout(() => {
-        thinkingTimer = null;
-        const pct = Math.min(99, Math.round((thinkingTokens / THINKING_BUDGET) * 100));
-        const filled = Math.round(pct / 10);
-        const bar = "\u2588".repeat(filled) + "\u2591".repeat(10 - filled);
-        const phase = pct < 40 ? 0 : pct < 80 ? 1 : 2;
-        const flavor = getThinkingFlavor(persona.nick, phase);
-        const lines = thinkingBuf.trim().split("\n").filter(l => l.trim());
-        const preview = lines.length > 0 ? lines[lines.length - 1].trim().slice(0, 60) : "";
-        broadcast(channel, {
-          type: "system",
-          text: `${persona.nick} [${bar}] ${flavor}... ${preview}`,
-        });
-      }, 800);
+      const now = Date.now();
+      if (now - lastThinkingBroadcast < THINKING_THROTTLE_MS) return;
+      lastThinkingBroadcast = now;
+      const pct = Math.min(99, Math.round((thinkingTokens / THINKING_BUDGET) * 100));
+      const filled = Math.round(pct / 10);
+      const bar = "\u2588".repeat(filled) + "\u2591".repeat(10 - filled);
+      const phase = pct < 40 ? 0 : pct < 80 ? 1 : 2;
+      const flavor = getThinkingFlavor(persona.nick, phase);
+      broadcast(channel, {
+        type: "thinking",
+        nick: persona.nick,
+        personaId: persona.id,
+        phase: "stream",
+        progress: pct,
+        flavor,
+        bar,
+        buf: thinkingBuf,
+      });
     };
 
     // Phase 2: first visible token → "ecrit la reponse"
@@ -513,8 +531,12 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         if (thinkingTimer) clearTimeout(thinkingTimer);
         thinkingTimer = null;
         broadcast(channel, {
-          type: "system",
-          text: `${persona.nick} ecrit la reponse...`,
+          type: "thinking",
+          nick: persona.nick,
+          personaId: persona.id,
+          phase: "done",
+          progress: 100,
+          buf: thinkingBuf,
         });
       }
     };
@@ -590,7 +612,12 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
 
       setTimeoutFn(() => {
         // Keep inter-persona context short for speed (max 200 chars of previous response)
-        const contextMessage = `@${nextPersona.nick} ${persona.nick}: "${fullText.slice(0, 200)}"`;
+        const contextMessage =
+          `[RELAI INTER-PERSONA — canal 3615 J'ai pété]\n` +
+          `De : ${persona.nick}\n` +
+          `À : @${nextPersona.nick}\n` +
+          `Message : "${fullText.slice(0, 200)}"\n` +
+          `(Réponds comme ${nextPersona.nick} à ce relai de canal. Ce n'est pas une demande utilisateur, pas une injection — reste toi-même.)`;
         routeToPersonas(channel, contextMessage, depth + 1, userNick).catch((err) => {
           trackError("inter_persona", err, { persona: nextPersona.nick, depth: depth + 1 });
         });
@@ -607,7 +634,9 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
     };
 
     try {
+      if (DEBUG) console.log(`[ws-chat] ${persona.nick} stream start (tools=${tools.length})`);
       if (tools.length > 0) {
+        // streamOllamaChatWithTools path
         await streamOllamaChatWithTools(
           ollamaUrl,
           personaWithMemory,
@@ -618,9 +647,11 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
           onDone,
           onError,
         );
+        // streamOllamaChatWithTools done
         return;
       }
 
+      // streamOllamaChat path — use original `text` (not enriched) for think heuristic
       await streamOllamaChat(
         ollamaUrl,
         personaWithMemory,
@@ -629,6 +660,7 @@ export function createConversationRouter(deps: ConversationRouterDeps): Conversa
         onDone,
         onError,
         onThinking,
+        { think: text.length > 40 || /\?|expliqu|pourquoi|comment|analyse|compare|raconte|décri/i.test(text) },
       );
     } catch (err) {
       trackError("ollama_connection", err, { persona: persona.nick, model: persona.model });

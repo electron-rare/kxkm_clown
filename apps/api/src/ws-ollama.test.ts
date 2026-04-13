@@ -43,7 +43,7 @@ function makePersona() {
   return {
     id: "test-id",
     nick: "test",
-    model: "test:7b",
+    model: "runtime:test:7b",
     systemPrompt: "You are a test",
     color: "#fff",
     maxTokens: 100,
@@ -135,13 +135,14 @@ describe("ws-ollama", () => {
       assert.equal(url, "http://localhost:11434/v1/chat/completions");
       assert.equal(opts.method, "POST");
       const body = JSON.parse(opts.body as string);
-      assert.equal(body.model, "test:7b");
+      assert.equal(body.model, "test:7b"); // runtime: prefix is stripped
       assert.equal(body.stream, true);
       assert.equal(body.messages[0].role, "system");
       assert.equal(body.messages[0].content, "You are a test");
       assert.equal(body.messages[1].role, "user");
       assert.equal(body.messages[1].content, "Hi");
-      assert.equal(body.max_tokens, 612); // 100 capped to 200 (short msg) + 512 thinking headroom
+      assert.deepStrictEqual(body.chat_template_kwargs, { enable_thinking: false }); // short msg disables thinking
+      assert.equal(body.max_tokens, 2148); // 100 capped to 600 (short msg <20 chars) + 2048 thinking headroom
     });
 
     it("streams chunks via onChunk and calls onDone with full text", async () => {
@@ -163,7 +164,7 @@ describe("ws-ollama", () => {
       assert.equal(doneText, "Hello world");
     });
 
-    it("strips <think>...</think> blocks from onDone text", async () => {
+    it("passes raw text including <think> blocks to onDone (caller strips)", async () => {
       fetchMock.mock.mockImplementation(async () =>
         mockStreamResponse(["<think>reasoning</think>", "Answer"]),
       );
@@ -178,7 +179,7 @@ describe("ws-ollama", () => {
         () => {},
       );
 
-      assert.equal(doneText, "Answer");
+      assert.equal(doneText, "<think>reasoning</think>Answer");
     });
 
     it("suppresses <think> content from onChunk", async () => {
@@ -384,7 +385,7 @@ describe("ws-ollama", () => {
       assert.equal(doneText, "Direct answer");
     });
 
-    it("strips thinking from direct response", async () => {
+    it("passes raw text including thinking to onDone (caller strips)", async () => {
       fetchMock.mock.mockImplementation(async () =>
         mockJsonResponse({
           message: { role: "assistant", content: "<think>hmm</think>Real answer" },
@@ -403,7 +404,7 @@ describe("ws-ollama", () => {
         () => {},
       );
 
-      assert.equal(doneText, "Real answer");
+      assert.equal(doneText, "<think>hmm</think>Real answer");
     });
 
     it("executes tool calls then streams final response", async () => {

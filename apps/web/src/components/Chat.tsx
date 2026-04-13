@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { useChatState } from "../hooks/useChatState";
 import { ChatMessage } from "./ChatMessage";
+import { ThinkingPanel } from "./ThinkingPanel";
 import { ChatInput } from "./ChatInput";
 import { ChatSidebar } from "./ChatSidebar";
 import type { ChatMsg } from "./chat-types";
@@ -81,6 +82,7 @@ export default function Chat() {
     toggleSidebar,
     typingPersona,
     typingText,
+    thinkingByPersona,
     ws,
     getNickColor,
     handleSend,
@@ -329,6 +331,8 @@ export default function Chat() {
             }}>{"\u2193"} Nouveaux messages</button>
           )}
         </div>
+
+        <ThinkingPanel thinkingByPersona={thinkingByPersona} getNickColor={getNickColor} />
 
         <ChatSidebar
           personaColors={personaColors}

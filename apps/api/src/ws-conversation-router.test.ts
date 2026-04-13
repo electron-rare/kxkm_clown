@@ -276,7 +276,7 @@ describe("ws-conversation-router", () => {
     const sherlockUpdate = harness.memoryUpdates.find((entry) => entry.persona.nick === "Sherlock");
 
     assert.match(pharmaciusUpdate?.recentMessages[0] || "", /^User: signal initial/);
-    assert.match(sherlockUpdate?.recentMessages[0] || "", /^InterPersona: @Sherlock Pharmacius:/);
+    assert.match(sherlockUpdate?.recentMessages[0] || "", /^InterPersona: \[RELAI INTER-PERSONA/);
   });
 
   it("invalidates cached persona memory after a background update", async () => {

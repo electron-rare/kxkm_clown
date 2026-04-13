@@ -220,7 +220,7 @@ export const TimelineView = memo(function TimelineView({
   laneHeight = 40,
 }: TimelineViewProps) {
   const [timeline, setTimeline] = useState<TimelineModelV1 | null>(timelineProp ?? null);
-  const [meta, setMeta] = useState<Pick<CompositionMeta, "name" | "bpm" | "timeSignature"> | null>(null);
+  const [meta, setMeta] = useState<{ name: string; bpm: number; timeSignature: [number, number] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);

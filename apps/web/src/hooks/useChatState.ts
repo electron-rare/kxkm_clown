@@ -39,6 +39,15 @@ export interface UseChatStateReturn {
   toggleSidebar: (section: "personas" | "users") => void;
   typingPersona: string | null;
   typingText: Record<string, string>;
+  thinkingByPersona: Record<string, {
+    personaId: string;
+    phase: "start" | "stream" | "done";
+    progress: number;
+    buf: string;
+    flavor?: string;
+    bar?: string;
+    updatedAt: number;
+  }>;
   ws: UseWebSocketReturn;
   sounds: ReturnType<typeof useMinitelSounds>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
@@ -61,6 +70,18 @@ export function useChatState(): UseChatStateReturn {
   // Track multiple typing personas for richer indicator
   const [typingPersonas, setTypingPersonas] = useState<Set<string>>(new Set());
   const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  type ThinkingState = {
+    personaId: string;
+    phase: "start" | "stream" | "done";
+    progress: number;
+    buf: string;
+    flavor?: string;
+    bar?: string;
+    updatedAt: number;
+  };
+  const [thinkingByPersona, setThinkingByPersona] = useState<Record<string, ThinkingState>>({});
+  const thinkingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
@@ -197,6 +218,65 @@ export function useChatState(): UseChatStateReturn {
           }];
           return next.length > MAX_MESSAGES ? next.slice(-MAX_MESSAGES) : next;
         });
+        return;
+      }
+
+      case "thinking": {
+        const nick = typeof msg.nick === "string" ? msg.nick : null;
+        const personaId = typeof msg.personaId === "string" ? msg.personaId : nick || "";
+        if (!nick) return;
+        const phase = (msg.phase as "start" | "stream" | "done") || "stream";
+        const progress = typeof msg.progress === "number" ? msg.progress : 0;
+        const buf = typeof msg.buf === "string" ? msg.buf : "";
+        const flavor = typeof msg.flavor === "string" ? msg.flavor : undefined;
+        const bar = typeof msg.bar === "string" ? msg.bar : undefined;
+
+        setThinkingByPersona(prev => ({
+          ...prev,
+          [nick]: { personaId, phase, progress, buf, flavor, bar, updatedAt: Date.now() },
+        }));
+
+        // Also feed the legacy bottom typing indicator for parity
+        setTypingPersonas(prev => new Set(prev).add(nick));
+        setTypingPersona(nick);
+        const indicatorText =
+          phase === "done"
+            ? `${nick} ecrit la reponse...`
+            : bar
+              ? `${nick} [${bar}] ${flavor || "reflechit"}... ${progress}%`
+              : `${nick} reflechit...`;
+        setTypingText(prev => ({ ...prev, [nick]: indicatorText }));
+        const prevTypingTimer = typingTimersRef.current.get(nick);
+        if (prevTypingTimer) clearTimeout(prevTypingTimer);
+        typingTimersRef.current.set(nick, setTimeout(() => {
+          setTypingPersonas(prev => { const next = new Set(prev); next.delete(nick); return next; });
+          setTypingPersona(prev => prev === nick ? null : prev);
+          setTypingText(prev => { const { [nick]: _, ...rest } = prev; return rest; });
+          typingTimersRef.current.delete(nick);
+        }, 15000));
+
+        const existingTimer = thinkingTimersRef.current.get(nick);
+        if (existingTimer) clearTimeout(existingTimer);
+
+        if (phase === "done") {
+          // Fade out after 3s
+          thinkingTimersRef.current.set(nick, setTimeout(() => {
+            setThinkingByPersona(prev => {
+              const { [nick]: _gone, ...rest } = prev;
+              return rest;
+            });
+            thinkingTimersRef.current.delete(nick);
+          }, 3000));
+        } else {
+          // Safety cleanup if no update for 30s
+          thinkingTimersRef.current.set(nick, setTimeout(() => {
+            setThinkingByPersona(prev => {
+              const { [nick]: _gone, ...rest } = prev;
+              return rest;
+            });
+            thinkingTimersRef.current.delete(nick);
+          }, 30000));
+        }
         return;
       }
 
@@ -571,6 +651,7 @@ export function useChatState(): UseChatStateReturn {
     toggleSidebar,
     typingPersona,
     typingText,
+    thinkingByPersona,
     ws,
     sounds,
     messagesEndRef,

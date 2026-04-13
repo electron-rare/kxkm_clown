@@ -4918,3 +4918,107 @@ code {
   .tl-tick-label { display: none; }
   .tl-tick:nth-child(even) { display: none; }
 }
+
+/* ===== Thinking Panel ===== */
+.thinking-panel {
+  width: 320px;
+  min-width: 220px;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border, #333);
+  background: var(--bg-alt, rgba(0, 0, 0, 0.25));
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 12px;
+  overflow: hidden;
+}
+.thinking-panel-collapsed {
+  width: 32px;
+  min-width: 32px;
+}
+.thinking-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border, #333);
+  background: var(--bg-header, rgba(255, 255, 255, 0.03));
+  flex-shrink: 0;
+}
+.thinking-panel-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thinking-panel-collapsed .thinking-panel-header {
+  padding: 6px 4px;
+  justify-content: center;
+}
+.thinking-panel-collapsed .thinking-panel-title { display: none; }
+.thinking-panel-toggle {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+.thinking-panel-toggle:hover { opacity: 0.7; }
+.thinking-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.thinking-panel-empty {
+  opacity: 0.5;
+  font-style: italic;
+  padding: 10px;
+  text-align: center;
+}
+.thinking-entry {
+  border-left: 3px solid #666;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 2px;
+  transition: opacity 0.3s ease;
+}
+.thinking-phase-done { opacity: 0.55; }
+.thinking-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+.thinking-entry-nick { font-weight: 700; }
+.thinking-entry-progress {
+  font-size: 10px;
+  opacity: 0.75;
+  letter-spacing: 1px;
+}
+.thinking-entry-flavor {
+  font-size: 10px;
+  font-style: italic;
+  opacity: 0.6;
+  margin-bottom: 4px;
+}
+.thinking-entry-buf {
+  margin: 0;
+  padding: 4px 6px;
+  max-height: 140px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0.85;
+}
+@media (max-width: 800px) {
+  .thinking-panel { display: none; }
+}

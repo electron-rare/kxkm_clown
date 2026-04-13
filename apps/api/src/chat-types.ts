@@ -89,7 +89,18 @@ export type OutboundMessage =
   | { type: "image"; nick: string; text: string; imageData: string; imageMime: string; seq?: number }
   | { type: "music"; nick: string; text: string; audioData: string; audioMime: string; seq?: number }
   | { type: "channelInfo"; channel: string; seq?: number }
-  | { type: "chunk"; nick: string; text: string; color: string; seq: number };
+  | { type: "chunk"; nick: string; text: string; color: string; seq: number }
+  | {
+      type: "thinking";
+      nick: string;
+      personaId: string;
+      phase: "start" | "stream" | "done";
+      progress: number;
+      buf: string;
+      flavor?: string;
+      bar?: string;
+      seq?: number;
+    };
 
 // Chat log entry
 export interface ChatLogEntry {
